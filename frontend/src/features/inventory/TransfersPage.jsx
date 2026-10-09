@@ -160,7 +160,7 @@ export default function TransfersPage() {
       <PageHeader
         title="Branch transfers"
         subtitle="Move stock between branches with a dispatch and receive trail."
-        breadcrumbs={[{ label: 'Inventory' }, { label: 'Transfers' }]}
+        breadcrumbs={[{ label: 'Stock' }, { label: 'Transfers' }]}
         actions={
           canTransfer && (
             <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setDrawer(true)}>

@@ -1,5 +1,5 @@
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
-import { Box, Button, Chip, MenuItem, Stack, TextField, Typography } from '@mui/material';
+import { Box, Button, Chip, LinearProgress, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { formatINR } from '@jerp/shared';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
@@ -7,13 +7,14 @@ import Amount from '../../components/Amount.jsx';
 import DataTable from '../../components/DataTable.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
 import SearchField from '../../components/SearchField.jsx';
-import { viewColumn } from '../../components/ViewButton.jsx';
+import ViewButton from '../../components/ViewButton.jsx';
 import { useListParams } from '../../hooks/useListParams.js';
 import { usePermission } from '../../hooks/usePermission.js';
 import { formatDate } from '../../utils/format.js';
 import AdvanceDrawer from './AdvanceDrawer.jsx';
+import { AdvanceActions } from './AdvanceHistory.jsx';
 import { useAdvanceListQuery } from './hrApi.js';
-import { payModeLabel } from './hrUi.jsx';
+import { monthLabel, payModeLabel } from './hrUi.jsx';
 
 const filterSlots = { inputLabel: { shrink: true }, select: { displayEmpty: true } };
 
@@ -21,6 +22,7 @@ export default function AdvancesPage() {
   const navigate = useNavigate();
   const canGive = usePermission('payroll.process');
   const [open, setOpen] = useState(false);
+  const [editAdvance, setEditAdvance] = useState(null);
   const list = useListParams({ status: 'open' });
   const { data, isLoading, isFetching, error, refetch } = useAdvanceListQuery(list.params);
 
@@ -32,14 +34,56 @@ export default function AdvancesPage() {
         <Box>
           <Typography variant="subtitle2">{a.employee.name}</Typography>
           <Typography variant="caption" color="textSecondary">
-            {a.advanceNo} · {formatDate(a.businessDate)} · {payModeLabel(a.mode)}
+            {a.advanceNo} · {payModeLabel(a.mode)}
           </Typography>
         </Box>
       ),
     },
-    { key: 'amount', label: 'Given', align: 'right', render: (a) => <Amount paise={a.amountPaise} decimals={0} /> },
-    { key: 'inst', label: 'Per month', align: 'right', render: (a) => formatINR(a.installmentPaise, { decimals: 0 }) },
-    { key: 'balance', label: 'Balance', align: 'right', render: (a) => (a.balancePaise ? <Amount paise={a.balancePaise} tone="due" decimals={0} /> : <Amount paise={0} tone="paid" decimals={0} suffix=" · recovered" />) },
+    {
+      key: 'given',
+      label: 'Given on',
+      render: (a) => (
+        <Box>
+          <Typography variant="body2">{formatDate(a.businessDate)}</Typography>
+          <Amount paise={a.amountPaise} decimals={0} sx={{ fontWeight: 600 }} />
+        </Box>
+      ),
+    },
+    {
+      key: 'plan',
+      label: 'Deducted from',
+      render: (a) => (
+        <Box>
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+            {a.recoverFrom ? `${monthLabel(a.recoverFrom)} salary` : 'Next payroll'}
+          </Typography>
+          <Typography variant="caption" color="textSecondary">
+            {a.instalments <= 1 ? 'All at once' : `${formatINR(a.installmentPaise, { decimals: 0 })} × ${a.instalments} months`}
+          </Typography>
+        </Box>
+      ),
+    },
+    {
+      key: 'recovered',
+      label: 'Recovered',
+      width: 190,
+      render: (a) => {
+        const pct = Math.round((a.recoveredPaise / a.amountPaise) * 100);
+        return (
+          <Box sx={{ minWidth: 150 }}>
+            <Stack direction="row" sx={{ justifyContent: 'space-between', mb: 0.5 }}>
+              <Typography variant="caption" sx={{ fontWeight: 600 }}>
+                {formatINR(a.recoveredPaise, { decimals: 0 })}
+              </Typography>
+              <Typography variant="caption" sx={{ fontWeight: 600, color: a.balancePaise ? 'error.main' : 'success.main' }}>
+                {a.balancePaise ? `${formatINR(a.balancePaise, { decimals: 0 })} left` : 'Done'}
+              </Typography>
+            </Stack>
+            <LinearProgress variant="determinate" value={pct} color={a.balancePaise ? 'warning' : 'success'} sx={{ height: 6, borderRadius: 3 }} />
+          </Box>
+        );
+      },
+    },
     { key: 'status', label: 'Status', render: (a) => <Chip size="small" label={a.status === 'open' ? 'Recovering' : 'Closed'} color={a.status === 'open' ? 'warning' : 'default'} variant="outlined" sx={{ height: 22 }} /> },
   ];
 
@@ -65,7 +109,21 @@ export default function AdvancesPage() {
         }
       />
       <DataTable
-        columns={[...columns, viewColumn((a) => navigate(`/hr/employees/${a.employee.id}`), { title: 'Open employee', name: (a) => a.employee.name })]}
+        columns={[
+          ...columns,
+          {
+            key: 'actions',
+            label: 'Action',
+            align: 'right',
+            width: 130,
+            render: (a) => (
+              <Stack direction="row" sx={{ justifyContent: 'flex-end', alignItems: 'center' }}>
+                <AdvanceActions advance={a} canEdit={canGive} onEdit={setEditAdvance} />
+                <ViewButton title="Open employee" name={a.employee.name} onClick={() => navigate(`/hr/employees/${a.employee.id}`)} />
+              </Stack>
+            ),
+          },
+        ]}
         rows={data?.items}
         loading={isLoading}
         fetching={isFetching}
@@ -85,6 +143,7 @@ export default function AdvancesPage() {
         }
       />
       <AdvanceDrawer open={open} onClose={() => setOpen(false)} />
+      <AdvanceDrawer open={Boolean(editAdvance)} advance={editAdvance} onClose={() => setEditAdvance(null)} />
     </>
   );
 }

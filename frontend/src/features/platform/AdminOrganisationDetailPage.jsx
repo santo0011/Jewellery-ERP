@@ -1,8 +1,9 @@
-import { Alert, Box, Button, Card, CardContent, Chip, Grid, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
+import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
+import { Alert, Box, Button, Card, CardContent, Chip, Grid, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Tooltip, Typography } from '@mui/material';
 import { stateName } from '@jerp/shared';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
-import { useParams } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
 import ConfirmDialog from '../../components/ConfirmDialog.jsx';
 import InfoCard from '../../components/InfoCard.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
@@ -11,7 +12,9 @@ import StatusChip from '../../components/StatusChip.jsx';
 import { getErrorMessage } from '../../utils/errors.js';
 import { formatDate, formatDateTime } from '../../utils/format.js';
 import { BranchUsage, OrgStatusChip } from './AdminOrganisationsPage.jsx';
-import { useOrganisationQuery, useSetBranchLimitMutation, useSetOrganisationStatusMutation } from './platformApi.js';
+import EditHistory from '../../components/EditHistory.jsx';
+import { useDeleteOrganisationMutation, useOrganisationHistoryQuery, useOrganisationQuery, useSetBranchLimitMutation, useSetOrganisationStatusMutation } from './platformApi.js';
+import OrgSubscriptionPanel from './OrgSubscriptionPanel.jsx';
 
 function BranchLimitCard({ org }) {
   const [value, setValue] = useState(String(org.branchLimit));
@@ -65,8 +68,12 @@ function BranchLimitCard({ org }) {
 export default function AdminOrganisationDetailPage() {
   const { id } = useParams();
   const { data: org, isLoading, error, refetch } = useOrganisationQuery(id);
+  const history = useOrganisationHistoryQuery(id);
   const [setStatus, { isLoading: saving }] = useSetOrganisationStatusMutation();
   const [confirm, setConfirm] = useState(false);
+  const [removeOrg, { isLoading: deleting }] = useDeleteOrganisationMutation();
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const navigate = useNavigate();
 
   if (isLoading) return <LoadingState />;
   if (error) return <ErrorState error={error} onRetry={refetch} />;
@@ -82,6 +89,19 @@ export default function AdminOrganisationDetailPage() {
     setConfirm(false);
   };
 
+  const doDelete = async () => {
+    try {
+      await removeOrg(id).unwrap();
+      toast.success(`${org.name} deleted`);
+      navigate('/admin/organisations', { replace: true });
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+      setConfirmDelete(false);
+    }
+  };
+  // Why it can no longer be deleted, e.g. "3 products, 1 customer".
+  const inUse = (org.records ?? []).map((r) => `${r.count} ${r.type}${r.count === 1 ? '' : 's'}`).join(', ');
+
   return (
     <>
       <PageHeader
@@ -95,9 +115,18 @@ export default function AdminOrganisationDetailPage() {
         }
         breadcrumbs={[{ label: 'Organisations', to: '/admin/organisations' }, { label: org.name }]}
         actions={
-          <Button variant="outlined" color={suspend ? 'error' : 'success'} onClick={() => setConfirm(true)}>
-            {suspend ? 'Deactivate' : 'Activate'}
-          </Button>
+          <Stack direction="row" spacing={1}>
+            <Tooltip title={org.canDelete ? 'Nothing has been added yet, so it can be removed completely' : `Cannot delete: it already has ${inUse}. Deactivate it instead.`}>
+              <span>
+                <Button variant="outlined" color="error" startIcon={<DeleteOutlineRoundedIcon />} disabled={!org.canDelete} onClick={() => setConfirmDelete(true)}>
+                  Delete
+                </Button>
+              </span>
+            </Tooltip>
+            <Button variant="outlined" color={suspend ? 'error' : 'success'} onClick={() => setConfirm(true)}>
+              {suspend ? 'Deactivate' : 'Activate'}
+            </Button>
+          </Stack>
         }
       />
       {org.status === 'suspended' && (
@@ -106,6 +135,9 @@ export default function AdminOrganisationDetailPage() {
         </Alert>
       )}
       <Grid container spacing={2}>
+        <Grid size={12}>
+          <OrgSubscriptionPanel orgId={org.id} />
+        </Grid>
         <Grid size={{ xs: 12, md: 5 }}>
           <BranchLimitCard org={org} />
         </Grid>
@@ -156,6 +188,9 @@ export default function AdminOrganisationDetailPage() {
             </Typography>
           </InfoCard>
         </Grid>
+        <Grid size={12}>
+          <EditHistory entries={history.data} isLoading={history.isLoading} error={history.error} />
+        </Grid>
       </Grid>
       <ConfirmDialog
         open={confirm}
@@ -166,6 +201,16 @@ export default function AdminOrganisationDetailPage() {
         loading={saving}
         onConfirm={toggle}
         onClose={() => setConfirm(false)}
+      />
+      <ConfirmDialog
+        open={confirmDelete}
+        title={`Delete ${org.name}?`}
+        message="It has no records yet, so it will be removed completely: its login, head office, roles and settings. This cannot be undone."
+        confirmLabel="Delete organisation"
+        danger
+        loading={deleting}
+        onConfirm={doDelete}
+        onClose={() => setConfirmDelete(false)}
       />
     </>
   );

@@ -16,6 +16,9 @@ export default defineConfig({
       MAX_FAILED_LOGINS: '3',
       ALLOW_PUBLIC_SIGNUP: 'true',
       STORAGE_DIR: join(tmpdir(), 'jerp-test-storage'),
+      // Fake gateway keys: tests stub fetch, nothing reaches Cashfree.
+      CASHFREE_APP_ID: 'TEST_APP_ID',
+      CASHFREE_SECRET_KEY: 'test-cashfree-secret',
     },
   },
 });

@@ -130,7 +130,7 @@ describe('super admin', () => {
     expect(taken.status).toBe(409);
   });
 
-  it('changes the plan, which sets the user limit, but never below active users', async () => {
+  it("enforces the plan's user limit", async () => {
     const sa = await superAdmin();
     const body = orgBody({ branchLimit: 2 });
     const org = (await api().post('/api/v1/platform/organisations').set(bearer(sa.token)).send(body)).body.data;
@@ -141,16 +141,6 @@ describe('super admin', () => {
       api().post('/api/v1/users').set(bearer(owner)).send({ name: `Staff ${n}`, email: `s${n}${Date.now()}@abc.local`, password: '123456', roleIds: [roleId], branchAccess: { all: true, branchIds: [] } });
     for (let n = 1; n <= 4; n += 1) expect((await addUser(n)).status).toBe(201);
     expect((await addUser(5)).body.error.code).toBe('PLAN_LIMIT_REACHED');
-
-    const edit = { organisationName: org.name, email: body.email, mobile: body.mobile, stateCode: '19', branchLimit: 2 };
-    const upgraded = await api().patch(`/api/v1/platform/organisations/${org.id}`).set(bearer(sa.token)).send({ ...edit, plan: 'professional' });
-    expect(upgraded.body.data).toMatchObject({ plan: 'professional', userLimit: 25, activeUsers: 5 });
-    expect((await api().get('/api/v1/auth/me').set(bearer(owner))).body.data.subscription).toMatchObject({ plan: 'professional', status: 'active', trialEndsAt: null });
-    expect((await addUser(5)).status).toBe(201);
-
-    const tooSmall = await api().patch(`/api/v1/platform/organisations/${org.id}`).set(bearer(sa.token)).send({ ...edit, plan: 'basic' });
-    expect(tooSmall.body.error.code).toBe('PLAN_BELOW_USAGE');
-    expect(tooSmall.body.error.details[0].path).toBe('plan');
   });
 
   it('creates an organisation whose email and password sign straight in to its own panel', async () => {
@@ -314,5 +304,75 @@ describe('branch permissions', () => {
     const manager = (await api().post('/api/v1/auth/login').send({ email, password: 'Secret123' })).body.data.accessToken;
     const res = await api().put(`/api/v1/branches/${ctx.kol}/permissions`).set(bearer(manager)).send({ permissions: BRANCH_PERMISSIONS });
     expect(res.status).toBe(403);
+  });
+});
+
+describe('super admin: free days and deleting unused organisations', () => {
+  it('gives a new organisation the free days chosen; 0 means it must subscribe before using the app', async () => {
+    const sa = await superAdmin();
+    const ten = (await api().post('/api/v1/platform/organisations').set(bearer(sa.token)).send(orgBody({ freeDays: 10 }))).body.data;
+    expect(ten.subscription).toMatchObject({ status: 'trial', expired: false, daysLeft: 10 });
+
+    const none = orgBody({ freeDays: 0 });
+    await api().post('/api/v1/platform/organisations').set(bearer(sa.token)).send(none);
+    const token = await ownerSession(none.email);
+    const blocked = await api().get('/api/v1/customers').set(bearer(token));
+    expect(blocked.status).toBe(402);
+
+    const bad = await api().post('/api/v1/platform/organisations').set(bearer(sa.token)).send(orgBody({ freeDays: -1 }));
+    expect(bad.body.error.details.some((d) => d.path === 'freeDays')).toBe(true);
+  });
+
+  it('deletes an organisation with no records of its own, and refuses once it has any', async () => {
+    const sa = await superAdmin();
+    const unused = (await api().post('/api/v1/platform/organisations').set(bearer(sa.token)).send(orgBody())).body.data;
+    expect(unused).toMatchObject({ canDelete: true, records: [] });
+    const del = await api().delete(`/api/v1/platform/organisations/${unused.id}`).set(bearer(sa.token));
+    expect(del.status).toBe(200);
+    expect((await api().get(`/api/v1/platform/organisations/${unused.id}`).set(bearer(sa.token))).status).toBe(404);
+    expect(await User.countDocuments({ organisationId: unused.id }).setOptions({ skipTenant: true })).toBe(0);
+
+    const body = orgBody();
+    const used = (await api().post('/api/v1/platform/organisations').set(bearer(sa.token)).send(body)).body.data;
+    const token = await ownerSession(body.email);
+    await api().post('/api/v1/customers').set(bearer(token)).send({ name: 'First Buyer', mobile: '9830011111', address: { stateCode: '19' } });
+    const detail = (await api().get(`/api/v1/platform/organisations/${used.id}`).set(bearer(sa.token))).body.data;
+    expect(detail.canDelete).toBe(false);
+    expect(detail.records).toEqual([{ type: 'customer', count: 1 }]);
+    const refused = await api().delete(`/api/v1/platform/organisations/${used.id}`).set(bearer(sa.token));
+    expect(refused.status).toBe(409);
+    expect(refused.body.error.code).toBe('ORGANISATION_IN_USE');
+  });
+});
+
+describe('super admin: editing free days and the edit history', () => {
+  it('changes the free days while on the free period, and both panels show who changed what', async () => {
+    const sa = await superAdmin();
+    const body = orgBody({ freeDays: 14 });
+    const org = (await api().post('/api/v1/platform/organisations').set(bearer(sa.token)).send(body)).body.data;
+    expect(org.freeDays).toBe(14);
+
+    const edit = { organisationName: org.name, email: body.email, mobile: body.mobile, stateCode: '19', branchLimit: 3 };
+    const longer = (await api().patch(`/api/v1/platform/organisations/${org.id}`).set(bearer(sa.token)).send({ ...edit, freeDays: 30, branchLimit: 4 })).body.data;
+    expect(longer).toMatchObject({ freeDays: 30, branchLimit: 4 });
+    expect(longer.subscription.daysLeft).toBe(30);
+
+    const owner = await ownerSession(body.email);
+    const renamed = await api().patch('/api/v1/organisation').set(bearer(owner)).send({ name: 'Renamed By Owner', timezone: 'Asia/Kolkata', address: { stateCode: '19' } });
+    expect(renamed.status).toBe(200);
+
+    const adminView = (await api().get(`/api/v1/platform/organisations/${org.id}/history`).set(bearer(sa.token))).body.data;
+    const ownView = (await api().get('/api/v1/organisation/history').set(bearer(owner))).body.data;
+    expect(ownView).toEqual(adminView);
+    expect(adminView.map((e) => e.title)).toEqual(['Details edited', 'Details edited', 'Organisation created']);
+    expect(adminView[0]).toMatchObject({ by: { kind: 'user', name: 'Amit Das' } });
+    expect(adminView[0].changes).toContainEqual({ field: 'name', label: 'Business name', from: org.name, to: 'Renamed By Owner' });
+    expect(adminView[1]).toMatchObject({ by: { kind: 'admin', name: 'Platform Owner' } });
+    expect(adminView[1].changes).toEqual(
+      expect.arrayContaining([
+        { field: 'branchLimit', label: 'Branch limit', from: '3', to: '4' },
+        { field: 'freeDays', label: 'Free days', from: '14 days', to: '30 days' },
+      ]),
+    );
   });
 });

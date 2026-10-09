@@ -21,6 +21,19 @@ const employeeSchema = new mongoose.Schema(
     bank: { accountName: { type: String, default: null }, accountNumber: { type: String, default: null }, ifsc: { type: String, default: null } },
     address: { type: String, default: null },
     notes: { type: String, default: null },
+    photoFileId: { type: ObjectId, ref: 'FileAsset', default: null },
+    // Joined / left / rejoined, oldest first. Older employees have none; their history is read from the dates.
+    history: {
+      type: [
+        new mongoose.Schema(
+          { event: { type: String, enum: ['joined', 'left', 'rejoined'], required: true }, date: { type: String, required: true }, note: { type: String, default: null }, by: { type: ObjectId, ref: 'User', default: null }, at: { type: Date, default: Date.now } },
+          { _id: false },
+        ),
+      ],
+      default: [],
+    },
+    // Days off the rolls between leaving and rejoining (both dates included): not shown in attendance, not paid.
+    breaks: { type: [new mongoose.Schema({ from: String, to: String }, { _id: false })], default: [] },
     createdBy: { type: ObjectId, ref: 'User', default: null },
     updatedBy: { type: ObjectId, ref: 'User', default: null },
   },
@@ -77,9 +90,23 @@ const salaryAdvanceSchema = new mongoose.Schema(
     mode: { type: String, required: true },
     reference: { type: String, default: null },
     note: { type: String, default: null },
-    businessDate: { type: String, required: true },
+    businessDate: { type: String, required: true }, // the day the advance was given
+    // First salary month (YYYY-MM) it is deducted from; null on older advances = due from any month.
+    recoverFrom: { type: String, default: null },
     status: { type: String, enum: ['open', 'closed'], default: 'open' },
     recoveries: { type: [recoverySchema], default: [] },
+    // Business day it was entered — it can be edited only on that day.
+    recordedOn: { type: String, default: null },
+    // Every edit: who, when, why and what changed.
+    edits: {
+      type: [
+        new mongoose.Schema(
+          { at: Date, by: { type: ObjectId, ref: 'User' }, byName: String, reason: String, changes: [{ _id: false, field: String, from: mongoose.Schema.Types.Mixed, to: mongoose.Schema.Types.Mixed }] },
+          { _id: false },
+        ),
+      ],
+      default: [],
+    },
     createdBy: { type: ObjectId, ref: 'User', default: null },
   },
   { timestamps: true },
@@ -104,6 +131,10 @@ const payrollLineSchema = new mongoose.Schema(
     otherDeductionPaise: { type: Number, default: 0 },
     advanceBalancePaise: { type: Number, default: 0 },
     advanceDeductionPaise: { type: Number, default: 0 },
+    // Advances due this month, as they stood when the payroll was calculated (for the payslip and review).
+    advances: { type: [mongoose.Schema.Types.Mixed], default: [] },
+    // Open advances set to be recovered from a later month — shown, not deducted.
+    advanceUpcomingPaise: { type: Number, default: 0 },
     netPaise: Number,
     note: { type: String, default: null },
     paid: { mode: String, reference: String, at: Date, by: { type: ObjectId, ref: 'User' } },

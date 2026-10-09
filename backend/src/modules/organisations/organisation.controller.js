@@ -1,4 +1,5 @@
 import { sendOk } from '../../utils/response.js';
+import { limitsOf } from '../billing/limits.js';
 import * as organisationService from './organisation.service.js';
 
 export async function getCurrent(req, res) {
@@ -16,7 +17,7 @@ export async function getSubscription(req, res) {
     status: subscription.status,
     trialEndsAt: subscription.trialEndsAt,
     currentPeriodEnd: subscription.currentPeriodEnd,
-    limits: subscription.limits,
+    limits: limitsOf(subscription),
   });
 }
 

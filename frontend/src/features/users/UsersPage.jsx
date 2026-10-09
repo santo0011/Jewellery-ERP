@@ -176,7 +176,7 @@ export default function UsersPage() {
     },
     {
       key: 'actions',
-      label: '',
+      label: 'Action',
       align: 'right',
       width: 132,
       render: (u) => (

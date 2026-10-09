@@ -9,7 +9,6 @@ import { useSelector } from "react-redux";
 import { Link as RouterLink } from "react-router";
 import { usePermissions, useSession } from "../../hooks/usePermission.js";
 import { fonts } from "../../theme/tokens.js";
-import { daysUntil } from "../../utils/format.js";
 import BranchDashboard from "./BranchDashboard.jsx";
 
 // The counter's everyday jobs, one click from home.
@@ -31,10 +30,8 @@ export default function HomePage() {
   const { data: session } = useSession();
   const permissions = usePermissions();
   const activeBranchId = useSelector((s) => s.auth.activeBranchId);
-  const { user, organisation, subscription, branches } = session;
-  const trialDays = subscription?.status === "trial" ? daysUntil(subscription.trialEndsAt) : null;
+  const { user, organisation, branches } = session;
   const showDashboard = ["sales.view", "order.view", "inventory.view"].some((p) => permissions.has(p));
-  const isOwner = user.allBranches && !user.branchLogin;
   const actions = QUICK_ACTIONS.filter((a) => permissions.has(a.perm));
 
   return (
@@ -61,11 +58,6 @@ export default function HomePage() {
       </Stack>
 
       {/* Only things that need action show up here. */}
-      {isOwner && trialDays !== null && trialDays <= 7 && (
-        <Alert severity={trialDays <= 3 ? "error" : "warning"} sx={{ mb: 2 }}>
-          {trialDays > 0 ? `Your trial ends in ${trialDays} day${trialDays === 1 ? "" : "s"}.` : "Your trial has ended."} Contact us to continue without interruption.
-        </Alert>
-      )}
       {!organisation.gstin && permissions.has("organisation.edit") && (
         <Alert
           severity="info"

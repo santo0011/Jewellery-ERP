@@ -1,4 +1,8 @@
+import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
+import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
+import TodayOutlinedIcon from '@mui/icons-material/TodayOutlined';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import { Box, Button, Chip, IconButton, MenuItem, Stack, TextField, Tooltip, Typography } from '@mui/material';
 import { formatINR } from '@jerp/shared';
@@ -13,6 +17,28 @@ import { useListParams } from '../../hooks/useListParams.js';
 import { formatDateTime } from '../../utils/format.js';
 import { paymentLabel } from '../orders/orderUi.jsx';
 import { useSalesQuery } from './saleApi.js';
+import SummaryCards, { SummaryCard } from '../../components/SummaryCards.jsx';
+
+/** Today, this month, collected and credit owed — the four numbers people check first. */
+function SalesCards({ summary }) {
+  const bills = (n) => `${n} bill${n === 1 ? '' : 's'}`;
+  const inr = (p) => formatINR(p, { decimals: 0 });
+  return (
+    <SummaryCards>
+      <SummaryCard icon={TodayOutlinedIcon} label="Today's sales" value={inr(summary.today.totalPaise)} caption={summary.today.bills ? bills(summary.today.bills) : 'No bills yet today'} />
+      <SummaryCard icon={CalendarMonthOutlinedIcon} label="This month" value={inr(summary.month.totalPaise)} caption={`${bills(summary.month.bills)} · avg ${inr(summary.month.averagePaise)}`} tone="blue" />
+      <SummaryCard icon={PaymentsOutlinedIcon} label="Collected this month" value={inr(summary.month.collectedPaise)} caption="Cash, card, UPI, bank" tone="green" valueTone="paid" />
+      <SummaryCard
+        icon={AccountBalanceWalletOutlinedIcon}
+        label="Due from customers"
+        value={inr(summary.due.totalPaise)}
+        caption={summary.due.bills ? `On credit · ${bills(summary.due.bills)}` : 'Nothing on credit'}
+        tone={summary.due.totalPaise ? 'red' : 'green'}
+        valueTone={summary.due.totalPaise ? 'due' : 'paid'}
+      />
+    </SummaryCards>
+  );
+}
 
 export default function InvoicesPage() {
   const navigate = useNavigate();
@@ -89,7 +115,7 @@ export default function InvoicesPage() {
     { key: 'status', label: 'Status', render: (s) => (s.status !== 'completed' ? <StatusChip status="cancelled" label="Cancelled" /> : s.duePaise > 0 ? <StatusChip status="suspended" label="Due" /> : <StatusChip status="active" label="Paid" />) },
     {
       key: 'actions',
-      label: '',
+      label: 'Action',
       align: 'right',
       width: 56,
       render: (s) => (
@@ -115,6 +141,7 @@ export default function InvoicesPage() {
           )
         }
       />
+      {data?.meta?.summary && <SalesCards summary={data.meta.summary} />}
       <DataTable
         columns={columns}
         rows={data?.items}

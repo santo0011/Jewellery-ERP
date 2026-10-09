@@ -3,6 +3,11 @@ import { runWithContext } from '../core/context/requestContext.js';
 import { loadPrincipal, resolveActiveBranch } from '../modules/auth/principal.service.js';
 import { verifyAccessToken } from '../modules/auth/token.service.js';
 import { ApiError } from '../utils/ApiError.js';
+import { Subscription } from '../modules/organisations/subscription.model.js';
+import { effectiveSubscription } from '../modules/billing/limits.js';
+
+// While the subscription has run out, only signing in/out and the billing page work — so they can renew.
+const OPEN_WHEN_EXPIRED = ['/api/v1/auth', '/api/v1/billing'];
 
 function readBearer(req) {
   const header = req.get('authorization');
@@ -20,6 +25,12 @@ export async function authenticate(req, res, next) {
   const principal = await loadPrincipal(payload);
   if (principal.mustChangePassword && req.baseUrl !== '/api/v1/auth') {
     throw ApiError.forbidden('Please change your password to continue', 'PASSWORD_CHANGE_REQUIRED');
+  }
+  if (!OPEN_WHEN_EXPIRED.includes(req.baseUrl)) {
+    const sub = await Subscription.findOne({ organisationId: principal.organisationId }).setOptions({ skipTenant: true }).select('status trialEndsAt currentPeriodEnd').lean();
+    if (effectiveSubscription(sub).expired) {
+      throw new ApiError(402, 'SUBSCRIPTION_EXPIRED', 'Your subscription has ended. Renew it under Settings → Subscription to continue.');
+    }
   }
   const { branchId, allowedPermissions } = await resolveActiveBranch(principal, req.get('x-branch-id'));
   const rolePermissions = principal.permissions;

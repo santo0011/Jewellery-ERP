@@ -305,13 +305,13 @@ export default function OrderDetailPage() {
               <Typography variant="h4" sx={{ mb: 2 }}>
                 Items
               </Typography>
-              <Box sx={{ overflowX: 'auto' }}>
-                <Table size="small">
+              {/* Fits the card without a sideways scrollbar: metal and weight share a column, text wraps, tighter cells. */}
+              <Box>
+                <Table size="small" sx={{ width: '100%', '& th, & td': { px: 1 }, '& th:first-of-type, & td:first-of-type': { pl: 0 }, '& th:last-of-type, & td:last-of-type': { pr: 0 }, '& th': { whiteSpace: 'nowrap' } }}>
                   <TableHead>
                     <TableRow>
                       <TableCell>Item</TableCell>
-                      <TableCell>Metal</TableCell>
-                      <TableCell align="right">Approx. wt</TableCell>
+                      <TableCell>Metal · wt</TableCell>
                       <TableCell align="right">Qty</TableCell>
                       <TableCell align="right">Estimate</TableCell>
                       <TableCell align="right">Finished piece</TableCell>
@@ -320,7 +320,7 @@ export default function OrderDetailPage() {
                   <TableBody>
                     {order.items.map((i, n) => (
                       <TableRow key={n}>
-                        <TableCell>
+                        <TableCell sx={{ wordBreak: 'break-word' }}>
                           <Typography variant="body2" sx={{ fontWeight: 600 }}>
                             {i.description}
                           </Typography>
@@ -329,9 +329,13 @@ export default function OrderDetailPage() {
                           </Typography>
                           <ItemSpecs item={i} />
                         </TableCell>
-                        <TableCell sx={{ whiteSpace: 'nowrap' }}>{i.purity ? purityLabel(i.metal, i.purity) : i.metal}</TableCell>
-                        <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                          {i.approxWeightMg ? formatWeight(i.approxWeightMg) : '—'}
+                        <TableCell>
+                          <Typography variant="body2" sx={{ whiteSpace: 'nowrap' }}>
+                            {i.purity ? purityLabel(i.metal, i.purity) : i.metal}
+                          </Typography>
+                          <Typography variant="caption" color="textSecondary" sx={{ whiteSpace: 'nowrap' }}>
+                            {i.approxWeightMg ? `~${formatWeight(i.approxWeightMg)}` : 'Weight —'}
+                          </Typography>
                         </TableCell>
                         <TableCell align="right">{i.quantity}</TableCell>
                         <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>

@@ -7,7 +7,7 @@ import { EmptyState, ErrorState, LoadingState } from '../../components/StateView
 import { usePermission, useSession } from '../../hooks/usePermission.js';
 import { formatDate, formatDateTime } from '../../utils/format.js';
 import { useEmployeeQuery, usePayrollRunQuery } from './hrApi.js';
-import { formatDays, payModeLabel } from './hrUi.jsx';
+import { advanceSplit, formatDays, payModeLabel } from './hrUi.jsx';
 import { daysSummary } from './PayrollRunPage.jsx';
 
 // Print only the payslip, on plain white paper.
@@ -159,13 +159,50 @@ export default function PayslipPage() {
             {!deductions && <Row label="None" value={formatINR(0)} />}
             <Divider sx={{ borderColor: '#e5e1d8' }} />
             <Row label="Total deductions" value={formatINR(deductions)} strong />
-            {l.advanceBalancePaise > l.advanceDeductionPaise && (
-              <Typography variant="caption" sx={{ color: '#6b6b6b' }}>
-                Advance still outstanding after this month: {formatINR(l.advanceBalancePaise - l.advanceDeductionPaise)}
-              </Typography>
-            )}
           </Grid>
         </Grid>
+
+        {(l.advances?.length > 0 || l.advanceUpcomingPaise > 0) && (
+          <Box sx={{ mt: 2.5 }}>
+            <Typography variant="overline" sx={{ color: '#6b6b6b' }}>
+              Advance details
+            </Typography>
+            <Divider sx={{ borderColor: '#e5e1d8' }} />
+            {l.advances?.length > 0 && (
+              <Box component="table" sx={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem', '& th, & td': { py: 0.75, px: 0.5, borderBottom: '1px solid #eee9dc', textAlign: 'right' }, '& th:first-of-type, & td:first-of-type': { textAlign: 'left' }, '& th': { color: '#6b6b6b', fontWeight: 600, fontSize: '0.75rem' } }}>
+                <thead>
+                  <tr>
+                    <th>Advance</th>
+                    <th>Given on</th>
+                    <th>Amount</th>
+                    <th>Due before</th>
+                    <th>Cut this month</th>
+                    <th>Still due</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {advanceSplit(l).map((a) => (
+                    <tr key={a.advanceNo}>
+                      <td>{a.advanceNo}</td>
+                      <td>{formatDate(a.givenOn)}</td>
+                      <td>{formatINR(a.amountPaise)}</td>
+                      <td>{formatINR(a.balancePaise)}</td>
+                      <Box component="td" sx={{ fontWeight: 700 }}>
+                        {a.cutPaise ? `− ${formatINR(a.cutPaise)}` : '—'}
+                      </Box>
+                      <td>{formatINR(a.leftPaise)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </Box>
+            )}
+            {l.advanceUpcomingPaise > 0 && (
+              <Typography variant="caption" sx={{ color: '#6b6b6b', display: 'block', mt: 0.75 }}>
+                Another {formatINR(l.advanceUpcomingPaise)} of advance is set to be deducted from a later month’s salary.
+              </Typography>
+            )}
+          </Box>
+        )}
 
         <Box sx={{ mt: 3, p: 2, borderRadius: 2, bgcolor: '#f7f3e8', border: '1px solid #e5e1d8' }}>
           <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'baseline' }}>

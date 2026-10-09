@@ -1,6 +1,6 @@
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import { Box, Button, Chip, MenuItem, Stack, TextField, Typography } from '@mui/material';
-import { formatWeight, METAL_OPTIONS, PRODUCT_STATUS_LABELS } from '@jerp/shared';
+import { formatINR, formatWeight, METAL_OPTIONS, PRODUCT_STATUS_LABELS } from '@jerp/shared';
 import { useNavigate } from 'react-router';
 import AuthImage from '../../components/AuthImage.jsx';
 import DataTable from '../../components/DataTable.jsx';
@@ -10,6 +10,11 @@ import { useListParams } from '../../hooks/useListParams.js';
 import { usePermission } from '../../hooks/usePermission.js';
 import { buildCategoryTree, useCategoriesQuery } from '../categories/categoryApi.js';
 import { useProductListQuery } from './productApi.js';
+import SummaryCards, { SummaryCard } from '../../components/SummaryCards.jsx';
+import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
+import ScaleOutlinedIcon from '@mui/icons-material/ScaleOutlined';
+import CurrencyRupeeOutlinedIcon from '@mui/icons-material/CurrencyRupeeOutlined';
+import EditNoteOutlinedIcon from '@mui/icons-material/EditNoteOutlined';
 import { purityLabel } from './productForm.js';
 import { viewColumn } from '../../components/ViewButton.jsx';
 
@@ -85,6 +90,14 @@ export default function ProductsPage() {
           )
         }
       />
+      {data?.meta?.summary && (
+        <SummaryCards>
+          <SummaryCard icon={Inventory2OutlinedIcon} label="In stock" value={`${data.meta.summary.inStock.pieces} pcs`} caption={`${data.meta.summary.sold} sold so far`} onClick={() => list.setFilter('status', 'in_stock')} />
+          <SummaryCard icon={ScaleOutlinedIcon} label="Stock weight" value={formatWeight(data.meta.summary.inStock.grossMg)} caption={`Fine ${formatWeight(data.meta.summary.inStock.fineMg)}`} tone="blue" />
+          {data.meta.summary.inStock.costPaise !== undefined && <SummaryCard icon={CurrencyRupeeOutlinedIcon} label="Stock value" value={formatINR(data.meta.summary.inStock.costPaise, { decimals: 0 })} caption="At cost price" tone="green" />}
+          <SummaryCard icon={EditNoteOutlinedIcon} label="Drafts" value={data.meta.summary.drafts} caption={data.meta.summary.drafts ? 'Not yet in stock — tap to see' : 'Nothing waiting'} tone={data.meta.summary.drafts ? 'amber' : 'grey'} onClick={() => list.setFilter('status', 'draft')} />
+        </SummaryCards>
+      )}
       <DataTable
         columns={[...columns, viewColumn((p) => navigate(`/products/${p.id}`), { name: (p) => p.sku })]}
         rows={data?.items}

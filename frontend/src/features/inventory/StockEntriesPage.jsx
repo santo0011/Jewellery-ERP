@@ -64,7 +64,7 @@ export default function StockEntriesPage({ mode }) {
       <PageHeader
         title={page.title}
         subtitle={page.subtitle}
-        breadcrumbs={[{ label: 'Inventory' }, { label: page.title }]}
+        breadcrumbs={[{ label: 'Stock' }, { label: page.title }]}
         actions={
           canCreate && (
             <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setDrawer(true)}>

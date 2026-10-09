@@ -88,7 +88,7 @@ export default function ApprovalsPage() {
     { key: 'status', label: 'Status', render: (r) => <DocStatusChip status={r.status} /> },
     {
       key: 'actions',
-      label: '',
+      label: 'Action',
       align: 'right',
       width: 56,
       render: (r) => r.status === 'pending' && <ViewButton onClick={() => setActive(r)} title="Review" name={r.docNo} icon={RateReviewOutlinedIcon} />,

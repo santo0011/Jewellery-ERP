@@ -11,6 +11,11 @@ import { usePermission, useSession } from '../../hooks/usePermission.js';
 import { useListParams } from '../../hooks/useListParams.js';
 import { formatDate } from '../../utils/format.js';
 import { useOrdersQuery } from './orderApi.js';
+import SummaryCards, { SummaryCard } from '../../components/SummaryCards.jsx';
+import AssignmentOutlinedIcon from '@mui/icons-material/AssignmentOutlined';
+import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
+import EventBusyOutlinedIcon from '@mui/icons-material/EventBusyOutlined';
+import SavingsOutlinedIcon from '@mui/icons-material/SavingsOutlined';
 import { OrderStatusChip } from './orderUi.jsx';
 
 const TABS = [
@@ -112,7 +117,7 @@ export default function OrdersPage() {
     { key: 'status', label: 'Status', render: (o) => <OrderStatusChip status={o.status} /> },
     {
       key: 'actions',
-      label: '',
+      label: 'Action',
       align: 'right',
       width: 56,
       render: (o) => (
@@ -138,6 +143,14 @@ export default function OrdersPage() {
           )
         }
       />
+      {data?.meta?.summary && (
+        <SummaryCards>
+          <SummaryCard icon={AssignmentOutlinedIcon} label="Open orders" value={data.meta.summary.open} caption={data.meta.summary.estimatedPaise ? `Worth about ${formatINR(data.meta.summary.estimatedPaise, { decimals: 0 })}` : 'Being made or waiting'} onClick={() => list.setFilter('status', 'open')} />
+          <SummaryCard icon={Inventory2OutlinedIcon} label="Ready to deliver" value={data.meta.summary.ready} caption={data.meta.summary.ready ? 'Call the customer' : 'Nothing ready yet'} tone="green" onClick={() => list.setFilter('status', 'ready')} />
+          <SummaryCard icon={EventBusyOutlinedIcon} label="Overdue" value={data.meta.summary.overdue} caption={data.meta.summary.overdue ? 'Past the promised date' : 'All on time'} tone={data.meta.summary.overdue ? 'red' : 'green'} valueTone={data.meta.summary.overdue ? 'due' : undefined} />
+          <SummaryCard icon={SavingsOutlinedIcon} label="Advance held" value={formatINR(data.meta.summary.advancePaise, { decimals: 0 })} caption="Taken on open orders" tone="blue" />
+        </SummaryCards>
+      )}
       <Tabs value={list.filters.status} onChange={(e, v) => list.setFilter('status', v)} variant="scrollable" sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
         {TABS.map((t) => (
           <Tab

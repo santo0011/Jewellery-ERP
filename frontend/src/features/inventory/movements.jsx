@@ -88,7 +88,7 @@ export function movementColumns({ showProduct = true, onView }) {
         </Box>
       ),
     },
-    { key: 'actions', label: '', align: 'right', width: 56, render: (m) => <ViewButton onClick={() => onView(m)} name={m.source.docNo} /> },
+    { key: 'actions', label: 'Action', align: 'right', width: 80, render: (m) => <ViewButton onClick={() => onView(m)} name={m.source.docNo} /> },
   ];
 }
 

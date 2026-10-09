@@ -3,7 +3,7 @@ import { FileAsset } from '../../core/storage/fileAsset.model.js';
 import { storage } from '../../core/storage/storage.service.js';
 import { ApiError } from '../../utils/ApiError.js';
 
-const PURPOSE_PERMISSION = { product_image: 'product.view', order_image: 'order.view', logo: null };
+const PURPOSE_PERMISSION = { product_image: 'product.view', order_image: 'order.view', employee_photo: 'employee.view', logo: null };
 
 export async function serveFile(req, res) {
   const asset = await FileAsset.findById(req.valid.params.id).lean();

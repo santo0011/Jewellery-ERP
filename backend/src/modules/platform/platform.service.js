@@ -1,5 +1,6 @@
+import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
-import { BRANCH_STATUS, ORG_STATUS, PLAN_KEYS, PLAN_LIMITS, SUBSCRIPTION_STATUS, USER_STATUS } from '@jerp/shared';
+import { BRANCH_STATUS, ORG_STATUS, SUBSCRIPTION_STATUS, USER_STATUS } from '@jerp/shared';
 import { env } from '../../config/env.js';
 import { withTransaction } from '../../config/db.js';
 import { ApiError } from '../../utils/ApiError.js';
@@ -11,9 +12,15 @@ import { onboardOrganisation } from '../organisations/organisation.service.js';
 import { Session } from '../auth/session.model.js';
 import { User } from '../users/user.model.js';
 import { recordPlatformAudit } from './platformAuth.service.js';
+import { effectiveSubscription, limitsOf } from '../billing/limits.js';
 import { assertEmailAvailable } from '../users/emailAvailability.js';
 
 const SKIP = { skipTenant: true };
+const DAY = 86400000;
+
+/** Free days, counted from the day the organisation was created; null once it is on a paid period. */
+const freeDaysOf = (org, sub) =>
+  sub?.status === SUBSCRIPTION_STATUS.TRIAL && sub.trialEndsAt ? Math.max(0, Math.round((new Date(sub.trialEndsAt) - new Date(org.createdAt)) / DAY)) : null;
 
 async function countsByOrg(Model, match, orgIds) {
   const rows = await Model.aggregate([{ $match: { ...match, organisationId: { $in: orgIds } } }, { $group: { _id: '$organisationId', count: { $sum: 1 } } }]).option(SKIP);
@@ -22,11 +29,12 @@ async function countsByOrg(Model, match, orgIds) {
 
 async function serializeMany(orgs) {
   const ids = orgs.map((o) => o._id);
-  const [branches, users, owners, subscriptions] = await Promise.all([
+  const [branches, users, owners, subscriptions, records] = await Promise.all([
     countsByOrg(Branch, { status: BRANCH_STATUS.ACTIVE }, ids),
     countsByOrg(User, { status: USER_STATUS.ACTIVE }, ids),
     User.find({ _id: { $in: orgs.map((o) => o.ownerUserId).filter(Boolean) } }).setOptions(SKIP).select('name email mobile lastLoginAt').lean(),
-    Subscription.find({ organisationId: { $in: ids } }).setOptions(SKIP).select('organisationId plan status').lean(),
+    Subscription.find({ organisationId: { $in: ids } }).setOptions(SKIP).lean(),
+    recordsByOrg(ids),
   ]);
   const ownerById = new Map(owners.map((u) => [String(u._id), u]));
   const subscriptionByOrg = new Map(subscriptions.map((sub) => [String(sub.organisationId), sub]));
@@ -46,10 +54,18 @@ async function serializeMany(orgs) {
       branchesUsed: used,
       branchesAvailable: Math.max(0, o.branchLimit - used),
       activeUsers: users.get(String(o._id)) ?? 0,
-      plan: subscriptionByOrg.get(String(o._id))?.plan ?? null,
-      userLimit: PLAN_LIMITS[subscriptionByOrg.get(String(o._id))?.plan]?.users ?? null,
+      plan: subscriptionByOrg.get(String(o._id))?.planName ?? subscriptionByOrg.get(String(o._id))?.plan ?? null,
+      subscription: (() => {
+        const eff = effectiveSubscription(subscriptionByOrg.get(String(o._id)));
+        return { status: eff.status, expired: eff.expired, daysLeft: eff.daysLeft, endsAt: eff.endsAt };
+      })(),
+      userLimit: limitsOf(subscriptionByOrg.get(String(o._id))).users,
+      freeDays: freeDaysOf(o, subscriptionByOrg.get(String(o._id))),
       owner: owner ? { name: owner.name, email: owner.email, mobile: owner.mobile, lastLoginAt: owner.lastLoginAt } : null,
       createdAt: o.createdAt,
+      // Only an organisation that has added nothing of its own can be deleted.
+      records: records.get(String(o._id)) ?? [],
+      canDelete: !(records.get(String(o._id)) ?? []).length,
     };
   });
 }
@@ -92,7 +108,7 @@ export async function createOrganisation(input, admin, meta) {
   const { organisation } = await withTransaction((session) =>
     onboardOrganisation({ ...input, passwordHash, platformAdminId: admin.adminId }, session),
   );
-  await recordPlatformAudit({ adminId: admin.adminId, action: 'organisation_create', organisationId: organisation._id, changes: { name: input.organisationName, branchLimit: input.branchLimit, owner: input.email } }, meta);
+  await recordPlatformAudit({ adminId: admin.adminId, action: 'organisation_create', organisationId: organisation._id, changes: { name: input.organisationName, branchLimit: input.branchLimit, owner: input.email, freeDays: input.freeDays } }, meta);
   return getOrganisation(organisation._id);
 }
 
@@ -105,30 +121,10 @@ async function assertLimitCoversUsage(org, branchLimit) {
   }
 }
 
-async function assertPlanCoversUsers(org, plan) {
-  const max = PLAN_LIMITS[plan]?.users;
-  if (max == null) return;
-  const active = await User.countDocuments({ organisationId: org._id, status: USER_STATUS.ACTIVE }).setOptions(SKIP);
-  if (active > max) {
-    throw ApiError.conflict(`${org.name} has ${active} active users, more than this plan allows (${max}). Ask them to deactivate users first, or choose a bigger plan.`, 'PLAN_BELOW_USAGE', [
-      { path: 'plan', message: `Allows ${max} users; ${active} are active` },
-    ]);
-  }
-}
-
-/** Plan change: leaving Trial makes the subscription active; returning to Trial restarts the trial period. */
-const subscriptionFor = (plan) =>
-  plan === PLAN_KEYS.TRIAL
-    ? { plan, status: SUBSCRIPTION_STATUS.TRIAL, trialEndsAt: new Date(Date.now() + env.TRIAL_DAYS * 86400000) }
-    : { plan, status: SUBSCRIPTION_STATUS.ACTIVE, trialEndsAt: null };
-
 /** Edits the organisation; its email is also the owner's login email, and a new password replaces the owner's. */
-export async function updateOrganisation(id, { organisationName, email, password, plan, mobile, stateCode, branchLimit }, admin, meta) {
+export async function updateOrganisation(id, { organisationName, email, password, mobile, stateCode, branchLimit, freeDays }, admin, meta) {
   const org = await findOrg(id);
   await assertLimitCoversUsage(org, branchLimit);
-  const subscription = await Subscription.findOne({ organisationId: org._id }).setOptions(SKIP).select('plan').lean();
-  const planChanged = Boolean(plan && subscription && plan !== subscription.plan);
-  if (planChanged) await assertPlanCoversUsers(org, plan);
   const owner = await User.findById(org.ownerUserId).setOptions(SKIP).select('email').lean();
   const emailChanged = owner && owner.email !== email;
   if (emailChanged) await assertEmailAvailable(email, { exceptUserId: owner._id });
@@ -140,7 +136,11 @@ export async function updateOrganisation(id, { organisationName, email, password
     .map((field) => ({ field, from: current[field], to: next[field] }));
   if (emailChanged && !changes.some((c) => c.field === 'email')) changes.push({ field: 'email', from: owner.email, to: email });
   if (password && owner) changes.push({ field: 'password', from: null, to: 'reset' }); // never log the password itself
-  if (planChanged) changes.push({ field: 'plan', from: subscription.plan, to: plan });
+  // Free days can be changed only while the organisation is still on its free period.
+  const subscription = await Subscription.findOne({ organisationId: org._id }).setOptions(SKIP).lean();
+  const currentFreeDays = freeDaysOf(org, subscription);
+  const freeDaysChanged = freeDays != null && currentFreeDays != null && freeDays !== currentFreeDays;
+  if (freeDaysChanged) changes.push({ field: 'freeDays', from: currentFreeDays, to: freeDays });
 
   if (!changes.length) return getOrganisation(id);
 
@@ -148,7 +148,7 @@ export async function updateOrganisation(id, { organisationName, email, password
   await withTransaction(async (session) => {
     const orgFields = changes.filter((c) => c.field in next);
     if (orgFields.length) await Organisation.updateOne({ _id: org._id }, { $set: Object.fromEntries(orgFields.map((c) => [c.field, c.to])) }, { session });
-    if (planChanged) await Subscription.updateOne({ _id: subscription._id }, { $set: subscriptionFor(plan) }, { session }).setOptions(SKIP);
+    if (freeDaysChanged) await Subscription.updateOne({ _id: subscription._id }, { $set: { trialEndsAt: new Date(new Date(org.createdAt).getTime() + freeDays * DAY) } }, { session }).setOptions(SKIP);
     if (owner && (emailChanged || passwordHash)) {
       const login = { ...(emailChanged && { email }) };
       if (passwordHash) Object.assign(login, { passwordHash, passwordChangedAt: new Date(), mustChangePassword: false, failedLoginCount: 0, lockedUntil: null });
@@ -184,4 +184,62 @@ export async function setOrganisationStatus(id, status, admin, meta) {
     await recordPlatformAudit({ adminId: admin.adminId, action: 'organisation_status', organisationId: org._id, changes: { from: org.status, to: status } }, meta);
   }
   return getOrganisation(id);
+}
+
+// ---------------------------------------------------------------------------
+// Deleting an organisation that never got used
+// ---------------------------------------------------------------------------
+
+// Made when the organisation is created (or by simply signing in): on their own these are not the organisation's records.
+const SETUP_ONLY = new Set(['Organisation', 'Subscription', 'Settings', 'AuditLog', 'Session', 'Counter', 'PlatformAudit']);
+// Models onboarding also fills: only what was added on top of the starting set counts.
+const BEYOND_SETUP = {
+  Branch: { isHeadOffice: { $ne: true } },
+  User: { isOwner: { $ne: true } },
+  Role: { isSystem: { $ne: true } },
+  Category: { isSystem: { $ne: true } },
+  Account: { isSystem: { $ne: true } },
+  SubscriptionPayment: { status: 'paid' },
+};
+const RECORD_LABEL = {
+  Branch: 'branch', User: 'user', Role: 'role', Category: 'category', Account: 'ledger account', SubscriptionPayment: 'subscription payment', Product: 'product', Customer: 'customer',
+  Supplier: 'supplier', Sale: 'invoice', SalesReturn: 'sales return', Order: 'order', Purchase: 'purchase', PurchaseOrder: 'purchase order', Item: 'item', StockEntry: 'stock entry',
+  StockTransfer: 'transfer', StockMovement: 'stock movement', MetalStock: 'metal stock', MetalRate: 'metal rate', Employee: 'employee', Attendance: 'attendance entry',
+  AttendanceCalendar: 'holiday calendar', PayrollRun: 'payroll run', SalaryAdvance: 'salary advance', JournalEntry: 'ledger entry', ApprovalRequest: 'approval', FileAsset: 'file',
+};
+
+const tenantModels = () => Object.values(mongoose.models).filter((M) => M.schema.path('organisationId') && M.modelName !== 'PlatformAudit');
+
+/** For each organisation, what it has created itself, e.g. [{ type: 'product', count: 3 }]. Empty means it can be deleted. */
+async function recordsByOrg(orgIds) {
+  const found = new Map(orgIds.map((id) => [String(id), []]));
+  const models = tenantModels().filter((M) => !SETUP_ONLY.has(M.modelName));
+  const counts = await Promise.all(
+    models.map((M) => M.aggregate([{ $match: { organisationId: { $in: orgIds }, ...BEYOND_SETUP[M.modelName] } }, { $group: { _id: '$organisationId', count: { $sum: 1 } } }]).option(SKIP)),
+  );
+  models.forEach((M, i) => {
+    for (const row of counts[i]) found.get(String(row._id))?.push({ type: RECORD_LABEL[M.modelName] ?? M.modelName, count: row.count });
+  });
+  return found;
+}
+
+const recordsOf = async (orgId) => (await recordsByOrg([orgId])).get(String(orgId));
+
+/** Removes an organisation that has no records of its own (only what creating it set up). Anything more and it is refused. */
+export async function deleteOrganisation(id, admin, meta) {
+  const org = await findOrg(id);
+  const records = await recordsOf(org._id);
+  if (records.length) {
+    const list = records.map((r) => `${r.count} ${r.type}${r.count === 1 ? '' : 's'}`).join(', ');
+    throw ApiError.conflict(`${org.name} already has records (${list}), so it cannot be deleted. You can deactivate it instead.`, 'ORGANISATION_IN_USE');
+  }
+  await withTransaction(async (session) => {
+    for (const M of tenantModels()) {
+      if ((await M.countDocuments({ organisationId: org._id }).setOptions(SKIP).session(session)) === 0) continue;
+      await M.deleteMany({ organisationId: org._id }, { session }).setOptions(SKIP);
+    }
+    await Organisation.deleteOne({ _id: org._id }, { session });
+  });
+  await recordPlatformAudit({ adminId: admin.adminId, action: 'organisation_delete', organisationId: org._id, changes: { name: org.name, email: org.email } }, meta);
+  return { id: org._id, name: org.name };
 }

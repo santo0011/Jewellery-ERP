@@ -1,3 +1,4 @@
+import { hasPermission } from '@jerp/shared';
 import { withTransaction } from '../../config/db.js';
 import { AUDIT_ACTIONS, recordAudit } from '../../core/audit/audit.service.js';
 import { requireContext } from '../../core/context/requestContext.js';
@@ -7,6 +8,8 @@ import { ApiError } from '../../utils/ApiError.js';
 import { diffChanges } from '../../utils/diff.js';
 import { paginate, searchFilter } from '../../utils/pagination.js';
 import { Product } from '../products/product.model.js';
+import { todayContext } from '../../utils/businessDate.js';
+import { Purchase, PurchaseOrder } from '../purchases/purchase.model.js';
 import { Supplier } from './supplier.model.js';
 
 const TRACKED = [
@@ -60,11 +63,66 @@ export async function listSuppliers({ page, limit, q, status, supplies }) {
   if (status) filter.status = status;
   if (supplies) filter.supplies = supplies;
   const { items, meta } = await paginate(Supplier.find(filter).sort({ companyName: 1 }), Supplier.countDocuments(filter), { page, limit });
-  return { items: items.map(serialize), meta };
+  return { items: items.map(serialize), meta: { ...meta, summary: await supplierSummary() } };
+}
+
+/** Header cards: active suppliers, bought this month, and what is still owed on purchase bills. */
+async function supplierSummary() {
+  const today = await todayContext();
+  const month = today.businessDate.slice(0, 7);
+  const [active, [bills]] = await Promise.all([
+    Supplier.countDocuments({ isDeleted: false, status: 'active' }),
+    Purchase.aggregate([
+      {
+        $group: {
+          _id: null,
+          monthPaise: { $sum: { $cond: [{ $gte: ['$billDate', `${month}-01`] }, '$totals.totalPaise', 0] } },
+          duePaise: { $sum: { $subtract: ['$totals.totalPaise', '$paidPaise'] } },
+          dueSuppliers: { $addToSet: { $cond: [{ $gt: [{ $subtract: ['$totals.totalPaise', '$paidPaise'] }, 0] }, '$supplierId', null] } },
+        },
+      },
+    ]),
+  ]);
+  return { active, monthPaise: bills?.monthPaise ?? 0, duePaise: bills?.duePaise ?? 0, dueSuppliers: (bills?.dueSuppliers ?? []).filter(Boolean).length };
 }
 
 export async function getSupplier(id) {
-  return serialize((await findSupplier(id)).toObject());
+  const supplier = (await findSupplier(id)).toObject();
+  return { ...serialize(supplier), stats: hasPermission(requireContext().permissions, 'purchase.view') ? await supplierStats(supplier) : null };
+}
+
+/** What has been bought from this supplier, paid and still owed (bills + opening balance), and open orders. */
+async function supplierStats(supplier) {
+  const [[bills], openOrders] = await Promise.all([
+    Purchase.aggregate([
+      { $match: { supplierId: supplier._id } },
+      {
+        $group: {
+          _id: null,
+          bills: { $sum: 1 },
+          purchasedPaise: { $sum: '$totals.totalPaise' },
+          paidPaise: { $sum: '$paidPaise' },
+          unpaidBills: { $sum: { $cond: [{ $gt: [{ $subtract: ['$totals.totalPaise', '$paidPaise'] }, 0] }, 1, 0] } },
+          lastBillDate: { $max: '$billDate' },
+        },
+      },
+    ]),
+    PurchaseOrder.countDocuments({ supplierId: supplier._id, status: 'open' }),
+  ]);
+  const purchased = bills?.purchasedPaise ?? 0;
+  const paid = bills?.paidPaise ?? 0;
+  const openingDue = Math.max(0, supplier.openingBalancePaise ?? 0);
+  return {
+    bills: bills?.bills ?? 0,
+    lastBillDate: bills?.lastBillDate ?? null,
+    purchasedPaise: purchased,
+    paidPaise: paid,
+    billDuePaise: purchased - paid,
+    openingDuePaise: openingDue,
+    duePaise: purchased - paid + openingDue,
+    unpaidBills: bills?.unpaidBills ?? 0,
+    openOrders,
+  };
 }
 
 export async function createSupplier(input) {

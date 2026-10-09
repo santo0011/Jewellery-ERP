@@ -16,7 +16,7 @@ export function compactINR(paise) {
   return `₹${Math.round(r)}`;
 }
 
-function useWidth() {
+export function useWidth() {
   const ref = useRef(null);
   const [width, setWidth] = useState(600);
   useEffect(() => {
@@ -28,7 +28,7 @@ function useWidth() {
   return [ref, width];
 }
 
-const niceMax = (v) => {
+export const niceMax = (v) => {
   if (v <= 0) return 1;
   const mag = 10 ** Math.floor(Math.log10(v));
   return [1, 2, 2.5, 5, 10].map((m) => m * mag).find((m) => m >= v);

@@ -27,6 +27,13 @@ import StockEntriesPage from '../features/inventory/StockEntriesPage.jsx';
 import StockLedgerPage from '../features/inventory/StockLedgerPage.jsx';
 import StockSummaryPage from '../features/inventory/StockSummaryPage.jsx';
 import TransfersPage from '../features/inventory/TransfersPage.jsx';
+import PurchaseDetailPage from '../features/purchases/PurchaseDetailPage.jsx';
+import PurchaseFormPage from '../features/purchases/PurchaseFormPage.jsx';
+import PurchaseOrderDetailPage from '../features/purchases/PurchaseOrderDetailPage.jsx';
+import PurchaseOrdersPage from '../features/purchases/PurchaseOrdersPage.jsx';
+import PurchasesPage from '../features/purchases/PurchasesPage.jsx';
+import ItemsPage from '../features/items/ItemsPage.jsx';
+import SubscriptionPage from '../features/billing/SubscriptionPage.jsx';
 import RatesPage from '../features/rates/RatesPage.jsx';
 import OrderDetailPage from '../features/orders/OrderDetailPage.jsx';
 import OrderFormPage from '../features/orders/OrderFormPage.jsx';
@@ -47,7 +54,10 @@ import InvoicesPage from '../features/sales/InvoicesPage.jsx';
 import { RequireAdmin } from '../features/platform/adminGuards.jsx';
 import AdminLayout from '../features/platform/AdminLayout.jsx';
 import AdminOrganisationDetailPage from '../features/platform/AdminOrganisationDetailPage.jsx';
-import AdminOrganisationsPage, { AdminDashboardPage } from '../features/platform/AdminOrganisationsPage.jsx';
+import AdminOrganisationsPage from '../features/platform/AdminOrganisationsPage.jsx';
+import AdminDashboardPage from '../features/platform/AdminDashboardPage.jsx';
+import PlansPage from '../features/platform/PlansPage.jsx';
+import PaymentsPage from '../features/platform/PaymentsPage.jsx';
 import AppLayout from '../layouts/AppLayout.jsx';
 import AuthLayout from '../layouts/AuthLayout.jsx';
 import { GuestOnly, RequireAuth, RequirePermission } from './guards.jsx';
@@ -94,6 +104,8 @@ export const router = createBrowserRouter([
           { index: true, element: <AdminDashboardPage /> },
           { path: 'organisations', element: <AdminOrganisationsPage /> },
           { path: 'organisations/:id', element: <AdminOrganisationDetailPage /> },
+          { path: 'plans', element: <PlansPage /> },
+          { path: 'payments', element: <PaymentsPage /> },
           { path: '*', element: <NotFound /> },
         ],
       },
@@ -109,17 +121,19 @@ export const router = createBrowserRouter([
           { path: 'profile', element: <ProfilePage /> },
           { path: 'settings/organisation', element: guard('organisation.view', <OrganisationPage />) },
           { path: 'settings/branches', element: guard('branch.view', <BranchesPage />) },
+          { path: 'settings/business', element: guard('settings.view', <BusinessSettingsPage />) },
+          { path: 'settings/categories', element: guard('category.view', <CategoriesPage />) },
+          { path: 'settings/subscription', element: guard('subscription.view', <SubscriptionPage />) },
+          { path: 'settings/users', element: guard('user.view', <UsersPage />) },
           { path: 'settings/roles', element: guard('role.view', <RolesPage />) },
           { path: 'settings/roles/new', element: guard('role.create', <RoleEditorPage />) },
           { path: 'settings/roles/:id', element: guard('role.view', <RoleEditorPage />) },
-          { path: 'settings/users', element: guard('user.view', <UsersPage />) },
-          { path: 'settings/business', element: guard('settings.view', <BusinessSettingsPage />) },
           { path: 'settings/audit-log', element: guard('audit.view', <AuditLogPage />) },
+          { path: 'categories', element: <Navigate to="/settings/categories" replace /> },
           { path: 'customers', element: guard('customer.view', <CustomersPage />) },
           { path: 'customers/:id', element: guard('customer.view', <CustomerDetailPage />) },
           { path: 'suppliers', element: guard('supplier.view', <SuppliersPage />) },
           { path: 'suppliers/:id', element: guard('supplier.view', <SupplierDetailPage />) },
-          { path: 'categories', element: guard('category.view', <CategoriesPage />) },
           { path: 'products', element: guard('product.view', <ProductsPage />) },
           { path: 'products/new', element: guard('product.create', <ProductFormPage key="new" />) },
           { path: 'products/:id', element: guard('product.view', <ProductDetailPage />) },
@@ -137,6 +151,12 @@ export const router = createBrowserRouter([
           { path: 'inventory/adjustments', element: guard('inventory.view', <StockEntriesPage key="adjustment" mode="adjustment" />) },
           { path: 'inventory/transfers', element: guard('inventory.view', <TransfersPage />) },
           { path: 'inventory/ledger', element: guard('inventory.view', <StockLedgerPage />) },
+          { path: 'items', element: guard(['purchase.view', 'product.view'], <ItemsPage />) },
+          { path: 'purchases', element: guard('purchase.view', <PurchasesPage />) },
+          { path: 'purchases/new', element: guard('purchase.create', <PurchaseFormPage />) },
+          { path: 'purchases/orders', element: guard('purchase.view', <PurchaseOrdersPage />) },
+          { path: 'purchases/orders/:id', element: guard('purchase.view', <PurchaseOrderDetailPage />) },
+          { path: 'purchases/:id', element: guard('purchase.view', <PurchaseDetailPage />) },
           { path: 'hr/employees', element: guard('employee.view', <EmployeesPage />) },
           { path: 'hr/employees/:id', element: guard('employee.view', <EmployeeDetailPage />) },
           { path: 'hr/attendance', element: guard('attendance.view', <AttendancePage />) },

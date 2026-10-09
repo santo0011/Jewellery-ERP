@@ -13,7 +13,8 @@ import StatusChip from '../../components/StatusChip.jsx';
 import { usePermission } from '../../hooks/usePermission.js';
 import { applyServerErrors, getErrorMessage } from '../../utils/errors.js';
 import { daysUntil, formatDate, nullsToEmpty } from '../../utils/format.js';
-import { useOrganisationQuery, useSubscriptionQuery, useUpdateOrganisationMutation } from './organisationApi.js';
+import EditHistory from '../../components/EditHistory.jsx';
+import { useOrganisationHistoryQuery, useOrganisationQuery, useSubscriptionQuery, useUpdateOrganisationMutation } from './organisationApi.js';
 
 const upper = (v) => v.toUpperCase();
 
@@ -30,6 +31,11 @@ const toFormValues = (org) => {
     address: { line1: '', line2: '', city: '', stateCode: '', pincode: '', ...v.address },
   };
 };
+
+function OrganisationHistory() {
+  const { data, isLoading, error } = useOrganisationHistoryQuery();
+  return <EditHistory entries={data} isLoading={isLoading} error={error} />;
+}
 
 function SubscriptionCard() {
   const { data, isLoading, error } = useSubscriptionQuery();
@@ -164,6 +170,9 @@ export default function OrganisationPage() {
             <LogoCard hasLogo={Boolean(data.logoFileId)} canEdit={canEdit} />
             {canViewSubscription && <SubscriptionCard />}
           </Stack>
+        </Grid>
+        <Grid size={12}>
+          <OrganisationHistory />
         </Grid>
       </Grid>
     </>

@@ -2,7 +2,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Alert, Grid, InputAdornment, Typography } from '@mui/material';
 import { formatINR, fromPaise, toPaise } from '@jerp/shared';
 import { employeeSchema } from '@jerp/shared/schemas';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router';
@@ -13,7 +13,8 @@ import FormDrawer from '../../components/FormDrawer.jsx';
 import MoreDetails from '../../components/MoreDetails.jsx';
 import { useSession } from '../../hooks/usePermission.js';
 import { applyServerErrors, getErrorMessage } from '../../utils/errors.js';
-import { useCreateEmployeeMutation, useUpdateEmployeeMutation } from './hrApi.js';
+import { PhotoPicker } from './EmployeePhoto.jsx';
+import { useCreateEmployeeMutation, useRemoveEmployeePhotoMutation, useSetEmployeePhotoMutation, useUpdateEmployeeMutation } from './hrApi.js';
 import { remapErrors, todayIso } from './hrUi.jsx';
 
 const rupees = (label, { required } = {}) =>
@@ -58,12 +59,20 @@ export default function EmployeeFormDrawer({ open, employee, onClose }) {
   const editing = Boolean(employee);
   const [create, createState] = useCreateEmployeeMutation();
   const [update, updateState] = useUpdateEmployeeMutation();
+  const [setPhoto, setPhotoState] = useSetEmployeePhotoMutation();
+  const [removePhoto, removePhotoState] = useRemoveEmployeePhotoMutation();
+  const [photo, setPhotoFile] = useState(null);
+  const [photoRemoved, setPhotoRemoved] = useState(false);
   const { control, handleSubmit, reset, setError } = useForm({ resolver: zodResolver(formSchema), defaultValues: EMPTY });
-  const [basic, allowance] = useWatch({ control, name: ['basic', 'allowance'] });
+  const [basic, allowance, name] = useWatch({ control, name: ['basic', 'allowance', 'name'] });
   const error = editing ? updateState.error : createState.error;
 
   useEffect(() => {
-    if (open) reset(toForm(employee, session.branches[0]?.id ?? ''));
+    if (open) {
+      reset(toForm(employee, session.branches[0]?.id ?? ''));
+      setPhotoFile(null);
+      setPhotoRemoved(false);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, employee, reset]);
 
@@ -74,15 +83,27 @@ export default function EmployeeFormDrawer({ open, employee, onClose }) {
     gross = null;
   }
 
+  // The photo is uploaded after the employee is saved; a failed upload keeps the saved details and says so.
+  const savePhoto = async (id) => {
+    try {
+      if (photo) await setPhoto({ id, file: photo }).unwrap();
+      else if (photoRemoved) await removePhoto(id).unwrap();
+    } catch (err) {
+      toast.error(`Saved, but the photo was not: ${getErrorMessage(err)}`);
+    }
+  };
+
   const onSubmit = handleSubmit(async ({ basic: b, allowance: a, ...values }) => {
     const payload = { ...values, basicPaise: toPaise(b), allowancePaise: a ? toPaise(a) : 0 };
     try {
       if (editing) {
         await update({ id: employee.id, ...payload }).unwrap();
+        await savePhoto(employee.id);
         toast.success('Employee updated');
         onClose();
       } else {
         const created = await create(payload).unwrap();
+        await savePhoto(created.id);
         toast.success(`${created.name} added as ${created.code}`);
         onClose();
         navigate(`/hr/employees/${created.id}`);
@@ -107,7 +128,7 @@ export default function EmployeeFormDrawer({ open, employee, onClose }) {
       subtitle={editing ? `${employee.name} · ${employee.code}` : 'Staff on the payroll of one branch.'}
       onClose={onClose}
       onSubmit={onSubmit}
-      submitting={createState.isLoading || updateState.isLoading}
+      submitting={createState.isLoading || updateState.isLoading || setPhotoState.isLoading || removePhotoState.isLoading}
       submitLabel={editing ? 'Save changes' : 'Add employee'}
       width={600}
     >
@@ -117,6 +138,9 @@ export default function EmployeeFormDrawer({ open, employee, onClose }) {
             <Alert severity="error">{getErrorMessage(error)}</Alert>
           </Grid>
         )}
+        <Grid size={12}>
+          <PhotoPicker employee={employee} name={name} file={photo} onChange={setPhotoFile} removed={photoRemoved} onRemove={() => setPhotoRemoved(true)} />
+        </Grid>
         <Grid size={12}>
           <RHFTextField control={control} name="name" label="Full name" autoFocus={!editing} />
         </Grid>

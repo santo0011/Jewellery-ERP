@@ -70,7 +70,7 @@ export default function RolesPage() {
     { key: 'userCount', label: 'Users', align: 'right', render: (r) => r.userCount },
     {
       key: 'actions',
-      label: '',
+      label: 'Action',
       align: 'right',
       width: 132,
       render: (r) => (

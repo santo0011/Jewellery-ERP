@@ -32,10 +32,27 @@ export const thisMonth = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 };
 
+/** The month whose salary is due now: last month, or this month from the 25th (salaries paid at month end). */
+export const salaryMonth = () => {
+  const d = new Date();
+  if (d.getDate() < 25) d.setDate(0);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+};
+
 export const todayIso = () => {
   const d = new Date();
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 };
+
+/** Splits a payroll line's advance deduction across its advances, oldest first — the same order finalising uses. */
+export function advanceSplit(line) {
+  let left = line.advanceDeductionPaise ?? 0;
+  return (line.advances ?? []).map((a) => {
+    const cut = Math.min(left, a.balancePaise);
+    left -= cut;
+    return { ...a, cutPaise: cut, leftPaise: a.balancePaise - cut };
+  });
+}
 
 /** 28.5 -> "28½" */
 export const formatDays = (n) => (Number.isInteger(n) ? String(n) : `${Math.floor(n)}½`);
