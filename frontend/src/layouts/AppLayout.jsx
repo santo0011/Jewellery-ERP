@@ -14,6 +14,7 @@ import { PROFILE_ITEM, visibleNav } from './navConfig.js';
 import Sidebar from './Sidebar.jsx';
 import UserMenu from './UserMenu.jsx';
 import ForcePasswordChange from '../features/profile/ForcePasswordChange.jsx';
+import SubscriptionGate from '../features/billing/SubscriptionGate.jsx';
 import RateTicker from '../features/rates/RateTicker.jsx';
 
 const SIDEBAR_WIDTH = 260;
@@ -122,7 +123,13 @@ export default function AppLayout() {
         </AppBar>
 
         <Box component="main" sx={{ flex: 1, px: { xs: 2, sm: 3, lg: 4 }, py: { xs: 2.5, md: 4 }, pb: { xs: 12, md: 4 }, maxWidth: 1440, width: '100%', mx: 'auto' }}>
-          {session.user.mustChangePassword ? <ForcePasswordChange user={session.user} /> : <Outlet />}
+          {session.user.mustChangePassword ? (
+            <ForcePasswordChange user={session.user} />
+          ) : (
+            <SubscriptionGate subscription={session.subscription}>
+              <Outlet />
+            </SubscriptionGate>
+          )}
         </Box>
       </Box>
 

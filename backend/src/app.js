@@ -29,6 +29,8 @@ export function createApp() {
         return id;
       },
       autoLogging: { ignore: (req) => req.url === '/api/v1/health' },
+      // Routine requests log at debug (visible with LOG_LEVEL=debug); only server errors show by default.
+      customLogLevel: (req, res, err) => (err || res.statusCode >= 500 ? 'error' : 'debug'),
     }),
   );
   app.use(helmet());
@@ -39,7 +41,8 @@ export function createApp() {
       exposedHeaders: ['x-request-id'],
     }),
   );
-  app.use(express.json({ limit: '1mb' }));
+  // The raw body is kept only for the payment webhook, whose signature covers the exact bytes.
+  app.use(express.json({ limit: '1mb', verify: (req, res, buf) => { if (req.originalUrl.includes('/webhook')) req.rawBody = buf.toString('utf8'); } }));
   app.use(cookieParser());
   app.use(sanitizeBody);
 

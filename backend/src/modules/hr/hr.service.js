@@ -2,10 +2,13 @@ import { ATTENDANCE_STATUSES, EMPLOYMENT_STATUS, hasPermission, PAYROLL_STATUS }
 import { withTransaction } from '../../config/db.js';
 import { AUDIT_ACTIONS, recordAudit } from '../../core/audit/audit.service.js';
 import { requireContext } from '../../core/context/requestContext.js';
-import { postJournal } from '../../core/ledger/posting.service.js';
+import { postJournal, reverseJournalsFor } from '../../core/ledger/posting.service.js';
 import { nextCode, nextDocumentNo } from '../../core/numbering/numbering.service.js';
+import { FileAsset } from '../../core/storage/fileAsset.model.js';
+import { detectImageType, storage } from '../../core/storage/storage.service.js';
 import { ApiError } from '../../utils/ApiError.js';
-import { todayContext } from '../../utils/businessDate.js';
+import { randomToken } from '../../utils/crypto.js';
+import { businessDateFor, financialYearLabel, todayContext } from '../../utils/businessDate.js';
 import { paginate, searchFilter } from '../../utils/pagination.js';
 import { accessibleBranchFilter, nameMaps, oid, pick, requireBranch } from '../inventory/inventory.helpers.js';
 import { Attendance, AttendanceCalendar, Employee, PayrollRun, SalaryAdvance } from './hr.models.js';
@@ -28,17 +31,27 @@ export function monthBounds(month) {
 const dayNumber = (iso) => Date.parse(`${iso}T00:00:00Z`) / 86400000;
 const monthLabel = (month) => new Date(`${month}-01T00:00:00Z`).toLocaleString('en-IN', { month: 'short', year: 'numeric', timeZone: 'UTC' });
 
-/** Days of `month` the employee was on the rolls (joining and exit dates included). */
+/** Days of `month` the employee was on the rolls (joining and exit dates included, breaks after a rejoin left out). */
 function eligibleDays(emp, month) {
   const { start, end } = monthBounds(month);
   const from = emp.joiningDate > start ? emp.joiningDate : start;
   const to = emp.exitDate && emp.exitDate < end ? emp.exitDate : end;
-  return from > to ? 0 : dayNumber(to) - dayNumber(from) + 1;
+  if (from > to) return 0;
+  const away = (emp.breaks ?? []).reduce((n, b) => {
+    const a = b.from > from ? b.from : from;
+    const z = b.to < to ? b.to : to;
+    return a > z ? n : n + dayNumber(z) - dayNumber(a) + 1;
+  }, 0);
+  return dayNumber(to) - dayNumber(from) + 1 - away;
 }
+
+/** Was the employee on the rolls on this date? */
+const onRollsOn = (emp, date) => date >= emp.joiningDate && (!emp.exitDate || date <= emp.exitDate) && !(emp.breaks ?? []).some((b) => date >= b.from && date <= b.to);
 
 const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const weekday = (iso) => new Date(`${iso}T00:00:00Z`).getUTCDay();
 const dayAfter = (iso) => new Date(Date.parse(`${iso}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
+const dayBefore = (iso) => new Date(Date.parse(`${iso}T00:00:00Z`) - 86400000).toISOString().slice(0, 10);
 
 /** Weekly off days and holidays per branch between two dates: Map(branchId -> Map(date -> name)). */
 export async function offDays(branchIds, from, to) {
@@ -80,7 +93,7 @@ async function attendanceCounts(employees, month, { until } = {}) {
     const offs = await offDays(employees.map((e) => e.branchId), start, last);
     for (const e of employees) {
       for (const d of offs.get(String(e.branchId))?.keys() ?? []) {
-        if (d < e.joiningDate || (e.exitDate && d > e.exitDate) || marked.has(`${e._id}|${d}`)) continue;
+        if (!onRollsOn(e, d) || marked.has(`${e._id}|${d}`)) continue;
         const c = counts.get(String(e._id)) ?? blank();
         c.holiday += 1;
         counts.set(String(e._id), c);
@@ -110,13 +123,26 @@ export async function saveAttendanceCalendar({ branchId, weeklyOff, holidays }) 
   return getAttendanceCalendar({ branchId });
 }
 
-async function openAdvanceBalances(employeeIds, session) {
-  const advances = await SalaryAdvance.find({ employeeId: { $in: employeeIds }, status: 'open' }).session(session ?? null).lean();
+/** An advance is due in a salary month once that month reaches its "recover from" month (older advances: always). */
+const dueIn = (a, month) => !month || !a.recoverFrom || a.recoverFrom <= month;
+const dueFilter = (month) => ({ $or: [{ recoverFrom: null }, { recoverFrom: { $lte: month } }] });
+
+/**
+ * Open advances per employee. With a salary month: what is due that month (balance, this month's instalment and
+ * each advance in detail, oldest first) and what is set for later months. Without one: everything outstanding.
+ */
+async function openAdvanceBalances(employeeIds, month, session) {
+  const advances = await SalaryAdvance.find({ employeeId: { $in: employeeIds }, status: 'open' }).sort({ businessDate: 1, createdAt: 1 }).session(session ?? null).lean();
   const map = new Map();
   for (const a of advances) {
-    const m = map.get(String(a.employeeId)) ?? { balancePaise: 0, installmentPaise: 0 };
-    m.balancePaise += a.amountPaise - a.recoveredPaise;
-    m.installmentPaise += Math.min(a.installmentPaise, a.amountPaise - a.recoveredPaise);
+    const m = map.get(String(a.employeeId)) ?? { balancePaise: 0, installmentPaise: 0, upcomingPaise: 0, advances: [] };
+    const balance = a.amountPaise - a.recoveredPaise;
+    if (dueIn(a, month)) {
+      const due = Math.min(a.installmentPaise, balance);
+      m.balancePaise += balance;
+      m.installmentPaise += due;
+      m.advances.push({ advanceId: a._id, advanceNo: a.advanceNo, givenOn: a.businessDate, recoverFrom: a.recoverFrom, amountPaise: a.amountPaise, recoveredPaise: a.recoveredPaise, balancePaise: balance, duePaise: due });
+    } else m.upcomingPaise += balance;
     map.set(String(a.employeeId), m);
   }
   return map;
@@ -143,6 +169,7 @@ function serializeEmployee(e, maps) {
     status: e.status,
     address: e.address,
     notes: e.notes,
+    photoFileId: e.photoFileId ?? null,
     payVisible: pay,
     ...(pay && {
       basicPaise: e.basicPaise,
@@ -164,15 +191,38 @@ export async function listEmployees({ page, limit, q, branchId, status }) {
   const { items, meta } = await paginate(Employee.find(filter).sort({ status: 1, name: 1 }), Employee.countDocuments(filter), { page, limit });
   const maps = await nameMaps({ branchIds: items.map((e) => e.branchId) });
   const advances = canSeePay() ? await openAdvanceBalances(items.map((e) => e._id)) : new Map();
-  return { items: items.map((e) => ({ ...serializeEmployee(e, maps), ...(canSeePay() && { advanceBalancePaise: advances.get(String(e._id))?.balancePaise ?? 0 }) })), meta };
+  return { items: items.map((e) => ({ ...serializeEmployee(e, maps), ...(canSeePay() && { advanceBalancePaise: advances.get(String(e._id))?.balancePaise ?? 0 }) })), meta: { ...meta, summary: await employeeSummary(branchId) } };
+}
+
+/** Header cards: staff working and left, the monthly salary bill and advances still out (pay figures only if allowed). */
+async function employeeSummary(branchId) {
+  const scope = { ...accessibleBranchFilter(), ...(branchId && { branchId: oid(branchId) }) };
+  const [rows, adv] = await Promise.all([
+    Employee.aggregate([{ $match: scope }, { $group: { _id: '$status', count: { $sum: 1 }, grossPaise: { $sum: { $add: ['$basicPaise', { $ifNull: ['$allowancePaise', 0] }] } } } }]),
+    canSeePay() ? SalaryAdvance.aggregate([{ $match: { ...scope, status: 'open' } }, { $group: { _id: null, balance: { $sum: { $subtract: ['$amountPaise', '$recoveredPaise'] } }, people: { $addToSet: '$employeeId' } } }]) : [],
+  ]);
+  const by = Object.fromEntries(rows.map((r) => [r._id, r]));
+  return {
+    working: by[EMPLOYMENT_STATUS.ACTIVE]?.count ?? 0,
+    left: by[EMPLOYMENT_STATUS.LEFT]?.count ?? 0,
+    ...(canSeePay() && { salaryPaise: by[EMPLOYMENT_STATUS.ACTIVE]?.grossPaise ?? 0, advancePaise: adv[0]?.balance ?? 0, advancePeople: adv[0]?.people?.length ?? 0 }),
+  };
 }
 
 export async function getEmployee(id) {
   const emp = (await findEmployee(id)).toObject();
-  const maps = await nameMaps({ branchIds: [emp.branchId] });
+  const history = employmentHistory(emp);
+  const maps = await nameMaps({ branchIds: [emp.branchId], userIds: history.map((h) => h.by).filter(Boolean) });
   const today = await todayContext();
   const month = today.businessDate.slice(0, 7);
-  const result = { ...serializeEmployee(emp, maps), attendance: null, advances: null, payslips: null };
+  const result = {
+    ...serializeEmployee(emp, maps),
+    history: history.map((h) => ({ ...h, by: pick(maps.users, h.by) ?? null })),
+    breaks: (emp.breaks ?? []).map((x) => ({ from: x.from, to: x.to })),
+    attendance: null,
+    advances: null,
+    payslips: null,
+  };
 
   if (can('attendance.view')) {
     const counts = (await attendanceCounts([emp], month, { until: today.businessDate })).get(String(emp._id)) ?? {};
@@ -191,7 +241,7 @@ export async function getEmployee(id) {
       SalaryAdvance.find({ employeeId: emp._id }).sort({ createdAt: -1 }).lean(),
       PayrollRun.find({ 'lines.employeeId': emp._id }).sort({ month: -1 }).limit(24).lean(),
     ]);
-    result.advances = advances.map(serializeAdvance);
+    result.advances = advances.map((a) => serializeAdvance(a, null, today.businessDate));
     result.advanceBalancePaise = sum(advances.filter((a) => a.status === 'open'), (a) => a.amountPaise - a.recoveredPaise);
     result.payslips = runs.map((r) => {
       const line = r.lines.find((l) => String(l.employeeId) === String(emp._id));
@@ -212,7 +262,7 @@ export async function createEmployee(input) {
   await assertMobileFree(input.mobile);
   const emp = await withTransaction(async (session) => {
     const code = await nextCode('employee', 'E', 4, { session });
-    const [doc] = await Employee.create([{ ...input, code, createdBy: userId, updatedBy: userId }], { session });
+    const [doc] = await Employee.create([{ ...input, code, history: [{ event: 'joined', date: input.joiningDate, by: userId }], createdBy: userId, updatedBy: userId }], { session });
     await recordAudit({ action: AUDIT_ACTIONS.CREATE, module: 'employee', recordType: 'Employee', recordId: doc._id, meta: { name: doc.name, code } }, { session });
     return doc;
   });
@@ -234,18 +284,76 @@ export async function updateEmployee(id, input) {
   return getEmployee(id);
 }
 
-export async function setEmployeeStatus(id, { status, exitDate }) {
+/** Replaces the employee's photo (PNG, JPEG or WebP); the old file is deleted. */
+export async function setEmployeePhoto(id, file) {
+  const { organisationId, userId } = requireContext();
+  const emp = await findEmployee(id);
+  const type = detectImageType(file.buffer);
+  if (!type) throw ApiError.badRequest('Photo must be a PNG, JPEG or WebP image', undefined, 'UNSUPPORTED_FILE');
+  const key = `${organisationId}/employees/${emp._id}/${randomToken(12)}.${type.ext}`;
+  await storage.put(key, file.buffer);
+  const asset = await FileAsset.create({ key, purpose: 'employee_photo', mimeType: type.mime, size: file.size, originalName: file.originalname?.slice(0, 200) ?? null, uploadedBy: userId });
+  const previousId = emp.photoFileId;
+  emp.set({ photoFileId: asset._id, updatedBy: userId });
+  await emp.save();
+  await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'employee', recordType: 'Employee', recordId: emp._id, meta: { name: emp.name }, changes: [{ field: 'photo', from: previousId, to: asset._id }] });
+  if (previousId) await deleteFile(previousId);
+  return getEmployee(id);
+}
+
+export async function removeEmployeePhoto(id) {
+  const { userId } = requireContext();
+  const emp = await findEmployee(id);
+  const previousId = emp.photoFileId;
+  if (!previousId) return getEmployee(id);
+  emp.set({ photoFileId: null, updatedBy: userId });
+  await emp.save();
+  await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'employee', recordType: 'Employee', recordId: emp._id, meta: { name: emp.name }, changes: [{ field: 'photo', from: previousId, to: null }] });
+  await deleteFile(previousId);
+  return getEmployee(id);
+}
+
+async function deleteFile(id) {
+  const asset = await FileAsset.findByIdAndDelete(id).lean();
+  if (asset) await storage.remove(asset.key);
+}
+
+/** Leaving sets the exit date; rejoining reopens from the rejoin date, and the days away become a break (unpaid). */
+export async function setEmployeeStatus(id, { status, exitDate, rejoinDate, note }) {
+  const { userId } = requireContext();
   const emp = await findEmployee(id);
   if (emp.status === status) return getEmployee(id);
   const today = await todayContext();
   const from = emp.status;
+  // Employees from before history existed: start their record from what the dates say.
+  if (!emp.history?.length) emp.history = employmentHistory(emp);
+
+  if (status === EMPLOYMENT_STATUS.LEFT) {
+    const date = exitDate ?? today.businessDate;
+    if (date < emp.joiningDate) throw ApiError.badRequest('Exit date is before joining date', [{ path: 'exitDate', message: 'Must be on or after the joining date' }], 'VALIDATION_ERROR');
+    const lastReturn = emp.history.filter((h) => h.event === 'rejoined').at(-1)?.date;
+    if (lastReturn && date < lastReturn) throw ApiError.badRequest('Exit date is before the rejoin date', [{ path: 'exitDate', message: `Must be on or after ${lastReturn}` }], 'VALIDATION_ERROR');
+    emp.exitDate = date;
+    emp.history.push({ event: 'left', date, note: note ?? null, by: userId, at: new Date() });
+  } else {
+    const date = rejoinDate ?? today.businessDate;
+    if (emp.exitDate && date <= emp.exitDate) throw ApiError.badRequest('Rejoin date must be after the exit date', [{ path: 'rejoinDate', message: `Must be after ${emp.exitDate}` }], 'VALIDATION_ERROR');
+    if (date > today.businessDate) throw ApiError.badRequest('Rejoin date cannot be in the future', [{ path: 'rejoinDate', message: 'Pick today or an earlier date' }], 'VALIDATION_ERROR');
+    if (emp.exitDate && dayAfter(emp.exitDate) < date) emp.breaks.push({ from: dayAfter(emp.exitDate), to: dayBefore(date) });
+    emp.exitDate = null;
+    emp.history.push({ event: 'rejoined', date, note: note ?? null, by: userId, at: new Date() });
+  }
   emp.status = status;
-  emp.exitDate = status === EMPLOYMENT_STATUS.LEFT ? (exitDate ?? today.businessDate) : null;
-  if (emp.exitDate && emp.exitDate < emp.joiningDate) throw ApiError.badRequest('Exit date is before joining date', [{ path: 'exitDate', message: 'Must be on or after the joining date' }], 'VALIDATION_ERROR');
-  emp.updatedBy = requireContext().userId;
+  emp.updatedBy = userId;
   await emp.save();
   await recordAudit({ action: AUDIT_ACTIONS.STATUS_CHANGE, module: 'employee', recordType: 'Employee', recordId: emp._id, meta: { name: emp.name }, changes: [{ field: 'status', from, to: status }] });
   return getEmployee(id);
+}
+
+/** Stored history, or for older employees the joined / left events their dates imply. */
+function employmentHistory(e) {
+  if (e.history?.length) return e.history.map((h) => ({ event: h.event, date: h.date, note: h.note ?? null, by: h.by ?? null, at: h.at ?? null }));
+  return [{ event: 'joined', date: e.joiningDate, note: null, by: null, at: null }, ...(e.exitDate ? [{ event: 'left', date: e.exitDate, note: null, by: null, at: null }] : [])];
 }
 
 // ---------------------------------------------------------------- attendance
@@ -255,6 +363,8 @@ const onRollsFilter = (branchId, from, to = from) => ({
   branchId: oid(branchId),
   joiningDate: { $lte: to },
   $or: [{ exitDate: null }, { exitDate: { $gte: from } }],
+  // A single day inside a break (between leaving and rejoining) is off the rolls.
+  ...(from === to && { breaks: { $not: { $elemMatch: { from: { $lte: from }, to: { $gte: from } } } } }),
 });
 
 export async function getAttendanceDay({ branchId, date }) {
@@ -284,6 +394,7 @@ export async function getAttendanceDay({ branchId, date }) {
         code: e.code,
         name: e.name,
         designation: e.designation,
+        photoFileId: e.photoFileId ?? null,
         status: byEmp.get(String(e._id))?.status ?? null,
         note: byEmp.get(String(e._id))?.note ?? null,
         month: { absent: c.absent ?? 0, halfDay: c.half_day ?? 0, paidLeave: c.paid_leave ?? 0, holiday: c.holiday ?? 0 },
@@ -321,14 +432,30 @@ export async function saveAttendance({ branchId, date, entries }) {
 
 // ---------------------------------------------------------------- salary advances
 
-function serializeAdvance(a, maps) {
+/** Why an advance can no longer be edited, or null when it still can (same business day, nothing deducted). */
+function advanceLock(a, todayDate) {
+  const recordedOn = a.recordedOn ?? businessDateFor(a.createdAt);
+  if (a.recoveredPaise > 0 || a.status !== 'open') return 'Already deducted from salary';
+  if (!todayDate || recordedOn !== todayDate) return `Could only be edited on ${recordedOn}, the day it was entered`;
+  return null;
+}
+
+function serializeAdvance(a, maps, todayDate) {
+  const lock = advanceLock(a, todayDate);
   return {
+    editable: !lock,
+    lockedReason: lock,
+    recordedOn: a.recordedOn ?? businessDateFor(a.createdAt),
+    edits: (a.edits ?? []).map((x) => ({ at: x.at, by: x.byName ?? null, reason: x.reason, changes: x.changes ?? [] })),
     id: a._id,
     advanceNo: a.advanceNo,
     employee: maps ? (pick(maps.employees, a.employeeId) ?? { id: a.employeeId }) : { id: a.employeeId },
     branch: maps ? pick(maps.branches, a.branchId) : null,
     amountPaise: a.amountPaise,
     installmentPaise: a.installmentPaise,
+    recoverFrom: a.recoverFrom ?? null,
+    // Months needed at the set instalment, counting from the first recovery month.
+    instalments: Math.ceil(a.amountPaise / a.installmentPaise),
     recoveredPaise: a.recoveredPaise,
     balancePaise: a.amountPaise - a.recoveredPaise,
     mode: a.mode,
@@ -355,43 +482,104 @@ export async function listAdvances({ page, limit, q, employeeId, branchId, statu
   const [maps, employees] = await Promise.all([nameMaps({ branchIds: items.map((a) => a.branchId) }), employeeMap(items.map((a) => a.employeeId))]);
   maps.employees = employees;
   const outstanding = await SalaryAdvance.aggregate([{ $match: { ...accessibleBranchFilter(), status: 'open' } }, { $group: { _id: null, total: { $sum: { $subtract: ['$amountPaise', '$recoveredPaise'] } } } }]);
-  return { items: items.map((a) => serializeAdvance(a, maps)), meta: { ...meta, outstandingPaise: outstanding[0]?.total ?? 0 } };
+  const today = await todayContext();
+  return { items: items.map((a) => serializeAdvance(a, maps, today.businessDate)), meta: { ...meta, outstandingPaise: outstanding[0]?.total ?? 0 } };
 }
 
-export async function createAdvance({ employeeId, amountPaise, installmentPaise, mode, reference, note }) {
+export async function createAdvance({ employeeId, amountPaise, installmentPaise, givenOn, recoverFrom, mode, reference, note }) {
   const { userId } = requireContext();
   const emp = await findEmployee(employeeId);
   if (emp.status !== EMPLOYMENT_STATUS.ACTIVE) throw ApiError.conflict(`${emp.name} has left; advances can only be given to current staff.`, 'INVALID_STATE');
   const branch = await requireBranch(emp.branchId, { active: false });
   const today = await todayContext();
+  const date = givenOn ?? today.businessDate;
+  if (date > today.businessDate) throw ApiError.badRequest('An advance cannot be dated in the future', [{ path: 'givenOn', message: 'Pick today or an earlier date' }], 'VALIDATION_ERROR');
+  // Without a month the advance is due from the next payroll run, as before.
+  const fromMonth = recoverFrom ?? null;
+  const closed = fromMonth && (await PayrollRun.findOne({ branchId: emp.branchId, month: fromMonth, status: { $ne: PAYROLL_STATUS.DRAFT } }).select('runNo').lean());
+  if (closed) throw ApiError.badRequest(`${monthLabel(fromMonth)} salary is already finalised (${closed.runNo})`, [{ path: 'recoverFrom', message: 'Pick a later month' }], 'VALIDATION_ERROR');
+  const financialYear = financialYearLabel(date, today.fyStartMonth);
   const advance = await withTransaction(async (session) => {
-    const advanceNo = await nextDocumentNo({ prefix: 'ADV', branchCode: branch.code, financialYear: today.financialYear }, { session });
+    const advanceNo = await nextDocumentNo({ prefix: 'ADV', branchCode: branch.code, financialYear }, { session });
     const [doc] = await SalaryAdvance.create(
-      [{ advanceNo, employeeId: emp._id, branchId: emp.branchId, amountPaise, installmentPaise, mode, reference: reference ?? null, note: note ?? null, businessDate: today.businessDate, createdBy: userId }],
+      [{ advanceNo, employeeId: emp._id, branchId: emp.branchId, amountPaise, installmentPaise, recoverFrom: fromMonth, mode, reference: reference ?? null, note: note ?? null, businessDate: date, recordedOn: today.businessDate, createdBy: userId }],
       { session },
     );
-    const party = { type: 'employee', id: emp._id };
-    await postJournal(
-      {
-        voucherType: 'salary_advance',
-        date: today.now,
-        businessDate: today.businessDate,
-        financialYear: today.financialYear,
-        narration: `Salary advance ${advanceNo} to ${emp.name}`,
-        source: { docType: 'salary_advance', docId: doc._id, docNo: advanceNo },
-        lines: [
-          { account: 'staff_advances', debit: amountPaise, party, branchId: emp.branchId },
-          { account: MONEY_ACCOUNT[mode], credit: amountPaise, branchId: emp.branchId },
-        ],
-      },
-      { session },
-    );
+    await postAdvanceJournal(doc, emp, today, session);
     await recordAudit({ action: AUDIT_ACTIONS.CREATE, module: 'payroll', recordType: 'SalaryAdvance', recordId: doc._id, meta: { name: advanceNo, employee: emp.name, amountPaise } }, { session });
     return doc;
   });
   const maps = await nameMaps({ branchIds: [advance.branchId] });
   maps.employees = await employeeMap([emp._id]);
-  return serializeAdvance(advance.toObject(), maps);
+  return serializeAdvance(advance.toObject(), maps, today.businessDate);
+}
+
+/** Money out to the employee: staff advances (asset) against cash / bank, dated the day it was given. */
+async function postAdvanceJournal(doc, emp, today, session) {
+  const date = doc.businessDate;
+  await postJournal(
+    {
+      voucherType: 'salary_advance',
+      date: date === today.businessDate ? today.now : new Date(`${date}T12:00:00+05:30`),
+      businessDate: date,
+      financialYear: financialYearLabel(date, today.fyStartMonth),
+      narration: `Salary advance ${doc.advanceNo} to ${emp.name}`,
+      source: { docType: 'salary_advance', docId: doc._id, docNo: doc.advanceNo },
+      lines: [
+        { account: 'staff_advances', debit: doc.amountPaise, party: { type: 'employee', id: emp._id }, branchId: emp.branchId },
+        { account: MONEY_ACCOUNT[doc.mode], credit: doc.amountPaise, branchId: emp.branchId },
+      ],
+    },
+    { session },
+  );
+}
+
+const ADVANCE_FIELDS = { amountPaise: 'Amount', installmentPaise: 'Cut each month', businessDate: 'Given on', recoverFrom: 'Cut from salary of', mode: 'Paid by', reference: 'Reference', note: 'Reason' };
+
+/**
+ * Corrects an advance on the day it was entered, before any salary has deducted it. Money changes (amount, date,
+ * how it was paid) reverse the old accounting entry and post a new one; every edit is kept with its reason.
+ */
+export async function updateAdvance(id, { amountPaise, installmentPaise, givenOn, recoverFrom, mode, reference, note, reason }) {
+  const { userId } = requireContext();
+  const today = await todayContext();
+  const adv = await SalaryAdvance.findOne({ _id: id, ...accessibleBranchFilter() });
+  if (!adv) throw ApiError.notFound('Advance');
+  const lock = advanceLock(adv, today.businessDate);
+  if (lock) throw ApiError.conflict(`Advance ${adv.advanceNo} can no longer be edited: ${lock.toLowerCase()}.`, 'EDIT_LOCKED');
+  if (givenOn > today.businessDate) throw ApiError.badRequest('An advance cannot be dated in the future', [{ path: 'givenOn', message: 'Pick today or an earlier date' }], 'VALIDATION_ERROR');
+  const fromMonth = recoverFrom ?? adv.recoverFrom ?? null;
+  if (fromMonth && fromMonth !== adv.recoverFrom) {
+    const closed = await PayrollRun.findOne({ branchId: adv.branchId, month: fromMonth, status: { $ne: PAYROLL_STATUS.DRAFT } }).select('runNo').lean();
+    if (closed) throw ApiError.badRequest(`${monthLabel(fromMonth)} salary is already finalised (${closed.runNo})`, [{ path: 'recoverFrom', message: 'Pick a later month' }], 'VALIDATION_ERROR');
+  }
+
+  const next = { amountPaise, installmentPaise, businessDate: givenOn, recoverFrom: fromMonth, mode, reference: reference ?? null, note: note ?? null };
+  const changes = Object.entries(next)
+    .filter(([k, v]) => (adv[k] ?? null) !== v)
+    .map(([field, to]) => ({ field: ADVANCE_FIELDS[field], from: adv[field] ?? null, to }));
+  if (!changes.length) throw ApiError.badRequest('Nothing was changed', undefined, 'NO_CHANGES');
+  const moneyChanged = ['amountPaise', 'businessDate', 'mode'].some((k) => adv[k] !== next[k]);
+
+  const emp = await Employee.findById(adv.employeeId).lean();
+  const byName = (await nameMaps({ userIds: [userId] })).users.get(String(userId))?.name ?? null;
+  await withTransaction(async (session) => {
+    if (moneyChanged) {
+      await reverseJournalsFor(
+        { docType: 'salary_advance', docId: adv._id },
+        { date: today.now, businessDate: today.businessDate, financialYear: today.financialYear, narration: `Advance ${adv.advanceNo} corrected — old entry reversed` },
+        { session },
+      );
+    }
+    adv.set(next);
+    adv.edits.push({ at: today.now, by: userId, byName, reason, changes });
+    await adv.save({ session });
+    if (moneyChanged) await postAdvanceJournal(adv, emp, today, session);
+    await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'payroll', recordType: 'SalaryAdvance', recordId: adv._id, meta: { name: adv.advanceNo, employee: emp.name, reason }, changes: changes.map((c) => ({ field: c.field, from: c.from, to: c.to })) }, { session });
+  });
+  const maps = await nameMaps({ branchIds: [adv.branchId] });
+  maps.employees = await employeeMap([adv.employeeId]);
+  return serializeAdvance(adv.toObject(), maps, today.businessDate);
 }
 
 // ---------------------------------------------------------------- payroll
@@ -435,6 +623,8 @@ function buildLine(emp, month, counts, advance, keep = {}) {
     otherDeductionPaise,
     advanceBalancePaise,
     advanceDeductionPaise,
+    advances: advance?.advances ?? [],
+    advanceUpcomingPaise: advance?.upcomingPaise ?? 0,
     netPaise: room - advanceDeductionPaise,
     note: keep.note ?? null,
   };
@@ -489,10 +679,12 @@ export async function listPayrollRuns({ page, limit, branchId, month }) {
 export async function getPayrollRun(id) {
   const run = (await findRun(id)).toObject();
   const maps = await nameMaps({ branchIds: [run.branchId], userIds: [run.finalisedBy, ...run.lines.map((l) => l.paid?.by)] });
+  const photos = new Map((await Employee.find({ _id: { $in: run.lines.map((l) => l.employeeId) } }).select('photoFileId').lean()).map((e) => [String(e._id), e.photoFileId ?? null]));
   return {
     ...serializeRun(run, maps),
     lines: run.lines.map((l) => ({
       ...l,
+      photoFileId: photos.get(String(l.employeeId)) ?? null,
       paid: l.paid?.at ? { mode: l.paid.mode, reference: l.paid.reference, at: l.paid.at, by: pick(maps.users, l.paid.by) } : null,
     })),
   };
@@ -513,7 +705,7 @@ export async function createPayrollRun({ branchId, month }) {
   const employees = await rosterFor(branchId, month);
   if (!employees.length) throw ApiError.badRequest(`No employees were on ${branch.name}’s rolls in ${monthLabel(month)}`, [{ path: 'branchId', message: 'No employees' }], 'VALIDATION_ERROR');
   const ids = employees.map((e) => e._id);
-  const [counts, advances] = await Promise.all([attendanceCounts(employees, month), openAdvanceBalances(ids)]);
+  const [counts, advances] = await Promise.all([attendanceCounts(employees, month), openAdvanceBalances(ids, month)]);
 
   const run = await withTransaction(async (session) => {
     const runNo = await nextDocumentNo({ prefix: 'PAY', branchCode: branch.code, financialYear: today.financialYear }, { session });
@@ -530,7 +722,7 @@ export async function recalculatePayrollRun(id) {
   assertDraft(run);
   const employees = await rosterFor(run.branchId, run.month);
   const ids = employees.map((e) => e._id);
-  const [counts, advances] = await Promise.all([attendanceCounts(employees, run.month), openAdvanceBalances(ids)]);
+  const [counts, advances] = await Promise.all([attendanceCounts(employees, run.month), openAdvanceBalances(ids, run.month)]);
   const kept = new Map(run.lines.map((l) => [String(l.employeeId), l]));
   run.lines = employees.map((e) => {
     const k = kept.get(String(e._id));
@@ -576,7 +768,7 @@ export async function finalisePayrollRun(id) {
     // Recover advances oldest first; fail if someone else recovered them meanwhile.
     for (const line of lines.filter((l) => l.advanceDeductionPaise > 0)) {
       let left = line.advanceDeductionPaise;
-      const open = await SalaryAdvance.find({ employeeId: line.employeeId, status: 'open' }).sort({ createdAt: 1 }).session(session);
+      const open = await SalaryAdvance.find({ employeeId: line.employeeId, status: 'open', ...dueFilter(run.month) }).sort({ businessDate: 1, createdAt: 1 }).session(session);
       for (const adv of open) {
         if (!left) break;
         const take = Math.min(left, adv.amountPaise - adv.recoveredPaise);
@@ -687,10 +879,12 @@ export async function getAttendanceRegister({ branchId, month }) {
       code: e.code,
       name: e.name,
       designation: e.designation,
+      photoFileId: e.photoFileId ?? null,
       // Days outside these dates are not on the rolls and cannot be marked.
       from: e.joiningDate > start ? e.joiningDate : start,
       to: e.exitDate && e.exitDate < end ? e.exitDate : end,
       eligibleDays: eligibleDays(e, month),
+      breaks: (e.breaks ?? []).filter((b) => b.to >= start && b.from <= end).map((b) => ({ from: b.from, to: b.to })),
       marks: byEmp.get(String(e._id)) ?? {},
     })),
   };
@@ -716,7 +910,7 @@ export async function saveAttendanceRegister({ branchId, month, entries }) {
   for (const e of entries) {
     const emp = byId.get(e.employeeId);
     if (!emp) throw ApiError.badRequest('Some employees are not on this branch’s rolls this month', undefined, 'VALIDATION_ERROR');
-    if (e.date < emp.joiningDate || (emp.exitDate && e.date > emp.exitDate)) {
+    if (!onRollsOn(emp, e.date)) {
       throw ApiError.badRequest(`${emp.name} was not on the rolls on ${e.date}`, undefined, 'VALIDATION_ERROR');
     }
   }

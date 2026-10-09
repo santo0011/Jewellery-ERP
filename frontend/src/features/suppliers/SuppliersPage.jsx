@@ -1,6 +1,6 @@
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import { Box, Button, MenuItem, Stack, TextField, Typography } from '@mui/material';
-import { SUPPLIER_SUPPLIES } from '@jerp/shared';
+import { formatINR, SUPPLIER_SUPPLIES } from '@jerp/shared';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import DataTable from '../../components/DataTable.jsx';
@@ -11,6 +11,10 @@ import { useListParams } from '../../hooks/useListParams.js';
 import { usePermission } from '../../hooks/usePermission.js';
 import SupplierFormDrawer from './SupplierFormDrawer.jsx';
 import { useSupplierListQuery } from './supplierApi.js';
+import SummaryCards, { SummaryCard } from '../../components/SummaryCards.jsx';
+import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined';
+import ShoppingBagOutlinedIcon from '@mui/icons-material/ShoppingBagOutlined';
+import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined';
 import { viewColumn } from '../../components/ViewButton.jsx';
 import { BalanceAmount } from '../../components/Amount.jsx';
 
@@ -57,6 +61,21 @@ export default function SuppliersPage() {
           )
         }
       />
+      {data?.meta?.summary && (
+        <SummaryCards>
+          <SummaryCard icon={LocalShippingOutlinedIcon} label="Active suppliers" value={data.meta.summary.active} caption="You buy from" />
+          <SummaryCard icon={ShoppingBagOutlinedIcon} label="Bought this month" value={formatINR(data.meta.summary.monthPaise, { decimals: 0 })} caption="Purchase bills" tone="blue" onClick={() => navigate('/purchases')} />
+          <SummaryCard
+            icon={AccountBalanceWalletOutlinedIcon}
+            label="To pay suppliers"
+            value={formatINR(data.meta.summary.duePaise, { decimals: 0 })}
+            caption={data.meta.summary.dueSuppliers ? `Owed to ${data.meta.summary.dueSuppliers} supplier${data.meta.summary.dueSuppliers === 1 ? '' : 's'}` : 'All bills paid'}
+            tone={data.meta.summary.duePaise ? 'red' : 'green'}
+            valueTone={data.meta.summary.duePaise ? 'due' : 'paid'}
+            onClick={() => navigate('/purchases?payment=due')}
+          />
+        </SummaryCards>
+      )}
       <DataTable
         columns={[...columns, viewColumn((s) => navigate(`/suppliers/${s.id}`), { name: (s) => s.companyName })]}
         rows={data?.items}

@@ -9,6 +9,7 @@
     "start": "node --env-file-if-exists=.env src/server.js",
     "db": "node scripts/dev-db.js",
     "seed": "node --env-file-if-exists=.env scripts/seed.js",
+    "seed:demo": "node --env-file-if-exists=.env scripts/seed-demo.js",
     "test": "vitest run",
     "create-super-admin": "node --env-file-if-exists=.env scripts/create-super-admin.js"
   },

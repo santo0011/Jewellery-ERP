@@ -96,7 +96,33 @@ function NavItem({ item, collapsed, onNavigate }) {
   );
 }
 
-function NavGroup({ group, open, onToggle, onNavigate }) {
+function NavGroup({ group, open, onToggle, onNavigate, fixed = false }) {
+  if (fixed && !group.pinned) {
+    return (
+      <Box sx={{ mb: 1 }}>
+        <Box sx={{ mx: 1.5, px: 1, py: 0.75, display: 'flex', alignItems: 'center', gap: 1, color: s.muted }}>
+          <Box component="span" sx={{ width: 12, height: '1.5px', background: s.goldGradient, opacity: 0.8 }} />
+          <Typography variant="overline" sx={{ color: 'inherit', lineHeight: 1.8, fontSize: '0.8rem', fontWeight: 600, letterSpacing: '0.1em' }}>
+            {group.label}
+          </Typography>
+        </Box>
+        <List disablePadding sx={{ pt: 0.5 }}>
+          {group.items.map((item) => (
+            <NavItem key={item.path} item={item} collapsed={false} onNavigate={onNavigate} />
+          ))}
+        </List>
+      </Box>
+    );
+  }
+  if (group.pinned) {
+    return (
+      <List disablePadding sx={{ mb: 1 }}>
+        {group.items.map((item) => (
+          <NavItem key={item.path} item={item} collapsed={false} onNavigate={onNavigate} />
+        ))}
+      </List>
+    );
+  }
   const id = `nav-group-${group.label.toLowerCase().replace(/\s+/g, '-')}`;
   return (
     <Box sx={{ mb: 1 }}>
@@ -195,8 +221,11 @@ function WorkspaceCard({ name, caption, collapsed }) {
   );
 }
 
-/** `groups` overrides the store navigation (used by the Super Admin panel); `panelName` sits under the logo; `organisationName` and `caption` fill the footer card. */
-export default function Sidebar({ collapsed = false, onToggleCollapse, onNavigate, organisationName, caption = 'Organisation', panelName = 'Organisation Panel', groups: groupsProp }) {
+/**
+ * `groups` overrides the store navigation (used by the Super Admin panel); `fixedGroups` shows every group open, without folding;
+ * `panelName` sits under the logo; `organisationName` and `caption` fill the footer card.
+ */
+export default function Sidebar({ collapsed = false, onToggleCollapse, onNavigate, organisationName, caption = 'Organisation', panelName = 'Organisation Panel', groups: groupsProp, fixedGroups = false }) {
   const { data: session } = useSession();
   const storeGroups = visibleNav(usePermissions(), { branchLogin: session?.user?.branchLogin });
   const groups = groupsProp ?? storeGroups;
@@ -204,11 +233,13 @@ export default function Sidebar({ collapsed = false, onToggleCollapse, onNavigat
   const containsActive = (group) => group.items.some((i) => matchPath({ path: i.path, end: Boolean(i.end) }, location.pathname));
   // Accordion: only one group is open at a time. It starts as the group of the current page (so you can see where
   // you are); clicking another group opens it and closes the rest, clicking the open one closes it.
-  const [openGroup, setOpenGroup] = useState(() => groups.find(containsActive)?.label ?? null);
+  // Pinned groups (Dashboard) are always visible and take no part in this.
+  const foldable = groups.filter((g) => !g.pinned);
+  const [openGroup, setOpenGroup] = useState(() => foldable.find(containsActive)?.label ?? null);
   const isOpen = (group) => openGroup === group.label;
 
   useEffect(() => {
-    const active = groups.find(containsActive);
+    const active = foldable.find(containsActive);
     if (active) setOpenGroup(active.label);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.pathname]);
@@ -285,7 +316,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse, onNavigat
               </List>
             </Box>
           ) : (
-            <NavGroup key={group.label} group={group} open={isOpen(group)} onToggle={() => toggleGroup(group.label)} onNavigate={onNavigate} />
+            <NavGroup key={group.label} group={group} fixed={fixedGroups} open={isOpen(group)} onToggle={() => toggleGroup(group.label)} onNavigate={onNavigate} />
           ),
         )}
       </Box>

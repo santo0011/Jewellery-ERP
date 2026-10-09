@@ -25,7 +25,7 @@ export default function StockSummaryPage() {
       <PageHeader
         title="Stock summary"
         subtitle="Live stock by metal and purity, weighed to the milligram."
-        breadcrumbs={[{ label: 'Inventory' }, { label: 'Stock summary' }]}
+        breadcrumbs={[{ label: 'Stock' }, { label: 'Stock summary' }]}
         actions={
           session.branches.length > 1 && (
             <TextField select size="small" label="Branch" value={branchId} onChange={(e) => setBranchId(e.target.value)} sx={{ minWidth: 200 }}>

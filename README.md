@@ -11,22 +11,18 @@ Multi-tenant jewellery business management SaaS on the MERN stack. Architecture 
 
 ```bash
 npm install
-cp backend/.env.example backend/.env      # then set JWT_ACCESS_SECRET to a long random value
-npm run dev:db                            # terminal 1: local MongoDB replica set (first run downloads MongoDB)
-npm run seed                              # once: collections + default Super Admin
+npm run dev        # creates backend/.env (with a generated JWT secret) if it is missing
 ```
 
-Generate a secret with:
-
-```bash
-node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"
-```
+Set `SUPER_ADMIN_EMAIL` / `SUPER_ADMIN_PASSWORD` in `backend/.env`, or run `npm run seed` once for collections + the default Super Admin.
 
 ## Daily development
 
 ```bash
 npm run dev        # MongoDB + API (http://localhost:5000) + web (http://localhost:5173)
 ```
+
+It starts the services in order, waits for each to be ready, and prints short status lines. A MongoDB already running on the configured port is reused; one it started is shut down cleanly on Ctrl+C. Routine HTTP requests are only logged with `LOG_LEVEL=debug` in `backend/.env`.
 
 Or run them separately with `npm run dev:db`, `npm run dev:api` and `npm run dev:web`.
 

@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import {
   advanceListQuerySchema, attendanceCalendarQuerySchema, attendanceCalendarSchema, attendanceQuerySchema, attendanceRegisterQuerySchema, attendanceRegisterSaveSchema, attendanceSaveSchema, employeeListQuerySchema, employeeSchema, employeeStatusSchema, idParamsSchema,
-  payrollCreateSchema, payrollLineParamsSchema, payrollLineSchema, payrollListQuerySchema, payrollPaySchema, salaryAdvanceSchema,
+  payrollCreateSchema, payrollLineParamsSchema, payrollLineSchema, payrollListQuerySchema, payrollPaySchema, salaryAdvanceSchema, salaryAdvanceUpdateSchema,
 } from '@jerp/shared/schemas';
 import { authenticate } from '../../middleware/authenticate.js';
 import { authorize } from '../../middleware/authorize.js';
+import { singleImageUpload } from '../../middleware/upload.js';
 import { validate } from '../../middleware/validate.js';
 import * as c from './hr.controller.js';
 
@@ -15,6 +16,8 @@ router.get('/employees', authorize('employee.view'), validate({ query: employeeL
 router.post('/employees', authorize('employee.create'), validate({ body: employeeSchema }), c.createEmployee);
 router.get('/employees/:id', authorize('employee.view'), validate({ params: idParamsSchema }), c.getEmployee);
 router.put('/employees/:id', authorize('employee.edit'), validate({ params: idParamsSchema, body: employeeSchema }), c.updateEmployee);
+router.put('/employees/:id/photo', authorize('employee.edit'), validate({ params: idParamsSchema }), singleImageUpload('photo', { maxBytes: 2 * 1024 * 1024 }), c.setEmployeePhoto);
+router.delete('/employees/:id/photo', authorize('employee.edit'), validate({ params: idParamsSchema }), c.removeEmployeePhoto);
 router.patch('/employees/:id/status', authorize('employee.edit'), validate({ params: idParamsSchema, body: employeeStatusSchema }), c.setEmployeeStatus);
 
 router.get('/attendance', authorize('attendance.view'), validate({ query: attendanceQuerySchema }), c.getAttendance);
@@ -26,6 +29,7 @@ router.put('/attendance/register', authorize('attendance.mark'), validate({ body
 
 router.get('/advances', authorize('payroll.view'), validate({ query: advanceListQuerySchema }), c.listAdvances);
 router.post('/advances', authorize('payroll.process'), validate({ body: salaryAdvanceSchema }), c.createAdvance);
+router.put('/advances/:id', authorize('payroll.process'), validate({ params: idParamsSchema, body: salaryAdvanceUpdateSchema }), c.updateAdvance);
 
 router.get('/payroll', authorize('payroll.view'), validate({ query: payrollListQuerySchema }), c.listPayroll);
 router.post('/payroll', authorize('payroll.process'), validate({ body: payrollCreateSchema }), c.createPayroll);

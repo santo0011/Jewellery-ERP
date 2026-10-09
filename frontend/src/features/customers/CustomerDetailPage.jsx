@@ -1,7 +1,6 @@
 import AssignmentOutlinedIcon from '@mui/icons-material/AssignmentOutlined';
 import CallReceivedRoundedIcon from '@mui/icons-material/CallReceivedRounded';
 import CreditCardOffOutlinedIcon from '@mui/icons-material/CreditCardOffOutlined';
-import DiamondOutlinedIcon from '@mui/icons-material/DiamondOutlined';
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import ReplayRoundedIcon from '@mui/icons-material/ReplayRounded';
@@ -18,6 +17,7 @@ import PageHeader from '../../components/PageHeader.jsx';
 import RecordActions from '../../components/RecordActions.jsx';
 import RecordHistory from '../../components/RecordHistory.jsx';
 import { EmptyState, ErrorState, LoadingState } from '../../components/StateViews.jsx';
+import SummaryCards, { SummaryCard } from '../../components/SummaryCards.jsx';
 import StatusChip from '../../components/StatusChip.jsx';
 import ViewButton from '../../components/ViewButton.jsx';
 import { usePermission } from '../../hooks/usePermission.js';
@@ -40,31 +40,6 @@ const initials = (name) =>
     .slice(0, 2)
     .map((p) => p.charAt(0).toUpperCase())
     .join('');
-
-function Stat({ label, value, caption, tone, icon: Icon }) {
-  return (
-    <Card sx={{ height: '100%' }}>
-      <CardContent sx={{ display: 'flex', gap: 1.5, alignItems: 'flex-start' }}>
-        <Box sx={{ width: 38, height: 38, borderRadius: 2, flexShrink: 0, display: 'grid', placeItems: 'center', bgcolor: tone === 'due' ? 'rgba(155, 44, 44, 0.10)' : tone === 'paid' ? 'rgba(46, 107, 79, 0.10)' : 'rgba(201, 162, 39, 0.12)', color: tone ? MONEY_TONE[tone] : tokens.light.goldDark }}>
-          <Icon fontSize="small" />
-        </Box>
-        <Box sx={{ minWidth: 0 }}>
-          <Typography variant="overline" color="textSecondary" sx={{ lineHeight: 1.4 }}>
-            {label}
-          </Typography>
-          <Typography variant="h3" component="p" sx={{ fontWeight: 700, color: tone ? MONEY_TONE[tone] : 'text.primary', whiteSpace: 'nowrap' }}>
-            {value}
-          </Typography>
-          {caption && (
-            <Typography variant="caption" color="textSecondary">
-              {caption}
-            </Typography>
-          )}
-        </Box>
-      </CardContent>
-    </Card>
-  );
-}
 
 const PAYMENT_KIND = {
   advance: { title: 'Order advance', icon: CallReceivedRoundedIcon, tone: 'paid' },
@@ -204,7 +179,7 @@ export default function CustomerDetailPage() {
         </Box>
       ),
     },
-    { key: 'actions', label: '', align: 'right', width: 56, render: (p) => <ViewButton title="Open invoice" name={p.invoiceNo} icon={ReceiptLongOutlinedIcon} onClick={() => navigate(`/sales/${p.saleId}`)} /> },
+    { key: 'actions', label: 'Action', align: 'right', width: 80, render: (p) => <ViewButton title="Open invoice" name={p.invoiceNo} icon={ReceiptLongOutlinedIcon} onClick={() => navigate(`/sales/${p.saleId}`)} /> },
   ];
 
   const orderColumns = [
@@ -225,7 +200,7 @@ export default function CustomerDetailPage() {
     { key: 'summary', label: 'Items', render: (o) => <Typography variant="body2">{o.summary}</Typography> },
     { key: 'advance', label: 'Advance', align: 'right', render: (o) => <Amount paise={o.advancePaise} tone={o.advancePaise ? 'paid' : undefined} decimals={0} /> },
     { key: 'status', label: 'Status', render: (o) => <OrderStatusChip status={o.status} /> },
-    { key: 'actions', label: '', align: 'right', width: 56, render: (o) => <ViewButton name={o.orderNo} onClick={() => navigate(`/orders/${o.id}`)} /> },
+    { key: 'actions', label: 'Action', align: 'right', width: 80, render: (o) => <ViewButton name={o.orderNo} onClick={() => navigate(`/orders/${o.id}`)} /> },
   ];
 
   return (
@@ -270,35 +245,23 @@ export default function CustomerDetailPage() {
       />
 
       {stats && (
-        <Grid container spacing={2} sx={{ mb: 3 }}>
+        <SummaryCards>
           {stats.purchasesPaise != null && (
-            <Grid size={{ xs: 12, sm: 6, lg: 'grow' }}>
-              <Stat label="Total purchases" icon={ReceiptLongOutlinedIcon} value={formatINR(stats.purchasesPaise, { decimals: 0 })} caption={`${stats.bills} bill${stats.bills === 1 ? '' : 's'}${stats.lastPurchaseAt ? ` · last ${formatDate(stats.lastPurchaseAt)}` : ''}`} />
-            </Grid>
+            <SummaryCard icon={ReceiptLongOutlinedIcon} label="Total purchases" value={formatINR(stats.purchasesPaise, { decimals: 0 })} caption={`${stats.bills} bill${stats.bills === 1 ? '' : 's'}${stats.lastPurchaseAt ? ` · last ${formatDate(stats.lastPurchaseAt)}` : ''}`} />
           )}
-          {stats.items != null && (
-            <Grid size={{ xs: 12, sm: 6, lg: 'grow' }}>
-              <Stat label="Items bought" icon={DiamondOutlinedIcon} value={stats.items} caption={`${formatWeight(stats.grossWeightMg)} gross`} />
-            </Grid>
-          )}
-          <Grid size={{ xs: 12, sm: 6, lg: 'grow' }}>
-            <Stat label="Paid" icon={PaymentsOutlinedIcon} tone="paid" value={formatINR(stats.paidPaise, { decimals: 0 })} caption="Advances and bill payments" />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6, lg: 'grow' }}>
-            <Stat
-              label="Due"
-              icon={CreditCardOffOutlinedIcon}
-              tone={stats.duePaise ? 'due' : 'paid'}
-              value={stats.duePaise ? formatINR(stats.duePaise, { decimals: 0 }) : 'Nil'}
-              caption={stats.duePaise ? [stats.creditDuePaise && `Bills ${formatINR(stats.creditDuePaise, { decimals: 0 })}`, stats.openingDuePaise && `Old ${formatINR(stats.openingDuePaise, { decimals: 0 })}`].filter(Boolean).join(' · ') : 'Nothing owed'}
-            />
-          </Grid>
+          <SummaryCard icon={PaymentsOutlinedIcon} label="Paid" value={formatINR(stats.paidPaise, { decimals: 0 })} caption="Advances and bill payments" tone="green" valueTone="paid" />
+          <SummaryCard
+            icon={CreditCardOffOutlinedIcon}
+            label="Due"
+            value={stats.duePaise ? formatINR(stats.duePaise, { decimals: 0 }) : 'Nil'}
+            caption={stats.duePaise ? [stats.creditDuePaise && `Bills ${formatINR(stats.creditDuePaise, { decimals: 0 })}`, stats.openingDuePaise && `Old ${formatINR(stats.openingDuePaise, { decimals: 0 })}`].filter(Boolean).join(' · ') : 'Nothing owed'}
+            tone={stats.duePaise ? 'red' : 'green'}
+            valueTone={stats.duePaise ? 'due' : 'paid'}
+          />
           {stats.openOrders != null && (
-            <Grid size={{ xs: 12, sm: 6, lg: 'grow' }}>
-              <Stat label="Open orders" icon={AssignmentOutlinedIcon} value={stats.openOrders} caption={stats.advanceHeldPaise ? `${formatINR(stats.advanceHeldPaise, { decimals: 0 })} advance held` : 'No advance held'} />
-            </Grid>
+            <SummaryCard icon={AssignmentOutlinedIcon} label="Open orders" value={stats.openOrders} caption={stats.advanceHeldPaise ? `${formatINR(stats.advanceHeldPaise, { decimals: 0 })} advance held` : 'No advance held'} tone="blue" />
           )}
-        </Grid>
+        </SummaryCards>
       )}
 
       <Tabs value={tab} onChange={(e, v) => setTab(v)} variant="scrollable" sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>

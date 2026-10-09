@@ -10,7 +10,7 @@ export async function connectDb(uri = env.MONGODB_URI) {
   if (!hello.setName) {
     throw new Error('MongoDB must run as a replica set (transactions are required). Use `npm run dev:db` or a replica-set URI.');
   }
-  logger.info({ db: mongoose.connection.name, replicaSet: hello.setName }, 'MongoDB connected');
+  logger.info(`MongoDB connected (${mongoose.connection.name})`);
 }
 
 export async function disconnectDb() {

@@ -54,9 +54,10 @@ describe('reports', () => {
     expect(register.rows).toHaveLength(1);
     expect(register.totals).toMatchObject({ totalPaise: total, duePaise: 100000, receivedPaise: total - 100000 });
 
-    const gst = (await run(ctx, 'gst-hsn')).body.data;
-    expect(gst.rows[0]).toMatchObject({ hsn: '7113', taxablePaise: quote.totals.taxablePaise, taxPaise: quote.totals.gstPaise });
-    expect(gst.totals.cgstPaise + gst.totals.sgstPaise).toBe(quote.totals.gstPaise);
+    const cgst = (await run(ctx, 'gst-cgst')).body.data;
+    const sgst = (await run(ctx, 'gst-sgst')).body.data;
+    expect(cgst.totals.taxablePaise).toBe(quote.totals.taxablePaise);
+    expect(cgst.totals.taxPaise + sgst.totals.taxPaise).toBe(quote.totals.gstPaise);
 
     const profit = (await run(ctx, 'profit')).body.data;
     expect(profit.totals).toMatchObject({ costPaise: 6000000, profitPaise: quote.totals.taxablePaise - 6000000 });
@@ -95,5 +96,54 @@ describe('reports', () => {
     expect(keys).not.toContain('salary-register');
     expect(keys).not.toContain('orders-open');
     expect((await api().get('/api/v1/reports/trial-balance').set(bearer(token))).status).toBe(403);
+  });
+});
+
+describe('GST reports', () => {
+  it('splits tax into CGST, SGST and IGST reports, less credit notes', async () => {
+    const ctx = await setup();
+    const ring = (await api().get('/api/v1/categories').set(bearer(ctx.t))).body.data.find((c) => c.name === 'Ring');
+    const piece = async (grossWeightMg) => {
+      const p = (await api().post('/api/v1/products').set(bearer(ctx.t)).send({ name: 'Ring', categoryId: ring.id, jewelleryType: 'plain_gold', metal: 'gold', purity: 916, grossWeightMg, wastage: { mode: 'none', value: 0 }, making: { type: 'per_gram', value: 50000 }, huid: `G${Math.random().toString(36).slice(2, 7).toUpperCase()}`, hsnCode: '7113', branchId: ctx.ho })).body.data;
+      await api().post('/api/v1/inventory/opening').set(bearer(ctx.t)).send({ branchId: ctx.ho, productIds: [p.id] });
+      return p;
+    };
+    const buyer = async (body) => (await api().post('/api/v1/customers').set(bearer(ctx.t)).send({ mobile: `98${Math.floor(10000000 + Math.random() * 89999999)}`, ...body })).body.data;
+    const sell = async (customer, grossWeightMg) => {
+      const items = [{ productId: (await piece(grossWeightMg)).id }];
+      const q = (await api().post('/api/v1/sales/quote').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: customer?.id, items })).body.data;
+      const res = await api().post('/api/v1/sales').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: customer?.id, items, payments: [{ mode: 'upi', amountPaise: q.totals.grandTotalPaise }] });
+      expect(res.status).toBe(201);
+      return res.body.data;
+    };
+
+    const local = await sell(await buyer({ name: 'Local Buyer', address: { stateCode: '19' } }), 10000);
+    const trade = await sell(await buyer({ name: 'Trade Buyer', gstin: '19AABCU9603R1ZM', address: { stateCode: '19' } }), 10000);
+    const outside = await sell(await buyer({ name: 'Mumbai Buyer', address: { stateCode: '27' } }), 20000);
+    const cancelled = await sell(null, 5000);
+    await api().post(`/api/v1/sales/${cancelled.id}/cancel`).set(bearer(ctx.t)).send({ reason: 'Wrong item' });
+    expect((await api().post(`/api/v1/sales/${trade.id}/returns`).set(bearer(ctx.t)).send({ productIds: [trade.items[0].productId], refundMode: 'credit', reason: 'Exchange later' })).status).toBe(201);
+
+    const gstKeys = (await api().get('/api/v1/reports').set(bearer(ctx.t))).body.data.filter((r) => r.group === 'GST').map((r) => r.key);
+    expect(gstKeys).toEqual(['gst-cgst', 'gst-sgst', 'gst-igst']);
+
+    for (const kind of ['cgst', 'sgst']) {
+      const rep = (await run(ctx, `gst-${kind}`)).body.data;
+      expect(rep.rows.map((r) => [r.type, r.docNo])).toEqual([
+        ['Invoice', local.invoiceNo],
+        ['Invoice', trade.invoiceNo],
+        ['Credit note', expect.stringMatching(/^CN\//)],
+      ]);
+      expect(rep.rows[0]).toMatchObject({ rate: '1.5%', taxPaise: local.totals[`${kind}Paise`], gstin: 'Unregistered' });
+      expect(rep.rows[1].gstin).toBe('19AABCU9603R1ZM');
+      expect(rep.rows[2].taxPaise).toBe(-trade.totals[`${kind}Paise`]);
+      expect(rep.totals.taxPaise).toBe(local.totals[`${kind}Paise`]);
+      expect(rep.summary.at(-1)).toMatchObject({ label: `Net ${kind.toUpperCase()} payable`, value: local.totals[`${kind}Paise`] });
+    }
+
+    const igst = (await run(ctx, 'gst-igst')).body.data;
+    expect(igst.rows).toHaveLength(1);
+    expect(igst.rows[0]).toMatchObject({ docNo: outside.invoiceNo, pos: '27 - Maharashtra', rate: '3%', taxPaise: outside.totals.gstPaise });
+    expect(igst.totals.taxPaise).toBe(outside.totals.igstPaise);
   });
 });

@@ -11,6 +11,7 @@ import { Organisation } from '../organisations/organisation.model.js';
 import { organisationDeactivated } from '../organisations/organisationAccess.js';
 import { onboardOrganisation } from '../organisations/organisation.service.js';
 import { Subscription } from '../organisations/subscription.model.js';
+import { effectiveSubscription } from '../billing/limits.js';
 import { Role } from '../roles/role.model.js';
 import { getSettings } from '../settings/settings.service.js';
 import { assertEmailAvailable } from '../users/emailAvailability.js';
@@ -279,7 +280,10 @@ export async function getMe(auth) {
       hasLogo: Boolean(organisation.logoFileId),
       branchLimit: organisation.branchLimit,
     },
-    subscription: subscription && { plan: subscription.plan, status: subscription.status, trialEndsAt: subscription.trialEndsAt },
+    subscription: subscription && (() => {
+      const eff = effectiveSubscription(subscription);
+      return { plan: subscription.plan, planName: subscription.planName ?? subscription.plan, status: eff.status, expired: eff.expired, daysLeft: eff.daysLeft, endsAt: eff.endsAt, trialEndsAt: subscription.trialEndsAt };
+    })(),
     permissions: expandPermissions(auth.permissions),
     activeBranchId: auth.branchId,
     branches: branches.map((b) => ({ id: b._id, code: b.code, name: b.name, isHeadOffice: b.isHeadOffice })),

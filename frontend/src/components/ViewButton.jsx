@@ -15,8 +15,8 @@ export default function ViewButton({ onClick, title = 'View details', name, icon
 /** A trailing table column holding just the View button. */
 export const viewColumn = (onView, { title, name } = {}) => ({
   key: 'actions',
-  label: '',
+  label: 'Action',
   align: 'right',
-  width: 56,
+  width: 80,
   render: (row) => <ViewButton onClick={() => onView(row)} title={title} name={name?.(row)} />,
 });

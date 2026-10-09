@@ -24,7 +24,12 @@ export const employeeSchema = z.object({
   notes: optionalText(1000),
 });
 
-export const employeeStatusSchema = z.object({ status: z.enum(Object.values(EMPLOYMENT_STATUS)), exitDate: optional(isoDate) });
+export const employeeStatusSchema = z.object({
+  status: z.enum(Object.values(EMPLOYMENT_STATUS)),
+  exitDate: optional(isoDate),
+  rejoinDate: optional(isoDate),
+  note: optionalText(200),
+});
 
 export const employeeListQuerySchema = listQuerySchema.extend({
   branchId: objectIdSchema.optional(),
@@ -72,16 +77,25 @@ export const advanceListQuerySchema = listQuerySchema.extend({
   status: z.enum(['open', 'closed']).optional(),
 });
 
-export const salaryAdvanceSchema = z
-  .object({
-    employeeId: objectIdSchema,
-    amountPaise: paise('Amount', { min: 1 }),
-    installmentPaise: paise('Monthly deduction', { min: 1 }),
-    mode: z.enum(SALARY_PAYMENT_MODES, { error: 'Select how it was paid' }),
-    reference: optionalText(60),
-    note: optionalText(300),
-  })
-  .refine((v) => v.installmentPaise <= v.amountPaise, { path: ['installmentPaise'], message: 'Cannot be more than the advance' });
+const advanceFields = z.object({
+  employeeId: objectIdSchema,
+  amountPaise: paise('Amount', { min: 1 }),
+  installmentPaise: paise('Monthly deduction', { min: 1 }),
+  givenOn: isoDate.optional(),
+  recoverFrom: month.optional(),
+  mode: z.enum(SALARY_PAYMENT_MODES, { error: 'Select how it was paid' }),
+  reference: optionalText(60),
+  note: optionalText(300),
+});
+const instalmentWithinAmount = [(v) => v.installmentPaise <= v.amountPaise, { path: ['installmentPaise'], message: 'Cannot be more than the advance' }];
+
+export const salaryAdvanceSchema = advanceFields.refine(...instalmentWithinAmount);
+
+/** Editing an advance (same day only): the same fields, plus why it changed. */
+export const salaryAdvanceUpdateSchema = advanceFields
+  .omit({ employeeId: true })
+  .extend({ givenOn: isoDate, reason: requiredText('Reason for the change', { min: 3, max: 200 }) })
+  .refine(...instalmentWithinAmount);
 
 export const payrollListQuerySchema = listQuerySchema.extend({ branchId: objectIdSchema.optional(), month: month.optional() });
 
@@ -110,4 +124,4 @@ export const reportQuerySchema = z.object({
   branchId: objectIdSchema.optional(),
   account: z.enum(['cash', 'bank']).optional(),
 });
-export const reportParamsSchema = z.object({ key: z.string().regex(/^[a-z-]{2,40}$/) });
+export const reportParamsSchema = z.object({ key: z.string().regex(/^[a-z0-9-]{2,40}$/) });

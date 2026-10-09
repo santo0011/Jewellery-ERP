@@ -298,11 +298,11 @@ function LineCard({ product: p, discount, discountType, breakdown: b, quoting, c
                   aria-label="Discount type"
                   sx={{ height: 40, '& .MuiToggleButton-root': { px: 1.25, fontWeight: 700, fontSize: '0.875rem' }, '& .Mui-selected': { bgcolor: 'rgba(201, 162, 39, 0.16) !important', color: tokens.light.goldDark } }}
                 >
-                  <ToggleButton value="amount" aria-label="Discount in rupees">
-                    ₹
-                  </ToggleButton>
                   <ToggleButton value="percent" aria-label="Discount in percent">
                     %
+                  </ToggleButton>
+                  <ToggleButton value="amount" aria-label="Discount in rupees">
+                    ₹
                   </ToggleButton>
                 </ToggleButtonGroup>
                 <TextField
@@ -508,7 +508,7 @@ export default function BillingPage() {
   }, [quote?.payablePaise]);
 
   const addProduct = (p) => {
-    setLines((ls) => (ls.some((l) => l.product.id === p.id) ? ls : [...ls, { product: p, discount: '', discountType: 'amount' }]));
+    setLines((ls) => (ls.some((l) => l.product.id === p.id) ? ls : [...ls, { product: p, discount: '', discountType: 'percent' }]));
     toast.success(`${p.sku} added`, { duration: 1200 });
   };
 

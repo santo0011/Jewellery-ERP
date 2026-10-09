@@ -199,8 +199,26 @@ export async function listOrders({ page, limit, q, status, branchId, customerId 
       overdue: Boolean(o.expectedDate && o.expectedDate < businessDate && OPEN_ORDER_STATUSES.includes(o.status)),
       invoiceNo: o.invoiceNo,
     })),
-    meta: { page, limit, total, pages: Math.max(1, Math.ceil(total / limit)), counts: Object.fromEntries(counts.map((c) => [c._id, c.count])) },
+    meta: { page, limit, total, pages: Math.max(1, Math.ceil(total / limit)), counts: Object.fromEntries(counts.map((c) => [c._id, c.count])), summary: await orderSummary(branchId, businessDate) },
   };
+}
+
+/** Header cards: open orders, ready to hand over, overdue, and customer advances held on open orders. */
+async function orderSummary(branchId, today) {
+  const [r] = await Order.aggregate([
+    { $match: { ...accessibleBranchFilter(), ...(branchId && { branchId: oid(branchId) }), status: { $in: OPEN_ORDER_STATUSES } } },
+    {
+      $group: {
+        _id: null,
+        open: { $sum: 1 },
+        ready: { $sum: { $cond: [{ $eq: ['$status', 'ready'] }, 1, 0] } },
+        overdue: { $sum: { $cond: [{ $and: [{ $ne: ['$expectedDate', null] }, { $lt: ['$expectedDate', today] }] }, 1, 0] } },
+        advancePaise: { $sum: '$advancePaise' },
+        estimatedPaise: { $sum: '$estimatedPaise' },
+      },
+    },
+  ]);
+  return { open: r?.open ?? 0, ready: r?.ready ?? 0, overdue: r?.overdue ?? 0, advancePaise: r?.advancePaise ?? 0, estimatedPaise: r?.estimatedPaise ?? 0 };
 }
 
 export async function getOrder(id) {

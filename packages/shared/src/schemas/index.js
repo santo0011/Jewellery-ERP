@@ -12,3 +12,6 @@ export * from './sales.js';
 export * from './orders.js';
 export * from './platform.js';
 export * from './hr.js';
+export * from './purchase.js';
+export * from './item.js';
+export * from './billing.js';

@@ -16,6 +16,7 @@ import { createDefaultSettings } from '../settings/settings.service.js';
 import { User } from '../users/user.model.js';
 import { Organisation } from './organisation.model.js';
 import { Subscription } from './subscription.model.js';
+import { Plan } from '../billing/billing.models.js';
 
 const EDITABLE_FIELDS = ['name', 'legalName', 'gstin', 'pan', 'phone', 'email', 'timezone', 'address.line1', 'address.line2', 'address.city', 'address.stateCode', 'address.pincode'];
 
@@ -27,7 +28,7 @@ const slugify = (name) =>
     .replace(/^-+|-+$/g, '')
     .slice(0, 40) || 'org';
 
-export async function onboardOrganisation({ organisationName, ownerName, email, mobile, stateCode, passwordHash, branchLimit, mustChangePassword = false, platformAdminId = null }, session) {
+export async function onboardOrganisation({ organisationName, ownerName, email, mobile, stateCode, passwordHash, branchLimit, freeDays, mustChangePassword = false, platformAdminId = null }, session) {
   const organisationId = new mongoose.Types.ObjectId();
   const userId = new mongoose.Types.ObjectId();
 
@@ -49,12 +50,16 @@ export async function onboardOrganisation({ organisationName, ownerName, email, 
       { session },
     );
 
+    // New organisations start free on the default plan: for the days the Super Admin chose, else TRIAL_DAYS (self sign-up).
+    const plan = (await Plan.findOne({ isDefault: true, isActive: true }).session(session).lean()) ?? (await Plan.findOne({ isActive: true }).sort({ sortOrder: 1 }).session(session).lean());
+    const trialDays = freeDays ?? env.TRIAL_DAYS;
     await Subscription.create(
       [
         {
           plan: PLAN_KEYS.TRIAL,
+          ...(plan && { planId: plan._id, planName: plan.name, limits: { users: plan.limits?.users ?? null, branches: plan.limits?.branches ?? null, products: plan.limits?.products ?? null } }),
           status: SUBSCRIPTION_STATUS.TRIAL,
-          trialEndsAt: new Date(Date.now() + env.TRIAL_DAYS * 24 * 60 * 60 * 1000),
+          trialEndsAt: new Date(Date.now() + trialDays * 24 * 60 * 60 * 1000),
         },
       ],
       { session },

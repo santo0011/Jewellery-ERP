@@ -17,6 +17,20 @@ export const hrApi = baseApi.injectEndpoints({
       transformResponse: unwrapData,
       invalidatesTags: (r, e, { id }) => [{ type: 'Employee', id }, EMP_LIST, 'Audit'],
     }),
+    setEmployeePhoto: build.mutation({
+      query: ({ id, file }) => {
+        const data = new FormData();
+        data.append('photo', file);
+        return { url: `/hr/employees/${id}/photo`, method: 'put', data };
+      },
+      transformResponse: unwrapData,
+      invalidatesTags: (r, e, { id }) => [{ type: 'Employee', id }, EMP_LIST],
+    }),
+    removeEmployeePhoto: build.mutation({
+      query: (id) => ({ url: `/hr/employees/${id}/photo`, method: 'delete' }),
+      transformResponse: unwrapData,
+      invalidatesTags: (r, e, id) => [{ type: 'Employee', id }, EMP_LIST],
+    }),
     setEmployeeStatus: build.mutation({
       query: ({ id, ...data }) => ({ url: `/hr/employees/${id}/status`, method: 'patch', data }),
       transformResponse: unwrapData,
@@ -32,6 +46,7 @@ export const hrApi = baseApi.injectEndpoints({
 
     advanceList: build.query({ query: (params) => ({ url: '/hr/advances', params }), transformResponse: unwrapList, providesTags: ['Payroll'] }),
     createAdvance: build.mutation({ query: (data) => ({ url: '/hr/advances', method: 'post', data }), transformResponse: unwrapData, invalidatesTags: ['Payroll', 'Employee', 'Audit'] }),
+    updateAdvance: build.mutation({ query: ({ id, ...data }) => ({ url: `/hr/advances/${id}`, method: 'put', data }), transformResponse: unwrapData, invalidatesTags: ['Payroll', 'Employee', 'Audit'] }),
 
     payrollList: build.query({ query: (params) => ({ url: '/hr/payroll', params }), transformResponse: unwrapList, providesTags: [PAYROLL_LIST, 'Payroll'] }),
     payrollRun: build.query({ query: (id) => ({ url: `/hr/payroll/${id}` }), transformResponse: unwrapData, providesTags: (r, e, id) => [{ type: 'Payroll', id }] }),
@@ -54,6 +69,8 @@ export const {
   useCreateEmployeeMutation,
   useUpdateEmployeeMutation,
   useSetEmployeeStatusMutation,
+  useSetEmployeePhotoMutation,
+  useRemoveEmployeePhotoMutation,
   useAttendanceDayQuery,
   useSaveAttendanceMutation,
   useAttendanceCalendarQuery,
@@ -62,6 +79,7 @@ export const {
   useSaveAttendanceRegisterMutation,
   useAdvanceListQuery,
   useCreateAdvanceMutation,
+  useUpdateAdvanceMutation,
   usePayrollListQuery,
   usePayrollRunQuery,
   useCreatePayrollMutation,

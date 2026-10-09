@@ -8,6 +8,7 @@ export const organisationApi = baseApi.injectEndpoints({
       transformResponse: unwrapData,
       invalidatesTags: ['Organisation', 'Me', 'Audit'],
     }),
+    organisationHistory: build.query({ query: () => ({ url: '/organisation/history' }), transformResponse: unwrapData, providesTags: ['Organisation'] }),
     subscription: build.query({ query: () => ({ url: '/organisation/subscription' }), transformResponse: unwrapData, providesTags: ['Subscription'] }),
     uploadLogo: build.mutation({
       query: (file) => {
@@ -21,4 +22,4 @@ export const organisationApi = baseApi.injectEndpoints({
   }),
 });
 
-export const { useOrganisationQuery, useUpdateOrganisationMutation, useSubscriptionQuery, useUploadLogoMutation, useRemoveLogoMutation } = organisationApi;
+export const { useOrganisationQuery, useOrganisationHistoryQuery, useUpdateOrganisationMutation, useSubscriptionQuery, useUploadLogoMutation, useRemoveLogoMutation } = organisationApi;

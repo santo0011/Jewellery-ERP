@@ -8,6 +8,7 @@ import { Link as RouterLink } from 'react-router';
 import { EmptyState, ErrorState, LoadingState } from '../../components/StateViews.jsx';
 import { useAttendanceRegisterQuery } from './hrApi.js';
 import { formatDays, monthLabel, thisMonth } from './hrUi.jsx';
+import { EmployeeAvatar } from './EmployeePhoto.jsx';
 
 const STATUS = Object.fromEntries(ATTENDANCE_STATUSES.map((s) => [s.value, s]));
 export const CELL_STYLE = {
@@ -51,7 +52,7 @@ export default function AttendanceRecords({ branchId, branchPicker }) {
       const cells = [];
       for (let d = 1; d <= data.days; d += 1) {
         const iso = dateOf(month, d);
-        const offRoll = iso < e.from || iso > e.to;
+        const offRoll = iso < e.from || iso > e.to || (e.breaks ?? []).some((b) => iso >= b.from && iso <= b.to);
         const future = iso > data.today;
         const mark = e.marks[iso] ?? null;
         const off = data.offDays[iso] ?? null;
@@ -146,12 +147,17 @@ export default function AttendanceRecords({ branchId, branchPicker }) {
                   {rows.map((e) => (
                     <Box component="tr" key={e.id} sx={{ '&:hover td': { bgcolor: 'action.hover' } }}>
                       <Box component="td" sx={{ position: 'sticky', left: 0, zIndex: 1, bgcolor: 'background.paper', px: 2, py: 0.75, borderBottom: 1, borderColor: 'divider' }}>
-                        <Link component={RouterLink} to={`/hr/employees/${e.id}`} underline="hover" color="inherit" variant="body2" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
-                          {e.name}
-                        </Link>
-                        <Typography variant="caption" color="textSecondary" sx={{ display: 'block' }}>
-                          {e.code}
-                        </Typography>
+                        <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                          <EmployeeAvatar employee={e} size={30} />
+                          <Box sx={{ minWidth: 0 }}>
+                            <Link component={RouterLink} to={`/hr/employees/${e.id}`} underline="hover" color="inherit" variant="body2" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
+                              {e.name}
+                            </Link>
+                            <Typography variant="caption" color="textSecondary" sx={{ display: 'block' }}>
+                              {e.code}
+                            </Typography>
+                          </Box>
+                        </Stack>
                       </Box>
                       {e.cells.map((cell) => {
                         const label = cell.offRoll ? 'Not on rolls' : cell.mark ? STATUS[cell.mark].label : cell.off ? `${cell.off} (not marked)` : cell.future ? '' : 'Not marked — present';

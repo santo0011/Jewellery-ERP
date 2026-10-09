@@ -1,11 +1,12 @@
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
+import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import RefreshRoundedIcon from '@mui/icons-material/RefreshRounded';
 import TaskAltRoundedIcon from '@mui/icons-material/TaskAltRounded';
 import {
-  Alert, Box, Button, Card, CardContent, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, Divider, FormControlLabel, Grid, InputAdornment, MenuItem, Stack, TextField, Typography,
+  Alert, Box, Button, Card, CardContent, Checkbox, Dialog, DialogActions, DialogContent, DialogTitle, Divider, FormControlLabel, Grid, InputAdornment, MenuItem, Stack, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography,
 } from '@mui/material';
 import { formatINR, fromPaise, toPaise } from '@jerp/shared';
 import { useEffect, useState } from 'react';
@@ -16,13 +17,16 @@ import ConfirmDialog from '../../components/ConfirmDialog.jsx';
 import DataTable from '../../components/DataTable.jsx';
 import FormDrawer from '../../components/FormDrawer.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
+import SearchField from '../../components/SearchField.jsx';
 import { ErrorState, LoadingState } from '../../components/StateViews.jsx';
 import ViewButton from '../../components/ViewButton.jsx';
 import { usePermission } from '../../hooks/usePermission.js';
-import { formatDateTime } from '../../utils/format.js';
+import { formatDate, formatDateTime } from '../../utils/format.js';
 import { getErrorMessage } from '../../utils/errors.js';
 import { useDeletePayrollMutation, useFinalisePayrollMutation, usePayPayrollMutation, usePayrollRunQuery, useRecalculatePayrollMutation, useUpdatePayrollLineMutation } from './hrApi.js';
 import { formatDays, PAY_MODES, payModeLabel, PayrollStatusChip } from './hrUi.jsx';
+import { EmployeeAvatar } from './EmployeePhoto.jsx';
+import PayrollSteps, { stepOf } from './PayrollSteps.jsx';
 
 const money = { slotProps: { input: { startAdornment: <InputAdornment position="start">₹</InputAdornment> }, htmlInput: { inputMode: 'decimal' } } };
 const asPaise = (v) => {
@@ -117,13 +121,48 @@ function LineDrawer({ runId, line, onClose }) {
         </Box>
         <TextField label="Bonus / incentive" value={form.bonus} onChange={set('bonus')} {...money} autoFocus />
         <TextField label="Other deduction" value={form.other} onChange={set('other')} helperText="Fine, damage, canteen, etc." {...money} />
+        {line.advances?.length > 0 && (
+          <Box sx={{ p: 1.5, borderRadius: 2, border: '1px solid rgba(201, 162, 39, 0.35)', bgcolor: 'rgba(201, 162, 39, 0.05)' }}>
+            <Typography variant="subtitle2" sx={{ mb: 0.75 }}>
+              Advances due this month
+            </Typography>
+            <Stack spacing={0.75}>
+              {line.advances.map((a) => (
+                <Stack key={a.advanceNo} direction="row" sx={{ justifyContent: 'space-between', gap: 1 }}>
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                      {formatINR(a.amountPaise, { decimals: 0 })} given {formatDate(a.givenOn)}
+                    </Typography>
+                    <Typography variant="caption" color="textSecondary">
+                      {a.advanceNo}
+                      {a.recoveredPaise > 0 ? ` · ${formatINR(a.recoveredPaise, { decimals: 0 })} already recovered` : ''}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
+                    <Typography variant="body2" sx={{ fontWeight: 600, color: 'error.main' }}>
+                      {formatINR(a.balancePaise, { decimals: 0 })}
+                    </Typography>
+                    <Typography variant="caption" color="textSecondary">
+                      due · {formatINR(a.duePaise, { decimals: 0 })} this month
+                    </Typography>
+                  </Box>
+                </Stack>
+              ))}
+            </Stack>
+            {line.advanceUpcomingPaise > 0 && (
+              <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 1 }}>
+                {formatINR(line.advanceUpcomingPaise, { decimals: 0 })} more is set for a later month.
+              </Typography>
+            )}
+          </Box>
+        )}
         <TextField
-          label="Advance recovery"
+          label="Advance to cut this month"
           value={form.advance}
           onChange={set('advance')}
           disabled={!line.advanceBalancePaise}
           error={advanceTooHigh}
-          helperText={line.advanceBalancePaise ? `Outstanding advance ${formatINR(line.advanceBalancePaise, { decimals: 0 })}` : 'No advance outstanding'}
+          helperText={advanceTooHigh ? `Only ${formatINR(line.advanceBalancePaise, { decimals: 0 })} is due` : line.advanceBalancePaise ? `Up to ${formatINR(line.advanceBalancePaise, { decimals: 0 })} — lower it to carry the rest to next month` : line.advanceUpcomingPaise ? 'Advance is set for a later month' : 'No advance due'}
           {...money}
         />
         <TextField label="Note on payslip (optional)" value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} slotProps={{ htmlInput: { maxLength: 200 } }} />
@@ -135,9 +174,10 @@ function LineDrawer({ runId, line, onClose }) {
   );
 }
 
-function PayDialog({ run, onClose }) {
+/** `only` opens the dialog for one employee (the row's Pay button); otherwise everyone unpaid is ticked. */
+function PayDialog({ run, only, onClose }) {
   const unpaid = run.lines.filter((l) => !l.paid);
-  const [selected, setSelected] = useState(() => new Set(unpaid.map((l) => String(l.employeeId))));
+  const [selected, setSelected] = useState(() => new Set(only ? [String(only)] : unpaid.map((l) => String(l.employeeId))));
   const [mode, setMode] = useState('bank');
   const [reference, setReference] = useState('');
   const [pay, state] = usePayPayrollMutation();
@@ -166,7 +206,17 @@ function PayDialog({ run, onClose }) {
         <Stack divider={<Divider flexItem />} sx={{ mb: 2, border: 1, borderColor: 'divider', borderRadius: 2, px: 1.5, maxHeight: 320, overflowY: 'auto' }}>
           {unpaid.map((l) => (
             <Stack key={String(l.employeeId)} direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
-              <FormControlLabel control={<Checkbox checked={selected.has(String(l.employeeId))} onChange={() => toggle(String(l.employeeId))} />} label={`${l.name} · ${l.code}`} />
+              <FormControlLabel
+                control={<Checkbox checked={selected.has(String(l.employeeId))} onChange={() => toggle(String(l.employeeId))} />}
+                label={
+                  <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+                    <EmployeeAvatar employee={l} size={28} />
+                    <span>
+                      {l.name} · {l.code}
+                    </span>
+                  </Stack>
+                }
+              />
               <Typography variant="body2" sx={{ fontWeight: 600 }}>
                 {formatINR(l.netPaise)}
               </Typography>
@@ -208,7 +258,9 @@ export default function PayrollRunPage() {
   const canApprove = usePermission('payroll.approve');
   const [editing, setEditing] = useState(null);
   const [confirm, setConfirm] = useState(null);
-  const [paying, setPaying] = useState(false);
+  const [paying, setPaying] = useState(null); // null | 'all' | employeeId
+  const [show, setShow] = useState('all');
+  const [q, setQ] = useState('');
   const [recalc, recalcState] = useRecalculatePayrollMutation();
   const [finalise, finaliseState] = useFinalisePayrollMutation();
   const [remove, removeState] = useDeletePayrollMutation();
@@ -229,17 +281,54 @@ export default function PayrollRunPage() {
     }
   };
 
+  // One clear next action for the stage this payroll is at.
+  const next = {
+    draft: {
+      title: 'Step 2 · Review salaries',
+      text: 'Check paid days and use Adjust to add a bonus or deduction. Attendance changed? Recalculate keeps your adjustments.',
+      action: canApprove ? (
+        <Button variant="contained" startIcon={<TaskAltRoundedIcon />} onClick={() => setConfirm('finalise')} sx={{ flexShrink: 0 }}>
+          Finalise payroll
+        </Button>
+      ) : (
+        <Typography variant="body2" color="textSecondary">
+          A manager finalises the payroll.
+        </Typography>
+      ),
+    },
+    finalised: {
+      title: 'Step 4 · Pay salaries',
+      text: `${formatINR(t.netPaise - t.paidPaise, { decimals: 0 })} still to pay to ${t.unpaidCount} staff — pay everyone at once, or one by one with Pay on each row.`,
+      action: canApprove && (
+        <Button variant="contained" startIcon={<PaymentsOutlinedIcon />} onClick={() => setPaying('all')} sx={{ flexShrink: 0 }}>
+          Pay {formatINR(t.netPaise - t.paidPaise, { decimals: 0 })}
+        </Button>
+      ),
+    },
+    paid: {
+      title: 'All done',
+      text: `Everyone is paid — ${formatINR(t.paidPaise, { decimals: 0 })} in total. Payslips are ready to view and print.`,
+      action: <CheckCircleRoundedIcon sx={{ color: 'success.main', fontSize: 32 }} />,
+    },
+  }[run.status];
+
+  const needle = q.trim().toLowerCase();
+  const lines = run.lines.filter((l) => (show === 'unpaid' ? !l.paid : show === 'paid' ? Boolean(l.paid) : true) && (!needle || `${l.name} ${l.code} ${l.designation}`.toLowerCase().includes(needle)));
+
   const columns = [
     {
       key: 'employee',
       label: 'Employee',
       render: (l) => (
-        <Box>
-          <Typography variant="subtitle2">{l.name}</Typography>
-          <Typography variant="caption" color="textSecondary">
-            {l.code} · {l.designation}
-          </Typography>
-        </Box>
+        <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center' }}>
+          <EmployeeAvatar employee={l} size={36} />
+          <Box sx={{ minWidth: 0 }}>
+            <Typography variant="subtitle2">{l.name}</Typography>
+            <Typography variant="caption" color="textSecondary">
+              {l.code} · {l.designation}
+            </Typography>
+          </Box>
+        </Stack>
       ),
     },
     {
@@ -270,21 +359,36 @@ export default function PayrollRunPage() {
       ),
     },
     {
-      key: 'adjust',
-      label: 'Bonus / deductions',
+      key: 'advance',
+      label: 'Advance cut',
       align: 'right',
       render: (l) => {
-        const ded = l.otherDeductionPaise + l.advanceDeductionPaise;
-        if (!l.bonusPaise && !ded) return <Typography variant="body2" color="textSecondary">—</Typography>;
+        if (!l.advanceDeductionPaise && !l.advanceBalancePaise && !l.advanceUpcomingPaise) return <Typography variant="body2" color="textSecondary">—</Typography>;
+        const left = l.advanceBalancePaise - l.advanceDeductionPaise;
+        const given = (l.advances ?? []).map((a) => `${a.advanceNo} · given ${formatDate(a.givenOn)} · ${formatINR(a.amountPaise, { decimals: 0 })}`).join('\n');
+        return (
+          <Tooltip title={given ? <Box sx={{ whiteSpace: 'pre-line' }}>{given}</Box> : ''} placement="left">
+            <Box>
+              {l.advanceDeductionPaise > 0 ? <Amount paise={l.advanceDeductionPaise} tone="due" decimals={0} prefix="− " sx={{ display: 'block' }} /> : <Typography variant="body2" color="textSecondary">Nothing cut</Typography>}
+              <Typography variant="caption" color="textSecondary" sx={{ display: 'block' }}>
+                {left > 0 ? `${formatINR(left, { decimals: 0 })} still due` : l.advanceBalancePaise ? 'Fully recovered' : ''}
+                {l.advanceUpcomingPaise > 0 ? `${left > 0 || l.advanceBalancePaise ? ' · ' : ''}${formatINR(l.advanceUpcomingPaise, { decimals: 0 })} later` : ''}
+              </Typography>
+            </Box>
+          </Tooltip>
+        );
+      },
+    },
+    {
+      key: 'adjust',
+      label: 'Bonus / other',
+      align: 'right',
+      render: (l) => {
+        if (!l.bonusPaise && !l.otherDeductionPaise) return <Typography variant="body2" color="textSecondary">—</Typography>;
         return (
           <Box>
             {l.bonusPaise > 0 && <Amount paise={l.bonusPaise} tone="paid" decimals={0} prefix="+ " sx={{ display: 'block' }} />}
-            {ded > 0 && <Amount paise={ded} tone="due" decimals={0} prefix="− " sx={{ display: 'block' }} />}
-            {l.advanceDeductionPaise > 0 && (
-              <Typography variant="caption" color="textSecondary">
-                incl. {formatINR(l.advanceDeductionPaise, { decimals: 0 })} advance
-              </Typography>
-            )}
+            {l.otherDeductionPaise > 0 && <Amount paise={l.otherDeductionPaise} tone="due" decimals={0} prefix="− " sx={{ display: 'block' }} />}
           </Box>
         );
       },
@@ -306,12 +410,21 @@ export default function PayrollRunPage() {
     },
     {
       key: 'actions',
-      label: '',
+      label: 'Action',
       align: 'right',
-      width: 96,
+      width: 150,
       render: (l) => (
-        <Stack direction="row" sx={{ justifyContent: 'flex-end' }}>
-          {draft && canProcess && <ViewButton title="Edit bonus / deductions" icon={EditOutlinedIcon} onClick={() => setEditing(l)} name={l.name} />}
+        <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end', alignItems: 'center' }}>
+          {draft && canProcess && (
+            <Button size="small" variant="outlined" startIcon={<EditOutlinedIcon />} onClick={() => setEditing(l)} aria-label={`Adjust ${l.name}`}>
+              Adjust
+            </Button>
+          )}
+          {run.status === 'finalised' && !l.paid && canApprove && (
+            <Button size="small" variant="contained" startIcon={<PaymentsOutlinedIcon />} onClick={() => setPaying(String(l.employeeId))} aria-label={`Pay ${l.name}`}>
+              Pay
+            </Button>
+          )}
           <ViewButton title="Payslip" icon={ReceiptLongOutlinedIcon} onClick={() => navigate(`/hr/payroll/${run.id}/payslip/${l.employeeId}`)} name={l.name} />
         </Stack>
       ),
@@ -337,25 +450,25 @@ export default function PayrollRunPage() {
                 </Button>
               </>
             )}
-            {draft && canApprove && (
-              <Button variant="contained" startIcon={<TaskAltRoundedIcon />} onClick={() => setConfirm('finalise')}>
-                Finalise
-              </Button>
-            )}
-            {run.status === 'finalised' && canApprove && (
-              <Button variant="contained" startIcon={<PaymentsOutlinedIcon />} onClick={() => setPaying(true)}>
-                Pay salaries
-              </Button>
-            )}
           </Stack>
         }
       />
 
-      {draft && (
-        <Alert severity="warning" sx={{ mb: 2 }}>
-          Draft — review paid days, add bonuses or deductions, then finalise. Changed attendance or advances? Use Recalculate (your bonus and deduction figures are kept).
-        </Alert>
-      )}
+      <Card sx={{ mb: 2 }}>
+        <CardContent>
+          <PayrollSteps current={stepOf(run.status)} />
+          <Divider sx={{ my: 2 }} />
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: { sm: 'center' }, justifyContent: 'space-between' }}>
+            <Box>
+              <Typography variant="subtitle2">{next.title}</Typography>
+              <Typography variant="body2" color="textSecondary">
+                {next.text}
+              </Typography>
+            </Box>
+            {next.action}
+          </Stack>
+        </CardContent>
+      </Card>
 
       <Grid container spacing={2} sx={{ mb: 2 }}>
         <Grid size={{ xs: 6, md: 3 }}>
@@ -382,10 +495,27 @@ export default function PayrollRunPage() {
         </Grid>
       </Grid>
 
-      <DataTable columns={columns} rows={run.lines} getRowId={(l) => String(l.employeeId)} />
+      <DataTable
+        columns={columns}
+        rows={lines}
+        getRowId={(l) => String(l.employeeId)}
+        empty={{ title: 'Nobody here', description: q ? 'No employee matches your search.' : show === 'unpaid' ? 'Everyone has been paid.' : 'No one has been paid yet.' }}
+        toolbar={
+          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: { sm: 'center' } }}>
+            <SearchField value={q} onChange={setQ} placeholder="Search name or code" />
+            {!draft && (
+              <ToggleButtonGroup exclusive size="small" value={show} onChange={(e, v) => v && setShow(v)} aria-label="Show">
+                <ToggleButton value="all">All · {run.lines.length}</ToggleButton>
+                <ToggleButton value="unpaid">Unpaid · {t.unpaidCount}</ToggleButton>
+                <ToggleButton value="paid">Paid · {run.lines.length - t.unpaidCount}</ToggleButton>
+              </ToggleButtonGroup>
+            )}
+          </Stack>
+        }
+      />
 
       <LineDrawer runId={run.id} line={editing} onClose={() => setEditing(null)} />
-      {paying && <PayDialog run={run} onClose={() => setPaying(false)} />}
+      {paying && <PayDialog run={run} only={paying === 'all' ? null : paying} onClose={() => setPaying(null)} />}
       <ConfirmDialog
         open={confirm === 'finalise'}
         title={`Finalise payroll for ${run.monthLabel}?`}

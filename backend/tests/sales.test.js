@@ -228,4 +228,42 @@ describe('customer due filter', () => {
     expect(none[0].duePaise).toBe(0);
     expect((await api().get('/api/v1/customers?due=due&q=old').set(bearer(ctx.t))).body.data.map((c) => c.id)).toEqual([oldDue.id]);
   });
+
+  it('marks each customer due, partly paid or paid', async () => {
+    const ctx = await setup();
+    const sell = async (c, payments) => api().post('/api/v1/sales').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: c.id, items: [{ productId: (await stockedProduct(ctx)).id }], payments });
+    const partly = await customer(ctx, { name: 'Partly Paid' });
+    const fullCredit = await customer(ctx, { name: 'Full Credit' });
+    const paid = await customer(ctx, { name: 'Paid Up' });
+    const noBills = await customer(ctx, { name: 'No Bills' });
+    await sell(partly, [{ mode: 'cash', amountPaise: 7579900 }, { mode: 'credit', amountPaise: 1000000 }]);
+    await sell(fullCredit, [{ mode: 'credit', amountPaise: 8579900 }]);
+    await sell(paid, [{ mode: 'upi', amountPaise: 8579900 }]);
+
+    const rows = (await api().get('/api/v1/customers').set(bearer(ctx.t))).body.data;
+    const statusOf = (c) => rows.find((r) => r.id === c.id);
+    expect(statusOf(partly)).toMatchObject({ paymentStatus: 'partly_paid', paidPaise: 7579900, duePaise: 1000000 });
+    expect(statusOf(fullCredit)).toMatchObject({ paymentStatus: 'due', paidPaise: 0, duePaise: 8579900 });
+    expect(statusOf(paid)).toMatchObject({ paymentStatus: 'paid', paidPaise: 8579900, duePaise: 0 });
+    expect(statusOf(noBills).paymentStatus).toBeNull();
+  });
+});
+
+describe('invoice list summary', () => {
+  it('shows today, this month, collected and credit still due', async () => {
+    const ctx = await setup();
+    const c = await customer(ctx);
+    const p1 = await stockedProduct(ctx);
+    const p2 = await stockedProduct(ctx);
+    const total = (await api().post('/api/v1/sales/quote').set(bearer(ctx.t)).send({ branchId: ctx.ho, items: [{ productId: p1.id }] })).body.data.totals.grandTotalPaise;
+    await api().post('/api/v1/sales').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: c.id, items: [{ productId: p1.id }], payments: [{ mode: 'upi', amountPaise: total }] });
+    await api().post('/api/v1/sales').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: c.id, items: [{ productId: p2.id }], payments: [{ mode: 'upi', amountPaise: total - 500000 }, { mode: 'credit', amountPaise: 500000 }] });
+
+    const { summary } = (await api().get('/api/v1/sales').set(bearer(ctx.t))).body.meta;
+    expect(summary).toMatchObject({
+      today: { totalPaise: total * 2, bills: 2 },
+      month: { totalPaise: total * 2, collectedPaise: total * 2 - 500000, bills: 2, averagePaise: total },
+      due: { totalPaise: 500000, bills: 1 },
+    });
+  });
 });

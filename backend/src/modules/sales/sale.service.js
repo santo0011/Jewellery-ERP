@@ -355,7 +355,37 @@ export async function listSales({ page, limit, q, status, branchId, customerId, 
       orderNo: s.orderNo ?? null,
       createdBy: pick(maps.users, s.createdBy),
     })),
-    meta: { page, limit, total, pages: Math.max(1, Math.ceil(total / limit)) },
+    meta: { page, limit, total, pages: Math.max(1, Math.ceil(total / limit)), summary: await salesSummary(branchId) },
+  };
+}
+
+/** Header cards: today, this month (billed, collected, bills), and credit still owed by customers on completed bills. */
+async function salesSummary(branchId) {
+  const today = await todayContext();
+  const monthStart = `${today.businessDate.slice(0, 7)}-01`;
+  const scope = { ...accessibleBranchFilter(), ...(branchId && { branchId: oid(branchId) }), status: SALE_STATUS.COMPLETED };
+  const credit = { $sum: { $map: { input: { $filter: { input: '$payments', cond: { $eq: ['$$this.mode', 'credit'] } } }, in: '$$this.amountPaise' } } };
+  const [row] = await Sale.aggregate([
+    { $match: scope },
+    { $project: { businessDate: 1, total: '$totals.grandTotalPaise', credit } },
+    {
+      $group: {
+        _id: null,
+        todayPaise: { $sum: { $cond: [{ $eq: ['$businessDate', today.businessDate] }, '$total', 0] } },
+        todayBills: { $sum: { $cond: [{ $eq: ['$businessDate', today.businessDate] }, 1, 0] } },
+        monthPaise: { $sum: { $cond: [{ $gte: ['$businessDate', monthStart] }, '$total', 0] } },
+        monthCreditPaise: { $sum: { $cond: [{ $gte: ['$businessDate', monthStart] }, '$credit', 0] } },
+        monthBills: { $sum: { $cond: [{ $gte: ['$businessDate', monthStart] }, 1, 0] } },
+        duePaise: { $sum: '$credit' },
+        dueBills: { $sum: { $cond: [{ $gt: ['$credit', 0] }, 1, 0] } },
+      },
+    },
+  ]);
+  const r = row ?? { todayPaise: 0, todayBills: 0, monthPaise: 0, monthCreditPaise: 0, monthBills: 0, duePaise: 0, dueBills: 0 };
+  return {
+    today: { totalPaise: r.todayPaise, bills: r.todayBills },
+    month: { totalPaise: r.monthPaise, collectedPaise: r.monthPaise - r.monthCreditPaise, bills: r.monthBills, averagePaise: r.monthBills ? Math.round(r.monthPaise / r.monthBills) : 0 },
+    due: { totalPaise: r.duePaise, bills: r.dueBills },
   };
 }
 

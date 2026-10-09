@@ -12,6 +12,7 @@ import { Branch } from '../branches/branch.model.js';
 import { Subscription } from '../organisations/subscription.model.js';
 import { Role } from '../roles/role.model.js';
 import { User } from './user.model.js';
+import { limitsOf } from '../billing/limits.js';
 import { assertEmailAvailable } from './emailAvailability.js';
 
 const PUBLIC_FIELDS = 'name email mobile roleIds branchAccess defaultBranchId isOwner status lastLoginAt mustChangePassword createdAt';
@@ -86,7 +87,7 @@ async function assertBranches({ branchAccess, defaultBranchId }) {
 
 async function assertUserLimit() {
   const subscription = await Subscription.findOne({}).lean();
-  const max = PLAN_LIMITS[subscription?.plan]?.users;
+  const max = limitsOf(subscription).users;
   if (max == null) return;
   const count = await User.countDocuments({ status: USER_STATUS.ACTIVE });
   if (count >= max) throw ApiError.forbidden(`Your plan allows ${max} active users, and all are in use (branch logins count too). Deactivate a user, or ask your platform administrator to upgrade the plan.`, 'PLAN_LIMIT_REACHED');

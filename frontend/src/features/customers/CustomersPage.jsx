@@ -11,14 +11,37 @@ import { useListParams } from '../../hooks/useListParams.js';
 import { usePermission } from '../../hooks/usePermission.js';
 import CustomerFormDrawer from './CustomerFormDrawer.jsx';
 import { useCustomerListQuery } from './customerApi.js';
+import SummaryCards, { SummaryCard } from '../../components/SummaryCards.jsx';
+import PeopleAltOutlinedIcon from '@mui/icons-material/PeopleAltOutlined';
+import PersonAddAltOutlinedIcon from '@mui/icons-material/PersonAddAltOutlined';
+import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined';
+import NotificationsActiveOutlinedIcon from '@mui/icons-material/NotificationsActiveOutlined';
 import { viewColumn } from '../../components/ViewButton.jsx';
-import Amount from '../../components/Amount.jsx';
 
 export const segmentLabel = (v) => CUSTOMER_SEGMENTS.find((s) => s.value === v)?.label ?? v;
 const SEGMENT_COLORS = { vip: 'primary', high_value: 'accent', inactive: 'default', regular: 'default', new: 'info' };
 
 export function SegmentChip({ segment }) {
   return <Chip size="small" label={segmentLabel(segment)} color={SEGMENT_COLORS[segment] ?? 'default'} variant="outlined" sx={{ height: 22 }} />;
+}
+
+const PAYMENT_STATUS = {
+  due: { label: 'Due', color: 'error' },
+  partly_paid: { label: 'Partly paid', color: 'warning' },
+  paid: { label: 'Paid', color: 'success' },
+};
+
+/** Red = owes and has paid nothing, amber = owes part, green = fully paid; customers without bills show a dash. */
+function PaymentChip({ status }) {
+  const s = PAYMENT_STATUS[status];
+  if (!s) {
+    return (
+      <Typography variant="body2" color="textSecondary">
+        —
+      </Typography>
+    );
+  }
+  return <Chip size="small" label={s.label} color={s.color} variant="filled" sx={{ height: 22, fontSize: '0.75rem', fontWeight: 600 }} />;
 }
 
 // Filters always show their label on top and a value, so picking one does not shift the layout.
@@ -46,31 +69,7 @@ export default function CustomersPage() {
     },
     { key: 'mobile', label: 'Mobile', render: (c) => c.mobile },
     { key: 'city', label: 'City', render: (c) => [c.address?.city, stateName(c.address?.stateCode)].filter(Boolean).join(', ') || '—' },
-    {
-      key: 'due',
-      label: 'Due',
-      align: 'right',
-      render: (c) => {
-        const oldDue = Math.max(0, c.openingBalancePaise ?? 0);
-        if (c.duePaise > 0)
-          return (
-            <Box>
-              <Amount paise={c.duePaise} tone="due" decimals={0} />
-              {oldDue > 0 && (
-                <Typography variant="caption" color="textSecondary" sx={{ display: 'block', whiteSpace: 'nowrap' }}>
-                  {c.creditDuePaise > 0 ? `incl. ${formatINR(oldDue, { decimals: 0 })} old due` : 'old due'}
-                </Typography>
-              )}
-            </Box>
-          );
-        if (c.openingBalancePaise < 0) return <Amount paise={-c.openingBalancePaise} tone="paid" decimals={0} suffix=" advance" />;
-        return (
-          <Typography variant="body2" color="textSecondary">
-            Nil
-          </Typography>
-        );
-      },
-    },
+    { key: 'payment', label: 'Payment', render: (c) => <PaymentChip status={c.paymentStatus} /> },
     { key: 'status', label: 'Status', render: (c) => <StatusChip status={c.status} /> },
   ];
 
@@ -87,6 +86,14 @@ export default function CustomersPage() {
           )
         }
       />
+      {data?.meta?.summary && (
+        <SummaryCards>
+          <SummaryCard icon={PeopleAltOutlinedIcon} label="Customers" value={data.meta.summary.total} caption="On your books" />
+          <SummaryCard icon={PersonAddAltOutlinedIcon} label="New this month" value={data.meta.summary.newThisMonth} caption="Added since the 1st" tone="blue" />
+          <SummaryCard icon={AccountBalanceWalletOutlinedIcon} label="Due from customers" value={formatINR(data.meta.summary.duePaise, { decimals: 0 })} caption="Credit on bills + old dues" tone={data.meta.summary.duePaise ? 'red' : 'green'} valueTone={data.meta.summary.duePaise ? 'due' : 'paid'} />
+          <SummaryCard icon={NotificationsActiveOutlinedIcon} label="Customers with dues" value={data.meta.summary.owing} caption={data.meta.summary.owing ? 'Tap to see who owes' : 'Nobody owes'} tone={data.meta.summary.owing ? 'amber' : 'green'} onClick={data.meta.summary.owing ? () => list.setFilter('due', 'due') : undefined} />
+        </SummaryCards>
+      )}
       <DataTable
         columns={[...columns, viewColumn((c) => navigate(`/customers/${c.id}`), { name: (c) => c.name })]}
         rows={data?.items}

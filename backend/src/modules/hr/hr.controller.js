@@ -13,6 +13,8 @@ export async function createEmployee(req, res) {
   sendCreated(res, emp, { message: `Employee ${emp.code} added` });
 }
 export const updateEmployee = async (req, res) => sendOk(res, await hr.updateEmployee(req.valid.params.id, req.valid.body), { message: 'Employee updated' });
+export const setEmployeePhoto = async (req, res) => sendOk(res, await hr.setEmployeePhoto(req.valid.params.id, req.file), { message: 'Photo updated' });
+export const removeEmployeePhoto = async (req, res) => sendOk(res, await hr.removeEmployeePhoto(req.valid.params.id), { message: 'Photo removed' });
 export const setEmployeeStatus = async (req, res) => sendOk(res, await hr.setEmployeeStatus(req.valid.params.id, req.valid.body), { message: 'Employee updated' });
 
 export const getAttendance = async (req, res) => sendOk(res, await hr.getAttendanceDay(req.valid.query));
@@ -25,6 +27,7 @@ export const getCalendar = async (req, res) => sendOk(res, await hr.getAttendanc
 export const saveCalendar = async (req, res) => sendOk(res, await hr.saveAttendanceCalendar(req.valid.body), { message: 'Holidays and weekly off saved' });
 
 export const listAdvances = listed(hr.listAdvances);
+export const updateAdvance = async (req, res) => sendOk(res, await hr.updateAdvance(req.valid.params.id, req.valid.body), { message: 'Advance updated' });
 export async function createAdvance(req, res) {
   const adv = await hr.createAdvance(req.valid.body);
   sendCreated(res, adv, { message: `Advance ${adv.advanceNo} recorded` });

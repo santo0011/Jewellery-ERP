@@ -29,6 +29,10 @@ const schema = z
     SUPER_ADMIN_PASSWORD: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(6, 'SUPER_ADMIN_PASSWORD must be at least 6 characters').optional()),
     SUPER_ADMIN_NAME: z.string().default('Super Admin'),
     SUPER_ADMIN_RESET_PASSWORD: bool.default(false),
+    // Cashfree payment gateway (subscriptions). Leave blank to turn online payment off.
+    CASHFREE_APP_ID: z.string().trim().default(''),
+    CASHFREE_SECRET_KEY: z.string().trim().default(''),
+    CASHFREE_ENV: z.enum(['sandbox', 'production']).default('sandbox'),
   })
   .superRefine((cfg, ctx) => {
     if (cfg.NODE_ENV === 'production' && !cfg.COOKIE_SECURE) {

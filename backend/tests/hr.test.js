@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { runWithContext } from '../src/core/context/requestContext.js';
 import { Account } from '../src/core/ledger/account.model.js';
 import { JournalEntry } from '../src/core/ledger/journalEntry.model.js';
+import { SalaryAdvance } from '../src/modules/hr/hr.models.js';
 import { api, bearer, registerOrg } from './helpers.js';
 
 const prevMonth = () => {
@@ -98,6 +99,10 @@ describe('HR & payroll', () => {
     expect(payRest.body.data.status).toBe('paid');
     expect((await api().post(`/api/v1/hr/payroll/${run.id}/pay`).set(bearer(ctx.t)).send({ mode: 'cash' })).status).toBe(409);
 
+    const monthly = (await api().get(`/api/v1/reports/salary-payments?from=${month}-01`).set(bearer(ctx.t))).body.data;
+    expect(monthly.rows).toHaveLength(1);
+    expect(monthly.rows[0]).toMatchObject({ employees: 2, cashPaise: earned - 400000, bankPaise: 1540000, paidPaise: earned - 400000 + 1540000, unpaidPaise: 0, status: 'Paid' });
+
     const payments = (await journals(ctx, 'payroll')).filter((j) => j.type === 'salary_payment');
     expect(payments.map((p) => p.lines.at(-1))).toEqual([
       ['cash', 0, earned - 400000],
@@ -180,5 +185,126 @@ describe('HR & payroll', () => {
     const left = await api().patch(`/api/v1/hr/employees/${emp.id}/status`).set(bearer(ctx.t)).send({ status: 'left', exitDate: '2025-06-30' });
     expect(left.body.data).toMatchObject({ status: 'left', exitDate: '2025-06-30' });
     expect((await api().post('/api/v1/hr/payroll').set(bearer(ctx.t)).send({ branchId: ctx.ho, month: prevMonth() })).status).toBe(400);
+  });
+});
+
+describe('employee photo', () => {
+  const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
+
+  it('uploads, serves, replaces and removes a photo', async () => {
+    const ctx = await setup();
+    const emp = await ctx.hire({ name: 'Photo Staff' });
+    expect(emp.photoFileId).toBeNull();
+
+    const up = await api().put(`/api/v1/hr/employees/${emp.id}/photo`).set(bearer(ctx.t)).attach('photo', PNG, 'face.png');
+    expect(up.status).toBe(200);
+    const first = up.body.data.photoFileId;
+    expect(first).toBeTruthy();
+    const file = await api().get(`/api/v1/files/${first}`).set(bearer(ctx.t));
+    expect(file.status).toBe(200);
+    expect(file.headers['content-type']).toBe('image/png');
+    expect((await api().get('/api/v1/hr/employees').set(bearer(ctx.t))).body.data.find((e) => e.id === emp.id).photoFileId).toBe(first);
+
+    const second = (await api().put(`/api/v1/hr/employees/${emp.id}/photo`).set(bearer(ctx.t)).attach('photo', PNG, 'new.png')).body.data.photoFileId;
+    expect(second).not.toBe(first);
+    expect((await api().get(`/api/v1/files/${first}`).set(bearer(ctx.t))).status).toBe(404);
+
+    const bad = await api().put(`/api/v1/hr/employees/${emp.id}/photo`).set(bearer(ctx.t)).attach('photo', Buffer.from('not an image'), 'x.png');
+    expect(bad.body.error.code).toBe('UNSUPPORTED_FILE');
+
+    const removed = await api().delete(`/api/v1/hr/employees/${emp.id}/photo`).set(bearer(ctx.t));
+    expect(removed.body.data.photoFileId).toBeNull();
+    expect((await api().get(`/api/v1/files/${second}`).set(bearer(ctx.t))).status).toBe(404);
+  });
+});
+
+describe('salary advance for a month', () => {
+  it('records the date and month, deducts only advances due that month, and lists them on the payroll line', async () => {
+    const ctx = await setup();
+    const month = prevMonth();
+    const emp = await ctx.hire({ name: 'Advance Staff', basicPaise: 2000000, allowancePaise: 0 });
+    const give = (body) => api().post('/api/v1/hr/advances').set(bearer(ctx.t)).send({ employeeId: emp.id, mode: 'cash', ...body });
+
+    const due = await give({ amountPaise: 500000, installmentPaise: 500000, givenOn: `${month}-10`, recoverFrom: month });
+    expect(due.status).toBe(201);
+    expect(due.body.data).toMatchObject({ businessDate: `${month}-10`, recoverFrom: month, instalments: 1 });
+    const later = await give({ amountPaise: 300000, installmentPaise: 100000, recoverFrom: '2099-01' });
+    expect(later.body.data.instalments).toBe(3);
+
+    const future = new Date(Date.now() + 3 * 86400000).toISOString().slice(0, 10);
+    expect((await give({ amountPaise: 1000, installmentPaise: 1000, givenOn: future })).body.error.details[0].path).toBe('givenOn');
+
+    const run = (await api().post('/api/v1/hr/payroll').set(bearer(ctx.t)).send({ branchId: ctx.ho, month })).body.data;
+    const line = run.lines.find((l) => l.employeeId === emp.id);
+    expect(line).toMatchObject({ advanceDeductionPaise: 500000, advanceBalancePaise: 500000, advanceUpcomingPaise: 300000, netPaise: line.earnedPaise - 500000 });
+    expect(line.advances).toEqual([expect.objectContaining({ advanceNo: due.body.data.advanceNo, givenOn: `${month}-10`, amountPaise: 500000, duePaise: 500000 })]);
+
+    await api().post(`/api/v1/hr/payroll/${run.id}/finalise`).set(bearer(ctx.t));
+    const advances = (await api().get(`/api/v1/hr/advances?employeeId=${emp.id}&limit=10`).set(bearer(ctx.t))).body.data;
+    expect(advances.find((a) => a.id === due.body.data.id)).toMatchObject({ status: 'closed', balancePaise: 0 });
+    expect(advances.find((a) => a.id === later.body.data.id)).toMatchObject({ status: 'open', balancePaise: 300000 });
+
+    expect((await give({ amountPaise: 1000, installmentPaise: 1000, recoverFrom: month })).body.error.details[0].path).toBe('recoverFrom');
+  });
+});
+
+describe('leave and rejoin', () => {
+  it('keeps a joined / left / rejoined history and does not pay the days away', async () => {
+    const ctx = await setup();
+    const month = prevMonth();
+    const emp = await ctx.hire({ name: 'Rejoin Staff', joiningDate: '2025-01-01' });
+    const status = (body) => api().patch(`/api/v1/hr/employees/${emp.id}/status`).set(bearer(ctx.t)).send(body);
+
+    const left = await status({ status: 'left', exitDate: `${month}-05`, note: 'Family reasons' });
+    expect(left.body.data.history.map((h) => [h.event, h.date, h.note])).toEqual([
+      ['joined', '2025-01-01', null],
+      ['left', `${month}-05`, 'Family reasons'],
+    ]);
+    expect((await status({ status: 'active', rejoinDate: `${month}-05` })).body.error.details[0].path).toBe('rejoinDate');
+
+    const back = (await status({ status: 'active', rejoinDate: `${month}-20` })).body.data;
+    expect(back).toMatchObject({ status: 'active', exitDate: null, breaks: [{ from: `${month}-06`, to: `${month}-19` }] });
+    expect(back.history.map((h) => h.event)).toEqual(['joined', 'left', 'rejoined']);
+    expect(back.history[2].by?.name).toBeTruthy();
+
+    // A day in the break cannot be marked; payroll pays only the days on the rolls.
+    expect((await api().put('/api/v1/hr/attendance').set(bearer(ctx.t)).send({ branchId: ctx.ho, date: `${month}-10`, entries: [{ employeeId: emp.id, status: 'present' }] })).status).toBe(400);
+    const run = (await api().post('/api/v1/hr/payroll').set(bearer(ctx.t)).send({ branchId: ctx.ho, month })).body.data;
+    expect(run.lines.find((l) => l.employeeId === emp.id).payableDays).toBe(daysIn(month) - 14);
+  });
+});
+
+describe('editing an advance', () => {
+  it('allows edits on the day it was entered, keeps a history, corrects the books, then locks', async () => {
+    const ctx = await setup();
+    const emp = await ctx.hire({ name: 'Edit Staff' });
+    const adv = (await api().post('/api/v1/hr/advances').set(bearer(ctx.t)).send({ employeeId: emp.id, amountPaise: 500000, installmentPaise: 500000, mode: 'cash' })).body.data;
+    expect(adv).toMatchObject({ editable: true, edits: [] });
+    const edit = (body) => api().put(`/api/v1/hr/advances/${adv.id}`).set(bearer(ctx.t)).send({ amountPaise: 500000, installmentPaise: 500000, givenOn: adv.businessDate, mode: 'cash', ...body });
+
+    expect((await edit({ amountPaise: 700000, installmentPaise: 700000 })).status).toBe(400); // reason required
+    expect((await edit({ reason: 'No change' })).body.error.code).toBe('NO_CHANGES');
+
+    const res = await edit({ amountPaise: 700000, installmentPaise: 350000, mode: 'upi', reason: 'Typed the wrong amount' });
+    expect(res.status).toBe(200);
+    expect(res.body.data).toMatchObject({ amountPaise: 700000, installmentPaise: 350000, mode: 'upi', instalments: 2 });
+    expect(res.body.data.edits).toHaveLength(1);
+    expect(res.body.data.edits[0]).toMatchObject({ reason: 'Typed the wrong amount', changes: expect.arrayContaining([{ field: 'Amount', from: 500000, to: 700000 }, { field: 'Paid by', from: 'cash', to: 'upi' }]) });
+
+    // Old entry, its reversal, and the corrected one.
+    expect((await journals(ctx, 'salary_advance')).map((j) => j.lines)).toEqual([
+      [['staff_advances', 500000, 0], ['cash', 0, 500000]],
+      [['staff_advances', 0, 500000], ['cash', 500000, 0]],
+      [['staff_advances', 700000, 0], ['bank', 0, 700000]],
+    ]);
+
+    // Entered on an earlier day: locked.
+    await runWithContext({ organisationId: ctx.orgId }, async () => {
+      await SalaryAdvance.updateOne({ _id: adv.id }, { recordedOn: '2020-01-01' });
+    });
+    const locked = await edit({ amountPaise: 100000, installmentPaise: 100000, reason: 'Too late' });
+    expect(locked.body.error.code).toBe('EDIT_LOCKED');
+    const list = (await api().get(`/api/v1/hr/advances?employeeId=${emp.id}`).set(bearer(ctx.t))).body.data;
+    expect(list[0]).toMatchObject({ editable: false, lockedReason: expect.stringContaining('2020-01-01') });
   });
 });

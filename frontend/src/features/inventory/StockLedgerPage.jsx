@@ -20,7 +20,7 @@ export default function StockLedgerPage() {
 
   return (
     <>
-      <PageHeader title="Stock ledger" subtitle="Every stock movement, permanent and in order. Nothing here can be edited or deleted." breadcrumbs={[{ label: 'Inventory' }, { label: 'Stock ledger' }]} />
+      <PageHeader title="Stock ledger" subtitle="Every stock movement, permanent and in order. Nothing here can be edited or deleted." breadcrumbs={[{ label: 'Stock' }, { label: 'Stock ledger' }]} />
       <DataTable
         columns={movementColumns({ onView: setViewing })}
         rows={data?.items}

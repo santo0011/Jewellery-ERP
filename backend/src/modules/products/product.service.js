@@ -15,6 +15,7 @@ import { Category } from '../categories/category.model.js';
 import { Subscription } from '../organisations/subscription.model.js';
 import { getSettings } from '../settings/settings.service.js';
 import { Supplier } from '../suppliers/supplier.model.js';
+import { limitsOf } from '../billing/limits.js';
 import { Product } from './product.model.js';
 
 const MAX_IMAGES = 8;
@@ -133,7 +134,7 @@ async function assertHuidFree(huid, exceptId) {
 
 async function assertProductLimit() {
   const subscription = await Subscription.findOne({}).lean();
-  const max = PLAN_LIMITS[subscription?.plan]?.products;
+  const max = limitsOf(subscription).products;
   if (max == null) return;
   if ((await Product.countDocuments({ isDeleted: false })) >= max) throw ApiError.forbidden(`Your plan allows ${max.toLocaleString('en-IN')} products. Upgrade to add more.`, 'PLAN_LIMIT_REACHED');
 }
@@ -167,7 +168,24 @@ export async function listProducts({ page, limit, q, categoryId, metal, purity, 
 
   const { items, meta } = await paginate(Product.find(filter).sort({ createdAt: -1 }), Product.countDocuments(filter), { page, limit });
   const maps = await lookups(items);
-  return { items: items.map((p) => serialize(p, maps)), meta };
+  return { items: items.map((p) => serialize(p, maps)), meta: { ...meta, summary: await productSummary(filter.branchId) } };
+}
+
+/** Header cards: pieces and weight in stock, their cost value (if allowed), and drafts waiting to be stocked. */
+async function productSummary(branchId) {
+  const match = { isDeleted: false, ...branchScope(), ...(branchId && { branchId: typeof branchId === 'string' ? new mongoose.Types.ObjectId(branchId) : branchId }) };
+  const rows = await Product.aggregate([
+    { $match: match },
+    { $group: { _id: '$status', pieces: { $sum: { $ifNull: ['$quantity', 1] } }, grossMg: { $sum: '$grossWeightMg' }, fineMg: { $sum: '$fineWeightMg' }, costPaise: { $sum: { $ifNull: ['$costPricePaise', 0] } } } },
+  ]);
+  const by = Object.fromEntries(rows.map((r) => [r._id, r]));
+  const stock = by[PRODUCT_STATUS.IN_STOCK] ?? { pieces: 0, grossMg: 0, fineMg: 0, costPaise: 0 };
+  const canCost = vis().canSeeCost;
+  return {
+    inStock: { pieces: stock.pieces, grossMg: stock.grossMg, fineMg: stock.fineMg, ...(canCost && { costPaise: stock.costPaise }) },
+    drafts: by[PRODUCT_STATUS.DRAFT]?.pieces ?? 0,
+    sold: by[PRODUCT_STATUS.SOLD]?.pieces ?? 0,
+  };
 }
 
 export async function getProduct(id) {
@@ -285,4 +303,42 @@ export async function setPrimaryImage(id, fileId) {
   product.images.unshift(image);
   await product.save();
   return getProduct(id);
+}
+
+// ---------------------------------------------------------------- pieces created by a purchase bill
+
+/**
+ * Checks new pieces (full product inputs, already schema-parsed) before a purchase saves them: categories,
+ * branch, purity, HUIDs (unique here and in stock) and the plan's product limit. Returns them ready to insert.
+ */
+export async function preparePieces(inputs) {
+  const prepared = [];
+  const seen = new Set();
+  for (const [i, input] of inputs.entries()) {
+    const { category, settings } = await validateReferences(input);
+    if (input.huid) {
+      if (seen.has(input.huid)) throw ApiError.badRequest(`HUID ${input.huid} is used twice on this bill`, [{ path: `newPieces.${i}.huid`, message: 'Used twice' }], 'VALIDATION_ERROR');
+      seen.add(input.huid);
+      await assertHuidFree(input.huid);
+    }
+    prepared.push({ doc: toDocument(input, category, settings), prefix: settings.barcode.skuPrefix });
+  }
+  const subscription = await Subscription.findOne({}).lean();
+  const max = limitsOf(subscription).products;
+  if (max != null && (await Product.countDocuments({ isDeleted: false })) + inputs.length > max) {
+    throw ApiError.forbidden(`Your plan allows ${max.toLocaleString('en-IN')} products. Upgrade to add more.`, 'PLAN_LIMIT_REACHED');
+  }
+  return prepared;
+}
+
+/** Inserts prepared pieces as drafts inside the caller's transaction; the purchase then moves them into stock. */
+export async function insertPieces(prepared, { session }) {
+  const { userId } = requireContext();
+  const docs = [];
+  for (const p of prepared) {
+    const sku = await nextCode('product', p.prefix, 6, { session });
+    const [doc] = await Product.create([{ ...p.doc, sku, barcode: sku, createdBy: userId, updatedBy: userId }], { session });
+    docs.push(doc.toObject());
+  }
+  return docs;
 }

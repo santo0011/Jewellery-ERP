@@ -1,10 +1,11 @@
+import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import { zodResolver } from '@hookform/resolvers/zod';
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import PowerSettingsNewRoundedIcon from '@mui/icons-material/PowerSettingsNewRounded';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
-import { Alert, Box, Button, Card, CardContent, Grid, IconButton, LinearProgress, MenuItem, Stack, TextField, Tooltip, Typography } from '@mui/material';
-import { INDIAN_STATES, PLAN_KEYS, PLAN_LIMITS } from '@jerp/shared';
+import { Alert, Box, Button, Card, CardContent, Grid, IconButton, InputAdornment, LinearProgress, MenuItem, Stack, TextField, Tooltip, Typography } from '@mui/material';
+import { INDIAN_STATES } from '@jerp/shared';
 import { branchLimitSchema, platformCreateOrganisationSchema, platformUpdateOrganisationSchema } from '@jerp/shared/schemas';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -24,7 +25,8 @@ import StatusChip from '../../components/StatusChip.jsx';
 import { useListParams } from '../../hooks/useListParams.js';
 import { applyServerErrors, getErrorMessage } from '../../utils/errors.js';
 import { formatDate } from '../../utils/format.js';
-import { useCreateOrganisationMutation, useOrganisationsQuery, usePlatformDashboardQuery, useSetOrganisationStatusMutation, useUpdateOrganisationMutation } from './platformApi.js';
+import { useCreateOrganisationMutation, useDeleteOrganisationMutation, useOrganisationsQuery, useSetOrganisationStatusMutation, useUpdateOrganisationMutation } from './platformApi.js';
+import { SubscriptionChip } from '../billing/billingUi.jsx';
 
 /** Organisations are 'suspended' in the data; the panel calls that Deactivated. */
 export const OrgStatusChip = ({ status }) => <StatusChip status={status} label={status === 'suspended' ? 'Deactivated' : undefined} />;
@@ -47,9 +49,10 @@ export function BranchUsage({ used, limit }) {
 // The input holds text; check it is a whole number, then apply the same 1–500 rule as the API.
 const formSchema = platformCreateOrganisationSchema.extend({
   branchLimit: z.string().trim().min(1, 'Branch limit is required').regex(/^\d+$/, 'Enter a whole number, e.g. 5').transform(Number).pipe(branchLimitSchema.shape.branchLimit),
+  freeDays: z.string().trim().min(1, 'Enter the free days (0 for none)').regex(/^\d+$/, 'Enter whole days, e.g. 14').transform(Number).pipe(z.number().max(365, 'At most 365 days')),
 });
 const STATE_OPTIONS = INDIAN_STATES.map((s) => ({ value: s.code, label: s.name }));
-const EMPTY = { organisationName: '', ownerName: '', email: '', mobile: '', stateCode: '', password: '', branchLimit: '' };
+const EMPTY = { organisationName: '', ownerName: '', email: '', mobile: '', stateCode: '', password: '', branchLimit: '', freeDays: '14' };
 
 function CreateOrganisationDrawer({ open, onClose }) {
   const navigate = useNavigate();
@@ -94,6 +97,16 @@ function CreateOrganisationDrawer({ open, onClose }) {
         <Grid size={{ xs: 12, sm: 6 }}>
           <RHFTextField control={control} name="branchLimit" label="Branch limit" placeholder="e.g. 5" helperText="Maximum branches, including the head office" required slotProps={{ htmlInput: { inputMode: 'numeric' } }} />
         </Grid>
+        <Grid size={{ xs: 12, sm: 6 }}>
+          <RHFTextField
+            control={control}
+            name="freeDays"
+            label="Free use"
+            placeholder="e.g. 14"
+            required
+            slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 3 }, input: { endAdornment: <InputAdornment position="end">days</InputAdornment> } }}
+          />
+        </Grid>
         <Grid size={12}>
           <Typography variant="overline" color="textSecondary">
             Organisation login
@@ -116,11 +129,19 @@ function CreateOrganisationDrawer({ open, onClose }) {
   );
 }
 
-const editSchema = platformUpdateOrganisationSchema.extend({ branchLimit: formSchema.shape.branchLimit });
+/** "3 products, 1 customer" — why an organisation can no longer be deleted. */
+export const recordsText = (records = []) => records.map((r) => `${r.count} ${r.type}${r.count === 1 ? '' : 's'}`).join(', ');
 
-const PLAN_LABELS = { trial: 'Trial', basic: 'Basic', professional: 'Professional', enterprise: 'Enterprise' };
-const usersLabel = (max) => (max == null ? 'unlimited users' : `up to ${max} users`);
-const PLAN_OPTIONS = Object.values(PLAN_KEYS).map((key) => ({ value: key, label: `${PLAN_LABELS[key]} · ${usersLabel(PLAN_LIMITS[key].users)}` }));
+const editSchema = platformUpdateOrganisationSchema.extend({
+  branchLimit: formSchema.shape.branchLimit,
+  // Blank (a paid organisation, where the field is locked) leaves the free days alone.
+  freeDays: z
+    .string()
+    .trim()
+    .regex(/^\d*$/, 'Enter whole days, e.g. 14')
+    .transform((v) => (v === '' ? undefined : Number(v)))
+    .pipe(z.number().max(365, 'At most 365 days').optional()),
+});
 
 const editValues = (org) => ({
   organisationName: org?.name ?? '',
@@ -128,7 +149,7 @@ const editValues = (org) => ({
   mobile: org?.phone ?? org?.owner?.mobile ?? '',
   stateCode: org?.stateCode ?? '',
   branchLimit: org ? String(org.branchLimit) : '',
-  plan: org?.plan ?? PLAN_KEYS.TRIAL,
+  freeDays: org?.freeDays != null ? String(org.freeDays) : '',
   password: '',
 });
 
@@ -188,8 +209,15 @@ export function EditOrganisationDrawer({ organisation, onClose }) {
             slotProps={{ htmlInput: { inputMode: 'numeric' } }}
           />
         </Grid>
-        <Grid size={12}>
-          <RHFSelect control={control} name="plan" label="Plan" options={PLAN_OPTIONS} helperText={organisation ? `${organisation.activeUsers} active users, including branch logins` : undefined} />
+        <Grid size={{ xs: 12, sm: 6 }}>
+          <RHFTextField
+            control={control}
+            name="freeDays"
+            label="Free use"
+            placeholder={organisation?.freeDays == null ? 'Paid plan' : 'e.g. 14'}
+            disabled={organisation?.freeDays == null}
+            slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 3 }, input: { endAdornment: <InputAdornment position="end">days</InputAdornment> } }}
+          />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
           <RHFTextField control={control} name="email" label="Login email" type="email" autoComplete="off" />
@@ -202,46 +230,6 @@ export function EditOrganisationDrawer({ organisation, onClose }) {
         </Grid>
       </Grid>
     </FormDrawer>
-  );
-}
-
-export function AdminDashboardPage() {
-  const { data, isLoading, error, refetch } = usePlatformDashboardQuery();
-  const { columns, editDrawer } = useOrganisationTable();
-  if (isLoading) return <LoadingState />;
-  if (error) return <ErrorState error={error} onRetry={refetch} />;
-  const stats = [
-    ['Organisations', data.organisations],
-    ['Active', data.active],
-    ['Deactivated', data.suspended],
-    ['Active branches', data.branches],
-    ['Active users', data.users],
-  ];
-  return (
-    <>
-      <PageHeader title="Platform overview" subtitle="All organisations on this platform." />
-      <Grid container spacing={2} sx={{ mb: 3 }}>
-        {stats.map(([label, value]) => (
-          <Grid key={label} size={{ xs: 6, md: 'grow' }}>
-            <Card>
-              <CardContent>
-                <Typography variant="overline" color="textSecondary">
-                  {label}
-                </Typography>
-                <Typography variant="h2" component="p">
-                  {value}
-                </Typography>
-              </CardContent>
-            </Card>
-          </Grid>
-        ))}
-      </Grid>
-      <Typography variant="h4" sx={{ mb: 1.5 }}>
-        Recently created
-      </Typography>
-      <DataTable columns={columns} rows={data.recent} getRowId={(o) => o.id} empty={{ title: 'No organisations yet' }} />
-      {editDrawer}
-    </>
   );
 }
 
@@ -265,9 +253,12 @@ const orgColumns = [
     label: 'Plan · users',
     render: (o) => (
       <Box>
-        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-          {PLAN_LABELS[o.plan] ?? '—'}
-        </Typography>
+        <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
+          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+            {o.plan ?? '—'}
+          </Typography>
+          {o.subscription && <SubscriptionChip status={o.subscription.status} />}
+        </Stack>
         <Typography variant="caption" color={o.userLimit != null && o.activeUsers >= o.userLimit ? 'warning.main' : 'textSecondary'}>
           {o.activeUsers} / {o.userLimit ?? '∞'} users
         </Typography>
@@ -293,14 +284,25 @@ function useOrganisationTable() {
       toast.error(getErrorMessage(err));
     }
   };
+  const [deleting, setDeleting] = useState(null);
+  const [removeOrg, { isLoading: removing }] = useDeleteOrganisationMutation();
+  const confirmDelete = async () => {
+    try {
+      await removeOrg(deleting.id).unwrap();
+      toast.success(`${deleting.name} deleted`);
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+    }
+    setDeleting(null);
+  };
   const view = (o) => navigate(`/admin/organisations/${o.id}`);
   const columns = [
     ...orgColumns,
     {
       key: 'actions',
-      label: '',
+      label: 'Action',
       align: 'right',
-      width: 132,
+      width: 168,
       render: (o) => (
         <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
           <Tooltip title="View">
@@ -317,6 +319,13 @@ function useOrganisationTable() {
             <IconButton size="small" color={o.status === 'active' ? 'error' : 'success'} onClick={() => setToggling(o)} aria-label={`${o.status === 'active' ? 'Deactivate' : 'Activate'} ${o.name}`}>
               <PowerSettingsNewRoundedIcon fontSize="small" />
             </IconButton>
+          </Tooltip>
+          <Tooltip title={o.canDelete ? 'Delete — nothing has been added yet' : `Cannot delete: it has ${recordsText(o.records)}`}>
+            <span>
+              <IconButton size="small" color="error" disabled={!o.canDelete} onClick={() => setDeleting(o)} aria-label={`Delete ${o.name}`}>
+                <DeleteOutlineRoundedIcon fontSize="small" />
+              </IconButton>
+            </span>
           </Tooltip>
         </Stack>
       ),
@@ -338,6 +347,16 @@ function useOrganisationTable() {
         loading={savingStatus}
         onConfirm={confirmToggle}
         onClose={() => setToggling(null)}
+      />
+      <ConfirmDialog
+        open={Boolean(deleting)}
+        title={`Delete ${deleting?.name}?`}
+        message="It has no records yet, so it will be removed completely: its login, head office, roles and settings. This cannot be undone."
+        confirmLabel="Delete organisation"
+        danger
+        loading={removing}
+        onConfirm={confirmDelete}
+        onClose={() => setDeleting(null)}
       />
     </>
   );

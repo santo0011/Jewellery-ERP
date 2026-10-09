@@ -107,7 +107,7 @@ export default function BranchesPage() {
     { key: 'status', label: 'Status', render: (b) => <StatusChip status={b.status} /> },
     {
       key: 'actions',
-      label: '',
+      label: 'Action',
       align: 'right',
       width: 168,
       render: (b) => (

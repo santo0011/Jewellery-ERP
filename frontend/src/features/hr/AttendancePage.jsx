@@ -19,6 +19,7 @@ import { usePermission, useSession } from '../../hooks/usePermission.js';
 import { getErrorMessage } from '../../utils/errors.js';
 import { useAttendanceDayQuery, useSaveAttendanceMutation } from './hrApi.js';
 import { todayIso } from './hrUi.jsx';
+import { EmployeeAvatar } from './EmployeePhoto.jsx';
 
 const shiftDate = (iso, days) => {
   const d = new Date(`${iso}T00:00:00Z`);
@@ -35,6 +36,8 @@ const TONE = {
   paid_leave: { filled: { bgcolor: 'info.main', color: '#fff' }, soft: { bgcolor: 'rgba(2,136,209,0.12)', color: 'info.main' }, ring: 'info.main' },
   holiday: { filled: { bgcolor: 'grey.600', color: '#fff' }, soft: { bgcolor: 'action.selected', color: 'text.secondary' }, ring: 'text.secondary' },
 };
+/** Palette colour behind each status, for the ring around an employee photo. */
+const TONE_PALETTE = { present: 'success', absent: 'error', half_day: 'warning', paid_leave: 'info', holiday: 'grey' };
 const STATUS_SHORT = { absent: 'absent', half_day: 'half', paid_leave: 'leave', holiday: 'off' };
 const LETTER = Object.fromEntries(ATTENDANCE_STATUSES.map((s) => [s.value, s.short]));
 const initials = (name) =>
@@ -206,9 +209,18 @@ function DailyAttendance({ branchId, branchPicker }) {
                     sx={{ px: 2, py: 1.25, alignItems: { md: 'center' }, boxShadow: dirty ? (t) => `inset 3px 0 0 ${t.vars.palette.primary.main}` : 'none' }}
                   >
                     <Stack direction="row" spacing={1.5} sx={{ flex: 1, minWidth: 0, alignItems: 'center' }}>
-                      <Avatar sx={{ width: 32, height: 32, fontSize: 13, fontWeight: 700, transition: 'background-color 150ms', ...(value ? TONE[value].filled : { bgcolor: 'action.selected', color: 'text.secondary' }) }}>
-                        {initials(e.name)}
-                      </Avatar>
+                      {e.photoFileId ? (
+                        // Photo with a ring in the day's status colour (same colours as the buttons).
+                        <EmployeeAvatar
+                          employee={e}
+                          size={36}
+                          sx={{ boxShadow: 'none', outline: '2.5px solid', outlineOffset: 1.5, outlineColor: (t) => (!value ? t.vars.palette.divider : value === 'holiday' ? t.vars.palette.grey[600] : t.vars.palette[TONE_PALETTE[value]].main), transition: 'outline-color 150ms' }}
+                        />
+                      ) : (
+                        <Avatar sx={{ width: 36, height: 36, fontSize: 13, fontWeight: 700, transition: 'background-color 150ms', ...(value ? TONE[value].filled : { bgcolor: 'action.selected', color: 'text.secondary' }) }}>
+                          {initials(e.name)}
+                        </Avatar>
+                      )}
                       <Stack direction="row" spacing={1} sx={{ minWidth: 0, alignItems: 'center', flexWrap: 'wrap', rowGap: 0.25 }}>
                         <Typography variant="subtitle2" noWrap>
                           {e.name}

@@ -85,30 +85,45 @@ async function findCustomer(id) {
   return customer;
 }
 
-/** Unpaid credit on completed bills, per customer (same rule as the customer page). Empty without sales.view. */
-async function creditDueByCustomer() {
-  if (!hasPermission(requireContext().permissions, 'sales.view')) return new Map();
-  const sales = await Sale.find({ status: SALE_STATUS.COMPLETED, customerId: { $ne: null }, 'payments.mode': 'credit', ...accessibleBranchFilter() })
+/**
+ * Per customer, from completed bills: unpaid credit (same rule as the customer page) and what was paid at the counter.
+ * Empty without sales.view.
+ */
+async function billsByCustomer() {
+  const credit = new Map();
+  const paid = new Map();
+  if (!hasPermission(requireContext().permissions, 'sales.view')) return { credit, paid };
+  const sales = await Sale.find({ status: SALE_STATUS.COMPLETED, customerId: { $ne: null }, ...accessibleBranchFilter() })
     .select('customerId payments')
     .lean();
-  const due = new Map();
+  const add = (map, key, amount) => amount && map.set(key, (map.get(key) ?? 0) + amount);
   for (const s of sales) {
-    const credit = s.payments.filter((p) => p.mode === 'credit').reduce((sum, p) => sum + p.amountPaise, 0);
-    if (credit) due.set(String(s.customerId), (due.get(String(s.customerId)) ?? 0) + credit);
+    const key = String(s.customerId);
+    for (const p of s.payments) add(p.mode === 'credit' ? credit : paid, key, p.amountPaise);
   }
-  return due;
+  return { credit, paid };
 }
 
 const totalDue = (c, credit) => (credit.get(String(c._id)) ?? 0) + Math.max(0, c.openingBalancePaise ?? 0);
+
+/** 'due' = owes and has paid nothing, 'partly_paid' = owes but has paid some, 'paid' = billed and owes nothing, null = no bills or dues. */
+function paymentStatus(duePaise, paidPaise) {
+  if (duePaise > 0) return paidPaise > 0 ? 'partly_paid' : 'due';
+  return paidPaise > 0 ? 'paid' : null;
+}
 
 /** due: 'due' = only customers who owe money (highest first), 'clear' = nothing owed. */
 export async function listCustomers({ page, limit, q, segment, status, due }) {
   const filter = { isDeleted: false, ...searchFilter(q, ['name', 'mobile', 'code', 'email', 'alternateMobile']) };
   if (segment) filter.segment = segment;
   if (status) filter.status = status;
-  const credit = await creditDueByCustomer();
+  const { credit, paid } = await billsByCustomer();
   const owing = { $or: [{ _id: { $in: [...credit.keys()] } }, { openingBalancePaise: { $gt: 0 } }] };
-  const withDue = (c) => ({ ...serialize(c), duePaise: totalDue(c, credit), creditDuePaise: credit.get(String(c._id)) ?? 0 });
+  const withDue = (c) => {
+    const duePaise = totalDue(c, credit);
+    const paidPaise = paid.get(String(c._id)) ?? 0;
+    return { ...serialize(c), duePaise, creditDuePaise: credit.get(String(c._id)) ?? 0, paidPaise, paymentStatus: paymentStatus(duePaise, paidPaise) };
+  };
 
   if (due === 'due') {
     // The owing set is small; rank it by amount so the biggest dues come first.
@@ -117,7 +132,22 @@ export async function listCustomers({ page, limit, q, segment, status, due }) {
   }
   if (due === 'clear') filter.$nor = [owing];
   const { items, meta } = await paginate(Customer.find(filter).sort({ createdAt: -1 }), Customer.countDocuments(filter), { page, limit });
-  return { items: items.map(withDue), meta };
+  return { items: items.map(withDue), meta: { ...meta, summary: await customerSummary(credit, owing) } };
+}
+
+/** Header cards: how many customers, how many joined this month, and what customers owe (bill credit + old dues). */
+async function customerSummary(credit, owing) {
+  const monthStart = new Date();
+  monthStart.setDate(1);
+  monthStart.setHours(0, 0, 0, 0);
+  const [total, fresh, owingCount, opening] = await Promise.all([
+    Customer.countDocuments({ isDeleted: false }),
+    Customer.countDocuments({ isDeleted: false, createdAt: { $gte: monthStart } }),
+    Customer.countDocuments({ isDeleted: false, $and: [owing] }),
+    Customer.aggregate([{ $match: { isDeleted: false, openingBalancePaise: { $gt: 0 } } }, { $group: { _id: null, total: { $sum: '$openingBalancePaise' } } }]),
+  ]);
+  const creditPaise = [...credit.values()].reduce((s, v) => s + v, 0);
+  return { total, newThisMonth: fresh, duePaise: creditPaise + (opening[0]?.total ?? 0), owing: owingCount };
 }
 
 export async function getCustomer(id) {

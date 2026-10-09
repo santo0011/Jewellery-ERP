@@ -1,4 +1,4 @@
-import { ATTENDANCE_STATUSES, hasPermission, METAL_POOL_KINDS, MOVEMENT_TYPE_LABELS, OPEN_ORDER_STATUSES, PAYMENT_MODES, PURITIES, SALE_STATUS } from '@jerp/shared';
+import { ATTENDANCE_STATUSES, hasPermission, METAL_POOL_KINDS, MOVEMENT_TYPE_LABELS, OPEN_ORDER_STATUSES, PAYMENT_MODES, PURITIES, SALE_STATUS, stateName } from '@jerp/shared';
 import { requireContext } from '../../core/context/requestContext.js';
 import { Account } from '../../core/ledger/account.model.js';
 import { JournalEntry } from '../../core/ledger/journalEntry.model.js';
@@ -31,6 +31,106 @@ const pct = (part, whole) => (whole ? Math.round((part / whole) * 1000) / 10 : 0
 const daysBetween = (a, b) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000);
 const received = (s) => sum(s.payments.filter((p) => p.mode !== 'credit'), (p) => p.amountPaise) + (s.advanceAdjustedPaise ?? 0);
 const credit = (s) => sum(s.payments.filter((p) => p.mode === 'credit'), (p) => p.amountPaise);
+
+// ---------------------------------------------------------------- GST helpers
+
+const gstinOf = (s) => s.customer?.gstin || null;
+const posLabel = (code) => (code ? `${code} - ${stateName(code) || 'Unknown'}` : '—');
+const rateText = (bps) => `${bps / 100}%`;
+const splitTax = (gst, interState) => (interState ? { igstPaise: gst, cgstPaise: 0, sgstPaise: 0 } : { igstPaise: 0, cgstPaise: Math.floor(gst / 2), sgstPaise: gst - Math.floor(gst / 2) });
+
+/** GST rates on an invoice, from the tax settings it was billed with (making charges can carry their own rate). */
+function saleRates(s) {
+  const tax = s.taxSnapshot ?? {};
+  if (!tax.gstEnabled) return [0];
+  const separateMaking = tax.separateMakingGst && s.items.some((i) => (i.breakdown.makingPaise ?? 0) > (i.breakdown.discountPaise ?? 0));
+  return [...new Set([tax.jewelleryGstBps, ...(separateMaking ? [tax.makingGstBps] : [])])];
+}
+
+/** Credit notes in the period, with the buyer and place of supply of the invoice they reverse. */
+async function creditNotes({ from, to, branchId }) {
+  const list = await SalesReturn.find({ ...(await branchScope(branchId)), businessDate: { $gte: from, $lte: to } }).sort({ businessDate: 1, createdAt: 1 }).lean();
+  const sales = new Map((await Sale.find({ _id: { $in: list.map((r) => r.saleId) } }).select('customer placeOfSupply interState').lean()).map((s) => [String(s._id), s]));
+  return list.map((r) => {
+    const s = sales.get(String(r.saleId));
+    return { ...r, gstin: s ? gstinOf(s) : null, customer: s?.customer?.name ?? 'Walk-in', placeOfSupply: s?.placeOfSupply ?? null, interState: Boolean(s?.interState) };
+  });
+}
+
+const TAX_KINDS = {
+  cgst: { label: 'CGST', interState: false, share: 0.5, description: 'Central GST on intra-state sales, invoice-wise, less sales returns.' },
+  sgst: { label: 'SGST', interState: false, share: 0.5, description: 'State GST on intra-state sales, invoice-wise, less sales returns.' },
+  igst: { label: 'IGST', interState: true, share: 1, description: 'Integrated GST on inter-state sales, invoice-wise, less sales returns.' },
+};
+
+/** One report per tax head: the invoices that carry it, minus credit notes against them, with the net payable. */
+function taxReport(kind) {
+  const { label, interState, share, description } = TAX_KINDS[kind];
+  const field = `${kind}Paise`;
+  return {
+    key: `gst-${kind}`,
+    group: 'GST',
+    title: `${label} report`,
+    description,
+    permission: 'report.finance',
+    filters: ['range', 'branch'],
+    async run(p) {
+      const sales = (await completedSales(p)).filter((s) => Boolean(s.interState) === interState);
+      const notes = (await creditNotes(p)).filter((n) => n.interState === interState);
+      const invoices = sales.map((s) => ({
+        date: s.businessDate,
+        type: 'Invoice',
+        docNo: s.invoiceNo,
+        customer: s.customer?.name ?? 'Walk-in',
+        gstin: gstinOf(s) ?? 'Unregistered',
+        pos: posLabel(s.placeOfSupply),
+        taxablePaise: s.totals.taxablePaise,
+        rate: saleRates(s).map((bps) => rateText(bps * share)).join(' / '),
+        taxPaise: s.totals[field] ?? 0,
+        _links: { docNo: `/sales/${s._id}` },
+      }));
+      const returns = notes.map((n) => ({
+        date: n.businessDate,
+        type: 'Credit note',
+        docNo: n.creditNoteNo,
+        customer: n.customer,
+        gstin: n.gstin ?? 'Unregistered',
+        pos: posLabel(n.placeOfSupply),
+        taxablePaise: -n.taxablePaise,
+        rate: n.taxablePaise ? rateText(Math.round((n.gstPaise * 1000) / n.taxablePaise) * 10 * share) : '—',
+        taxPaise: -splitTax(n.gstPaise, n.interState)[field],
+        _links: { docNo: `/sales/${n.saleId}` },
+      }));
+      const rows = [...invoices, ...returns].sort((a, b) => a.date.localeCompare(b.date));
+      const collected = sum(invoices, (r) => r.taxPaise);
+      const reversed = -sum(returns, (r) => r.taxPaise);
+      return {
+        columns: [
+          col('date', 'Date', 'date'),
+          col('type', 'Type'),
+          col('docNo', 'Document'),
+          col('customer', 'Buyer'),
+          col('gstin', 'GSTIN'),
+          ...(interState ? [col('pos', 'Place of supply')] : []),
+          col('taxablePaise', 'Taxable value', 'money', { signed: true }),
+          col('rate', `${label} rate`),
+          col('taxPaise', label, 'money', { strong: true, signed: true }),
+        ],
+        rows,
+        totals: totalsOf(rows, ['taxablePaise', 'taxPaise']),
+        summary: [
+          { label: 'Invoices', value: invoices.length, type: 'number' },
+          { label: `${label} collected`, value: collected, type: 'money' },
+          { label: `${label} reversed (returns)`, value: reversed, type: 'money', tone: 'due' },
+          { label: `Net ${label} payable`, value: collected - reversed, type: 'money', tone: 'paid' },
+        ],
+        note: interState
+          ? 'Inter-state sales only (buyer in another state) — the whole GST is IGST. Credit notes reduce the tax payable.'
+          : `Intra-state sales only (buyer in your state) — GST is split equally between CGST and SGST. Credit notes reduce the tax payable.`,
+      };
+    },
+  };
+}
 
 /** Rows limited to a chosen branch, or to every branch the user can see. */
 async function branchScope(branchId, field = 'branchId') {
@@ -388,57 +488,10 @@ const REPORTS = [
       };
     },
   },
-  {
-    key: 'gst-hsn',
-    group: 'Tax & finance',
-    title: 'GST summary (HSN-wise)',
-    description: 'Taxable value and CGST / SGST / IGST by HSN code — for GSTR-1.',
-    permission: 'report.finance',
-    filters: ['range', 'branch'],
-    async run(p) {
-      const sales = await completedSales(p);
-      const lines = sales.flatMap((s) => s.items.map((i) => ({ ...i, interState: s.interState })));
-      const rows = groupBy(
-        lines,
-        (i) => i.hsnCode || '—',
-        (i, k) => ({ hsn: k, qty: 0, grossMg: 0, taxablePaise: 0, cgstPaise: 0, sgstPaise: 0, igstPaise: 0, taxPaise: 0 }),
-        (r, i) => {
-          const gst = i.breakdown.gstPaise;
-          r.qty += i.quantity ?? 1;
-          r.grossMg += i.grossWeightMg ?? 0;
-          r.taxablePaise += i.breakdown.taxablePaise;
-          if (i.interState) r.igstPaise += gst;
-          else {
-            r.cgstPaise += Math.floor(gst / 2);
-            r.sgstPaise += gst - Math.floor(gst / 2);
-          }
-          r.taxPaise += gst;
-        },
-      ).sort((a, b) => b.taxablePaise - a.taxablePaise);
-      const totals = totalsOf(rows, ['qty', 'grossMg', 'taxablePaise', 'cgstPaise', 'sgstPaise', 'igstPaise', 'taxPaise']);
-      return {
-        columns: [
-          col('hsn', 'HSN'),
-          col('qty', 'Qty', 'number'),
-          col('grossMg', 'Gross wt', 'weight'),
-          col('taxablePaise', 'Taxable value', 'money'),
-          col('cgstPaise', 'CGST', 'money'),
-          col('sgstPaise', 'SGST', 'money'),
-          col('igstPaise', 'IGST', 'money'),
-          col('taxPaise', 'Total tax', 'money', { strong: true }),
-        ],
-        rows,
-        totals,
-        summary: [
-          { label: 'Taxable value', value: totals.taxablePaise, type: 'money' },
-          { label: 'CGST + SGST', value: totals.cgstPaise + totals.sgstPaise, type: 'money' },
-          { label: 'IGST', value: totals.igstPaise, type: 'money' },
-          { label: 'Total tax', value: totals.taxPaise, type: 'money' },
-        ],
-        note: 'Invoice-level round-off is not included. Returns are shown separately in the Sales returns report.',
-      };
-    },
-  },
+  // ------------------------------------------------ GST
+  taxReport('cgst'),
+  taxReport('sgst'),
+  taxReport('igst'),
   {
     key: 'profit',
     group: 'Tax & finance',
@@ -797,6 +850,73 @@ const REPORTS = [
 
   // ------------------------------------------------ HR
   {
+    key: 'salary-payments',
+    group: 'HR & payroll',
+    title: 'Monthly salary payments',
+    description: 'Month by month: net salary, paid by cash / bank / UPI, and what is still unpaid.',
+    permission: 'payroll.view',
+    filters: ['range', 'branch'],
+    defaultFrom: (today) => {
+      const [year, m] = today.businessDate.split('-').map(Number);
+      const startYear = m >= today.fyStartMonth ? year : year - 1;
+      return `${startYear}-${String(today.fyStartMonth).padStart(2, '0')}-01`;
+    },
+    async run({ from, to, branchId }) {
+      const runs = await PayrollRun.find({ ...(await branchScope(branchId)), month: { $gte: from.slice(0, 7), $lte: to.slice(0, 7) } })
+        .sort({ month: 1 })
+        .lean();
+      const maps = await nameMaps({ branchIds: runs.map((r) => r.branchId) });
+      const rows = runs.map((r) => {
+        const paidLines = r.lines.filter((l) => l.paid?.at);
+        const byMode = (mode) => sum(paidLines.filter((l) => l.paid.mode === mode), (l) => l.netPaise);
+        const netPaise = sum(r.lines, (l) => l.netPaise);
+        const paidPaise = sum(paidLines, (l) => l.netPaise);
+        const lastPaid = paidLines.reduce((d, l) => (!d || l.paid.at > d ? l.paid.at : d), null);
+        const status = r.status === 'draft' ? 'Draft' : paidPaise >= netPaise ? 'Paid' : paidPaise > 0 ? 'Partly paid' : 'Unpaid';
+        return {
+          month: new Date(`${r.month}-01T00:00:00Z`).toLocaleString('en-IN', { month: 'long', year: 'numeric', timeZone: 'UTC' }),
+          branch: pick(maps.branches, r.branchId)?.name ?? '',
+          employees: r.lines.length,
+          netPaise,
+          cashPaise: byMode('cash'),
+          bankPaise: byMode('bank'),
+          upiPaise: byMode('upi'),
+          paidPaise,
+          unpaidPaise: r.status === 'draft' ? 0 : netPaise - paidPaise,
+          lastPaidOn: lastPaid ? lastPaid.toISOString().slice(0, 10) : null,
+          status,
+          _links: { month: `/hr/payroll/${r._id}` },
+          _tone: status === 'Unpaid' || status === 'Partly paid' ? 'due' : null,
+        };
+      });
+      const totals = totalsOf(rows, ['employees', 'netPaise', 'cashPaise', 'bankPaise', 'upiPaise', 'paidPaise', 'unpaidPaise']);
+      return {
+        columns: [
+          col('month', 'Month'),
+          col('branch', 'Branch'),
+          col('employees', 'Staff', 'number'),
+          col('netPaise', 'Net salary', 'money'),
+          col('cashPaise', 'Cash', 'money'),
+          col('bankPaise', 'Bank', 'money'),
+          col('upiPaise', 'UPI', 'money'),
+          col('paidPaise', 'Total paid', 'money', { strong: true, tone: 'paid' }),
+          col('unpaidPaise', 'Unpaid', 'money', { tone: 'due' }),
+          col('lastPaidOn', 'Last paid on', 'date'),
+          col('status', 'Status'),
+        ],
+        rows,
+        totals,
+        summary: [
+          { label: 'Months', value: new Set(runs.map((r) => r.month)).size, type: 'number' },
+          { label: 'Net salary', value: totals.netPaise, type: 'money' },
+          { label: 'Paid', value: totals.paidPaise, type: 'money', tone: 'paid' },
+          { label: 'Still unpaid', value: totals.unpaidPaise, type: 'money', tone: 'due' },
+        ],
+        note: runs.length ? 'Months are included by salary month. Draft payrolls are not finalised yet, so nothing is due on them.' : 'No payroll has been run in this period.',
+      };
+    },
+  },
+  {
     key: 'salary-register',
     group: 'HR & payroll',
     title: 'Salary register',
@@ -1083,7 +1203,7 @@ export async function runReport(key, query) {
   if (!allowed(report)) throw ApiError.forbidden('You do not have access to this report');
   const today = await todayContext();
   const params = {
-    from: query.from ?? `${today.businessDate.slice(0, 7)}-01`,
+    from: query.from ?? report.defaultFrom?.(today) ?? `${today.businessDate.slice(0, 7)}-01`,
     to: query.to ?? today.businessDate,
     month: query.month ?? today.businessDate.slice(0, 7),
     branchId: query.branchId,

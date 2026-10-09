@@ -1,5 +1,7 @@
 import ApartmentOutlinedIcon from '@mui/icons-material/ApartmentOutlined';
 import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined';
+import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
+import SellOutlinedIcon from '@mui/icons-material/SellOutlined';
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import { AppBar, Box, Button, Chip, Drawer, IconButton, Toolbar, Typography, useMediaQuery } from '@mui/material';
@@ -17,8 +19,15 @@ const SIDEBAR_COLLAPSED = 72;
 const COLLAPSE_KEY = 'jerp.adminSidebarCollapsed';
 
 const NAV = [
-  { label: 'Overview', items: [{ label: 'Dashboard', path: '/admin', icon: DashboardOutlinedIcon, end: true }] },
+  { label: 'Dashboard', pinned: true, items: [{ label: 'Dashboard', path: '/admin', icon: DashboardOutlinedIcon, end: true }] },
   { label: 'Platform', items: [{ label: 'Organisations', path: '/admin/organisations', icon: ApartmentOutlinedIcon }] },
+  {
+    label: 'Billing',
+    items: [
+      { label: 'Plans', path: '/admin/plans', icon: SellOutlinedIcon },
+      { label: 'Payments', path: '/admin/payments', icon: ReceiptLongOutlinedIcon },
+    ],
+  },
 ];
 
 const readCollapsed = () => {
@@ -60,12 +69,12 @@ export default function AdminLayout() {
       {desktop ? (
         <Box component="aside" sx={{ width, flexShrink: 0, transition: 'width 160ms ease' }}>
           <Box sx={{ position: 'fixed', top: 0, bottom: 0, width, transition: 'width 160ms ease', zIndex: (t) => t.zIndex.drawer }}>
-            <Sidebar groups={NAV} collapsed={collapsed} onToggleCollapse={toggleCollapsed} organisationName={me?.name ?? 'Super Admin'} caption="Super Admin" panelName="Super Admin Panel" />
+            <Sidebar groups={NAV} fixedGroups collapsed={collapsed} onToggleCollapse={toggleCollapsed} organisationName={me?.name ?? 'Super Admin'} caption="Super Admin" panelName="Super Admin Panel" />
           </Box>
         </Box>
       ) : (
         <Drawer open={mobileOpen} onClose={() => setMobileOpen(false)} slotProps={{ paper: { sx: { width: SIDEBAR_WIDTH, border: 0, bgcolor: 'transparent', boxShadow: 'none' } } }}>
-          <Sidebar groups={NAV} onNavigate={() => setMobileOpen(false)} organisationName={me?.name ?? 'Super Admin'} caption="Super Admin" panelName="Super Admin Panel" />
+          <Sidebar groups={NAV} fixedGroups onNavigate={() => setMobileOpen(false)} organisationName={me?.name ?? 'Super Admin'} caption="Super Admin" panelName="Super Admin Panel" />
         </Drawer>
       )}
 
