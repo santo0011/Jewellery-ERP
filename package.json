@@ -1,0 +1,26 @@
+{
+  "name": "jewellery-erp",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*",
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n db,api,web -c gray,yellow,cyan \"npm run db -w backend\" \"npm run dev -w backend\" \"npm run dev -w frontend\"",
+    "dev:db": "npm run db -w backend",
+    "dev:api": "npm run dev -w backend",
+    "dev:web": "npm run dev -w frontend",
+    "seed": "npm run seed -w backend",
+    "db:reset": "npm run seed -w backend -- --fresh",
+    "build": "npm run build -w frontend",
+    "test": "npm test --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.5"
+  }
+}

@@ -1,0 +1,9 @@
+export const MOBILE_REGEX = /^[6-9]\d{9}$/;
+export const GSTIN_REGEX = /^\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
+export const PAN_REGEX = /^[A-Z]{5}\d{4}[A-Z]$/;
+export const PINCODE_REGEX = /^[1-9]\d{5}$/;
+export const BRANCH_CODE_REGEX = /^[A-Z0-9-]{2,10}$/;
+export const OBJECT_ID_REGEX = /^[a-f\d]{24}$/i;
+export const IFSC_REGEX = /^[A-Z]{4}0[A-Z0-9]{6}$/;
+export const HUID_REGEX = /^[A-Z0-9]{6}$/;
+export const HSN_REGEX = /^\d{4,8}$/;
