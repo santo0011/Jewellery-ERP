@@ -62,6 +62,7 @@ export const purchaseListQuerySchema = listQuerySchema.extend({
 const orderLineSchema = z
   .object({
     description: z.string().trim().min(2, 'Describe the item').max(120),
+    itemId: objectIdSchema.nullish(), // the saved item it was picked from, so receiving the order can fill the pieces
     metal: z.enum(values(METAL_OPTIONS)),
     purity: z.number().int(),
     quantity: z.number().int().min(1).max(10000).default(1),

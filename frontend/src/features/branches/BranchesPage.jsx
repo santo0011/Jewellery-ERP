@@ -4,12 +4,14 @@ import KeyOutlinedIcon from '@mui/icons-material/KeyOutlined';
 import LockPersonOutlinedIcon from '@mui/icons-material/LockPersonOutlined';
 import PowerSettingsNewRoundedIcon from '@mui/icons-material/PowerSettingsNewRounded';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
-import { Alert, Box, Button, Chip, IconButton, InputAdornment, LinearProgress, MenuItem, Stack, TextField, Tooltip, Typography } from '@mui/material';
+import { Alert, Box, Button, Chip, IconButton, InputAdornment, LinearProgress, Link, MenuItem, Stack, TextField, Tooltip, Typography } from '@mui/material';
+import { Link as RouterLink } from 'react-router';
 import { BRANCH_PERMISSIONS } from '@jerp/shared';
 import { stateName } from '@jerp/shared';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 import ConfirmDialog from '../../components/ConfirmDialog.jsx';
+import { DeleteAction } from '../../components/RowActions.jsx';
 import DataTable from '../../components/DataTable.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
 import StatusChip from '../../components/StatusChip.jsx';
@@ -20,6 +22,7 @@ import BranchAccessDrawer from './BranchAccessDrawer.jsx';
 import { useBranchesQuery, useBranchUsageQuery, useSetBranchStatusMutation } from './branchApi.js';
 import BranchFormDrawer from './BranchFormDrawer.jsx';
 import BranchLoginDrawer from './BranchLoginDrawer.jsx';
+import { useDeleteStatus } from '../../services/recordApi.js';
 
 export default function BranchesPage() {
   const { data: session } = useSession();
@@ -39,6 +42,8 @@ export default function BranchesPage() {
   const canManageLogin = canManageAccess && canEditUsers;
   const [loginFor, setLoginFor] = useState(null);
   const { data: usage } = useBranchUsageQuery();
+  // Which rows can be deleted (Delete stays visible; it is disabled with the reason when not).
+  const deleteStatus = useDeleteStatus('branch', data?.items);
   const full = usage ? usage.available === 0 : false;
   const q = useDebounce(search.trim());
 
@@ -109,7 +114,7 @@ export default function BranchesPage() {
       key: 'actions',
       label: 'Action',
       align: 'right',
-      width: 168,
+      width: 204,
       render: (b) => (
         <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
           {canEdit && (
@@ -140,6 +145,7 @@ export default function BranchesPage() {
               </IconButton>
             </Tooltip>
           )}
+          <DeleteAction type="branch" id={b.id ?? b._id} name={b.name} status={deleteStatus(b.id ?? b._id)} />
         </Stack>
       ),
     },
@@ -162,15 +168,20 @@ export default function BranchesPage() {
         }
       />
 
-      {usage && (
+      {usage && usage.limit != null && (
         <Alert severity={full ? 'warning' : 'info'} icon={false} sx={{ mb: 2 }}>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 1, sm: 3 }} sx={{ alignItems: { sm: 'center' } }}>
             <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              Branch limit {usage.limit} · {usage.used} in use · {usage.available} available
+              {usage.trial ? 'Free trial' : 'Your plan'}: {usage.limit} branch{usage.limit === 1 ? '' : 'es'} (head office included) · {usage.used} in use · {usage.available} available
             </Typography>
             <LinearProgress variant="determinate" value={Math.min(100, (usage.used / usage.limit) * 100)} sx={{ flex: 1, maxWidth: 240, height: 6, borderRadius: 3 }} />
             {full && (
-              <Typography variant="body2">Contact your platform administrator to add more branches.</Typography>
+              <Typography variant="body2">
+                {usage.trial ? 'Choose a subscription plan to add more branches.' : 'Upgrade your plan to add more branches.'}{' '}
+                <Link component={RouterLink} to="/settings/subscription">
+                  See plans
+                </Link>
+              </Typography>
             )}
           </Stack>
         </Alert>

@@ -1,11 +1,12 @@
+import AutoAwesomeOutlinedIcon from '@mui/icons-material/AutoAwesomeOutlined';
+import DiamondOutlinedIcon from '@mui/icons-material/DiamondOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import TollOutlinedIcon from '@mui/icons-material/TollOutlined';
 import WarningAmberRoundedIcon from '@mui/icons-material/WarningAmberRounded';
 import {
   Alert,
   Box,
   Button,
-  Card,
-  CardContent,
   Dialog,
   DialogActions,
   DialogContent,
@@ -22,6 +23,7 @@ import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import DataTable from '../../components/DataTable.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
+import SummaryCards, { SummaryCard } from '../../components/SummaryCards.jsx';
 import { ErrorState, LoadingState } from '../../components/StateViews.jsx';
 import { useListParams } from '../../hooks/useListParams.js';
 import { usePermission, useSession } from '../../hooks/usePermission.js';
@@ -31,6 +33,14 @@ import { purityLabel } from '../products/productForm.js';
 import { useCurrentRatesQuery, useRateHistoryQuery, useSetRatesMutation } from './rateApi.js';
 
 const metalName = (m) => METAL_OPTIONS.find((o) => o.value === m)?.label ?? m;
+/** Card icon and accent per metal (the dashboard's summary-card tones). */
+const METAL_LOOK = {
+  gold: { icon: DiamondOutlinedIcon, tone: 'gold' },
+  silver: { icon: TollOutlinedIcon, tone: 'grey' },
+  platinum: { icon: AutoAwesomeOutlinedIcon, tone: 'blue' },
+};
+// Show "All metals" when no metal is picked, instead of an empty box.
+const filterSlots = { inputLabel: { shrink: true }, select: { displayEmpty: true } };
 
 function enabledSlots(catalog) {
   return METAL_OPTIONS.flatMap((m) => (catalog.enabledPurities[m.value] ?? []).map((purity) => ({ metal: m.value, purity, key: `${m.value}:${purity}` })));
@@ -167,29 +177,21 @@ export default function RatesPage() {
               </Alert>
             )
           )}
-          <Grid container spacing={2} sx={{ mb: 4 }}>
-            {current.map((r) => (
-              <Grid key={`${r.metal}:${r.purity}`} size={{ xs: 6, md: 4, lg: 3 }}>
-                <Card sx={{ height: '100%', borderTop: 3, borderTopColor: r.metal === 'gold' ? 'primary.main' : 'divider' }}>
-                  <CardContent>
-                    <Typography variant="overline" color="textSecondary">
-                      {metalName(r.metal)} · {purityLabel(r.metal, r.purity)}
-                    </Typography>
-                    <Typography variant="h2" component="p" sx={{ mt: 0.5, fontSize: { xs: '1.25rem', sm: '1.5rem' } }}>
-                      {formatINR(r.ratePerGramPaise, { decimals: 0 })}
-                      <Typography component="span" variant="body2" color="textSecondary">
-                        {' '}
-                        /g
-                      </Typography>
-                    </Typography>
-                    <Typography variant="caption" color={r.isToday ? 'textSecondary' : 'warning'}>
-                      {r.isToday ? 'Updated' : 'Last updated'} {formatDateTime(r.effectiveAt)}
-                    </Typography>
-                  </CardContent>
-                </Card>
-              </Grid>
-            ))}
-          </Grid>
+          {/* One dashboard-style card per rate; a rate not updated today turns amber. */}
+          {current.length > 0 && (
+            <SummaryCards>
+              {current.map((r) => (
+                <SummaryCard
+                  key={`${r.metal}:${r.purity}`}
+                  icon={METAL_LOOK[r.metal]?.icon ?? DiamondOutlinedIcon}
+                  tone={r.isToday ? (METAL_LOOK[r.metal]?.tone ?? 'gold') : 'amber'}
+                  label={`${metalName(r.metal)} · ${purityLabel(r.metal, r.purity)}`}
+                  value={`${formatINR(r.ratePerGramPaise, { decimals: 0 })} /g`}
+                  caption={`${r.isToday ? 'Updated' : 'Not updated today ·'} ${formatDateTime(r.effectiveAt)}`}
+                />
+              ))}
+            </SummaryCards>
+          )}
         </>
       )}
 
@@ -207,7 +209,7 @@ export default function RatesPage() {
         pagination={list.pagination(history.data?.meta)}
         toolbar={
           <Stack direction="row" spacing={1.5}>
-            <TextField select label="Metal" value={list.filters.metal} onChange={(e) => list.setFilter('metal', e.target.value)} sx={{ maxWidth: 180 }}>
+            <TextField select label="Metal" value={list.filters.metal} onChange={(e) => list.setFilter('metal', e.target.value)} slotProps={filterSlots} sx={{ width: { xs: '100%', sm: 180 } }}>
               <MenuItem value="">All metals</MenuItem>
               {METAL_OPTIONS.map((m) => (
                 <MenuItem key={m.value} value={m.value}>

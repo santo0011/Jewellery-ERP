@@ -14,11 +14,10 @@ import { Product } from '../products/product.model.js';
 import { User } from '../users/user.model.js';
 import { Plan, SubscriptionPayment } from './billing.models.js';
 import { cashfreeEnabled, cashfreeMode, createOrder, getOrder, getSuccessfulPayment, latestAttempt, payOrder } from './cashfree.js';
-import { effectiveSubscription, limitsOf } from './limits.js';
+import { effectiveSubscription, limitsOf, planLimitsOf } from './limits.js';
 
 const SKIP = { skipTenant: true };
 const DAY = 86400000;
-const UNLIMITED_BRANCHES = 999;
 
 const addMonths = (date, months) => {
   const d = new Date(date);
@@ -67,7 +66,7 @@ export async function ensureBillingSetup() {
   const orphans = await Subscription.find({ planId: null }).setOptions(SKIP).lean();
   for (const sub of orphans) {
     const plan = byCode.get(sub.plan) ?? fallback;
-    await Subscription.updateOne({ _id: sub._id }, { $set: { planId: plan._id, planName: plan.name, ...(sub.plan !== 'trial' && { plan: plan.code }), limits: limitsOf(sub) } }).setOptions(SKIP);
+    await Subscription.updateOne({ _id: sub._id }, { $set: { planId: plan._id, planName: plan.name, ...(sub.plan !== 'trial' && { plan: plan.code }), limits: planLimitsOf(sub) } }).setOptions(SKIP);
   }
 }
 
@@ -132,10 +131,8 @@ export async function defaultPlanForNewOrganisation() {
 
 // ---------------------------------------------------------------- subscription changes
 
-/** Plan fields copied onto the subscription, and the branch limit raised (never below branches in use). */
+/** Plan fields copied onto the subscription; its limits (users, branches, products) apply from then on. */
 async function planFields(orgId, plan) {
-  const usedBranches = await Branch.countDocuments({ organisationId: orgId, status: BRANCH_STATUS.ACTIVE }).setOptions(SKIP);
-  await Organisation.updateOne({ _id: orgId }, { $set: { branchLimit: Math.max(usedBranches, plan.limits?.branches ?? UNLIMITED_BRANCHES, 1) } });
   return { planId: plan._id, plan: plan.code, planName: plan.name, limits: { users: plan.limits?.users ?? null, branches: plan.limits?.branches ?? null, products: plan.limits?.products ?? null } };
 }
 

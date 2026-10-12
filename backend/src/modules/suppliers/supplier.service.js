@@ -5,6 +5,7 @@ import { requireContext } from '../../core/context/requestContext.js';
 import { syncOpeningBalance } from '../../core/ledger/openingBalance.service.js';
 import { nextCode } from '../../core/numbering/numbering.service.js';
 import { ApiError } from '../../utils/ApiError.js';
+import { deleteRecord } from '../records/record.deletion.js';
 import { diffChanges } from '../../utils/diff.js';
 import { paginate, searchFilter } from '../../utils/pagination.js';
 import { Product } from '../products/product.model.js';
@@ -177,14 +178,7 @@ export async function setSupplierStatus(id, status) {
   return serialize(supplier.toObject());
 }
 
+/** Deletes it if nothing uses it — the same rules as every other delete (see record.deletion.js). */
 export async function deleteSupplier(id) {
-  const supplier = await findSupplier(id);
-  if (supplier.openingBalancePaise) throw ApiError.conflict('This supplier has an opening balance in the ledger. Set it to zero or deactivate the supplier instead.', 'HAS_BALANCE');
-  const used = await Product.countDocuments({ supplierId: supplier._id, isDeleted: false });
-  if (used) {
-    throw ApiError.conflict(`${used} product(s) are linked to this supplier. Deactivate it instead.`, 'IN_USE');
-  }
-  supplier.set({ isDeleted: true, updatedBy: requireContext().userId });
-  await supplier.save();
-  await recordAudit({ action: AUDIT_ACTIONS.DELETE, module: 'supplier', recordType: 'Supplier', recordId: supplier._id, meta: { name: supplier.companyName, code: supplier.code } });
+  return deleteRecord('supplier', id);
 }

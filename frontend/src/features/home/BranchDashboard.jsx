@@ -12,7 +12,7 @@ import { formatDate, formatDateTime } from '../../utils/format.js';
 import { OrderStatusChip } from '../orders/orderUi.jsx';
 import { purityLabel } from '../products/productForm.js';
 import { BarList, compactINR } from './charts.jsx';
-import { AreaChart, DonutChart, StackedBar } from './shareCharts.jsx';
+import { AreaChart, ShareBars, StackedBar } from './shareCharts.jsx';
 import { useBranchDashboardQuery } from './dashboardApi.js';
 
 const PERIODS = [7, 30, 90];
@@ -89,7 +89,7 @@ export default function BranchDashboard({ branchId }) {
           </Grid>
           <Grid size={{ xs: 12, lg: 4 }}>
             <Panel title="Payment mix" subtitle="How customers paid">
-              <DonutChart rows={sales.byPaymentMode} centerLabel="Total billed" empty="No payments in this period" />
+              <ShareBars rows={sales.byPaymentMode} owedKeys={['credit']} totalLabel="Total billed" empty="No payments in this period" />
             </Panel>
           </Grid>
         </Grid>

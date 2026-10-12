@@ -31,11 +31,15 @@ export function monthBounds(month) {
 const dayNumber = (iso) => Date.parse(`${iso}T00:00:00Z`) / 86400000;
 const monthLabel = (month) => new Date(`${month}-01T00:00:00Z`).toLocaleString('en-IN', { month: 'short', year: 'numeric', timeZone: 'UTC' });
 
-/** Days of `month` the employee was on the rolls (joining and exit dates included, breaks after a rejoin left out). */
-function eligibleDays(emp, month) {
+/**
+ * Days of `month` the employee was on the rolls (joining and exit dates included, breaks after a rejoin left out).
+ * `until` stops the count at a date — for the running month, today: days still to come are not worked or paid yet.
+ */
+export function eligibleDays(emp, month, until = null) {
   const { start, end } = monthBounds(month);
+  const last = until && until < end ? until : end;
   const from = emp.joiningDate > start ? emp.joiningDate : start;
-  const to = emp.exitDate && emp.exitDate < end ? emp.exitDate : end;
+  const to = emp.exitDate && emp.exitDate < last ? emp.exitDate : last;
   if (from > to) return 0;
   const away = (emp.breaks ?? []).reduce((n, b) => {
     const a = b.from > from ? b.from : from;
@@ -45,8 +49,11 @@ function eligibleDays(emp, month) {
   return dayNumber(to) - dayNumber(from) + 1 - away;
 }
 
-/** Was the employee on the rolls on this date? */
-const onRollsOn = (emp, date) => date >= emp.joiningDate && (!emp.exitDate || date <= emp.exitDate) && !(emp.breaks ?? []).some((b) => date >= b.from && date <= b.to);
+/**
+ * Was the employee on the rolls on this date? Marks outside these dates (made before a joining date was moved
+ * later, or an exit date earlier) are ignored everywhere: register, counts, payroll and reports.
+ */
+export const onRollsOn = (emp, date) => date >= emp.joiningDate && (!emp.exitDate || date <= emp.exitDate) && !(emp.breaks ?? []).some((b) => date >= b.from && date <= b.to);
 
 const WEEKDAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const weekday = (iso) => new Date(`${iso}T00:00:00Z`).getUTCDay();
@@ -83,7 +90,9 @@ async function attendanceCounts(employees, month, { until } = {}) {
   const counts = new Map();
   const marked = new Set();
   const blank = () => ({ present: 0, absent: 0, half_day: 0, paid_leave: 0, holiday: 0 });
+  const byId = new Map(employees.map((e) => [String(e._id), e]));
   for (const r of rows) {
+    if (!onRollsOn(byId.get(String(r.employeeId)), r.date)) continue;
     const c = counts.get(String(r.employeeId)) ?? blank();
     c[r.status] = (c[r.status] ?? 0) + 1;
     counts.set(String(r.employeeId), c);
@@ -269,13 +278,25 @@ export async function createEmployee(input) {
   return getEmployee(emp._id);
 }
 
+/** A corrected joining date must still come before the employee left, or went on a break. */
+function assertJoiningDate(emp, date) {
+  const firstAway = [emp.exitDate, ...(emp.breaks ?? []).map((b) => b.from)].filter(Boolean).sort()[0];
+  if (firstAway && date > firstAway) {
+    throw ApiError.badRequest('Joining date is after the employee left', [{ path: 'joiningDate', message: `Must be on or before ${firstAway}` }], 'VALIDATION_ERROR');
+  }
+}
+
 export async function updateEmployee(id, input) {
   const { userId } = requireContext();
   const emp = await findEmployee(id);
   if (String(emp.branchId) !== input.branchId) await requireBranch(input.branchId);
   if (input.mobile !== emp.mobile) await assertMobileFree(input.mobile, emp._id);
-  const before = { basicPaise: emp.basicPaise, allowancePaise: emp.allowancePaise, branchId: String(emp.branchId), designation: emp.designation };
+  if (input.joiningDate !== emp.joiningDate) assertJoiningDate(emp, input.joiningDate);
+  const before = { basicPaise: emp.basicPaise, allowancePaise: emp.allowancePaise, branchId: String(emp.branchId), designation: emp.designation, joiningDate: emp.joiningDate };
   emp.set({ ...input, bank: { accountName: null, accountNumber: null, ifsc: null, ...input.bank }, updatedBy: userId });
+  // Keep the employment history's joining entry in step with a corrected joining date.
+  const joined = emp.history?.find((h) => h.event === 'joined');
+  if (joined && joined.date !== emp.joiningDate) joined.date = emp.joiningDate;
   await emp.save();
   const changes = Object.entries(before)
     .filter(([k, v]) => String(v) !== String(emp[k]))
@@ -584,11 +605,14 @@ export async function updateAdvance(id, { amountPaise, installmentPaise, givenOn
 
 // ---------------------------------------------------------------- payroll
 
-/** Pay for one employee for the month. `keep` carries the manual figures (bonus, deductions, note) of a draft line. */
-function buildLine(emp, month, counts, advance, keep = {}) {
+/**
+ * Pay for one employee for the month. `keep` carries the manual figures (bonus, deductions, note) of a draft line.
+ * `upTo` (running month) limits the days to those already passed; the day rate stays salary ÷ days in the month.
+ */
+function buildLine(emp, month, counts, advance, keep = {}, upTo = null) {
   const { days: daysInMonth } = monthBounds(month);
   const c = counts.get(String(emp._id)) ?? {};
-  const eligible = eligibleDays(emp, month);
+  const eligible = eligibleDays(emp, month, upTo);
   const marked = (c.present ?? 0) + (c.absent ?? 0) + (c.half_day ?? 0) + (c.paid_leave ?? 0) + (c.holiday ?? 0);
   const days = {
     present: c.present ?? 0,
@@ -658,6 +682,7 @@ function serializeRun(r, maps) {
     runNo: r.runNo,
     month: r.month,
     monthLabel: monthLabel(r.month),
+    upTo: r.upTo ?? null,
     status: r.status,
     branch: pick(maps.branches, r.branchId),
     totals: totalsOf(r.lines),
@@ -690,9 +715,13 @@ export async function getPayrollRun(id) {
   };
 }
 
-async function rosterFor(branchId, month) {
+/** Last day a payroll for `month` counts: today while the month is running, else null (the whole month). */
+const payrollUpTo = (month, today) => (month === today.businessDate.slice(0, 7) ? today.businessDate : null);
+
+/** Employees on the branch's rolls in the month — for a running month, only those who joined by `upTo`. */
+async function rosterFor(branchId, month, upTo = null) {
   const { start, end } = monthBounds(month);
-  return Employee.find(onRollsFilter(branchId, start, end)).sort({ name: 1 }).lean();
+  return Employee.find(onRollsFilter(branchId, start, upTo ?? end)).sort({ name: 1 }).lean();
 }
 
 export async function createPayrollRun({ branchId, month }) {
@@ -702,14 +731,15 @@ export async function createPayrollRun({ branchId, month }) {
   if (month > today.businessDate.slice(0, 7)) throw ApiError.badRequest('Payroll cannot be run for a future month', [{ path: 'month', message: 'Pick this month or an earlier one' }], 'VALIDATION_ERROR');
   const existing = await PayrollRun.findOne({ branchId: oid(branchId), month }).select('runNo').lean();
   if (existing) throw ApiError.conflict(`Payroll for ${monthLabel(month)} at ${branch.name} already exists (${existing.runNo})`, 'DUPLICATE', [{ path: 'month', message: 'Already created' }]);
-  const employees = await rosterFor(branchId, month);
+  const upTo = payrollUpTo(month, today);
+  const employees = await rosterFor(branchId, month, upTo);
   if (!employees.length) throw ApiError.badRequest(`No employees were on ${branch.name}’s rolls in ${monthLabel(month)}`, [{ path: 'branchId', message: 'No employees' }], 'VALIDATION_ERROR');
   const ids = employees.map((e) => e._id);
-  const [counts, advances] = await Promise.all([attendanceCounts(employees, month), openAdvanceBalances(ids, month)]);
+  const [counts, advances] = await Promise.all([attendanceCounts(employees, month, { until: upTo }), openAdvanceBalances(ids, month)]);
 
   const run = await withTransaction(async (session) => {
     const runNo = await nextDocumentNo({ prefix: 'PAY', branchCode: branch.code, financialYear: today.financialYear }, { session });
-    const [doc] = await PayrollRun.create([{ runNo, branchId: branch._id, month, lines: employees.map((e) => buildLine(e, month, counts, advances.get(String(e._id)))), createdBy: userId }], { session });
+    const [doc] = await PayrollRun.create([{ runNo, branchId: branch._id, month, upTo, lines: employees.map((e) => buildLine(e, month, counts, advances.get(String(e._id)), {}, upTo)), createdBy: userId }], { session });
     await recordAudit({ action: AUDIT_ACTIONS.CREATE, module: 'payroll', recordType: 'PayrollRun', recordId: doc._id, meta: { name: runNo, month } }, { session });
     return doc;
   });
@@ -720,14 +750,17 @@ export async function createPayrollRun({ branchId, month }) {
 export async function recalculatePayrollRun(id) {
   const run = await findRun(id);
   assertDraft(run);
-  const employees = await rosterFor(run.branchId, run.month);
+  // Recalculating a running month moves the cut-off to today; a past month is counted in full.
+  const upTo = payrollUpTo(run.month, await todayContext());
+  const employees = await rosterFor(run.branchId, run.month, upTo);
   const ids = employees.map((e) => e._id);
-  const [counts, advances] = await Promise.all([attendanceCounts(employees, run.month), openAdvanceBalances(ids, run.month)]);
+  const [counts, advances] = await Promise.all([attendanceCounts(employees, run.month, { until: upTo }), openAdvanceBalances(ids, run.month)]);
   const kept = new Map(run.lines.map((l) => [String(l.employeeId), l]));
   run.lines = employees.map((e) => {
     const k = kept.get(String(e._id));
-    return buildLine(e, run.month, counts, advances.get(String(e._id)), k ? { bonusPaise: k.bonusPaise, otherDeductionPaise: k.otherDeductionPaise, advanceDeductionPaise: k.advanceDeductionPaise, note: k.note } : {});
+    return buildLine(e, run.month, counts, advances.get(String(e._id)), k ? { bonusPaise: k.bonusPaise, otherDeductionPaise: k.otherDeductionPaise, advanceDeductionPaise: k.advanceDeductionPaise, note: k.note } : {}, upTo);
   });
+  run.upTo = upTo;
   await run.save();
   return getPayrollRun(id);
 }
@@ -859,8 +892,10 @@ export async function getAttendanceRegister({ branchId, month }) {
     PayrollRun.findOne({ branchId: oid(branchId), month }).select('status runNo').lean(),
     offDays([branchId], start, end),
   ]);
+  const empById = new Map(employees.map((e) => [String(e._id), e]));
   const byEmp = new Map();
   for (const r of records) {
+    if (!onRollsOn(empById.get(String(r.employeeId)), r.date)) continue; // e.g. marked before the joining date was corrected
     const m = byEmp.get(String(r.employeeId)) ?? {};
     m[r.date] = r.status;
     byEmp.set(String(r.employeeId), m);
@@ -883,7 +918,8 @@ export async function getAttendanceRegister({ branchId, month }) {
       // Days outside these dates are not on the rolls and cannot be marked.
       from: e.joiningDate > start ? e.joiningDate : start,
       to: e.exitDate && e.exitDate < end ? e.exitDate : end,
-      eligibleDays: eligibleDays(e, month),
+      // Running month: days on the rolls so far, the same count payroll uses.
+      eligibleDays: eligibleDays(e, month, today.businessDate),
       breaks: (e.breaks ?? []).filter((b) => b.to >= start && b.from <= end).map((b) => ({ from: b.from, to: b.to })),
       marks: byEmp.get(String(e._id)) ?? {},
     })),

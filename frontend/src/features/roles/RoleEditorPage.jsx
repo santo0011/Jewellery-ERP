@@ -29,7 +29,8 @@ export default function RoleEditorPage() {
   const [updateRole, updateState] = useUpdateRoleMutation();
   const [duplicateRole, duplicateState] = useDuplicateRoleMutation();
 
-  const readOnly = isNew ? !canCreate : role?.isSystem || !canEdit;
+  // Default roles can be edited; only Organisation Admin (full access) is fixed.
+  const readOnly = isNew ? !canCreate : role?.fullAccess || !canEdit;
   const { control, handleSubmit, reset, setError, formState, watch } = useForm({ resolver: zodResolver(roleSchema), defaultValues: EMPTY });
 
   useEffect(() => {
@@ -79,7 +80,7 @@ export default function RoleEditorPage() {
           role.isSystem &&
           canCreate && (
             <Button variant="outlined" color="secondary" startIcon={<ContentCopyRoundedIcon />} onClick={duplicate} loading={duplicateState.isLoading}>
-              Duplicate to customise
+              Duplicate as a new role
             </Button>
           )
         }
@@ -87,7 +88,9 @@ export default function RoleEditorPage() {
 
       {!isNew && role.isSystem && (
         <Alert severity="info" sx={{ mb: 3 }}>
-          {role.fullAccess ? 'Organisation Admin has full access to everything and cannot be changed.' : 'System roles are read-only. Duplicate this role to make changes.'}
+          {role.fullAccess
+            ? 'Organisation Admin has full access to everything and cannot be changed.'
+            : `A default role${role.customised ? ' — its permissions have been changed for your business' : ''}. Tick or untick permissions and save to change what it allows; it cannot be deleted.`}
         </Alert>
       )}
 

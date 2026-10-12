@@ -1,11 +1,10 @@
 import CallOutlinedIcon from '@mui/icons-material/CallOutlined';
-import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
 import ReplayRoundedIcon from '@mui/icons-material/ReplayRounded';
 import {
-  Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Grid, IconButton, LinearProgress, Link, ListItemIcon, Menu, MenuItem, Stack, Tab, Tabs, TextField, Typography,
+  Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, LinearProgress, Link, ListItemIcon, Menu, MenuItem, Stack, Tab, Tabs, TextField, Typography,
 } from '@mui/material';
 import { formatINR } from '@jerp/shared';
 import { useState } from 'react';
@@ -13,7 +12,6 @@ import toast from 'react-hot-toast';
 import { useNavigate, useParams } from 'react-router';
 import Amount from '../../components/Amount.jsx';
 import DataTable from '../../components/DataTable.jsx';
-import InfoCard from '../../components/InfoCard.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
 import { ErrorState, LoadingState } from '../../components/StateViews.jsx';
 import ViewButton from '../../components/ViewButton.jsx';
@@ -23,8 +21,8 @@ import { getErrorMessage } from '../../utils/errors.js';
 import AdvanceDrawer from './AdvanceDrawer.jsx';
 import { AdvanceActions } from './AdvanceHistory.jsx';
 import EmployeeAttendance from './EmployeeAttendance.jsx';
+import EmployeeDetailsTab from './EmployeeDetailsTab.jsx';
 import EmploymentHistory from './EmploymentHistory.jsx';
-import EmployeeFormDrawer from './EmployeeFormDrawer.jsx';
 import { EmployeePhotoEditor } from './EmployeePhoto.jsx';
 import { useEmployeeQuery, useSetEmployeeStatusMutation } from './hrApi.js';
 import { EmploymentChip, formatDays, monthLabel, PayrollStatusChip, todayIso } from './hrUi.jsx';
@@ -51,7 +49,6 @@ export default function EmployeeDetailPage() {
   const canAdvance = usePermission('payroll.process');
   const [tab, setTab] = useState('details');
   const [menu, setMenu] = useState(null);
-  const [editing, setEditing] = useState(false);
   const [advancing, setAdvancing] = useState(false);
   const [editAdvance, setEditAdvance] = useState(null);
   // Leave / rejoin dialog: which change, its date and an optional reason.
@@ -99,11 +96,6 @@ export default function EmployeeDetailPage() {
             {canAdvance && !left && (
               <Button variant="outlined" startIcon={<PaymentsOutlinedIcon />} onClick={() => setAdvancing(true)}>
                 Give advance
-              </Button>
-            )}
-            {canEdit && (
-              <Button variant="contained" startIcon={<EditOutlinedIcon />} onClick={() => setEditing(true)}>
-                Edit
               </Button>
             )}
             {canEdit && (
@@ -174,35 +166,7 @@ export default function EmployeeDetailPage() {
         {e.advances && <Tab value="advances" label={openAdvances ? `Advances (${openAdvances} open)` : `Advances (${e.advances.length})`} />}
       </Tabs>
 
-      {tab === 'details' && (
-        <Grid container spacing={2}>
-          <Grid size={{ xs: 12, md: 6 }}>
-            <InfoCard
-              title="Contact"
-              items={[
-                { label: 'Mobile', value: e.mobile },
-                { label: 'Email', value: e.email },
-                { label: 'Address', value: e.address },
-                { label: 'Notes', value: e.notes, hidden: !e.notes },
-              ]}
-            />
-          </Grid>
-          {e.payVisible && (
-            <Grid size={{ xs: 12, md: 6 }}>
-              <InfoCard
-                title="Salary & bank"
-                items={[
-                  { label: 'Basic', value: formatINR(e.basicPaise, { decimals: 0 }) },
-                  { label: 'Allowance', value: e.allowancePaise ? formatINR(e.allowancePaise, { decimals: 0 }) : 'Nil' },
-                  { label: 'Gross / month', value: <Amount paise={e.grossPaise} decimals={0} /> },
-                  { label: 'Bank', value: [e.bank?.accountName, e.bank?.accountNumber, e.bank?.ifsc].filter(Boolean).join(' · ') || null },
-                  { label: 'PAN', value: e.pan },
-                ]}
-              />
-            </Grid>
-          )}
-        </Grid>
-      )}
+      {tab === 'details' && <EmployeeDetailsTab employee={e} />}
 
       {tab === 'attendance' && att && <EmployeeAttendance employee={e} />}
 
@@ -278,7 +242,6 @@ export default function EmployeeDetailPage() {
         />
       )}
 
-      <EmployeeFormDrawer open={editing} employee={e} onClose={() => setEditing(false)} />
       <AdvanceDrawer open={advancing} employee={e} onClose={() => setAdvancing(false)} />
       <AdvanceDrawer open={Boolean(editAdvance)} advance={editAdvance} onClose={() => setEditAdvance(null)} />
       <Dialog open={Boolean(statusDialog)} onClose={() => setStatusDialog(null)} maxWidth="xs" fullWidth>

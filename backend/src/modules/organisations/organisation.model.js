@@ -17,7 +17,6 @@ const organisationSchema = new mongoose.Schema(
     fyStartMonth: { type: Number, min: 1, max: 12, default: 4 },
     logoFileId: { type: mongoose.Schema.Types.ObjectId, default: null },
     status: { type: String, enum: Object.values(ORG_STATUS), default: ORG_STATUS.ACTIVE },
-    branchLimit: { type: Number, min: 1, default: 2 },
     createdByPlatformAdmin: { type: mongoose.Schema.Types.ObjectId, ref: 'PlatformAdmin', default: null },
     ownerUserId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   },

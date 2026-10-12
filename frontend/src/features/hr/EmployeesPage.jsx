@@ -7,17 +7,19 @@ import Amount from '../../components/Amount.jsx';
 import DataTable from '../../components/DataTable.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
 import SearchField from '../../components/SearchField.jsx';
-import { viewColumn } from '../../components/ViewButton.jsx';
+import RowActions, { actionsWidth } from '../../components/RowActions.jsx';
+import { useListEditor } from '../../hooks/useListEditor.js';
 import { useListParams } from '../../hooks/useListParams.js';
 import { usePermission, useSession } from '../../hooks/usePermission.js';
 import EmployeeFormDrawer from './EmployeeFormDrawer.jsx';
 import { EmployeeAvatar } from './EmployeePhoto.jsx';
-import { useEmployeeListQuery } from './hrApi.js';
+import { useEmployeeListQuery, useEmployeeQuery } from './hrApi.js';
 import SummaryCards, { SummaryCard } from '../../components/SummaryCards.jsx';
 import BadgeOutlinedIcon from '@mui/icons-material/BadgeOutlined';
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
 import RequestQuoteOutlinedIcon from '@mui/icons-material/RequestQuoteOutlined';
 import PersonOffOutlinedIcon from '@mui/icons-material/PersonOffOutlined';
+import { useDeleteStatus } from '../../services/recordApi.js';
 
 const filterSlots = { inputLabel: { shrink: true }, select: { displayEmpty: true } };
 
@@ -25,9 +27,14 @@ export default function EmployeesPage() {
   const navigate = useNavigate();
   const { data: session } = useSession();
   const canCreate = usePermission('employee.create');
+  const canEdit = usePermission('employee.edit');
+  const canDelete = usePermission('employee.delete');
+  const editor = useListEditor(useEmployeeQuery);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const list = useListParams({ status: 'active', branchId: '' });
   const { data, isLoading, isFetching, error, refetch } = useEmployeeListQuery(list.params);
+  // Which rows can be deleted (Delete stays visible; it is disabled with the reason when not).
+  const deleteStatus = useDeleteStatus('employee', data?.items);
   const multiBranch = session.branches.length > 1;
   const payVisible = data?.items?.[0]?.payVisible ?? false;
 
@@ -97,7 +104,16 @@ export default function EmployeesPage() {
         </SummaryCards>
       )}
       <DataTable
-        columns={[...columns, viewColumn((e) => navigate(`/hr/employees/${e.id}`), { name: (e) => e.name })]}
+        columns={[
+          ...columns,
+          {
+            key: 'actions',
+            label: 'Action',
+            align: 'right',
+            width: actionsWidth(3),
+            render: (e) => <RowActions onView={() => navigate(`/hr/employees/${e.id}`)} onEdit={canEdit ? () => editor.open(e) : undefined} deleteType="employee" deleteStatus={deleteStatus(e.id)} id={e.id} name={e.name} />,
+          },
+        ]}
         rows={data?.items}
         loading={isLoading}
         fetching={isFetching}
@@ -127,6 +143,7 @@ export default function EmployeesPage() {
         }
       />
       <EmployeeFormDrawer open={drawerOpen} employee={null} onClose={() => setDrawerOpen(false)} />
+      <EmployeeFormDrawer open={Boolean(editor.record)} employee={editor.record} onClose={editor.close} />
     </>
   );
 }

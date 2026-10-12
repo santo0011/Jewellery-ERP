@@ -25,8 +25,7 @@ import { fonts, tokens } from '../../theme/tokens.js';
 import { formatDate, formatDateTime } from '../../utils/format.js';
 import { OrderStatusChip, paymentLabel } from '../orders/orderUi.jsx';
 import { purityLabel } from '../products/productForm.js';
-import CustomerFormDrawer from './CustomerFormDrawer.jsx';
-import { useCustomerActivityQuery, useCustomerQuery, useDeleteCustomerMutation, useSetCustomerStatusMutation } from './customerApi.js';
+import { useCustomerActivityQuery, useCustomerQuery, useSetCustomerStatusMutation } from './customerApi.js';
 
 
 export function formatAddress(a = {}) {
@@ -110,14 +109,11 @@ function PaymentsTimeline({ payments, openingBalance }) {
 export default function CustomerDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [editing, setEditing] = useState(false);
   const [chosenTab, setTab] = useState('purchases');
   const canEdit = usePermission('customer.edit');
-  const canDelete = usePermission('customer.delete');
   const { data: c, isLoading, error, refetch } = useCustomerQuery(id);
   const { data: activity, isLoading: loadingActivity } = useCustomerActivityQuery(id);
   const [setStatus] = useSetCustomerStatusMutation();
-  const [remove] = useDeleteCustomerMutation();
 
   if (isLoading) return <LoadingState label="Loading customer" />;
   if (error) return <ErrorState error={error} onRetry={refetch} />;
@@ -229,16 +225,9 @@ export default function CustomerDetailPage() {
             name={c.name}
             status={c.status}
             canEdit={canEdit}
-            canDelete={canDelete}
-            onEdit={() => setEditing(true)}
             onStatus={async (status) => {
               await setStatus({ id, status }).unwrap();
               toast.success(status === 'active' ? 'Customer activated' : 'Customer deactivated');
-            }}
-            onDelete={async () => {
-              await remove(id).unwrap();
-              toast.success('Customer deleted');
-              navigate('/customers', { replace: true });
             }}
           />
         }
@@ -317,7 +306,6 @@ export default function CustomerDetailPage() {
 
       {tab === 'history' && <RecordHistory recordId={id} />}
 
-      <CustomerFormDrawer open={editing} customer={c} onClose={() => setEditing(false)} />
     </>
   );
 }

@@ -1,14 +1,23 @@
-import { PLAN_LIMITS, SUBSCRIPTION_STATUS } from '@jerp/shared';
+import { PLAN_LIMITS, SUBSCRIPTION_STATUS, TRIAL_BRANCH_LIMIT } from '@jerp/shared';
 
 const DAY = 86400000;
 
-/** Usage limits of a subscription: the plan snapshot, or the built-in table for older records. null = unlimited. */
-export function limitsOf(sub) {
+/** The plan's own limits on a subscription: its snapshot, or the built-in table for older records. null = unlimited. */
+export function planLimitsOf(sub) {
   const snap = sub?.limits;
   if (snap && ['users', 'branches', 'products'].some((k) => snap[k] !== undefined)) {
     return { users: snap.users ?? null, branches: snap.branches ?? null, products: snap.products ?? null };
   }
   return PLAN_LIMITS[sub?.plan] ?? { users: null, branches: null, products: null };
+}
+
+/**
+ * What the organisation may use now: its plan's limits, except that a free trial allows TRIAL_BRANCH_LIMIT branches
+ * (head office included). Once it pays, branches follow the plan it bought. null = unlimited.
+ */
+export function limitsOf(sub) {
+  const limits = planLimitsOf(sub);
+  return sub?.status === SUBSCRIPTION_STATUS.TRIAL ? { ...limits, branches: TRIAL_BRANCH_LIMIT } : limits;
 }
 
 /**

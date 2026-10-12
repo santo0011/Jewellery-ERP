@@ -68,7 +68,7 @@ const list = (r) => ({ items: r.data, meta: r.meta });
 export const platformApi = createApi({
   reducerPath: 'platformApi',
   baseQuery,
-  tagTypes: ['Org', 'Dashboard', 'Admin', 'Billing'],
+  tagTypes: ['Org', 'Dashboard', 'Admin', 'Billing', 'Email'],
   endpoints: (build) => ({
     platformLogout: build.mutation({ query: () => ({ url: '/auth/logout', method: 'post' }) }),
     platformMe: build.query({ query: () => ({ url: '/auth/me' }), transformResponse: data, providesTags: ['Admin'] }),
@@ -82,12 +82,13 @@ export const platformApi = createApi({
       transformResponse: data,
       invalidatesTags: ['Org', 'Dashboard'],
     }),
+    sendLoginCode: build.mutation({ query: (id) => ({ url: `/organisations/${id}/send-login`, method: 'post' }), transformResponse: data, invalidatesTags: ['Org'] }),
+    // Email (SMTP) settings
+    emailSettings: build.query({ query: () => ({ url: '/email-settings' }), transformResponse: data, providesTags: ['Email'] }),
+    saveEmailSettings: build.mutation({ query: (body) => ({ url: '/email-settings', method: 'put', data: body }), transformResponse: data, invalidatesTags: ['Email'] }),
+    emailPreview: build.query({ query: (template) => ({ url: `/email-settings/preview/${template}` }), transformResponse: data }),
+    testEmailSettings: build.mutation({ query: (body) => ({ url: '/email-settings/test', method: 'post', data: body }), transformResponse: data, invalidatesTags: ['Email'] }),
     deleteOrganisation: build.mutation({ query: (id) => ({ url: `/organisations/${id}`, method: 'delete' }), transformResponse: data, invalidatesTags: ['Org', 'Dashboard', 'Billing'] }),
-    setBranchLimit: build.mutation({
-      query: ({ id, branchLimit }) => ({ url: `/organisations/${id}/branch-limit`, method: 'patch', data: { branchLimit } }),
-      transformResponse: data,
-      invalidatesTags: ['Org', 'Dashboard'],
-    }),
     // Subscriptions & billing
     billingDashboard: build.query({ query: () => ({ url: '/billing/dashboard' }), transformResponse: data, providesTags: ['Billing'] }),
     plans: build.query({ query: () => ({ url: '/plans' }), transformResponse: data, providesTags: ['Billing'] }),
@@ -115,7 +116,11 @@ export const {
   useCreateOrganisationMutation,
   useUpdateOrganisationMutation,
   useDeleteOrganisationMutation,
-  useSetBranchLimitMutation,
+  useSendLoginCodeMutation,
+  useEmailSettingsQuery,
+  useSaveEmailSettingsMutation,
+  useTestEmailSettingsMutation,
+  useEmailPreviewQuery,
   useSetOrganisationStatusMutation,
   useBillingDashboardQuery,
   usePlansQuery,

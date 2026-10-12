@@ -16,7 +16,8 @@ import ScaleOutlinedIcon from '@mui/icons-material/ScaleOutlined';
 import CurrencyRupeeOutlinedIcon from '@mui/icons-material/CurrencyRupeeOutlined';
 import EditNoteOutlinedIcon from '@mui/icons-material/EditNoteOutlined';
 import { purityLabel } from './productForm.js';
-import { viewColumn } from '../../components/ViewButton.jsx';
+import RowActions, { actionsWidth } from '../../components/RowActions.jsx';
+import { useDeleteStatus } from '../../services/recordApi.js';
 
 const STATUS_COLORS = { draft: 'default', in_stock: 'success', reserved: 'warning', sold: 'info', with_karigar: 'warning', in_repair: 'warning', in_transit: 'info' };
 
@@ -33,8 +34,12 @@ const filterSlots = {
 export default function ProductsPage() {
   const navigate = useNavigate();
   const canCreate = usePermission('product.create');
+  const canEdit = usePermission('product.edit');
+  const canDelete = usePermission('product.delete');
   const list = useListParams({ categoryId: '', metal: '', status: 'in_stock' });
   const { data, isLoading, isFetching, error, refetch } = useProductListQuery(list.params);
+  // Which rows can be deleted (Delete stays visible; it is disabled with the reason when not).
+  const deleteStatus = useDeleteStatus('product', data?.items);
   const { data: categories = [] } = useCategoriesQuery();
   const tree = buildCategoryTree(categories);
 
@@ -99,7 +104,26 @@ export default function ProductsPage() {
         </SummaryCards>
       )}
       <DataTable
-        columns={[...columns, viewColumn((p) => navigate(`/products/${p.id}`), { name: (p) => p.sku })]}
+        columns={[
+          ...columns,
+          {
+            key: 'actions',
+            label: 'Action',
+            align: 'right',
+            width: actionsWidth(3),
+            // Only draft pieces can be deleted; stocked ones leave through a sale, return or adjustment.
+            render: (p) => (
+              <RowActions
+                onView={() => navigate(`/products/${p.id}`)}
+                onEdit={canEdit ? () => navigate(`/products/${p.id}/edit`) : undefined}
+                deleteType="product"
+                deleteStatus={deleteStatus(p.id)}
+                id={p.id}
+                name={p.sku}
+              />
+            ),
+          },
+        ]}
         rows={data?.items}
         loading={isLoading}
         fetching={isFetching}

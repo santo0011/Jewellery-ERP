@@ -3,7 +3,9 @@ import { expandPermissions, ORG_STATUS, USER_STATUS } from '@jerp/shared';
 import { env } from '../../config/env.js';
 import { withTransaction } from '../../config/db.js';
 import { AUDIT_ACTIONS, recordAudit } from '../../core/audit/audit.service.js';
-import { sendEmail } from '../../core/notifications/email.service.js';
+import { trySendEmail } from '../../core/notifications/email.service.js';
+import { PlatformAdmin } from '../platform/platformAdmin.model.js';
+import { recordPlatformAudit } from '../platform/platformAuth.service.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { randomToken, safeEqualHex, sha256 } from '../../utils/crypto.js';
 import { Branch } from '../branches/branch.model.js';
@@ -11,7 +13,7 @@ import { Organisation } from '../organisations/organisation.model.js';
 import { organisationDeactivated } from '../organisations/organisationAccess.js';
 import { onboardOrganisation } from '../organisations/organisation.service.js';
 import { Subscription } from '../organisations/subscription.model.js';
-import { effectiveSubscription } from '../billing/limits.js';
+import { effectiveSubscription, limitsOf } from '../billing/limits.js';
 import { Role } from '../roles/role.model.js';
 import { getSettings } from '../settings/settings.service.js';
 import { assertEmailAvailable } from '../users/emailAvailability.js';
@@ -174,28 +176,49 @@ export async function logoutAll(userId) {
   await recordAudit({ action: AUDIT_ACTIONS.SESSION_REVOKE, module: 'auth', recordType: 'User', recordId: userId, meta: { all: true } });
 }
 
+/**
+ * Emails a reset link to anyone who signs in with this address: organisation users and Super Admins alike.
+ * Says nothing about whether the address exists, and a mail failure is only logged (the answer is the same).
+ */
 export async function forgotPassword(email) {
   const user = await User.findOne({ email, status: USER_STATUS.ACTIVE }).setOptions(SKIP).lean();
-  if (!user) return;
+  const admin = user ? null : await PlatformAdmin.findOne({ email, status: 'active' }).lean();
+  const account = user ?? admin;
+  if (!account) return;
 
   const token = randomToken(32);
-  await User.updateOne(
-    { _id: user._id },
-    { $set: { passwordReset: { tokenHash: sha256(token), expiresAt: new Date(Date.now() + env.PASSWORD_RESET_MINUTES * 60000) } } },
-  ).setOptions(SKIP);
+  const passwordReset = { tokenHash: sha256(token), expiresAt: new Date(Date.now() + env.PASSWORD_RESET_MINUTES * 60000) };
+  if (user) await User.updateOne({ _id: user._id }, { $set: { passwordReset } }).setOptions(SKIP);
+  else await PlatformAdmin.updateOne({ _id: admin._id }, { $set: { passwordReset } });
 
-  await sendEmail({
-    to: user.email,
+  await trySendEmail({
+    to: account.email,
     template: 'passwordReset',
-    data: { name: user.name, link: `${env.APP_URL}/reset-password?token=${token}`, minutes: env.PASSWORD_RESET_MINUTES },
+    data: { name: account.name, link: `${env.APP_URL}/reset-password?token=${token}`, minutes: env.PASSWORD_RESET_MINUTES },
   });
+}
+
+/** A Super Admin's reset: new password, and every platform session signed out. */
+async function resetPlatformAdminPassword(tokenHash, password, meta) {
+  const admin = await PlatformAdmin.findOne({ 'passwordReset.tokenHash': tokenHash, 'passwordReset.expiresAt': { $gt: new Date() }, status: 'active' }).lean();
+  if (!admin) return false;
+  await PlatformAdmin.updateOne(
+    { _id: admin._id },
+    { $set: { passwordHash: await hashPassword(password), passwordReset: { tokenHash: null, expiresAt: null }, failedLoginCount: 0, lockedUntil: null }, $inc: { tokenVersion: 1 } },
+  );
+  await Session.updateMany({ userId: admin._id, realm: 'platform', revokedAt: null }, { $set: { revokedAt: new Date(), revokedReason: 'password_reset' } });
+  await recordPlatformAudit({ adminId: admin._id, action: 'password_reset' }, meta);
+  return true;
 }
 
 export async function resetPassword({ token, password }, meta) {
   const user = await User.findOne({ 'passwordReset.tokenHash': sha256(token), 'passwordReset.expiresAt': { $gt: new Date() } })
     .setOptions(SKIP)
     .lean();
-  if (!user) throw ApiError.badRequest('This reset link is invalid or has expired', undefined, 'RESET_INVALID');
+  if (!user) {
+    if (await resetPlatformAdminPassword(sha256(token), password, meta)) return;
+    throw ApiError.badRequest('This reset link is invalid or has expired', undefined, 'RESET_INVALID');
+  }
 
   await withTransaction(async (session) => {
     await User.updateOne(
@@ -241,7 +264,7 @@ export async function changePassword(userId, sessionId, { currentPassword, newPa
 export async function getMe(auth) {
   const [user, organisation, subscription] = await Promise.all([
     User.findById(auth.userId).select('name email mobile isOwner defaultBranchId roleIds branchAccess lastLoginAt mustChangePassword branchLoginFor').lean(),
-    Organisation.findById(auth.organisationId).select('name legalName timezone currency address gstin logoFileId branchLimit').lean(),
+    Organisation.findById(auth.organisationId).select('name legalName timezone currency address gstin logoFileId').lean(),
     Subscription.findOne({}).lean(),
   ]);
   if (!user || !organisation) throw ApiError.unauthorized('Session is no longer valid', 'SESSION_INVALID');
@@ -278,7 +301,7 @@ export async function getMe(auth) {
       currency: organisation.currency,
       stateCode: organisation.address?.stateCode ?? null,
       hasLogo: Boolean(organisation.logoFileId),
-      branchLimit: organisation.branchLimit,
+      branchLimit: limitsOf(subscription).branches, // from the plan (2 on a free trial); null = unlimited
     },
     subscription: subscription && (() => {
       const eff = effectiveSubscription(subscription);

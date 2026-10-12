@@ -98,17 +98,8 @@ describe('branch panel: HR, payroll and reports', () => {
     expect((await api().get('/api/v1/hr/employees').set(bearer(t))).body.data.map((e) => e.id)).toEqual([mine.id]);
 
     const keys = (await api().get('/api/v1/reports').set(bearer(t))).body.data.map((r) => r.key);
-    expect(keys).toEqual(expect.arrayContaining(['sales-register', 'salary-register', 'attendance-summary', 'day-book', 'trial-balance', 'cash-book']));
-
-    const dayBook = (await api().get('/api/v1/reports/day-book').set(bearer(t))).body.data;
-    expect(dayBook.totals.debitPaise).toBe(20000);
-    const ownerBook = (await api().get('/api/v1/reports/day-book').set(bearer(owner.token))).body.data;
-    expect(ownerBook.totals.debitPaise).toBe(70000);
-    const cash = (await api().get('/api/v1/reports/cash-book?account=cash').set(bearer(t))).body.data;
-    expect(cash.totals.outPaise).toBe(20000);
-    const tb = (await api().get('/api/v1/reports/trial-balance').set(bearer(t))).body.data;
-    expect(tb.totals.debitPaise).toBe(20000);
-    expect((await api().get(`/api/v1/reports/day-book?branchId=${ho}`).set(bearer(t))).status).toBe(403);
+    expect(keys).toEqual(expect.arrayContaining(['sales-register', 'salary-register', 'attendance-summary']));
+    expect((await api().get(`/api/v1/reports/sales-register?branchId=${ho}`).set(bearer(t))).status).toBe(403);
   });
 
   it('brings system roles of older organisations up to date at start-up', async () => {

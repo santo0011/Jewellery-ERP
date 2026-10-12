@@ -234,9 +234,6 @@ function ItemCard({ index, control, setValue, categories, onRemove, canRemove, e
         )}
       </Stack>
 
-      <Typography variant="overline" color="textSecondary">
-        What to make
-      </Typography>
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, md: 8 }}>
           <RHFTextField control={control} name={`${p}.description`} label="What does the customer want?" placeholder="e.g. 22K bridal necklace with matching earrings" />

@@ -454,6 +454,13 @@ export default function PayrollRunPage() {
         }
       />
 
+      {run.upTo && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          {run.monthLabel} is still running, so attendance and salary are counted only up to <strong>{formatDate(run.upTo)}</strong>. Days after that are not included.
+          {draft && ' Press Recalculate on a later day to count up to that day, or wait for the month to end for the full salary.'}
+        </Alert>
+      )}
+
       <Card sx={{ mb: 2 }}>
         <CardContent>
           <PayrollSteps current={stepOf(run.status)} />
@@ -519,7 +526,7 @@ export default function PayrollRunPage() {
       <ConfirmDialog
         open={confirm === 'finalise'}
         title={`Finalise payroll for ${run.monthLabel}?`}
-        message={`Net salary ${formatINR(t.netPaise, { decimals: 0 })} for ${t.employees} employees is booked in the accounts, ${t.advanceDeductionPaise ? `${formatINR(t.advanceDeductionPaise, { decimals: 0 })} of advances is recovered, ` : ''}and this month’s attendance is locked. This cannot be undone.`}
+        message={`Net salary ${formatINR(t.netPaise, { decimals: 0 })} for ${t.employees} employees is booked in the accounts, ${t.advanceDeductionPaise ? `${formatINR(t.advanceDeductionPaise, { decimals: 0 })} of advances is recovered, ` : ''}and this month’s attendance is locked. ${run.upTo ? `Salary is paid only up to ${formatDate(run.upTo)}: the rest of ${run.monthLabel} will not be paid by this or any later payroll. ` : ''}This cannot be undone.`}
         confirmLabel="Finalise"
         loading={finaliseState.isLoading}
         onConfirm={() => act(() => finalise(run.id), 'Payroll finalised — salaries booked')}

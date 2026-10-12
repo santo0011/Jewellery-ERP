@@ -52,7 +52,7 @@ export default function RolesPage() {
         <Box>
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
             <Typography variant="subtitle2">{r.name}</Typography>
-            {r.isSystem && <Chip size="small" label="System" variant="outlined" sx={{ height: 20, fontSize: '0.6875rem' }} />}
+            {r.isSystem && <Chip size="small" label={r.customised ? 'Default · edited' : 'Default'} variant="outlined" sx={{ height: 20, fontSize: '0.6875rem' }} />}
           </Stack>
           {r.description && (
             <Typography variant="body2" color="textSecondary" sx={{ maxWidth: 520 }}>

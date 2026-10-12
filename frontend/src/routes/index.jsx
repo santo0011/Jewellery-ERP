@@ -52,6 +52,7 @@ import { REPORT_PERMISSIONS } from '../layouts/navConfig.js';
 import InvoicePage from '../features/sales/InvoicePage.jsx';
 import InvoicesPage from '../features/sales/InvoicesPage.jsx';
 import { RequireAdmin } from '../features/platform/adminGuards.jsx';
+import EmailSettingsPage from '../features/platform/EmailSettingsPage.jsx';
 import AdminLayout from '../features/platform/AdminLayout.jsx';
 import AdminOrganisationDetailPage from '../features/platform/AdminOrganisationDetailPage.jsx';
 import AdminOrganisationsPage from '../features/platform/AdminOrganisationsPage.jsx';
@@ -106,6 +107,7 @@ export const router = createBrowserRouter([
           { path: 'organisations/:id', element: <AdminOrganisationDetailPage /> },
           { path: 'plans', element: <PlansPage /> },
           { path: 'payments', element: <PaymentsPage /> },
+          { path: 'settings/email', element: <EmailSettingsPage /> },
           { path: '*', element: <NotFound /> },
         ],
       },

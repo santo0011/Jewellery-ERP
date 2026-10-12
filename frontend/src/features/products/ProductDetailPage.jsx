@@ -1,9 +1,6 @@
-import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
-import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import { Alert, Box, Button, Card, CardContent, Grid, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material';
 import { formatINR, formatPercent, formatWeight, JEWELLERY_TYPES, METAL_OPTIONS, STONE_TYPES } from '@jerp/shared';
 import { useState } from 'react';
-import toast from 'react-hot-toast';
 import { useNavigate, useParams } from 'react-router';
 import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import BarcodeView from '../../components/BarcodeView.jsx';
@@ -11,15 +8,13 @@ import DataTable from '../../components/DataTable.jsx';
 import { useStockMovementsQuery } from '../inventory/inventoryApi.js';
 import StockEntryDrawer from '../inventory/StockEntryDrawer.jsx';
 import { MovementDetailsDrawer, movementColumns } from '../inventory/movements.jsx';
-import ConfirmDialog from '../../components/ConfirmDialog.jsx';
 import InfoCard from '../../components/InfoCard.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
 import RecordHistory from '../../components/RecordHistory.jsx';
 import { ErrorState, LoadingState } from '../../components/StateViews.jsx';
 import { usePermission, useSession } from '../../hooks/usePermission.js';
 import { formatDate } from '../../utils/format.js';
-import { getErrorMessage } from '../../utils/errors.js';
-import { useDeleteProductMutation, useProductQuery } from './productApi.js';
+import { useProductQuery } from './productApi.js';
 import { purityLabel } from './productForm.js';
 import ProductImages from './ProductImages.jsx';
 import { ProductStatusChip } from './ProductsPage.jsx';
@@ -44,11 +39,8 @@ export default function ProductDetailPage() {
   const [viewingMovement, setViewingMovement] = useState(null);
   const { data: session } = useSession();
   const canEdit = usePermission('product.edit');
-  const canDelete = usePermission('product.delete');
   const canSeeCost = usePermission('product.viewCost');
   const { data: p, isLoading, error, refetch } = useProductQuery(id);
-  const [remove, { isLoading: deleting }] = useDeleteProductMutation();
-  const [confirm, setConfirm] = useState(false);
   const [stocking, setStocking] = useState(false);
   const canStock = usePermission('inventory.adjust');
   const canSeeStock = usePermission('inventory.view');
@@ -56,17 +48,6 @@ export default function ProductDetailPage() {
 
   if (isLoading) return <LoadingState label="Loading product" />;
   if (error) return <ErrorState error={error} onRetry={refetch} />;
-
-  const onDelete = async () => {
-    try {
-      await remove(id).unwrap();
-      toast.success('Product deleted');
-      navigate('/products', { replace: true });
-    } catch (err) {
-      toast.error(getErrorMessage(err));
-      setConfirm(false);
-    }
-  };
 
   const missingHuid = p.metal === 'gold' && session.catalog.huidMandatory && !p.huid;
 
@@ -84,19 +65,9 @@ export default function ProductDetailPage() {
         breadcrumbs={[{ label: 'Products', to: '/products' }, { label: p.sku }]}
         actions={
           <>
-            {canEdit && (
-              <Button variant="contained" startIcon={<EditOutlinedIcon />} onClick={() => navigate(`/products/${id}/edit`)}>
-                Edit
-              </Button>
-            )}
             {canStock && p.status === 'draft' && (
               <Button variant="outlined" color="secondary" startIcon={<Inventory2OutlinedIcon />} onClick={() => setStocking(true)}>
                 Add to stock
-              </Button>
-            )}
-            {canDelete && p.status === 'draft' && (
-              <Button color="error" startIcon={<DeleteOutlineRoundedIcon />} onClick={() => setConfirm(true)}>
-                Delete
               </Button>
             )}
           </>
@@ -245,16 +216,6 @@ export default function ProductDetailPage() {
         </Box>
       )}
       <StockEntryDrawer mode="opening" open={stocking} onClose={() => setStocking(false)} initialProducts={[p]} />
-      <ConfirmDialog
-        open={confirm}
-        title={`Delete ${p.name}?`}
-        message="Draft products can be deleted. Photos are removed too."
-        confirmLabel="Delete"
-        danger
-        loading={deleting}
-        onConfirm={onDelete}
-        onClose={() => setConfirm(false)}
-      />
       <MovementDetailsDrawer movement={viewingMovement} onClose={() => setViewingMovement(null)} showCost={canSeeCost} />
     </>
   );

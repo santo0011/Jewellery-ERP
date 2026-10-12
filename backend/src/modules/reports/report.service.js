@@ -9,10 +9,11 @@ import { todayContext } from '../../utils/businessDate.js';
 import { Category } from '../categories/category.model.js';
 import { Customer } from '../customers/customer.model.js';
 import { Attendance, Employee, PayrollRun, SalaryAdvance } from '../hr/hr.models.js';
-import { monthBounds, offDays } from '../hr/hr.service.js';
+import { eligibleDays, monthBounds, offDays, onRollsOn } from '../hr/hr.service.js';
 import { accessibleBranchFilter, nameMaps, oid, pick, requireBranch } from '../inventory/inventory.helpers.js';
 import { Order } from '../orders/order.model.js';
 import { Product } from '../products/product.model.js';
+import { Purchase } from '../purchases/purchase.model.js';
 import { Sale, SalesReturn } from '../sales/sale.model.js';
 
 // ---------------------------------------------------------------- helpers
@@ -161,6 +162,12 @@ async function categoryNames(productIds) {
 const completedSales = async ({ from, to, branchId }) =>
   Sale.find({ ...(await branchScope(branchId)), status: SALE_STATUS.COMPLETED, businessDate: { $gte: from, $lte: to } })
     .sort({ businessDate: 1, createdAt: 1 })
+    .lean();
+
+/** Supplier bills dated in the period, oldest first. */
+const supplierBills = async ({ from, to, branchId }) =>
+  Purchase.find({ ...(await branchScope(branchId)), billDate: { $gte: from, $lte: to } })
+    .sort({ billDate: 1, createdAt: 1 })
     .lean();
 
 /** Group rows by key, summing the numeric fields named in `fields`. */
@@ -484,6 +491,114 @@ const REPORTS = [
           { label: 'Returns', value: rows.length, type: 'number' },
           { label: 'Items returned', value: totals.items, type: 'number' },
           { label: 'Refund value', value: totals.amountPaise, type: 'money', tone: 'due' },
+        ],
+      };
+    },
+  },
+  // ------------------------------------------------ purchases
+  {
+    key: 'purchase-register',
+    group: 'Purchases',
+    title: 'Purchase register',
+    description: 'Every supplier bill with weight, GST, paid and due amounts.',
+    permission: 'purchase.view',
+    filters: ['range', 'branch'],
+    async run({ from, to, branchId }) {
+      const list = await supplierBills({ from, to, branchId });
+      const maps = await nameMaps({ branchIds: list.map((p) => p.branchId) });
+      const rows = list.map((p) => ({
+        date: p.billDate,
+        purchaseNo: p.purchaseNo,
+        billNo: p.billNo,
+        supplier: p.supplier?.name ?? '—',
+        gstin: p.supplier?.gstin || 'Unregistered',
+        branch: pick(maps.branches, p.branchId)?.name ?? '—',
+        pieces: p.totals.pieces ?? 0,
+        grossMg: p.totals.grossMg ?? 0,
+        goodsPaise: p.totals.goodsPaise ?? 0,
+        otherPaise: p.totals.otherChargesPaise ?? 0,
+        gstPaise: p.totals.gstPaise ?? 0,
+        totalPaise: p.totals.totalPaise ?? 0,
+        paidPaise: p.paidPaise ?? 0,
+        duePaise: (p.totals.totalPaise ?? 0) - (p.paidPaise ?? 0),
+        _links: { purchaseNo: `/purchases/${p._id}`, supplier: `/suppliers/${p.supplierId}` },
+      }));
+      const totals = totalsOf(rows, ['pieces', 'grossMg', 'goodsPaise', 'otherPaise', 'gstPaise', 'totalPaise', 'paidPaise', 'duePaise']);
+      return {
+        columns: [
+          col('date', 'Bill date', 'date'),
+          col('purchaseNo', 'Purchase'),
+          col('billNo', 'Bill no.'),
+          col('supplier', 'Supplier'),
+          col('gstin', 'GSTIN'),
+          ...(branchId ? [] : [col('branch', 'Branch')]),
+          col('pieces', 'Pieces', 'number'),
+          col('grossMg', 'Gross wt', 'weight'),
+          col('goodsPaise', 'Goods', 'money'),
+          col('otherPaise', 'Other charges', 'money'),
+          col('gstPaise', 'GST', 'money'),
+          col('totalPaise', 'Total', 'money', { strong: true }),
+          col('paidPaise', 'Paid', 'money', { tone: 'paid' }),
+          col('duePaise', 'Due', 'money', { tone: 'due' }),
+        ],
+        rows,
+        totals,
+        summary: [
+          { label: 'Bills', value: rows.length, type: 'number' },
+          { label: 'Purchase value', value: totals.totalPaise, type: 'money' },
+          { label: 'GST input', value: totals.gstPaise, type: 'money' },
+          { label: 'Paid', value: totals.paidPaise, type: 'money', tone: 'paid' },
+          { label: 'Due to suppliers', value: totals.duePaise, type: 'money', tone: 'due' },
+        ],
+        note: 'Bills are listed by the date on the supplier’s bill. “Due” is what is still unpaid on each bill today.',
+      };
+    },
+  },
+  {
+    key: 'purchase-supplier',
+    group: 'Purchases',
+    title: 'Supplier-wise purchases',
+    description: 'Bills, weight, value and amount still owed, per supplier.',
+    permission: 'purchase.view',
+    filters: ['range', 'branch'],
+    async run({ from, to, branchId }) {
+      const list = await supplierBills({ from, to, branchId });
+      const rows = groupBy(
+        list,
+        (p) => String(p.supplierId),
+        (p) => ({ supplier: p.supplier?.name ?? '—', gstin: p.supplier?.gstin || 'Unregistered', bills: 0, pieces: 0, grossMg: 0, gstPaise: 0, totalPaise: 0, paidPaise: 0, duePaise: 0, _links: { supplier: `/suppliers/${p.supplierId}` } }),
+        (acc, p) => {
+          acc.bills += 1;
+          acc.pieces += p.totals.pieces ?? 0;
+          acc.grossMg += p.totals.grossMg ?? 0;
+          acc.gstPaise += p.totals.gstPaise ?? 0;
+          acc.totalPaise += p.totals.totalPaise ?? 0;
+          acc.paidPaise += p.paidPaise ?? 0;
+          acc.duePaise += (p.totals.totalPaise ?? 0) - (p.paidPaise ?? 0);
+        },
+      ).sort((a, b) => b.totalPaise - a.totalPaise);
+      const totals = totalsOf(rows, ['bills', 'pieces', 'grossMg', 'gstPaise', 'totalPaise', 'paidPaise', 'duePaise']);
+      for (const r of rows) r.share = pct(r.totalPaise, totals.totalPaise);
+      return {
+        columns: [
+          col('supplier', 'Supplier'),
+          col('gstin', 'GSTIN'),
+          col('bills', 'Bills', 'number'),
+          col('pieces', 'Pieces', 'number'),
+          col('grossMg', 'Gross wt', 'weight'),
+          col('gstPaise', 'GST', 'money'),
+          col('totalPaise', 'Purchase value', 'money', { strong: true }),
+          col('share', 'Share', 'percent'),
+          col('paidPaise', 'Paid', 'money', { tone: 'paid' }),
+          col('duePaise', 'Due', 'money', { tone: 'due' }),
+        ],
+        rows,
+        totals,
+        summary: [
+          { label: 'Suppliers', value: rows.length, type: 'number' },
+          { label: 'Bills', value: totals.bills, type: 'number' },
+          { label: 'Purchase value', value: totals.totalPaise, type: 'money' },
+          { label: 'Due to suppliers', value: totals.duePaise, type: 'money', tone: 'due' },
         ],
       };
     },
@@ -977,6 +1092,7 @@ const REPORTS = [
     filters: ['month', 'branch'],
     async run({ month, branchId }) {
       const { start, end } = monthBounds(month);
+      const today = (await todayContext()).businessDate; // days still to come are neither worked nor paid yet
       const scope = await branchScope(branchId);
       const employees = await Employee.find({ ...scope, joiningDate: { $lte: end }, $or: [{ exitDate: null }, { exitDate: { $gte: start } }] }).sort({ name: 1 }).lean();
       const marks = await Attendance.find({ employeeId: { $in: employees.map((e) => e._id) }, date: { $gte: start, $lte: end } }).select('employeeId status date').lean();
@@ -986,15 +1102,13 @@ const REPORTS = [
         const c = Object.fromEntries(ATTENDANCE_STATUSES.map((s) => [s.value, 0]));
         const markedDays = new Set();
         for (const m of marks) {
-          if (String(m.employeeId) !== String(e._id)) continue;
+          if (String(m.employeeId) !== String(e._id) || !onRollsOn(e, m.date)) continue;
           c[m.status] += 1;
           markedDays.add(m.date);
         }
         // Unmarked weekly offs and holidays count as holiday.
-        for (const d of offs.get(String(e.branchId))?.keys() ?? []) if (d >= e.joiningDate && (!e.exitDate || d <= e.exitDate) && !markedDays.has(d)) c.holiday += 1;
-        const from = e.joiningDate > start ? e.joiningDate : start;
-        const to = e.exitDate && e.exitDate < end ? e.exitDate : end;
-        const eligible = daysBetween(from, to) + 1;
+        for (const d of offs.get(String(e.branchId))?.keys() ?? []) if (d <= today && onRollsOn(e, d) && !markedDays.has(d)) c.holiday += 1;
+        const eligible = eligibleDays(e, month, today); // days on the rolls so far: joining to exit (or today), breaks left out
         const paid = eligible - c.absent - c.half_day * 0.5;
         return { employee: e.name, code: e.code, branch: pick(maps.branches, e.branchId)?.name ?? '', eligible, absent: c.absent, halfDay: c.half_day, leave: c.paid_leave, holiday: c.holiday, paidDays: paid, _links: { employee: `/hr/employees/${e._id}` }, _tone: c.absent ? 'due' : null };
       });
@@ -1189,12 +1303,27 @@ const REPORTS = [
   },
 ];
 
-const BY_KEY = new Map(REPORTS.map((r) => [r.key, r]));
+/**
+ * Reports switched off for this business: not listed on the hub and not runnable. The definitions stay above so
+ * any of them can be brought back by removing its key here.
+ */
+const RETIRED_REPORTS = new Set([
+  'sales-metal',
+  'sales-payment',
+  'sales-staff',
+  // Tax & finance
+  'profit',
+  'day-book',
+  'cash-book',
+  'trial-balance',
+]);
+
+const BY_KEY = new Map(REPORTS.filter((r) => !RETIRED_REPORTS.has(r.key)).map((r) => [r.key, r]));
 const allowed = (r) => can(r.permission) && (!r.extraPermission || can(r.extraPermission));
 
 /** The reports this user may run, grouped for the hub page. */
 export function listReports() {
-  return REPORTS.filter(allowed).map(({ key, group, title, description, filters }) => ({ key, group, title, description, filters }));
+  return [...BY_KEY.values()].filter(allowed).map(({ key, group, title, description, filters }) => ({ key, group, title, description, filters }));
 }
 
 export async function runReport(key, query) {

@@ -1,7 +1,9 @@
 import { Router } from 'express';
-import { idParamsSchema, purchaseListQuerySchema, purchaseOrderCancelSchema, purchaseOrderListQuerySchema, purchaseOrderSchema, purchasePaymentSchema, purchaseSchema } from '@jerp/shared/schemas';
+import { idParamsSchema, objectIdSchema, purchaseListQuerySchema, purchaseOrderCancelSchema, purchaseOrderListQuerySchema, purchaseOrderSchema, purchasePaymentSchema, purchaseSchema } from '@jerp/shared/schemas';
+import { z } from 'zod';
 import { authenticate } from '../../middleware/authenticate.js';
-import { authorize } from '../../middleware/authorize.js';
+import { authorize, authorizeAny } from '../../middleware/authorize.js';
+import { singleImageUpload } from '../../middleware/upload.js';
 import { validate } from '../../middleware/validate.js';
 import { sendCreated, sendOk } from '../../utils/response.js';
 import * as purchases from './purchase.service.js';
@@ -33,6 +35,14 @@ router.post('/orders/:id/cancel', authorize('purchase.cancel'), validate({ param
 );
 
 router.get('/:id', authorize('purchase.view'), byId, async (req, res) => sendOk(res, await purchases.getPurchase(req.valid.params.id)));
+// Whoever can enter a bill can attach its photo straight after saving it.
+const canAttach = authorizeAny(['purchase.create', 'purchase.edit']);
+router.post('/:id/bill-images', canAttach, byId, singleImageUpload('image', { maxBytes: 5 * 1024 * 1024 }), async (req, res) =>
+  sendOk(res, await purchases.addBillImage(req.valid.params.id, req.file), { message: 'Bill photo added' }),
+);
+router.delete('/:id/bill-images/:fileId', canAttach, validate({ params: z.object({ id: objectIdSchema, fileId: objectIdSchema }) }), async (req, res) =>
+  sendOk(res, await purchases.removeBillImage(req.valid.params.id, req.valid.params.fileId), { message: 'Bill photo removed' }),
+);
 router.post('/:id/payments', authorize('purchase.edit'), validate({ params: idParamsSchema, body: purchasePaymentSchema }), async (req, res) =>
   sendOk(res, await purchases.payPurchase(req.valid.params.id, req.valid.body), { message: 'Payment recorded' }),
 );

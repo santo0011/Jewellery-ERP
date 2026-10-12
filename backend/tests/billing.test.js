@@ -60,10 +60,11 @@ describe('subscriptions & billing', () => {
 
     const assign = (body) => api().post(`/api/v1/platform/organisations/${o.id}/subscription`).set(bearer(sa)).send({ planId: plan.id, ...body });
     const trial = (await assign({ mode: 'trial', days: 7 })).body.data;
-    expect(trial.subscription).toMatchObject({ planName: 'Gold Yearly', status: 'trial', daysLeft: 7, limits: { users: 10, branches: 3, products: null } });
+    // A free trial gets 2 branches (head office included) whatever the plan; paying switches to the plan's 3.
+    expect(trial.subscription).toMatchObject({ planName: 'Gold Yearly', status: 'trial', daysLeft: 7, limits: { users: 10, branches: 2, products: null } });
 
     const paid = (await assign({ mode: 'manual', months: 12, amountPaise: 999900, paymentMode: 'bank', reference: 'NEFT 1' })).body.data;
-    expect(paid.subscription).toMatchObject({ status: 'active', expired: false });
+    expect(paid.subscription).toMatchObject({ status: 'active', expired: false, limits: { users: 10, branches: 3, products: null } });
     expect(paid.subscription.daysLeft).toBeGreaterThan(360);
     expect(paid.payments[0]).toMatchObject({ status: 'paid', source: 'manual', amountPaise: 999900, paymentMethod: 'bank' });
 

@@ -20,9 +20,9 @@ import MapOutlinedIcon from '@mui/icons-material/MapOutlined';
 import RequestPageOutlinedIcon from '@mui/icons-material/RequestPageOutlined';
 import ScaleOutlinedIcon from '@mui/icons-material/ScaleOutlined';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
-import SupportAgentOutlinedIcon from '@mui/icons-material/SupportAgentOutlined';
+import ShoppingBagOutlinedIcon from '@mui/icons-material/ShoppingBagOutlined';
+import StorefrontOutlinedIcon from '@mui/icons-material/StorefrontOutlined';
 import SyncAltRoundedIcon from '@mui/icons-material/SyncAltRounded';
-import TrendingUpRoundedIcon from '@mui/icons-material/TrendingUpRounded';
 import { Box, ButtonBase, InputBase, Stack, Typography } from '@mui/material';
 import { Link as RouterLink, useSearchParams } from 'react-router';
 import { EmptyState, ErrorState, LoadingState } from '../../components/StateViews.jsx';
@@ -34,20 +34,20 @@ const s = tokens.sidebar;
 export const GROUP_ICONS = {
   Sales: PointOfSaleOutlinedIcon,
   'Customers & orders': PeopleAltOutlinedIcon,
+  Purchases: ShoppingBagOutlinedIcon,
   Inventory: Inventory2OutlinedIcon,
   'HR & payroll': BadgeOutlinedIcon,
   GST: RequestPageOutlinedIcon,
-  'Tax & finance': AccountBalanceOutlinedIcon,
 };
-const GROUP_ORDER = ['Sales', 'GST', 'Customers & orders', 'Inventory', 'Tax & finance', 'HR & payroll'];
+const GROUP_ORDER = ['Sales', 'GST', 'Customers & orders', 'Purchases', 'Inventory', 'HR & payroll'];
 
 /** One accent per group, kept within the gold-and-jewel palette. */
 const GROUP_ACCENT = {
   Sales: { color: '#C9A227', tint: 'rgba(201, 162, 39, 0.12)', caption: 'Invoices, days, categories and payment modes' },
   'Customers & orders': { color: '#2F7D6D', tint: 'rgba(47, 125, 109, 0.12)', caption: 'Who owes, who buys most, what is on order' },
+  Purchases: { color: '#5B4B8A', tint: 'rgba(91, 75, 138, 0.12)', caption: 'Supplier bills, GST input and what is still owed' },
   Inventory: { color: '#2F5D7C', tint: 'rgba(47, 93, 124, 0.12)', caption: 'Stock by metal, category, age and movement' },
   GST: { color: '#B4532A', tint: 'rgba(180, 83, 42, 0.12)', caption: 'CGST, SGST and IGST — collected, reversed and payable' },
-  'Tax & finance': { color: '#8A3B5C', tint: 'rgba(138, 59, 92, 0.12)', caption: 'Profit, ledgers and the books' },
   'HR & payroll': { color: '#7A5C1E', tint: 'rgba(122, 92, 30, 0.12)', caption: 'Salaries, attendance and advances' },
 };
 
@@ -55,14 +55,12 @@ const REPORT_ICONS = {
   'sales-register': ReceiptLongOutlinedIcon,
   'sales-daily': CalendarMonthOutlinedIcon,
   'sales-category': CategoryOutlinedIcon,
-  'sales-metal': DiamondOutlinedIcon,
-  'sales-payment': PaymentsOutlinedIcon,
-  'sales-staff': SupportAgentOutlinedIcon,
   'sales-returns': AssignmentReturnOutlinedIcon,
+  'purchase-register': ShoppingBagOutlinedIcon,
+  'purchase-supplier': StorefrontOutlinedIcon,
   'gst-cgst': AccountBalanceOutlinedIcon,
   'gst-sgst': MapOutlinedIcon,
   'gst-igst': SyncAltRoundedIcon,
-  profit: TrendingUpRoundedIcon,
   'customer-outstanding': AccountBalanceWalletOutlinedIcon,
   'top-customers': EmojiEventsOutlinedIcon,
   'orders-open': AssignmentOutlinedIcon,
@@ -116,7 +114,7 @@ function Hero({ total, groupCount, q, onSearch }) {
             ))}
           </Stack>
           <Typography noWrap sx={{ mt: 1.5, color: s.text, fontSize: '0.9375rem' }}>
-            Sales, GST, stock, customers and staff — every number your showroom runs on.
+            Sales, purchases, GST, stock, customers and staff — every number your showroom runs on.
           </Typography>
         </Box>
         <Box

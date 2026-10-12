@@ -7,6 +7,7 @@ import { nextCode } from '../../core/numbering/numbering.service.js';
 import { FileAsset } from '../../core/storage/fileAsset.model.js';
 import { detectImageType, storage } from '../../core/storage/storage.service.js';
 import { ApiError } from '../../utils/ApiError.js';
+import { deleteRecord } from '../records/record.deletion.js';
 import { randomToken } from '../../utils/crypto.js';
 import { diffChanges } from '../../utils/diff.js';
 import { fromDate, paginate, searchFilter, toDate } from '../../utils/pagination.js';
@@ -254,13 +255,9 @@ export async function updateProduct(id, input) {
   return getProduct(id);
 }
 
+/** Deletes it if nothing uses it — the same rules as every other delete (see record.deletion.js). */
 export async function deleteProduct(id) {
-  const product = await findProduct(id);
-  if (product.status !== PRODUCT_STATUS.DRAFT) throw ApiError.conflict('Only draft products can be deleted. Stocked items leave inventory through sale, return or adjustment.', 'PRODUCT_LOCKED');
-  product.set({ isDeleted: true, updatedBy: requireContext().userId });
-  await product.save();
-  await recordAudit({ action: AUDIT_ACTIONS.DELETE, module: 'product', recordType: 'Product', recordId: product._id, meta: { name: product.name, sku: product.sku } });
-  await Promise.all(product.images.map((i) => removeAsset(i.fileId)));
+  return deleteRecord('product', id);
 }
 
 async function removeAsset(fileId) {

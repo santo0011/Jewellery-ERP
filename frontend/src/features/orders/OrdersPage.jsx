@@ -1,10 +1,10 @@
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
-import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
-import { Box, Button, Chip, IconButton, Stack, Tab, Tabs, Tooltip, Typography } from '@mui/material';
+import { Box, Button, Chip, Stack, Tab, Tabs, Typography } from '@mui/material';
 import { formatINR } from '@jerp/shared';
 import { useNavigate } from 'react-router';
 import Amount from '../../components/Amount.jsx';
 import DataTable from '../../components/DataTable.jsx';
+import RowActions, { actionsWidth } from '../../components/RowActions.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
 import SearchField from '../../components/SearchField.jsx';
 import { usePermission, useSession } from '../../hooks/usePermission.js';
@@ -17,6 +17,7 @@ import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import EventBusyOutlinedIcon from '@mui/icons-material/EventBusyOutlined';
 import SavingsOutlinedIcon from '@mui/icons-material/SavingsOutlined';
 import { OrderStatusChip } from './orderUi.jsx';
+import { useDeleteStatus } from '../../services/recordApi.js';
 
 const TABS = [
   { value: 'open', label: 'Open', count: (c) => (c.booked ?? 0) + (c.in_progress ?? 0) + (c.ready ?? 0) },
@@ -30,8 +31,11 @@ export default function OrdersPage() {
   const navigate = useNavigate();
   const { data: session } = useSession();
   const canCreate = usePermission('order.create');
+  const canDelete = usePermission('order.cancel');
   const list = useListParams({ status: 'open' });
   const { data, isLoading, isFetching, error, refetch } = useOrdersQuery(list.params);
+  // Which rows can be deleted (Delete stays visible; it is disabled with the reason when not).
+  const deleteStatus = useDeleteStatus('order', data?.items);
   const counts = data?.meta?.counts ?? {};
   const multiBranch = session.branches.length > 1;
 
@@ -119,14 +123,9 @@ export default function OrdersPage() {
       key: 'actions',
       label: 'Action',
       align: 'right',
-      width: 56,
-      render: (o) => (
-        <Tooltip title="View order">
-          <IconButton size="small" onClick={() => navigate(`/orders/${o.id}`)} aria-label={`View ${o.orderNo}`}>
-            <VisibilityOutlinedIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
-      ),
+      width: actionsWidth(2),
+      // An order with an advance is cancelled (so the money is settled), not deleted.
+      render: (o) => <RowActions onView={() => navigate(`/orders/${o.id}`)} viewTitle="View order" deleteType="order" deleteStatus={deleteStatus(o.id)} id={o.id} name={o.orderNo} />,
     },
   ];
 

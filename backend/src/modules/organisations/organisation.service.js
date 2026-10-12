@@ -28,7 +28,7 @@ const slugify = (name) =>
     .replace(/^-+|-+$/g, '')
     .slice(0, 40) || 'org';
 
-export async function onboardOrganisation({ organisationName, ownerName, email, mobile, stateCode, passwordHash, branchLimit, freeDays, mustChangePassword = false, platformAdminId = null }, session) {
+export async function onboardOrganisation({ organisationName, ownerName, email, mobile, stateCode, passwordHash, freeDays, mustChangePassword = false, platformAdminId = null }, session) {
   const organisationId = new mongoose.Types.ObjectId();
   const userId = new mongoose.Types.ObjectId();
 
@@ -43,7 +43,6 @@ export async function onboardOrganisation({ organisationName, ownerName, email, 
           email,
           address: { stateCode },
           ownerUserId: userId,
-          ...(branchLimit && { branchLimit }),
           createdByPlatformAdmin: platformAdminId,
         },
       ],

@@ -25,9 +25,8 @@ import { formatDate } from '../../utils/format.js';
 import { formatAddress } from '../customers/CustomerDetailPage.jsx';
 import { usePurchaseListQuery, usePurchaseOrderListQuery } from '../purchases/purchaseApi.js';
 import { OrderStatusChip, PaymentChip } from '../purchases/purchaseUi.jsx';
-import SupplierFormDrawer from './SupplierFormDrawer.jsx';
 import { suppliesLabel } from './SuppliersPage.jsx';
-import { useDeleteSupplierMutation, useSetSupplierStatusMutation, useSupplierQuery } from './supplierApi.js';
+import { useSetSupplierStatusMutation, useSupplierQuery } from './supplierApi.js';
 
 const signed = (value, format, positive, negative) => (value ? `${format(Math.abs(value))} ${value > 0 ? positive : negative}` : 'Nil');
 const inr = (p) => formatINR(p, { decimals: 0 });
@@ -132,14 +131,11 @@ function OrdersTab({ supplierId }) {
 export default function SupplierDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [editing, setEditing] = useState(false);
   const [tab, setTab] = useState('bills');
   const canEdit = usePermission('supplier.edit');
-  const canDelete = usePermission('supplier.delete');
   const canBuy = usePermission('purchase.create');
   const { data: s, isLoading, error, refetch } = useSupplierQuery(id);
   const [setStatus] = useSetSupplierStatusMutation();
-  const [remove] = useDeleteSupplierMutation();
 
   if (isLoading) return <LoadingState label="Loading supplier" />;
   if (error) return <ErrorState error={error} onRetry={refetch} />;
@@ -165,18 +161,10 @@ export default function SupplierDetailPage() {
               name={s.companyName}
               status={s.status}
               canEdit={canEdit}
-              canDelete={canDelete}
-              onEdit={() => setEditing(true)}
               onStatus={async (status) => {
                 await setStatus({ id, status }).unwrap();
                 toast.success(status === 'active' ? 'Supplier activated' : 'Supplier deactivated');
               }}
-              onDelete={async () => {
-                await remove(id).unwrap();
-                toast.success('Supplier deleted');
-                navigate('/suppliers', { replace: true });
-              }}
-              deleteMessage="Suppliers linked to products cannot be deleted; deactivate them instead."
             />
           </Stack>
         }
@@ -294,7 +282,6 @@ export default function SupplierDetailPage() {
       )}
       {current === 'history' && <RecordHistory recordId={id} />}
 
-      <SupplierFormDrawer open={editing} supplier={s} onClose={() => setEditing(false)} />
     </>
   );
 }

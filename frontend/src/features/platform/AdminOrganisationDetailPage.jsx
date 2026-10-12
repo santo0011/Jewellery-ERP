@@ -1,7 +1,8 @@
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
-import { Alert, Box, Button, Card, CardContent, Chip, Grid, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Tooltip, Typography } from '@mui/material';
-import { stateName } from '@jerp/shared';
-import { useEffect, useState } from 'react';
+import ForwardToInboxOutlinedIcon from '@mui/icons-material/ForwardToInboxOutlined';
+import { Alert, Box, Button, Card, CardContent, Chip, Grid, Stack, Table, TableBody, TableCell, TableHead, TableRow, Tooltip, Typography } from '@mui/material';
+import { stateName, TRIAL_BRANCH_LIMIT } from '@jerp/shared';
+import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate, useParams } from 'react-router';
 import ConfirmDialog from '../../components/ConfirmDialog.jsx';
@@ -13,53 +14,29 @@ import { getErrorMessage } from '../../utils/errors.js';
 import { formatDate, formatDateTime } from '../../utils/format.js';
 import { BranchUsage, OrgStatusChip } from './AdminOrganisationsPage.jsx';
 import EditHistory from '../../components/EditHistory.jsx';
-import { useDeleteOrganisationMutation, useOrganisationHistoryQuery, useOrganisationQuery, useSetBranchLimitMutation, useSetOrganisationStatusMutation } from './platformApi.js';
+import { useDeleteOrganisationMutation, useOrganisationHistoryQuery, useOrganisationQuery, useSendLoginCodeMutation, useSetOrganisationStatusMutation } from './platformApi.js';
+import LoginCodeDialog from './LoginCodeDialog.jsx';
 import OrgSubscriptionPanel from './OrgSubscriptionPanel.jsx';
 
-function BranchLimitCard({ org }) {
-  const [value, setValue] = useState(String(org.branchLimit));
-  const [error, setError] = useState(null);
-  const [save, { isLoading }] = useSetBranchLimitMutation();
-
-  useEffect(() => setValue(String(org.branchLimit)), [org.branchLimit]);
-
-  const submit = async (e) => {
-    e.preventDefault();
-    const limit = Number(value);
-    if (!/^\d+$/.test(value) || limit < 1 || limit > 500) return setError('Enter a number from 1 to 500');
-    setError(null);
-    try {
-      await save({ id: org.id, branchLimit: limit }).unwrap();
-      toast.success(`Branch limit set to ${limit}`);
-    } catch (err) {
-      setError(getErrorMessage(err));
-    }
-    return undefined;
-  };
-
-  const step = (delta) => setValue(String(Math.max(1, (Number(value) || 0) + delta)));
-
+/** Branches in use and where the limit comes from: the free trial (TRIAL_BRANCH_LIMIT, head office included) or the plan. */
+function BranchesCard({ org }) {
+  const onTrial = org.subscription?.status === 'trial';
   return (
     <Card sx={{ height: '100%', borderTop: 3, borderTopColor: 'primary.main' }}>
       <CardContent>
         <Typography variant="overline" color="textSecondary">
-          Branch limit
+          Branches
         </Typography>
         <Box sx={{ my: 1.5 }}>
           <BranchUsage used={org.branchesUsed} limit={org.branchLimit} />
         </Box>
-        <Stack component="form" direction="row" spacing={1} onSubmit={submit} noValidate sx={{ alignItems: 'flex-start' }}>
-          <Button variant="outlined" color="secondary" onClick={() => step(-1)} sx={{ minWidth: 40 }} aria-label="Decrease limit">
-            −
-          </Button>
-          <TextField value={value} onChange={(e) => setValue(e.target.value)} error={Boolean(error)} helperText={error ?? `Min ${org.branchesUsed}`} slotProps={{ htmlInput: { inputMode: 'numeric', 'aria-label': 'Branch limit', style: { textAlign: 'center' } } }} sx={{ maxWidth: 110 }} />
-          <Button variant="outlined" color="secondary" onClick={() => step(1)} sx={{ minWidth: 40 }} aria-label="Increase limit">
-            +
-          </Button>
-          <Button type="submit" variant="contained" loading={isLoading} disabled={Number(value) === org.branchLimit}>
-            Save
-          </Button>
-        </Stack>
+        <Typography variant="body2" color="textSecondary">
+          {onTrial
+            ? `Free trial: up to ${TRIAL_BRANCH_LIMIT} branches, head office included.`
+            : org.plan
+              ? `Set by the ${org.plan} plan${org.branchLimit == null ? ' (unlimited)' : ''}. Change the plan to allow more.`
+              : 'No plan yet.'}
+        </Typography>
       </CardContent>
     </Card>
   );
@@ -73,6 +50,9 @@ export default function AdminOrganisationDetailPage() {
   const [confirm, setConfirm] = useState(false);
   const [removeOrg, { isLoading: deleting }] = useDeleteOrganisationMutation();
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [sendCode, { isLoading: sending }] = useSendLoginCodeMutation();
+  const [confirmCode, setConfirmCode] = useState(false);
+  const [codeResult, setCodeResult] = useState(null);
   const navigate = useNavigate();
 
   if (isLoading) return <LoadingState />;
@@ -98,6 +78,14 @@ export default function AdminOrganisationDetailPage() {
       toast.error(getErrorMessage(err));
       setConfirmDelete(false);
     }
+  };
+  const doSendCode = async () => {
+    try {
+      setCodeResult(await sendCode(id).unwrap());
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+    }
+    setConfirmCode(false);
   };
   // Why it can no longer be deleted, e.g. "3 products, 1 customer".
   const inUse = (org.records ?? []).map((r) => `${r.count} ${r.type}${r.count === 1 ? '' : 's'}`).join(', ');
@@ -126,9 +114,22 @@ export default function AdminOrganisationDetailPage() {
             <Button variant="outlined" color={suspend ? 'error' : 'success'} onClick={() => setConfirm(true)}>
               {suspend ? 'Deactivate' : 'Activate'}
             </Button>
+            <Button variant="contained" startIcon={<ForwardToInboxOutlinedIcon />} onClick={() => setConfirmCode(true)}>
+              Send sign-in code
+            </Button>
           </Stack>
         }
       />
+      <ConfirmDialog
+        open={confirmCode}
+        title="Send a new sign-in code?"
+        message={`A new 6-digit code is emailed to ${org.owner?.email ?? org.email} and becomes the organisation’s password. Their current password stops working and they are signed out everywhere.`}
+        confirmLabel="Send code"
+        loading={sending}
+        onConfirm={doSendCode}
+        onClose={() => setConfirmCode(false)}
+      />
+      <LoginCodeDialog result={codeResult} title="New sign-in code" onClose={() => setCodeResult(null)} />
       {org.status === 'suspended' && (
         <Alert severity="warning" sx={{ mb: 2 }}>
           Deactivated: nobody in this organisation can sign in. Their data is kept.
@@ -139,7 +140,7 @@ export default function AdminOrganisationDetailPage() {
           <OrgSubscriptionPanel orgId={org.id} />
         </Grid>
         <Grid size={{ xs: 12, md: 5 }}>
-          <BranchLimitCard org={org} />
+          <BranchesCard org={org} />
         </Grid>
         <Grid size={{ xs: 12, md: 7 }}>
           <InfoCard

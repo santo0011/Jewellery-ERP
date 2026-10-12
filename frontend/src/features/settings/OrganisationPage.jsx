@@ -18,7 +18,7 @@ import { useOrganisationHistoryQuery, useOrganisationQuery, useSubscriptionQuery
 
 const upper = (v) => v.toUpperCase();
 
-const toFormValues = (org) => {
+export const toFormValues = (org) => {
   const v = nullsToEmpty(org);
   return {
     name: v.name,

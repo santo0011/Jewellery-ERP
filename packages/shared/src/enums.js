@@ -17,6 +17,9 @@ export const SUBSCRIPTION_STATUS = Object.freeze({
 
 export const PLAN_KEYS = Object.freeze({ TRIAL: 'trial', BASIC: 'basic', PROFESSIONAL: 'professional', ENTERPRISE: 'enterprise' });
 
+/** Branches an organisation may run during its free trial, head office included — whatever plan it is on. */
+export const TRIAL_BRANCH_LIMIT = 2;
+
 export const PLAN_LIMITS = Object.freeze({
   trial: { users: 5, branches: 2, products: 1000 },
   basic: { users: 5, branches: 1, products: 5000 },

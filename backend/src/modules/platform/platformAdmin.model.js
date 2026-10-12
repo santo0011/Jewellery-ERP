@@ -12,6 +12,7 @@ const platformAdminSchema = new mongoose.Schema(
     failedLoginCount: { type: Number, default: 0 },
     lockedUntil: { type: Date, default: null },
     lastLoginAt: { type: Date, default: null },
+    passwordReset: { tokenHash: { type: String, default: null }, expiresAt: { type: Date, default: null } }, // forgot password
   },
   { timestamps: true },
 );

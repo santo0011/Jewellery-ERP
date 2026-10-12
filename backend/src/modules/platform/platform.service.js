@@ -1,5 +1,7 @@
 import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
+import { randomInt } from 'node:crypto';
+import { trySendEmail } from '../../core/notifications/email.service.js';
 import { BRANCH_STATUS, ORG_STATUS, SUBSCRIPTION_STATUS, USER_STATUS } from '@jerp/shared';
 import { env } from '../../config/env.js';
 import { withTransaction } from '../../config/db.js';
@@ -41,6 +43,8 @@ async function serializeMany(orgs) {
   return orgs.map((o) => {
     const used = branches.get(String(o._id)) ?? 0;
     const owner = ownerById.get(String(o.ownerUserId));
+    // Limits come from the subscription: 2 branches on a free trial, else the plan's (null = unlimited).
+    const limits = limitsOf(subscriptionByOrg.get(String(o._id)));
     return {
       id: o._id,
       name: o.name,
@@ -50,16 +54,16 @@ async function serializeMany(orgs) {
       email: o.email,
       phone: o.phone,
       stateCode: o.address?.stateCode ?? null,
-      branchLimit: o.branchLimit,
+      branchLimit: limits.branches,
       branchesUsed: used,
-      branchesAvailable: Math.max(0, o.branchLimit - used),
+      branchesAvailable: limits.branches == null ? null : Math.max(0, limits.branches - used),
       activeUsers: users.get(String(o._id)) ?? 0,
       plan: subscriptionByOrg.get(String(o._id))?.planName ?? subscriptionByOrg.get(String(o._id))?.plan ?? null,
       subscription: (() => {
         const eff = effectiveSubscription(subscriptionByOrg.get(String(o._id)));
         return { status: eff.status, expired: eff.expired, daysLeft: eff.daysLeft, endsAt: eff.endsAt };
       })(),
-      userLimit: limitsOf(subscriptionByOrg.get(String(o._id))).users,
+      userLimit: limits.users,
       freeDays: freeDaysOf(o, subscriptionByOrg.get(String(o._id))),
       owner: owner ? { name: owner.name, email: owner.email, mobile: owner.mobile, lastLoginAt: owner.lastLoginAt } : null,
       createdAt: o.createdAt,
@@ -102,35 +106,60 @@ export async function getOrganisation(id) {
   return { ...summary, branches: branches.map((b) => ({ id: b._id, code: b.code, name: b.name, status: b.status, isHeadOffice: b.isHeadOffice, city: b.address?.city ?? null })) };
 }
 
-export async function createOrganisation(input, admin, meta) {
-  await assertEmailAvailable(input.email);
-  const passwordHash = await bcrypt.hash(input.password, env.BCRYPT_ROUNDS);
-  const { organisation } = await withTransaction((session) =>
-    onboardOrganisation({ ...input, passwordHash, platformAdminId: admin.adminId }, session),
-  );
-  await recordPlatformAudit({ adminId: admin.adminId, action: 'organisation_create', organisationId: organisation._id, changes: { name: input.organisationName, branchLimit: input.branchLimit, owner: input.email, freeDays: input.freeDays } }, meta);
-  return getOrganisation(organisation._id);
+/** A 6-digit sign-in code (digits 0–9 only), used as a first or replacement password. */
+const loginCode = () => String(randomInt(0, 1_000_000)).padStart(6, '0');
+
+/**
+ * Emails an organisation its sign-in code. The code is handed back to the Super Admin only when it did not go out
+ * by email (no SMTP set up, or the server refused), so they can pass it on another way.
+ */
+async function deliverLoginCode(template, { name, organisationName, email, otp }) {
+  const result = await trySendEmail({ to: email, template, data: { name, organisationName, email, otp, loginUrl: `${env.APP_URL}/login` } });
+  return { status: result.status, sentTo: email, ...(result.error && { error: result.error }), ...(result.status !== 'sent' && { otp }) };
 }
 
-async function assertLimitCoversUsage(org, branchLimit) {
-  const used = await Branch.countDocuments({ organisationId: org._id, status: BRANCH_STATUS.ACTIVE }).setOptions(SKIP);
-  if (branchLimit < used) {
-    throw ApiError.conflict(`${org.name} already has ${used} active branches. Ask them to deactivate branches first, or set the limit to at least ${used}.`, 'BRANCH_LIMIT_BELOW_USAGE', [
-      { path: 'branchLimit', message: `At least ${used}` },
-    ]);
-  }
+export async function createOrganisation(input, admin, meta) {
+  await assertEmailAvailable(input.email);
+  // The panel sends no password: a 6-digit code becomes the first password, is emailed to the organisation, and
+  // must be changed at first sign-in. (Scripts may still pass a password.)
+  const otp = input.password ? null : loginCode();
+  const passwordHash = await bcrypt.hash(input.password ?? otp, env.BCRYPT_ROUNDS);
+  const { organisation } = await withTransaction((session) =>
+    onboardOrganisation({ ...input, passwordHash, mustChangePassword: Boolean(otp), platformAdminId: admin.adminId }, session),
+  );
+  await recordPlatformAudit({ adminId: admin.adminId, action: 'organisation_create', organisationId: organisation._id, changes: { name: input.organisationName, owner: input.email, freeDays: input.freeDays } }, meta);
+  const loginEmail = otp ? await deliverLoginCode('organisationWelcome', { name: input.ownerName, organisationName: input.organisationName, email: input.email, otp }) : null;
+  return { ...(await getOrganisation(organisation._id)), loginEmail };
+}
+
+/** Issues a new 6-digit code as the owner's password, signs out their sessions, and emails it. */
+export async function sendLoginCode(id, admin, meta) {
+  const org = await findOrg(id);
+  const owner = await User.findById(org.ownerUserId).setOptions(SKIP).select('name email').lean();
+  if (!owner) throw ApiError.conflict('This organisation has no owner login', 'NO_OWNER');
+  const otp = loginCode();
+  const passwordHash = await bcrypt.hash(otp, env.BCRYPT_ROUNDS);
+  await withTransaction(async (session) => {
+    await User.updateOne(
+      { _id: owner._id },
+      { $set: { passwordHash, passwordChangedAt: new Date(), mustChangePassword: true, failedLoginCount: 0, lockedUntil: null, passwordReset: null }, $inc: { tokenVersion: 1 } },
+      { session },
+    ).setOptions(SKIP);
+    await Session.updateMany({ userId: owner._id, revokedAt: null }, { $set: { revokedAt: new Date(), revokedReason: 'login_code_sent' } }, { session });
+  });
+  await recordPlatformAudit({ adminId: admin.adminId, action: 'login_code_sent', organisationId: org._id, changes: { to: owner.email } }, meta);
+  return deliverLoginCode('loginOtp', { name: owner.name, organisationName: org.name, email: owner.email, otp });
 }
 
 /** Edits the organisation; its email is also the owner's login email, and a new password replaces the owner's. */
-export async function updateOrganisation(id, { organisationName, email, password, mobile, stateCode, branchLimit, freeDays }, admin, meta) {
+export async function updateOrganisation(id, { organisationName, email, password, mobile, stateCode, freeDays }, admin, meta) {
   const org = await findOrg(id);
-  await assertLimitCoversUsage(org, branchLimit);
   const owner = await User.findById(org.ownerUserId).setOptions(SKIP).select('email').lean();
   const emailChanged = owner && owner.email !== email;
   if (emailChanged) await assertEmailAvailable(email, { exceptUserId: owner._id });
 
-  const next = { name: organisationName, email, phone: mobile, 'address.stateCode': stateCode, branchLimit };
-  const current = { name: org.name, email: org.email, phone: org.phone, 'address.stateCode': org.address?.stateCode ?? null, branchLimit: org.branchLimit };
+  const next = { name: organisationName, email, phone: mobile, 'address.stateCode': stateCode };
+  const current = { name: org.name, email: org.email, phone: org.phone, 'address.stateCode': org.address?.stateCode ?? null };
   const changes = Object.keys(next)
     .filter((field) => next[field] !== current[field])
     .map((field) => ({ field, from: current[field], to: next[field] }));
@@ -161,16 +190,6 @@ export async function updateOrganisation(id, { organisationName, email, password
   return getOrganisation(id);
 }
 
-export async function setBranchLimit(id, branchLimit, admin, meta) {
-  const org = await findOrg(id);
-  await assertLimitCoversUsage(org, branchLimit);
-  if (branchLimit !== org.branchLimit) {
-    await Organisation.updateOne({ _id: org._id }, { $set: { branchLimit } });
-    await recordPlatformAudit({ adminId: admin.adminId, action: 'branch_limit_change', organisationId: org._id, changes: { from: org.branchLimit, to: branchLimit } }, meta);
-  }
-  return getOrganisation(id);
-}
-
 export async function setOrganisationStatus(id, status, admin, meta) {
   const org = await findOrg(id);
   if (org.status !== status) {
@@ -196,7 +215,7 @@ const SETUP_ONLY = new Set(['Organisation', 'Subscription', 'Settings', 'AuditLo
 const BEYOND_SETUP = {
   Branch: { isHeadOffice: { $ne: true } },
   User: { isOwner: { $ne: true } },
-  Role: { isSystem: { $ne: true } },
+  Role: { isSystem: { $ne: true }, key: /^custom_/ }, // roles it made (former defaults do not count)
   Category: { isSystem: { $ne: true } },
   Account: { isSystem: { $ne: true } },
   SubscriptionPayment: { status: 'paid' },
