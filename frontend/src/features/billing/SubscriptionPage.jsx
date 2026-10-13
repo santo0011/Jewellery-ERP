@@ -24,7 +24,7 @@ function CurrentPlan({ s, usage }) {
         <Grid container spacing={3} sx={{ alignItems: 'center' }}>
           <Grid size={{ xs: 12, md: 5 }}>
             <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
-              <Box sx={{ width: 56, height: 56, borderRadius: 3, display: 'grid', placeItems: 'center', background: s.expired ? undefined : tokens.sidebar.goldGradient, bgcolor: s.expired ? 'rgba(155, 44, 44, 0.12)' : undefined, color: s.expired ? 'error.main' : '#171717', flexShrink: 0 }}>
+              <Box sx={{ width: 56, height: 56, borderRadius: 3, display: 'grid', placeItems: 'center', background: s.expired ? undefined : tokens.sidebar.goldGradient, bgcolor: s.expired ? 'rgba(155, 44, 44, 0.12)' : undefined, color: s.expired ? 'error.main' : 'var(--brand-contrast)', flexShrink: 0 }}>
                 {s.expired ? <LockOutlinedIcon /> : <WorkspacePremiumOutlinedIcon />}
               </Box>
               <Box>

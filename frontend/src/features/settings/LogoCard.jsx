@@ -70,6 +70,13 @@ export default function LogoCard({ canEdit, title = 'Logo', caption = 'Shown at 
         <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
           {caption}
         </Typography>
+        {/* The panel's colours come from the logo (useBrandTheme); this shows the colour in use. */}
+        <Stack direction="row" spacing={1} sx={{ mt: 1.5, alignItems: 'center' }}>
+          <Box sx={{ width: 18, height: 18, borderRadius: '50%', flexShrink: 0, background: 'linear-gradient(135deg, var(--brand-light), var(--brand) 55%, var(--brand-deep))', boxShadow: '0 0 0 2px var(--mui-palette-background-paper), 0 0 0 3px rgba(var(--brand-rgb), 0.5)' }} />
+          <Typography variant="caption" color="textSecondary">
+            {hasLogo ? 'Panel colours are taken from this logo and update when it changes. A black-and-white logo keeps the gold theme.' : 'Upload a logo and the panel’s colours will match it.'}
+          </Typography>
+        </Stack>
         {canEdit && (
           <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
             <input ref={input} type="file" accept={ACCEPT} hidden onChange={onFile} />

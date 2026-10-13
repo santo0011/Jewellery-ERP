@@ -231,7 +231,7 @@ function ProfileHero({ session }) {
       <Box sx={{ position: 'absolute', inset: 0, background: tokens.sidebar.glow, pointerEvents: 'none' }} />
       <CardContent sx={{ position: 'relative', p: { xs: 2.5, sm: 3.5 } }}>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 2, sm: 3 }} sx={{ alignItems: { sm: 'center' } }}>
-          <Avatar sx={{ width: 76, height: 76, background: tokens.sidebar.goldGradient, color: '#171717', fontSize: '1.625rem', fontWeight: 700, boxShadow: '0 6px 20px rgba(201, 162, 39, 0.3)' }}>{initials(user.name)}</Avatar>
+          <Avatar sx={{ width: 76, height: 76, background: tokens.sidebar.goldGradient, color: 'var(--brand-contrast)', fontSize: '1.625rem', fontWeight: 700, boxShadow: '0 6px 20px rgba(var(--brand-rgb), 0.3)' }}>{initials(user.name)}</Avatar>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography variant="h3" sx={{ color: '#FFFFFF' }} noWrap>
               {user.name}
@@ -241,9 +241,9 @@ function ProfileHero({ session }) {
               {user.mobile ? ` · ${user.mobile}` : ''}
             </Typography>
             <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 0.75, mt: 1.5 }}>
-              {user.isOwner && <Chip label="Owner" size="small" sx={{ background: tokens.sidebar.goldGradient, color: '#171717', fontWeight: 600 }} />}
+              {user.isOwner && <Chip label="Owner" size="small" sx={{ background: tokens.sidebar.goldGradient, color: 'var(--brand-contrast)', fontWeight: 600 }} />}
               {user.roles.map((r) => (
-                <Chip key={r.id} label={r.name} size="small" variant="outlined" sx={{ color: tokens.sidebar.text, borderColor: 'rgba(201, 162, 39, 0.45)' }} />
+                <Chip key={r.id} label={r.name} size="small" variant="outlined" sx={{ color: tokens.sidebar.text, borderColor: 'rgba(var(--brand-rgb), 0.45)' }} />
               ))}
               {user.branchLogin && <Chip label="Branch login" size="small" variant="outlined" sx={{ color: tokens.sidebar.text, borderColor: tokens.sidebar.divider }} />}
             </Stack>
@@ -261,7 +261,7 @@ function ProfileHero({ session }) {
               variant="outlined"
               startIcon={<LogoutRoundedIcon />}
               onClick={() => setConfirmSignOut(true)}
-              sx={{ mt: 0.5, color: '#FFFFFF', borderColor: 'rgba(255, 255, 255, 0.25)', '&:hover': { borderColor: tokens.light.gold, bgcolor: 'rgba(201, 162, 39, 0.1)' } }}
+              sx={{ mt: 0.5, color: '#FFFFFF', borderColor: 'rgba(255, 255, 255, 0.25)', '&:hover': { borderColor: tokens.brand.main, bgcolor: 'rgba(var(--brand-rgb), 0.1)' } }}
             >
               Sign out
             </Button>
@@ -286,7 +286,7 @@ function StatTile({ icon: Icon, label, value, hint }) {
   return (
     <Card sx={{ height: '100%' }}>
       <CardContent sx={{ p: 2.25, display: 'flex', gap: 1.75, alignItems: 'flex-start' }}>
-        <Box sx={{ width: 40, height: 40, flexShrink: 0, borderRadius: 2, display: 'grid', placeItems: 'center', bgcolor: 'rgba(201, 162, 39, 0.12)', color: 'accent.main' }}>
+        <Box sx={{ width: 40, height: 40, flexShrink: 0, borderRadius: 2, display: 'grid', placeItems: 'center', bgcolor: 'rgba(var(--brand-rgb), 0.12)', color: 'accent.main' }}>
           <Icon fontSize="small" />
         </Box>
         <Box sx={{ minWidth: 0 }}>

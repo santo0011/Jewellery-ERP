@@ -167,7 +167,7 @@ export default function ForgotPasswordPage() {
             onVerify();
           }}
         >
-          <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-start', p: 1.5, borderRadius: 2, bgcolor: 'rgba(201, 162, 39, 0.08)' }}>
+          <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-start', p: 1.5, borderRadius: 2, bgcolor: 'rgba(var(--brand-rgb), 0.08)' }}>
             <MarkEmailReadOutlinedIcon sx={{ color: 'accent.main', mt: 0.25 }} />
             <Typography variant="body2">
               If an account uses <strong>{email}</strong>, a 6-digit code is on its way. Enter it below — it works for a few minutes.{' '}

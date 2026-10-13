@@ -122,7 +122,7 @@ function LineDrawer({ runId, line, onClose }) {
         <TextField label="Bonus / incentive" value={form.bonus} onChange={set('bonus')} {...money} autoFocus />
         <TextField label="Other deduction" value={form.other} onChange={set('other')} helperText="Fine, damage, canteen, etc." {...money} />
         {line.advances?.length > 0 && (
-          <Box sx={{ p: 1.5, borderRadius: 2, border: '1px solid rgba(201, 162, 39, 0.35)', bgcolor: 'rgba(201, 162, 39, 0.05)' }}>
+          <Box sx={{ p: 1.5, borderRadius: 2, border: '1px solid rgba(var(--brand-rgb), 0.35)', bgcolor: 'rgba(var(--brand-rgb), 0.05)' }}>
             <Typography variant="subtitle2" sx={{ mb: 0.75 }}>
               Advances due this month
             </Typography>

@@ -7,7 +7,7 @@ import { MONEY_TONE } from './Amount.jsx';
  * Numbers stay in normal ink unless `valueTone` says they mean paid / due.
  */
 const TONE = {
-  gold: { fg: '#9C7A16', line: 'linear-gradient(90deg, #E9CF6E, #C9A227 55%, #A8841B)', tint: 'rgba(201, 162, 39, 0.10)' },
+  gold: { fg: 'var(--brand-strong)', line: 'linear-gradient(90deg, var(--brand-light), var(--brand) 55%, var(--brand-deep))', tint: 'rgba(var(--brand-rgb), 0.10)' },
   blue: { fg: '#2F5D7C', line: 'linear-gradient(90deg, #7FA8C9, #2F5D7C)', tint: 'rgba(47, 93, 124, 0.09)' },
   green: { fg: MONEY_TONE.paid, line: 'linear-gradient(90deg, #6FBF98, #2E6B4F)', tint: 'rgba(46, 107, 79, 0.09)' },
   red: { fg: MONEY_TONE.due, line: 'linear-gradient(90deg, #E39090, #9B2C2C)', tint: 'rgba(155, 44, 44, 0.08)' },

@@ -12,7 +12,7 @@ const FIRST = 6;
 
 /** Who made a change: the platform's Super Admin (gold) or someone inside the organisation (blue). */
 const WHO = {
-  admin: { label: 'Super Admin', Icon: AdminPanelSettingsOutlinedIcon, dot: tokens.sidebar.goldGradient, ink: '#171717', chipBg: 'rgba(201, 162, 39, 0.14)', chipInk: '#7A5E0F' },
+  admin: { label: 'Super Admin', Icon: AdminPanelSettingsOutlinedIcon, dot: tokens.sidebar.goldGradient, ink: 'var(--brand-contrast)', chipBg: 'rgba(var(--brand-rgb), 0.14)', chipInk: '#7A5E0F' },
   user: { label: 'Organisation', Icon: PersonOutlineRoundedIcon, dot: 'linear-gradient(135deg, #7FA8C9, #2F5D7C)', ink: '#fff', chipBg: 'rgba(47, 93, 124, 0.12)', chipInk: '#2F5D7C' },
 };
 
@@ -93,7 +93,7 @@ export default function EditHistory({ entries, isLoading, error, title = 'Edit h
   return (
     <Card sx={{ overflow: 'hidden' }}>
       <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', px: { xs: 2, sm: 2.5 }, py: 2, borderBottom: 1, borderColor: 'divider' }}>
-        <Box sx={{ width: 36, height: 36, borderRadius: 2, display: 'grid', placeItems: 'center', background: tokens.sidebar.goldGradient, color: '#171717' }}>
+        <Box sx={{ width: 36, height: 36, borderRadius: 2, display: 'grid', placeItems: 'center', background: tokens.sidebar.goldGradient, color: 'var(--brand-contrast)' }}>
           <HistoryRoundedIcon sx={{ fontSize: 20 }} />
         </Box>
         <Box sx={{ flex: 1 }}>

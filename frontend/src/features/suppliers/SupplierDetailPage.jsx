@@ -174,7 +174,7 @@ export default function SupplierDetailPage() {
       <Card sx={{ mb: 2 }}>
         <CardContent sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, alignItems: 'center', gap: { xs: 2, md: 3 } }}>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2.5} sx={{ alignItems: 'center', textAlign: { xs: 'center', sm: 'left' }, flex: 1, minWidth: 0 }}>
-            <Box sx={{ width: 72, height: 72, borderRadius: 3, flexShrink: 0, display: 'grid', placeItems: 'center', background: tokens.sidebar.goldGradient, color: '#171717', fontFamily: fonts.display, fontWeight: 700, fontSize: 30, boxShadow: '0 6px 18px rgba(201, 162, 39, 0.3)' }}>
+            <Box sx={{ width: 72, height: 72, borderRadius: 3, flexShrink: 0, display: 'grid', placeItems: 'center', background: tokens.sidebar.goldGradient, color: 'var(--brand-contrast)', fontFamily: fonts.display, fontWeight: 700, fontSize: 30, boxShadow: '0 6px 18px rgba(var(--brand-rgb), 0.3)' }}>
               {initials(s.companyName)}
             </Box>
             <Box sx={{ minWidth: 0 }}>
@@ -185,7 +185,7 @@ export default function SupplierDetailPage() {
                 <Chip size="small" label={s.code} variant="outlined" sx={{ height: 22 }} />
                 <StatusChip status={s.status} />
                 {(s.supplies ?? []).map((x) => (
-                  <Chip key={x} size="small" label={suppliesLabel([x])} sx={{ height: 22, bgcolor: 'rgba(201, 162, 39, 0.12)', color: tokens.light.goldDark, fontWeight: 600 }} />
+                  <Chip key={x} size="small" label={suppliesLabel([x])} sx={{ height: 22, bgcolor: 'rgba(var(--brand-rgb), 0.12)', color: tokens.brand.strong, fontWeight: 600 }} />
                 ))}
               </Stack>
             </Box>

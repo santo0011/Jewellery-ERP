@@ -84,12 +84,12 @@ export default function OtpInput({ value = '', onChange, length = 6, error = fal
             fontFamily: 'monospace',
             borderRadius: 2,
             border: '1px solid',
-            borderColor: error ? 'error.main' : d ? 'rgba(201, 162, 39, 0.7)' : 'divider',
-            bgcolor: d ? 'rgba(201, 162, 39, 0.08)' : 'background.paper',
+            borderColor: error ? 'error.main' : d ? 'rgba(var(--brand-rgb), 0.7)' : 'divider',
+            bgcolor: d ? 'rgba(var(--brand-rgb), 0.08)' : 'background.paper',
             color: 'text.primary',
             outline: 'none',
             transition: 'border-color 120ms, box-shadow 120ms',
-            '&:focus': { borderColor: error ? 'error.main' : theme.palette.primary.main, boxShadow: `0 0 0 3px ${error ? 'rgba(155, 44, 44, 0.15)' : 'rgba(201, 162, 39, 0.25)'}` },
+            '&:focus': { borderColor: error ? 'error.main' : theme.vars.palette.primary.main, boxShadow: `0 0 0 3px ${error ? 'rgba(155, 44, 44, 0.15)' : 'rgba(var(--brand-rgb), 0.25)'}` },
             '&:disabled': { opacity: 0.6 },
           })}
         />

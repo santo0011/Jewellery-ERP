@@ -7,6 +7,7 @@ import { useDispatch, useSelector } from 'react-redux';
 import { matchPath, Outlet, useLocation, useNavigate } from 'react-router';
 import { ErrorState, FullScreenLoader } from '../components/StateViews.jsx';
 import Wordmark from '../components/Wordmark.jsx';
+import { useBrandTheme } from '../hooks/useBrandTheme.js';
 import { useOrganisationLogo } from '../hooks/useOrganisationLogo.js';
 import { usePermissions, useSession } from '../hooks/usePermission.js';
 import { branchSelected } from '../store/authSlice.js';
@@ -66,6 +67,8 @@ export default function AppLayout() {
   const activeBranchId = useSelector((s) => s.auth.activeBranchId);
   const { data: session, error, isLoading, refetch } = useSession();
   const logoUrl = useOrganisationLogo(); // shown at the top of the sidebar
+  // The panel's colours follow the logo's main colour (gold when there is no logo or it has no clear colour).
+  useBrandTheme(logoUrl, session?.organisation?.logoVersion);
 
   useEffect(() => {
     if (!session) return;

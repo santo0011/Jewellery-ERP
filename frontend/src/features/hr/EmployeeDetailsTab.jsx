@@ -19,7 +19,7 @@ import { tokens } from '../../theme/tokens.js';
 import { formatDate } from '../../utils/format.js';
 import { EmploymentChip, monthLabel, todayIso } from './hrUi.jsx';
 
-const GOLD_TINT = 'rgba(201, 162, 39, 0.12)';
+const GOLD_TINT = 'rgba(var(--brand-rgb), 0.12)';
 
 /** "2 yrs 3 mos", "5 mos", "12 days" between two ISO dates. */
 function tenure(from, to) {
@@ -117,12 +117,12 @@ function SalarySplit({ basicPaise, allowancePaise }) {
     <Box sx={{ mt: 1.5, mb: 1 }}>
       <Box sx={{ display: 'flex', height: 10, borderRadius: 5, overflow: 'hidden', bgcolor: 'action.hover' }}>
         <Box sx={{ width: `${basicPct}%`, background: tokens.sidebar.goldGradient }} />
-        <Box sx={{ flex: 1, bgcolor: 'rgba(201, 162, 39, 0.35)' }} />
+        <Box sx={{ flex: 1, bgcolor: 'rgba(var(--brand-rgb), 0.35)' }} />
       </Box>
       <Stack direction="row" sx={{ justifyContent: 'space-between', mt: 1 }}>
         {[
-          ['Basic', basicPaise, tokens.light.gold],
-          ['Allowance', allowancePaise, 'rgba(201, 162, 39, 0.45)'],
+          ['Basic', basicPaise, tokens.brand.main],
+          ['Allowance', allowancePaise, 'rgba(var(--brand-rgb), 0.45)'],
         ].map(([label, paise, color]) => (
           <Stack key={label} direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
             <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: color }} />

@@ -205,7 +205,7 @@ export default function CustomerDetailPage() {
         back={{ to: '/customers', label: 'Customers' }}
         title={
           <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }} component="span">
-            <Box component="span" sx={{ width: 52, height: 52, borderRadius: '50%', flexShrink: 0, display: 'grid', placeItems: 'center', background: tokens.sidebar.goldGradient, color: '#171717', fontFamily: fonts.display, fontSize: 22, fontWeight: 700, boxShadow: '0 6px 18px rgba(201, 162, 39, 0.35)' }}>
+            <Box component="span" sx={{ width: 52, height: 52, borderRadius: '50%', flexShrink: 0, display: 'grid', placeItems: 'center', background: tokens.sidebar.goldGradient, color: 'var(--brand-contrast)', fontFamily: fonts.display, fontSize: 22, fontWeight: 700, boxShadow: '0 6px 18px rgba(var(--brand-rgb), 0.35)' }}>
               {initials(c.name)}
             </Box>
             <span>{c.name}</span>

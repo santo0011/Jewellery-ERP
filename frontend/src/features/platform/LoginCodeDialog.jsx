@@ -11,7 +11,7 @@ function CodeTiles({ code }) {
   return (
     <Stack direction="row" spacing={1} sx={{ justifyContent: 'center', my: 2 }}>
       {code.split('').map((d, i) => (
-        <Box key={i} sx={{ width: 44, height: 54, display: 'grid', placeItems: 'center', borderRadius: 2, border: 1, borderColor: 'divider', bgcolor: 'rgba(201, 162, 39, 0.08)', fontFamily: 'monospace', fontSize: 26, fontWeight: 700 }}>
+        <Box key={i} sx={{ width: 44, height: 54, display: 'grid', placeItems: 'center', borderRadius: 2, border: 1, borderColor: 'divider', bgcolor: 'rgba(var(--brand-rgb), 0.08)', fontFamily: 'monospace', fontSize: 26, fontWeight: 700 }}>
           {d}
         </Box>
       ))}

@@ -47,10 +47,10 @@ export default function PayrollSteps({ current = 0, compact = false }) {
                 placeItems: 'center',
                 background: done ? gold : undefined,
                 bgcolor: done ? undefined : 'background.paper',
-                color: done ? '#171717' : active ? tokens.light.goldDark : 'text.disabled',
+                color: done ? 'var(--brand-contrast)' : active ? tokens.brand.strong : 'text.disabled',
                 border: done ? 'none' : `2px solid`,
-                borderColor: active ? tokens.light.gold : 'divider',
-                boxShadow: active && !guide ? '0 0 0 4px rgba(201, 162, 39, 0.15)' : done ? '0 3px 10px rgba(201, 162, 39, 0.3)' : 'none',
+                borderColor: active ? tokens.brand.main : 'divider',
+                boxShadow: active && !guide ? '0 0 0 4px rgba(var(--brand-rgb), 0.15)' : done ? '0 3px 10px rgba(var(--brand-rgb), 0.3)' : 'none',
               }}
             >
               <Icon sx={{ fontSize: compact ? 16 : 19 }} />

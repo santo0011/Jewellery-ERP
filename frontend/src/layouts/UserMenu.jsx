@@ -2,7 +2,7 @@ import DarkModeOutlinedIcon from '@mui/icons-material/DarkModeOutlined';
 import LightModeOutlinedIcon from '@mui/icons-material/LightModeOutlined';
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import PersonOutlineRoundedIcon from '@mui/icons-material/PersonOutlineRounded';
-import { Avatar, Box, Divider, IconButton, ListItemIcon, Menu, MenuItem, Typography } from '@mui/material';
+import { Avatar, Divider, IconButton, ListItemIcon, Menu, MenuItem } from '@mui/material';
 import { useColorScheme } from '@mui/material/styles';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
@@ -33,16 +33,6 @@ export default function UserMenu({ user }) {
         <Avatar sx={{ width: 34, height: 34, bgcolor: 'secondary.main', color: 'primary.main', fontSize: '0.8125rem', fontWeight: 600 }}>{initials(user.name)}</Avatar>
       </IconButton>
       <Menu anchorEl={anchor} open={Boolean(anchor)} onClose={close} slotProps={{ paper: { sx: { minWidth: 240, mt: 1 } } }} transformOrigin={{ horizontal: 'right', vertical: 'top' }} anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}>
-        <Box sx={{ px: 2, py: 1.5 }}>
-          <Typography variant="subtitle2">{user.name}</Typography>
-          <Typography variant="body2" color="textSecondary" noWrap>
-            {user.email}
-          </Typography>
-          <Typography variant="body2" color="accent" sx={{ mt: 0.5 }}>
-            {user.roles.map((r) => r.name).join(', ')}
-          </Typography>
-        </Box>
-        <Divider />
         <MenuItem
           onClick={() => {
             close();

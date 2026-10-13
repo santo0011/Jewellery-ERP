@@ -177,7 +177,7 @@ export default function PayDialog({ plan, mode, onClose, onPaid }) {
           <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
             Open PhonePe, Google Pay, Paytm, BHIM or any UPI app on your phone and scan
           </Typography>
-          <Box sx={{ p: 1.5, borderRadius: 3, border: '2px solid', borderColor: tokens.light.gold, bgcolor: '#fff', lineHeight: 0 }}>
+          <Box sx={{ p: 1.5, borderRadius: 3, border: '2px solid', borderColor: tokens.brand.main, bgcolor: '#fff', lineHeight: 0 }}>
             {qr ? <Box component="img" src={qr} alt="UPI QR code" sx={{ width: 220, height: 220, imageRendering: 'pixelated' }} /> : <Skeleton variant="rectangular" width={220} height={220} />}
           </Box>
           <Stack direction="row" sx={{ gap: 0.75, mt: 1.5, flexWrap: 'wrap', justifyContent: 'center' }}>
@@ -276,7 +276,7 @@ export default function PayDialog({ plan, mode, onClose, onPaid }) {
 
   return (
     <Dialog open onClose={onClose} maxWidth="md" fullWidth fullScreen={phone}>
-      <Box sx={{ px: 3, py: 2, display: 'flex', alignItems: 'center', gap: 2, borderBottom: 1, borderColor: 'divider', background: `linear-gradient(120deg, rgba(201, 162, 39, 0.10), transparent 60%)` }}>
+      <Box sx={{ px: 3, py: 2, display: 'flex', alignItems: 'center', gap: 2, borderBottom: 1, borderColor: 'divider', background: `linear-gradient(120deg, rgba(var(--brand-rgb), 0.10), transparent 60%)` }}>
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography variant="overline" color="textSecondary">
             {plan.name} · {periodText(plan.durationMonths)}
@@ -300,7 +300,7 @@ export default function PayDialog({ plan, mode, onClose, onPaid }) {
                     setMethod(m.key);
                     setError(null);
                   }}
-                  sx={{ mx: 1, borderRadius: 2, flexShrink: 0, '&.Mui-selected': { bgcolor: 'rgba(201, 162, 39, 0.14)', '& .MuiListItemIcon-root': { color: tokens.light.goldDark } } }}
+                  sx={{ mx: 1, borderRadius: 2, flexShrink: 0, '&.Mui-selected': { bgcolor: 'rgba(var(--brand-rgb), 0.14)', '& .MuiListItemIcon-root': { color: tokens.brand.strong } } }}
                 >
                   <ListItemIcon sx={{ minWidth: 36 }}>
                     <m.icon />

@@ -12,8 +12,8 @@ const SERIES_DARK = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#00
 const MAX_SLOTS = SERIES_LIGHT.length;
 
 // Single-series mark colour shared with the column chart (validated light + dark).
-const GOLD = '#9C7A16';
-const GOLD_DARK = '#B38D1E';
+const GOLD = 'var(--brand-strong)';
+const GOLD_DARK = 'var(--brand-mark)';
 
 /** Keeps the first slots and folds the rest into "Other", so no hue is ever generated. */
 export function foldRows(rows, keep = MAX_SLOTS - 1) {

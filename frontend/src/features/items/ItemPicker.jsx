@@ -44,7 +44,7 @@ export default function ItemPicker({ onPick, label = 'Search items — name or c
         noOptionsText={q ? 'No item found' : 'Type to search saved items'}
         renderOption={({ key, ...props }, o) =>
           o.id === ADD ? (
-            <Box component="li" key={key} {...props} sx={{ borderTop: items.length ? 1 : 0, borderColor: 'divider', color: tokens.light.goldDark }}>
+            <Box component="li" key={key} {...props} sx={{ borderTop: items.length ? 1 : 0, borderColor: 'divider', color: tokens.brand.strong }}>
               <AddCircleOutlineRoundedIcon fontSize="small" sx={{ mr: 1 }} />
               <Typography variant="body2" sx={{ fontWeight: 700 }}>
                 Add “{o.name}” as a new item

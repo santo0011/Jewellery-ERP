@@ -220,7 +220,7 @@ function ItemCard({ index, control, setValue, categories, onRemove, canRemove, e
     <Box sx={{ p: 2.5, border: 1, borderColor: 'divider', borderRadius: 3, bgcolor: 'background.paper' }}>
       <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 1.5 }}>
         <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-          <Box sx={{ width: 26, height: 26, borderRadius: '50%', display: 'grid', placeItems: 'center', background: tokens.sidebar.goldGradient, color: '#171717', fontSize: 12, fontWeight: 800 }}>{index + 1}</Box>
+          <Box sx={{ width: 26, height: 26, borderRadius: '50%', display: 'grid', placeItems: 'center', background: tokens.sidebar.goldGradient, color: 'var(--brand-contrast)', fontSize: 12, fontWeight: 800 }}>{index + 1}</Box>
           <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
             Item {index + 1}
           </Typography>
@@ -331,7 +331,7 @@ function ItemCard({ index, control, setValue, categories, onRemove, canRemove, e
         )}
       </Section>
 
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mt: 2.5, p: 1.75, borderRadius: 2, bgcolor: 'rgba(201, 162, 39, 0.07)', border: '1px solid rgba(201, 162, 39, 0.25)', alignItems: { sm: 'center' } }}>
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mt: 2.5, p: 1.75, borderRadius: 2, bgcolor: 'rgba(var(--brand-rgb), 0.07)', border: '1px solid rgba(var(--brand-rgb), 0.25)', alignItems: { sm: 'center' } }}>
         <Box sx={{ flex: 1 }}>
           <Typography variant="body2" sx={{ fontWeight: 600 }}>
             Estimated price (each, incl. GST)
