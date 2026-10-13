@@ -197,7 +197,7 @@ function RateStrip({ enabled }) {
     <Card sx={{ mb: 2.5 }}>
       <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ px: 2, py: 1.25, alignItems: { md: 'center' } }}>
         <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexShrink: 0 }}>
-          <ShowChartRoundedIcon fontSize="small" sx={{ color: tokens.light.goldDark }} />
+          <ShowChartRoundedIcon fontSize="small" sx={{ color: tokens.brand.strong }} />
           <Typography variant="overline" sx={{ color: 'text.secondary', lineHeight: 1 }}>
             Today&apos;s rates
           </Typography>
@@ -244,11 +244,11 @@ function LineCard({ product: p, discount, discountType, breakdown: b, quoting, c
       ].filter(([, v]) => v > 0)
     : [];
   return (
-    <Box sx={{ p: 2, borderRadius: 2.5, border: 1, borderColor: 'divider', bgcolor: 'background.paper', transition: 'border-color 160ms ease, box-shadow 160ms ease', '&:hover': { borderColor: 'rgba(201, 162, 39, 0.45)', boxShadow: '0 4px 18px rgba(120, 104, 60, 0.10)' } }}>
+    <Box sx={{ p: 2, borderRadius: 2.5, border: 1, borderColor: 'divider', bgcolor: 'background.paper', transition: 'border-color 160ms ease, box-shadow 160ms ease', '&:hover': { borderColor: 'rgba(var(--brand-rgb), 0.45)', boxShadow: '0 4px 18px rgba(120, 104, 60, 0.10)' } }}>
       <Stack direction="row" spacing={2} sx={{ alignItems: 'flex-start' }}>
         <Box sx={{ position: 'relative' }}>
           <AuthImage fileId={p.images?.[0]} alt={p.name} size={64} sx={{ borderRadius: 2 }} />
-          <Box sx={{ position: 'absolute', top: -8, left: -8, width: 22, height: 22, borderRadius: '50%', display: 'grid', placeItems: 'center', background: tokens.sidebar.goldGradient, color: '#171717', fontSize: 11, fontWeight: 800 }}>{index + 1}</Box>
+          <Box sx={{ position: 'absolute', top: -8, left: -8, width: 22, height: 22, borderRadius: '50%', display: 'grid', placeItems: 'center', background: tokens.sidebar.goldGradient, color: 'var(--brand-contrast)', fontSize: 11, fontWeight: 800 }}>{index + 1}</Box>
         </Box>
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start', justifyContent: 'space-between' }}>
@@ -296,7 +296,7 @@ function LineCard({ product: p, discount, discountType, breakdown: b, quoting, c
                   value={discountType}
                   onChange={(e, v) => v && onDiscountType(v)}
                   aria-label="Discount type"
-                  sx={{ height: 40, '& .MuiToggleButton-root': { px: 1.25, fontWeight: 700, fontSize: '0.875rem' }, '& .Mui-selected': { bgcolor: 'rgba(201, 162, 39, 0.16) !important', color: tokens.light.goldDark } }}
+                  sx={{ height: 40, '& .MuiToggleButton-root': { px: 1.25, fontWeight: 700, fontSize: '0.875rem' }, '& .Mui-selected': { bgcolor: 'rgba(var(--brand-rgb), 0.16) !important', color: tokens.brand.strong } }}
                 >
                   <ToggleButton value="percent" aria-label="Discount in percent">
                     %
@@ -385,9 +385,9 @@ const QUICK_MODES = PAYMENT_MODES.filter((m) => m.value !== 'credit');
 /** The order being delivered: each line shows its finished piece (on the bill, or ready to add), or how to finish it. */
 function OrderPanel({ order, onBill, canFinish, onFinish, onAdd }) {
   return (
-    <Box sx={{ mb: 2.5, p: 2, borderRadius: 2.5, border: '1px solid rgba(201, 162, 39, 0.35)', background: 'linear-gradient(145deg, rgba(201, 162, 39, 0.08), rgba(201, 162, 39, 0.01))' }}>
+    <Box sx={{ mb: 2.5, p: 2, borderRadius: 2.5, border: '1px solid rgba(var(--brand-rgb), 0.35)', background: 'linear-gradient(145deg, rgba(var(--brand-rgb), 0.08), rgba(var(--brand-rgb), 0.01))' }}>
       <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1.5, flexWrap: 'wrap' }}>
-        <AssignmentOutlinedIcon fontSize="small" sx={{ color: tokens.light.goldDark }} />
+        <AssignmentOutlinedIcon fontSize="small" sx={{ color: tokens.brand.strong }} />
         <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
           Delivering order {order.orderNo}
         </Typography>
@@ -622,7 +622,7 @@ export default function BillingPage() {
 
               {lines.length === 0 ? (
                 <Box sx={{ mt: 3, py: 6, borderRadius: 3, border: '2px dashed', borderColor: 'divider', textAlign: 'center' }}>
-                  <Box sx={{ mx: 'auto', mb: 1.5, width: 56, height: 56, borderRadius: '50%', display: 'grid', placeItems: 'center', bgcolor: 'rgba(201, 162, 39, 0.12)', color: tokens.light.goldDark }}>
+                  <Box sx={{ mx: 'auto', mb: 1.5, width: 56, height: 56, borderRadius: '50%', display: 'grid', placeItems: 'center', bgcolor: 'rgba(var(--brand-rgb), 0.12)', color: tokens.brand.strong }}>
                     <QrCodeScannerRoundedIcon />
                   </Box>
                   <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
@@ -717,7 +717,7 @@ export default function BillingPage() {
                     <Money light label={`Advance ${quote.order.orderNo}`} value={formatINR(quote.advancePaise)} negative />
                   </>
                 )}
-                <Divider sx={{ my: 1.5, borderColor: 'rgba(201, 162, 39, 0.3)' }} />
+                <Divider sx={{ my: 1.5, borderColor: 'rgba(var(--brand-rgb), 0.3)' }} />
                 <Typography variant="overline" sx={{ color: 'rgba(247, 243, 232, 0.6)' }}>
                   To collect
                 </Typography>

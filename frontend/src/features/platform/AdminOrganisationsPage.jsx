@@ -5,8 +5,8 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import PowerSettingsNewRoundedIcon from '@mui/icons-material/PowerSettingsNewRounded';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import { Alert, Box, Button, Card, CardContent, Grid, IconButton, InputAdornment, LinearProgress, MenuItem, Stack, TextField, Tooltip, Typography } from '@mui/material';
-import { INDIAN_STATES } from '@jerp/shared';
-import { branchLimitSchema, platformCreateOrganisationSchema, platformUpdateOrganisationSchema } from '@jerp/shared/schemas';
+import { INDIAN_STATES, TRIAL_BRANCH_LIMIT } from '@jerp/shared';
+import { platformCreateOrganisationSchema, platformUpdateOrganisationSchema } from '@jerp/shared/schemas';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
@@ -14,7 +14,7 @@ import { useNavigate } from 'react-router';
 import { z } from 'zod';
 import ConfirmDialog from '../../components/ConfirmDialog.jsx';
 import DataTable from '../../components/DataTable.jsx';
-import PasswordField from '../../components/form/PasswordField.jsx';
+import LoginCodeDialog from './LoginCodeDialog.jsx';
 import RHFSelect from '../../components/form/RHFSelect.jsx';
 import RHFTextField from '../../components/form/RHFTextField.jsx';
 import FormDrawer from '../../components/FormDrawer.jsx';
@@ -31,7 +31,19 @@ import { SubscriptionChip } from '../billing/billingUi.jsx';
 /** Organisations are 'suspended' in the data; the panel calls that Deactivated. */
 export const OrgStatusChip = ({ status }) => <StatusChip status={status} label={status === 'suspended' ? 'Deactivated' : undefined} />;
 
+/** Branches in use against the subscription's limit (2 on a free trial, else the plan's; null = unlimited). */
 export function BranchUsage({ used, limit }) {
+  if (limit == null) {
+    return (
+      <Typography variant="body2" sx={{ fontWeight: 600, minWidth: 120 }}>
+        {used}
+        <Typography component="span" variant="caption" color="textSecondary">
+          {' '}
+          · unlimited
+        </Typography>
+      </Typography>
+    );
+  }
   return (
     <Box sx={{ minWidth: 120 }}>
       <Typography variant="body2" sx={{ fontWeight: 600 }}>
@@ -46,13 +58,13 @@ export function BranchUsage({ used, limit }) {
   );
 }
 
-// The input holds text; check it is a whole number, then apply the same 1–500 rule as the API.
+// The input holds text; check it is whole days, then apply the same rule as the API.
 const formSchema = platformCreateOrganisationSchema.extend({
-  branchLimit: z.string().trim().min(1, 'Branch limit is required').regex(/^\d+$/, 'Enter a whole number, e.g. 5').transform(Number).pipe(branchLimitSchema.shape.branchLimit),
   freeDays: z.string().trim().min(1, 'Enter the free days (0 for none)').regex(/^\d+$/, 'Enter whole days, e.g. 14').transform(Number).pipe(z.number().max(365, 'At most 365 days')),
 });
 const STATE_OPTIONS = INDIAN_STATES.map((s) => ({ value: s.code, label: s.name }));
-const EMPTY = { organisationName: '', ownerName: '', email: '', mobile: '', stateCode: '', password: '', branchLimit: '', freeDays: '14' };
+// No password: a 6-digit sign-in code is emailed instead (an empty password here would fail validation unseen).
+const EMPTY = { organisationName: '', ownerName: '', email: '', mobile: '', stateCode: '', freeDays: '14' };
 
 function CreateOrganisationDrawer({ open, onClose }) {
   const navigate = useNavigate();
@@ -69,18 +81,31 @@ function CreateOrganisationDrawer({ open, onClose }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  // The new organisation and how its sign-in code went out: shown in a dialog, then its page opens.
+  const [created, setCreated] = useState(null);
+
   const onSubmit = handleSubmit(async (values) => {
     try {
       const org = await create(values).unwrap();
-      toast.success(`${org.name} created. It can now sign in with ${org.owner?.email ?? values.email}.`);
+      toast.success(`${org.name} created`);
       onClose();
-      navigate(`/admin/organisations/${org.id}`);
+      setCreated(org);
     } catch (err) {
       applyServerErrors(err, setError);
     }
   });
 
   return (
+    <>
+    <LoginCodeDialog
+      result={created?.loginEmail}
+      title={created ? `${created.name} is ready` : ''}
+      onClose={() => {
+        const id = created.id;
+        setCreated(null);
+        navigate(`/admin/organisations/${id}`);
+      }}
+    />
     <FormDrawer open={open} title="New organisation" subtitle="Creates the business, its head office branch, standard roles and its login." onClose={onClose} onSubmit={onSubmit} submitting={isLoading} submitLabel="Create organisation">
       <Grid container spacing={2}>
         {error && !error.data?.error?.details && (
@@ -95,9 +120,6 @@ function CreateOrganisationDrawer({ open, onClose }) {
           <RHFSelect control={control} name="stateCode" label="State (GST)" options={STATE_OPTIONS} placeholder="Select state" />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
-          <RHFTextField control={control} name="branchLimit" label="Branch limit" placeholder="e.g. 5" helperText="Maximum branches, including the head office" required slotProps={{ htmlInput: { inputMode: 'numeric' } }} />
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6 }}>
           <RHFTextField
             control={control}
             name="freeDays"
@@ -106,6 +128,11 @@ function CreateOrganisationDrawer({ open, onClose }) {
             required
             slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 3 }, input: { endAdornment: <InputAdornment position="end">days</InputAdornment> } }}
           />
+        </Grid>
+        <Grid size={12}>
+          <Alert severity="info" variant="outlined">
+            During the free days the organisation can run {TRIAL_BRANCH_LIMIT} branches, head office included. After that, branches, users and products follow the subscription plan it takes.
+          </Alert>
         </Grid>
         <Grid size={12}>
           <Typography variant="overline" color="textSecondary">
@@ -122,10 +149,13 @@ function CreateOrganisationDrawer({ open, onClose }) {
           <RHFTextField control={control} name="mobile" label="Owner mobile" slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 10 } }} />
         </Grid>
         <Grid size={12}>
-          <PasswordField control={control} name="password" label="Password" autoComplete="new-password" helperText="The organisation signs in with this email and password" />
+          <Alert severity="info" variant="outlined" icon={false}>
+            A 6-digit sign-in code is emailed to the login email. It is the organisation’s first password; they choose their own after signing in.
+          </Alert>
         </Grid>
       </Grid>
     </FormDrawer>
+    </>
   );
 }
 
@@ -133,7 +163,6 @@ function CreateOrganisationDrawer({ open, onClose }) {
 export const recordsText = (records = []) => records.map((r) => `${r.count} ${r.type}${r.count === 1 ? '' : 's'}`).join(', ');
 
 const editSchema = platformUpdateOrganisationSchema.extend({
-  branchLimit: formSchema.shape.branchLimit,
   // Blank (a paid organisation, where the field is locked) leaves the free days alone.
   freeDays: z
     .string()
@@ -148,9 +177,7 @@ const editValues = (org) => ({
   email: org?.owner?.email ?? org?.email ?? '',
   mobile: org?.phone ?? org?.owner?.mobile ?? '',
   stateCode: org?.stateCode ?? '',
-  branchLimit: org ? String(org.branchLimit) : '',
   freeDays: org?.freeDays != null ? String(org.freeDays) : '',
-  password: '',
 });
 
 export function EditOrganisationDrawer({ organisation, onClose }) {
@@ -202,16 +229,6 @@ export function EditOrganisationDrawer({ organisation, onClose }) {
         <Grid size={{ xs: 12, sm: 6 }}>
           <RHFTextField
             control={control}
-            name="branchLimit"
-            label="Branch limit"
-            helperText={organisation ? `${organisation.branchesUsed} in use, including the head office` : undefined}
-            required
-            slotProps={{ htmlInput: { inputMode: 'numeric' } }}
-          />
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6 }}>
-          <RHFTextField
-            control={control}
             name="freeDays"
             label="Free use"
             placeholder={organisation?.freeDays == null ? 'Paid plan' : 'e.g. 14'}
@@ -226,7 +243,9 @@ export function EditOrganisationDrawer({ organisation, onClose }) {
           <RHFTextField control={control} name="mobile" label="Business phone" slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 10 } }} />
         </Grid>
         <Grid size={12}>
-          <PasswordField control={control} name="password" label="New password" autoComplete="new-password" helperText="Leave blank to keep the current password" />
+          <Typography variant="caption" color="textSecondary">
+            To give the organisation a new password, use “Send sign-in code” on its page — a fresh 6-digit code is emailed to the login email.
+          </Typography>
         </Grid>
       </Grid>
     </FormDrawer>

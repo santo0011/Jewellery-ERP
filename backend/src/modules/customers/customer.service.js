@@ -5,6 +5,7 @@ import { requireContext } from '../../core/context/requestContext.js';
 import { syncOpeningBalance } from '../../core/ledger/openingBalance.service.js';
 import { nextCode } from '../../core/numbering/numbering.service.js';
 import { ApiError } from '../../utils/ApiError.js';
+import { deleteRecord } from '../records/record.deletion.js';
 import { diffChanges } from '../../utils/diff.js';
 import { maskTail } from '../../utils/mask.js';
 import { fromDate, paginate, searchFilter, toDate } from '../../utils/pagination.js';
@@ -113,6 +114,12 @@ function paymentStatus(duePaise, paidPaise) {
 }
 
 /** due: 'due' = only customers who owe money (highest first), 'clear' = nothing owed. */
+/** Marks customers who have bought anything (any invoice, any branch): they can never be deleted. */
+async function withPurchaseFlag(rows) {
+  const buyers = new Set((await Sale.distinct('customerId', { customerId: { $in: rows.map((r) => r.id) } })).map(String));
+  return rows.map((r) => ({ ...r, hasPurchases: buyers.has(String(r.id)) }));
+}
+
 export async function listCustomers({ page, limit, q, segment, status, due }) {
   const filter = { isDeleted: false, ...searchFilter(q, ['name', 'mobile', 'code', 'email', 'alternateMobile']) };
   if (segment) filter.segment = segment;
@@ -128,11 +135,11 @@ export async function listCustomers({ page, limit, q, segment, status, due }) {
   if (due === 'due') {
     // The owing set is small; rank it by amount so the biggest dues come first.
     const all = (await Customer.find({ ...filter, $and: [owing] }).lean()).map(withDue).sort((a, b) => b.duePaise - a.duePaise);
-    return { items: all.slice((page - 1) * limit, page * limit), meta: { page, limit, total: all.length, pages: Math.max(1, Math.ceil(all.length / limit)) } };
+    return { items: await withPurchaseFlag(all.slice((page - 1) * limit, page * limit)), meta: { page, limit, total: all.length, pages: Math.max(1, Math.ceil(all.length / limit)) } };
   }
   if (due === 'clear') filter.$nor = [owing];
   const { items, meta } = await paginate(Customer.find(filter).sort({ createdAt: -1 }), Customer.countDocuments(filter), { page, limit });
-  return { items: items.map(withDue), meta: { ...meta, summary: await customerSummary(credit, owing) } };
+  return { items: await withPurchaseFlag(items.map(withDue)), meta: { ...meta, summary: await customerSummary(credit, owing) } };
 }
 
 /** Header cards: how many customers, how many joined this month, and what customers owe (bill credit + old dues). */
@@ -200,11 +207,7 @@ export async function setCustomerStatus(id, status) {
   return serialize(customer.toObject());
 }
 
+/** Deletes it if nothing uses it — the same rules as every other delete (see record.deletion.js). */
 export async function deleteCustomer(id) {
-  const customer = await findCustomer(id);
-  if (customer.openingBalancePaise) throw ApiError.conflict('This customer has an opening balance in the ledger. Set it to zero or deactivate the customer instead.', 'HAS_BALANCE');
-  customer.isDeleted = true;
-  customer.updatedBy = requireContext().userId;
-  await customer.save();
-  await recordAudit({ action: AUDIT_ACTIONS.DELETE, module: 'customer', recordType: 'Customer', recordId: customer._id, meta: { name: customer.name, code: customer.code } });
+  return deleteRecord('customer', id);
 }

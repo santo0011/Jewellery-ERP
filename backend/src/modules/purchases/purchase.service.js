@@ -3,16 +3,19 @@ import { productSchema } from '@jerp/shared/schemas';
 import { withTransaction } from '../../config/db.js';
 import { AUDIT_ACTIONS, recordAudit } from '../../core/audit/audit.service.js';
 import { requireContext } from '../../core/context/requestContext.js';
+import { FileAsset } from '../../core/storage/fileAsset.model.js';
+import { detectImageType, storage } from '../../core/storage/storage.service.js';
 import { postJournal } from '../../core/ledger/posting.service.js';
 import { PAYMENT_ACCOUNT } from '../../core/ledger/paymentAccounts.js';
 import { nextDocumentNo } from '../../core/numbering/numbering.service.js';
 import { moveMetal, moveProducts } from '../../core/stock/stockLedger.service.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { financialYearLabel, todayContext } from '../../utils/businessDate.js';
+import { randomToken } from '../../utils/crypto.js';
 import { paginate, searchFilter } from '../../utils/pagination.js';
 import { accessibleBranchFilter, nameMaps, oid, pick, requireBranch } from '../inventory/inventory.helpers.js';
 import { Item } from '../items/item.model.js';
-import { itemsForPieces } from '../items/item.service.js';
+import { itemsForOrderLines, itemsForPieces } from '../items/item.service.js';
 import { Product } from '../products/product.model.js';
 import { insertPieces, preparePieces } from '../products/product.service.js';
 import { Supplier } from '../suppliers/supplier.model.js';
@@ -50,6 +53,7 @@ function serializePurchase(p, maps) {
     duePaise: due,
     paymentStatus: p.paymentStatus,
     note: p.note,
+    billImages: (p.billImages ?? []).map((i) => String(i.fileId)),
     createdBy: pick(maps.users, p.createdBy),
     createdAt: p.createdAt,
   };
@@ -84,6 +88,42 @@ export async function getPurchase(id) {
   const p = await Purchase.findOne({ _id: id, ...accessibleBranchFilter() }).lean();
   if (!p) throw ApiError.notFound('Purchase');
   return serializePurchase(p, await mapsFor([p]));
+}
+
+export const MAX_BILL_IMAGES = 5;
+
+async function findPurchase(id) {
+  const p = await Purchase.findOne({ _id: id, ...accessibleBranchFilter() });
+  if (!p) throw ApiError.notFound('Purchase');
+  return p;
+}
+
+/** Attaches a photo or scan of the supplier's paper bill. */
+export async function addBillImage(id, file) {
+  const { organisationId, userId } = requireContext();
+  const purchase = await findPurchase(id);
+  if (purchase.billImages.length >= MAX_BILL_IMAGES) throw ApiError.badRequest(`A bill can have up to ${MAX_BILL_IMAGES} photos`, undefined, 'TOO_MANY_IMAGES');
+  const type = detectImageType(file.buffer);
+  if (!type) throw ApiError.badRequest('Bill photos must be PNG, JPEG or WebP', undefined, 'UNSUPPORTED_FILE');
+  const key = `${organisationId}/purchases/${purchase._id}/${randomToken(12)}.${type.ext}`;
+  await storage.put(key, file.buffer);
+  const asset = await FileAsset.create({ key, purpose: 'purchase_bill', mimeType: type.mime, size: file.size, originalName: file.originalname?.slice(0, 200) ?? null, uploadedBy: userId });
+  purchase.billImages.push({ fileId: asset._id });
+  await purchase.save();
+  await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'purchase', recordType: 'Purchase', recordId: purchase._id, changes: [{ field: 'billImage', from: null, to: asset._id }] });
+  return getPurchase(id);
+}
+
+export async function removeBillImage(id, fileId) {
+  const purchase = await findPurchase(id);
+  const index = purchase.billImages.findIndex((i) => String(i.fileId) === String(fileId));
+  if (index === -1) throw ApiError.notFound('Bill photo');
+  purchase.billImages.splice(index, 1);
+  await purchase.save();
+  await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'purchase', recordType: 'Purchase', recordId: purchase._id, changes: [{ field: 'billImage', from: fileId, to: null }] });
+  const asset = await FileAsset.findByIdAndDelete(fileId).lean();
+  if (asset) await storage.remove(asset.key);
+  return getPurchase(id);
 }
 
 /**
@@ -305,8 +345,9 @@ export async function listPurchaseOrders({ page, limit, q, supplierId, branchId,
 export async function getPurchaseOrder(id) {
   const o = await PurchaseOrder.findOne({ _id: id, ...accessibleBranchFilter() }).lean();
   if (!o) throw ApiError.notFound('Purchase order');
-  const today = await todayContext();
-  return serializeOrder(o, await orderMaps([o]), today.businessDate);
+  const [today, maps, items] = await Promise.all([todayContext(), orderMaps([o]), itemsForOrderLines(o.lines)]);
+  const order = serializeOrder(o, maps, today.businessDate);
+  return { ...order, lines: order.lines.map((l, i) => ({ ...l, item: items[i] })) };
 }
 
 export async function createPurchaseOrder({ supplierId, branchId, expectedDate, lines, note }) {

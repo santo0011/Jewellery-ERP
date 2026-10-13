@@ -55,12 +55,12 @@ export function PlanCard({ plan, current, action, muted, footer }) {
         flexDirection: 'column',
         opacity: muted ? 0.6 : 1,
         border: popular || current ? '2px solid' : 1,
-        borderColor: current ? 'success.main' : popular ? tokens.light.gold : 'divider',
-        boxShadow: popular ? '0 12px 28px rgba(156, 122, 22, 0.16)' : undefined,
+        borderColor: current ? 'success.main' : popular ? tokens.brand.main : 'divider',
+        boxShadow: popular ? '0 12px 28px rgba(var(--brand-strong-rgb), 0.16)' : undefined,
       }}
     >
       {(popular || current) && (
-        <Box sx={{ position: 'absolute', top: 0, right: 16, px: 1.25, py: 0.25, borderRadius: '0 0 8px 8px', fontSize: '0.6875rem', fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: current ? '#fff' : '#171717', background: current ? undefined : tokens.sidebar.goldGradient, bgcolor: current ? 'success.main' : undefined }}>
+        <Box sx={{ position: 'absolute', top: 0, right: 16, px: 1.25, py: 0.25, borderRadius: '0 0 8px 8px', fontSize: '0.6875rem', fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: current ? '#fff' : 'var(--brand-contrast)', background: current ? undefined : tokens.sidebar.goldGradient, bgcolor: current ? 'success.main' : undefined }}>
           {current ? 'Current plan' : 'Most popular'}
         </Box>
       )}

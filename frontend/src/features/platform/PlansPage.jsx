@@ -2,7 +2,7 @@ import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import { Box, Button, FormControlLabel, Grid, IconButton, InputAdornment, MenuItem, Stack, Switch, TextField, Tooltip, Typography } from '@mui/material';
-import { toPaise } from '@jerp/shared';
+import { toPaise, TRIAL_BRANCH_LIMIT } from '@jerp/shared';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import ConfirmDialog from '../../components/ConfirmDialog.jsx';
@@ -109,10 +109,17 @@ function PlanDrawer({ open, plan, onClose }) {
           <Typography variant="overline" color="textSecondary">
             Limits — leave blank for unlimited
           </Typography>
+          <Typography variant="caption" color="textSecondary" component="div">
+            An organisation on this plan can add branches and users up to these limits. During the free trial it gets {TRIAL_BRANCH_LIMIT} branches, whatever the plan.
+          </Typography>
         </Grid>
-        {['users', 'branches', 'products'].map((k) => (
-          <Grid key={k} size={4}>
-            <TextField label={k.charAt(0).toUpperCase() + k.slice(1)} value={f[k]} onChange={set(k, true)} placeholder="Unlimited" />
+        {[
+          ['users', 'User limit', 'Active users'],
+          ['branches', 'Branch limit', 'Incl. head office'],
+          ['products', 'Product limit', 'Pieces in stock'],
+        ].map(([k, label, hint]) => (
+          <Grid key={k} size={{ xs: 12, sm: 4 }}>
+            <TextField label={label} value={f[k]} onChange={set(k, true)} placeholder="Unlimited" helperText={hint} />
           </Grid>
         ))}
         <Grid size={12}>

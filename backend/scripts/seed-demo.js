@@ -125,7 +125,7 @@ if (!env.SUPER_ADMIN_EMAIL || !env.SUPER_ADMIN_PASSWORD) {
 try {
   // Organisation (created "now" so its trial is current), then everything else happens in the past.
   await login(env.SUPER_ADMIN_EMAIL, env.SUPER_ADMIN_PASSWORD);
-  await post('/platform/organisations', { organisationName: 'Sonar Bangla Jewellers', ownerName: 'Rakesh Saha', email: DEMO.email, mobile: '9830012345', stateCode: '19', password: 'Temp@1234', branchLimit: 3 });
+  await post('/platform/organisations', { organisationName: 'Sonar Bangla Jewellers', ownerName: 'Rakesh Saha', email: DEMO.email, mobile: '9830012345', stateCode: '19', password: 'Temp@1234' });
   await login(DEMO.email, 'Temp@1234');
   token = (await post('/auth/change-password', { currentPassword: 'Temp@1234', newPassword: DEMO.password })).accessToken;
   step('Organisation: Sonar Bangla Jewellers');

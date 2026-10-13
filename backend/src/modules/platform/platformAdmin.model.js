@@ -12,6 +12,8 @@ const platformAdminSchema = new mongoose.Schema(
     failedLoginCount: { type: Number, default: 0 },
     lockedUntil: { type: Date, default: null },
     lastLoginAt: { type: Date, default: null },
+    // Forgot password: the emailed 6-digit code (hashed), expiry, wrong tries so far, when it was sent.
+    passwordReset: { tokenHash: { type: String, default: null }, expiresAt: { type: Date, default: null }, attempts: { type: Number, default: 0 }, sentAt: { type: Date, default: null } },
   },
   { timestamps: true },
 );

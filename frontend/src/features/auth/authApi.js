@@ -9,6 +9,7 @@ export const authApi = baseApi.injectEndpoints({
     logout: build.mutation({ query: () => ({ url: '/auth/logout', method: 'post' }) }),
     logoutAll: build.mutation({ query: () => ({ url: '/auth/logout-all', method: 'post' }) }),
     forgotPassword: build.mutation({ query: (data) => ({ url: '/auth/forgot-password', method: 'post', data }) }),
+    verifyResetCode: build.mutation({ query: (data) => ({ url: '/auth/verify-reset-code', method: 'post', data }) }),
     resetPassword: build.mutation({ query: (data) => ({ url: '/auth/reset-password', method: 'post', data }) }),
     me: build.query({ query: () => ({ url: '/auth/me' }), transformResponse: unwrapData, providesTags: ['Me'] }),
     updateProfile: build.mutation({
@@ -39,6 +40,7 @@ export const {
   useLogoutAllMutation,
   useForgotPasswordMutation,
   useResetPasswordMutation,
+  useVerifyResetCodeMutation,
   useMeQuery,
   useUpdateProfileMutation,
   useChangePasswordMutation,

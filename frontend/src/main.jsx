@@ -25,7 +25,7 @@ createRoot(document.getElementById('root')).render(
           position="top-right"
           toastOptions={{
             style: { borderRadius: 8, fontSize: 14, background: '#171717', color: '#F7F3E8' },
-            success: { iconTheme: { primary: '#C9A227', secondary: '#171717' } },
+            success: { iconTheme: { primary: 'var(--brand)', secondary: 'var(--brand-contrast)' } },
           }}
         />
       </ThemeProvider>

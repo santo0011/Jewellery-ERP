@@ -12,7 +12,8 @@ import MetalLinesEditor, { metalLinesToPayload } from '../inventory/MetalLinesEd
 import ProductPicker from '../inventory/ProductPicker.jsx';
 import { purityLabel } from '../products/productForm.js';
 import { useSupplierListQuery } from '../suppliers/supplierApi.js';
-import { useCreatePurchaseMutation, usePurchaseOrderQuery } from './purchaseApi.js';
+import { BillPhotoPicker } from './BillPhotos.jsx';
+import { useAddBillImageMutation, useCreatePurchaseMutation, usePurchaseOrderQuery } from './purchaseApi.js';
 import { PAY_MODES } from './purchaseUi.jsx';
 import ItemPicker from '../items/ItemPicker.jsx';
 import MoreDetails from '../../components/MoreDetails.jsx';
@@ -75,6 +76,7 @@ export default function PurchaseFormPage() {
   const { data: suppliers } = useSupplierListQuery({ status: 'active', limit: 100 });
   const { data: order } = usePurchaseOrderQuery(orderId, { skip: !orderId });
   const [create, state] = useCreatePurchaseMutation();
+  const [addBillImage, { isLoading: uploadingBill }] = useAddBillImageMutation();
 
   const [supplier, setSupplier] = useState(null);
   const [branchId, setBranchId] = useState(activeBranchId ?? session.branches[0]?.id ?? '');
@@ -90,6 +92,7 @@ export default function PurchaseFormPage() {
   const [paidAmount, setPaidAmount] = useState('');
   const [payMode, setPayMode] = useState('bank');
   const [note, setNote] = useState('');
+  const [billFiles, setBillFiles] = useState([]);
   const [errors, setErrors] = useState({});
 
   // Opened from a supplier's page: start with that supplier picked.
@@ -101,13 +104,27 @@ export default function PurchaseFormPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [supplierParam, suppliers]);
 
-  // Receiving an order: same supplier and branch.
+  // Receiving an order: same supplier and branch, and one piece row per ordered piece, with the order's
+  // weight and amount shared across the line's quantity (any odd milligram / paisa goes on the first piece).
   useEffect(() => {
     if (!order) return;
     setBranchId(String(order.branch?.id ?? branchId));
     setSupplier({ id: order.supplier.id, companyName: order.supplier.name });
+    setFresh(
+      order.lines.flatMap((l, li) => {
+        if (!l.item) return [];
+        const qty = Math.max(1, l.quantity ?? 1);
+        const share = (total, first) => (total ? Math.floor(total / qty) + (first ? total % qty : 0) : 0);
+        return Array.from({ length: qty }, (_, k) => {
+          const mg = share(l.weightMg ?? 0, k === 0);
+          const cost = share(l.amountPaise ?? 0, k === 0);
+          return { key: `order-${li}-${k}`, item: l.item, weight: mg ? String(mg / 1000) : '', huid: '', cost: cost ? String(cost / 100) : '' };
+        });
+      }),
+    );
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [order]);
+  const unmatchedLines = order?.lines.filter((l) => !l.item) ?? [];
 
   const metal = useMemo(() => metalLinesToPayload(lines, { includeValue: true }), [lines]);
   const freshMg = (x) => {
@@ -167,6 +184,15 @@ export default function PurchaseFormPage() {
         note: note.trim() || null,
       }).unwrap();
       toast.success(`Purchase ${p.purchaseNo} saved — stock added`);
+      // The bill is saved; a photo that fails to upload can be added again from the purchase page.
+      for (const file of billFiles) {
+        try {
+          await addBillImage({ id: p.id, file }).unwrap();
+        } catch (err) {
+          toast.error(`Bill photo not uploaded: ${getErrorMessage(err)}. Add it again on the purchase page.`);
+          break;
+        }
+      }
       navigate(`/purchases/${p.id}`, { replace: true });
     } catch (err) {
       const d = err?.data?.error?.details?.[0];
@@ -182,7 +208,13 @@ export default function PurchaseFormPage() {
       <PageHeader title="New purchase" subtitle="Enter the supplier’s bill. The items go into stock at this cost." back={{ to: '/purchases', label: 'Purchases' }} />
       {order && (
         <Alert severity="info" sx={{ mb: 2 }}>
-          Receiving order <strong>{order.orderNo}</strong> — {order.lines.map((l) => l.description).join(', ')}. Saving this bill marks the order as received.
+          Receiving order <strong>{order.orderNo}</strong> — {order.lines.map((l) => l.description).join(', ')}. The ordered pieces are filled in below with the order’s weight and amount — check them against
+          the supplier’s bill. Saving this bill marks the order as received.
+        </Alert>
+      )}
+      {unmatchedLines.length > 0 && (
+        <Alert severity="warning" sx={{ mb: 2 }}>
+          Not in saved items, so not filled in: <strong>{unmatchedLines.map((l) => `${l.description} (${l.quantity ?? 1})`).join(', ')}</strong>. Add them under Pieces — type the name and pick “Add as a new item” if it is not saved yet.
         </Alert>
       )}
       <Grid container spacing={2}>
@@ -226,6 +258,15 @@ export default function PurchaseFormPage() {
                 </Grid>
                 <Grid size={{ xs: 6, sm: 3 }}>
                   <TextField label="Bill date" type="date" value={billDate} onChange={(e) => setBillDate(e.target.value)} slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: todayIso() } }} helperText=" " />
+                </Grid>
+                <Grid size={12}>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    Bill photo <Typography component="span" variant="caption" color="textSecondary">(optional)</Typography>
+                  </Typography>
+                  <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mb: 1 }}>
+                    Photo or scan of the supplier’s bill — PNG, JPEG or WebP, up to 5 MB each, 5 photos max.
+                  </Typography>
+                  <BillPhotoPicker files={billFiles} onChange={setBillFiles} />
                 </Grid>
               </Grid>
             </Section>
@@ -371,7 +412,7 @@ export default function PurchaseFormPage() {
               )}
               <Line label="Still to pay" value={formatINR(Math.max(0, total - paidNow), { decimals: 0 })} tone={total - paidNow > 0 ? 'error.main' : 'success.main'} />
 
-              <Button fullWidth variant="contained" size="large" sx={{ mt: 2 }} onClick={submit} disabled={state.isLoading || !total}>
+              <Button fullWidth variant="contained" size="large" sx={{ mt: 2 }} onClick={submit} disabled={state.isLoading || uploadingBill || !total} loading={state.isLoading || uploadingBill}>
                 Save purchase
               </Button>
             </CardContent>

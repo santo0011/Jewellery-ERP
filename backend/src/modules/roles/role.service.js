@@ -3,6 +3,7 @@ import { expandPermissions, hasPermission } from '@jerp/shared';
 import { AUDIT_ACTIONS, recordAudit } from '../../core/audit/audit.service.js';
 import { requireContext } from '../../core/context/requestContext.js';
 import { ApiError } from '../../utils/ApiError.js';
+import { deleteRecord } from '../records/record.deletion.js';
 import { randomToken } from '../../utils/crypto.js';
 import { User } from '../users/user.model.js';
 import { Role } from './role.model.js';
@@ -13,6 +14,7 @@ const serialize = (role, userCount = 0) => ({
   name: role.name,
   description: role.description,
   isSystem: role.isSystem,
+  customised: Boolean(role.customised),
   permissions: expandPermissions(role.permissions),
   fullAccess: role.permissions.includes('*'),
   userCount,
@@ -75,7 +77,8 @@ export async function createRole({ name, description, permissions }) {
 export async function updateRole(id, { name, description, permissions }) {
   const { userId } = requireContext();
   const role = await findRole(id);
-  if (role.isSystem) throw ApiError.forbidden('System roles cannot be modified. Duplicate the role to customise it.', 'SYSTEM_ROLE');
+  // Organisation Admin must keep full access, or the owner could lock everyone out. Other default roles can change.
+  if (role.permissions.includes('*')) throw ApiError.forbidden('Organisation Admin always has full access and cannot be changed.', 'SYSTEM_ROLE');
 
   const added = permissions.filter((p) => !role.permissions.includes(p));
   const removed = role.permissions.filter((p) => !permissions.includes(p));
@@ -87,7 +90,7 @@ export async function updateRole(id, { name, description, permissions }) {
   if (added.length || removed.length) changes.push({ field: 'permissions', from: { removed }, to: { added } });
   if (!changes.length) return getRole(id);
 
-  role.set({ name, description: description ?? null, permissions, updatedBy: userId });
+  role.set({ name, description: description ?? null, permissions, updatedBy: userId, ...(role.isSystem && { customised: true }) });
   await role.save();
   await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'role', recordType: 'Role', recordId: role._id, changes });
   return getRole(id);
@@ -101,13 +104,7 @@ export async function duplicateRole(id) {
   return createRole({ name, description: source.description, permissions });
 }
 
+/** Deletes it if nothing uses it — the same rules as every other delete (see record.deletion.js). */
 export async function deleteRole(id) {
-  const role = await findRole(id);
-  if (role.isSystem) throw ApiError.forbidden('System roles cannot be deleted', 'SYSTEM_ROLE');
-  const assigned = await User.countDocuments({ roleIds: new mongoose.Types.ObjectId(String(id)) });
-  if (assigned > 0) {
-    throw ApiError.conflict(`This role is assigned to ${assigned} user${assigned === 1 ? '' : 's'}. Reassign them first.`, 'ROLE_IN_USE');
-  }
-  await role.deleteOne();
-  await recordAudit({ action: AUDIT_ACTIONS.DELETE, module: 'role', recordType: 'Role', recordId: role._id, meta: { name: role.name } });
+  return deleteRecord('role', id);
 }

@@ -12,6 +12,7 @@ import { usePermission } from '../../hooks/usePermission.js';
 import { formatDate, formatDateTime } from '../../utils/format.js';
 import { getErrorMessage } from '../../utils/errors.js';
 import { purityLabel } from '../products/productForm.js';
+import BillPhotos from './BillPhotos.jsx';
 import { usePayPurchaseMutation, usePurchaseQuery } from './purchaseApi.js';
 import { PaymentChip, PAY_MODES, payModeLabel } from './purchaseUi.jsx';
 
@@ -92,6 +93,7 @@ export default function PurchaseDetailPage() {
   const navigate = useNavigate();
   const { data: p, isLoading, error, refetch } = usePurchaseQuery(id);
   const canPay = usePermission('purchase.edit');
+  const canAttach = usePermission(['purchase.create', 'purchase.edit']);
   const [paying, setPaying] = useState(false);
 
   if (isLoading) return <LoadingState />;
@@ -179,6 +181,7 @@ export default function PurchaseDetailPage() {
                 { label: 'Note', value: p.note, hidden: !p.note },
               ]}
             />
+            <BillPhotos purchase={p} canEdit={canAttach} />
           </Stack>
         </Grid>
 

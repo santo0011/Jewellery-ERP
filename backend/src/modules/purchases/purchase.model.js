@@ -47,6 +47,7 @@ const purchaseSchema = new mongoose.Schema(
     paymentStatus: { type: String, enum: ['due', 'partly_paid', 'paid'], default: 'due' },
     businessDate: { type: String, required: true }, // day it was entered
     note: { type: String, default: null },
+    billImages: { type: [{ _id: false, fileId: { type: ObjectId, ref: 'FileAsset' } }], default: [] }, // photos/scans of the supplier's bill
     createdBy: { type: ObjectId, ref: 'User', required: true },
   },
   { timestamps: true },
@@ -60,7 +61,7 @@ purchaseSchema.index({ organisationId: 1, paymentStatus: 1 });
 export const Purchase = mongoose.model('Purchase', purchaseSchema);
 
 const orderLineSchema = new mongoose.Schema(
-  { description: String, metal: String, purity: Number, quantity: Number, weightMg: Number, amountPaise: Number },
+  { description: String, itemId: { type: ObjectId, ref: 'Item', default: null }, metal: String, purity: Number, quantity: Number, weightMg: Number, amountPaise: Number },
   { _id: false },
 );
 

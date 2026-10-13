@@ -1,5 +1,5 @@
 import { createTheme } from '@mui/material/styles';
-import { fonts, tokens } from './tokens.js';
+import { BRAND_DEFAULTS, BRAND_DEFAULTS_DARK, fonts, tokens } from './tokens.js';
 
 const palette = (t) => ({
   primary: { main: t.gold, dark: t.goldDark, contrastText: '#171717' },
@@ -40,6 +40,9 @@ export const theme = createTheme({
   components: {
     MuiCssBaseline: {
       styleOverrides: {
+        // Brand colours (gold) — the Organisation Panel replaces them with its logo's palette.
+        ':root': BRAND_DEFAULTS,
+        '.dark': BRAND_DEFAULTS_DARK,
         body: { fontFeatureSettings: '"tnum" 1', WebkitFontSmoothing: 'antialiased' },
       },
     },
@@ -97,7 +100,7 @@ export const theme = createTheme({
         root: ({ theme }) => ({
           '.MuiTableBody-root &:nth-of-type(even) > td': { backgroundColor: tokens.table.stripe, ...theme.applyStyles('dark', { backgroundColor: tokens.table.stripeDark }) },
           '&.MuiTableRow-hover:hover > td': { backgroundColor: tokens.table.hover },
-          '&.MuiTableRow-hover:hover > td:first-of-type': { boxShadow: `inset 3px 0 0 ${tokens.light.gold}` },
+          '&.MuiTableRow-hover:hover > td:first-of-type': { boxShadow: `inset 3px 0 0 ${tokens.brand.main}` },
         }),
       },
     },
@@ -108,7 +111,7 @@ export const theme = createTheme({
         displayedRows: ({ theme }) => ({ fontSize: '0.8125rem', fontWeight: 500, color: theme.vars.palette.text.primary }),
         actions: ({ theme }) => ({
           '& .MuiIconButton-root': { borderRadius: 8, border: `1px solid ${theme.vars.palette.divider}`, marginLeft: 6, width: 32, height: 32 },
-          '& .MuiIconButton-root:not(.Mui-disabled):hover': { borderColor: tokens.light.gold, color: tokens.light.goldDark, backgroundColor: tokens.table.hover },
+          '& .MuiIconButton-root:not(.Mui-disabled):hover': { borderColor: tokens.brand.main, color: tokens.brand.strong, backgroundColor: tokens.table.hover },
         }),
       },
     },

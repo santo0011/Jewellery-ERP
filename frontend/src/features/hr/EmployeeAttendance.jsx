@@ -103,8 +103,8 @@ export default function EmployeeAttendance({ employee }) {
               <SummaryTile look={LOOK.half_day} value={view.count.half_day} />
               <SummaryTile look={LOOK.paid_leave} value={view.count.paid_leave} />
               <SummaryTile look={LOOK.holiday} value={view.count.holiday} />
-              <Box sx={{ flex: '1.3 1 0', minWidth: 84, px: 0.75, py: 0.75, borderRadius: 1.5, textAlign: 'center', border: '1px solid rgba(201, 162, 39, 0.45)', background: 'linear-gradient(145deg, rgba(201, 162, 39, 0.14), rgba(201, 162, 39, 0.03))' }}>
-                <Typography sx={{ fontSize: '1.05rem', fontWeight: 700, lineHeight: 1.15, color: tokens.light.goldDark }}>
+              <Box sx={{ flex: '1.3 1 0', minWidth: 84, px: 0.75, py: 0.75, borderRadius: 1.5, textAlign: 'center', border: '1px solid rgba(var(--brand-rgb), 0.45)', background: 'linear-gradient(145deg, rgba(var(--brand-rgb), 0.14), rgba(var(--brand-rgb), 0.03))' }}>
+                <Typography sx={{ fontSize: '1.05rem', fontWeight: 700, lineHeight: 1.15, color: tokens.brand.strong }}>
                   {formatDays(view.paid)}
                   <Box component="span" sx={{ fontSize: '0.75rem', color: 'text.secondary', fontWeight: 600 }}>
                     {' '}
@@ -148,8 +148,8 @@ export default function EmployeeAttendance({ employee }) {
                         justifyContent: 'space-between',
                         bgcolor: look ? look.bg : 'transparent',
                         border: 1,
-                        borderColor: c.today ? tokens.light.gold : look ? 'transparent' : 'divider',
-                        boxShadow: c.today ? '0 0 0 2px rgba(201, 162, 39, 0.35)' : 'none',
+                        borderColor: c.today ? tokens.brand.main : look ? 'transparent' : 'divider',
+                        boxShadow: c.today ? '0 0 0 2px rgba(var(--brand-rgb), 0.35)' : 'none',
                         opacity: c.offRoll ? 0.35 : 1,
                         backgroundImage: c.offRoll ? 'repeating-linear-gradient(135deg, transparent 0 6px, rgba(0,0,0,0.05) 6px 7px)' : undefined,
                       }}

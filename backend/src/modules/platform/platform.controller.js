@@ -56,9 +56,6 @@ export async function remove(req, res) {
   sendOk(res, org, { message: `${org.name} deleted` });
 }
 
-export async function setBranchLimit(req, res) {
-  sendOk(res, await platformService.setBranchLimit(req.valid.params.id, req.valid.body.branchLimit, req.platformAdmin, meta(req)), { message: 'Branch limit updated' });
-}
 
 export async function setStatus(req, res) {
   const org = await platformService.setOrganisationStatus(req.valid.params.id, req.valid.body.status, req.platformAdmin, meta(req));

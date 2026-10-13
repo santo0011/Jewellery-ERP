@@ -7,6 +7,8 @@ import { useDispatch, useSelector } from 'react-redux';
 import { matchPath, Outlet, useLocation, useNavigate } from 'react-router';
 import { ErrorState, FullScreenLoader } from '../components/StateViews.jsx';
 import Wordmark from '../components/Wordmark.jsx';
+import { useBrandTheme } from '../hooks/useBrandTheme.js';
+import { useOrganisationLogo } from '../hooks/useOrganisationLogo.js';
 import { usePermissions, useSession } from '../hooks/usePermission.js';
 import { branchSelected } from '../store/authSlice.js';
 import BranchSwitcher from './BranchSwitcher.jsx';
@@ -64,6 +66,9 @@ export default function AppLayout() {
   const dispatch = useDispatch();
   const activeBranchId = useSelector((s) => s.auth.activeBranchId);
   const { data: session, error, isLoading, refetch } = useSession();
+  const logoUrl = useOrganisationLogo(); // shown at the top of the sidebar
+  // The panel's colours follow the logo's main colour (gold when there is no logo or it has no clear colour).
+  useBrandTheme(logoUrl, session?.organisation?.logoVersion);
 
   useEffect(() => {
     if (!session) return;
@@ -95,12 +100,12 @@ export default function AppLayout() {
       {desktop ? (
         <Box component="aside" sx={{ width, flexShrink: 0, transition: 'width 160ms ease' }}>
           <Box sx={{ position: 'fixed', top: 0, bottom: 0, width, transition: 'width 160ms ease', zIndex: (t) => t.zIndex.drawer }}>
-            <Sidebar collapsed={collapsed} onToggleCollapse={toggleCollapsed} organisationName={session.organisation.name} panelName={panelName} />
+            <Sidebar collapsed={collapsed} onToggleCollapse={toggleCollapsed} organisationName={session.organisation.name} panelName={panelName} logoUrl={logoUrl} />
           </Box>
         </Box>
       ) : (
         <Drawer open={mobileOpen} onClose={() => setMobileOpen(false)} slotProps={{ paper: { sx: { width: SIDEBAR_WIDTH, border: 0, bgcolor: 'transparent', boxShadow: 'none' } } }}>
-          <Sidebar onNavigate={() => setMobileOpen(false)} organisationName={session.organisation.name} panelName={panelName} />
+          <Sidebar onNavigate={() => setMobileOpen(false)} organisationName={session.organisation.name} panelName={panelName} logoUrl={logoUrl} />
         </Drawer>
       )}
 

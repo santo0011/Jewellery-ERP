@@ -2,6 +2,7 @@ import bcrypt from 'bcryptjs';
 import { describe, expect, it } from 'vitest';
 import { runWithContext } from '../src/core/context/requestContext.js';
 import { Role } from '../src/modules/roles/role.model.js';
+import { syncSystemRoles } from '../src/modules/roles/syncSystemRoles.js';
 import { User } from '../src/modules/users/user.model.js';
 import { api, bearer, registerOrg } from './helpers.js';
 
@@ -44,14 +45,41 @@ describe('permission enforcement', () => {
 });
 
 describe('roles', () => {
-  it('system roles cannot be edited or deleted, but can be duplicated', async () => {
+  it('starts with five default roles; their permissions can be edited (not Organisation Admin), and survive start-up sync', async () => {
+    const { token } = await registerOrg();
+    const roles = (await api().get('/api/v1/roles').set(bearer(token))).body.data;
+    expect(roles.map((r) => r.key).sort()).toEqual(['accountant', 'branch_manager', 'inventory_manager', 'org_admin', 'sales_staff']);
+    expect(roles.every((r) => r.isSystem)).toBe(true);
+    const sales = roles.find((r) => r.key === 'sales_staff');
+    const admin = roles.find((r) => r.key === 'org_admin');
+
+    const edit = await api().put(`/api/v1/roles/${sales.id}`).set(bearer(token)).send({ name: 'Counter Staff', permissions: ['sales.view', 'sales.create'] });
+    expect(edit.status).toBe(200);
+    expect(edit.body.data).toMatchObject({ name: 'Counter Staff', isSystem: true, customised: true, permissions: ['sales.view', 'sales.create'] });
+    expect((await api().put(`/api/v1/roles/${admin.id}`).set(bearer(token)).send({ name: 'Admin', permissions: ['sales.view'] })).body.error.code).toBe('SYSTEM_ROLE');
+    expect((await api().delete(`/api/v1/roles/${sales.id}`).set(bearer(token))).body.error.code).toBe('NOT_DELETABLE');
+
+    // A restart re-applies the templates only to default roles nobody has edited.
+    await syncSystemRoles();
+    const after = (await api().get('/api/v1/roles').set(bearer(token))).body.data;
+    expect(after.find((r) => r.key === 'sales_staff')).toMatchObject({ name: 'Counter Staff', permissions: ['sales.view', 'sales.create'] });
+    expect(after.find((r) => r.key === 'accountant').customised).toBe(false);
+  });
+
+  it('turns roles that are no longer defaults into ordinary, deletable roles', async () => {
+    const { token } = await registerOrg();
+    const organisationId = (await api().get('/api/v1/auth/me').set(bearer(token))).body.data.organisation.id;
+    await runWithContext({ organisationId }, () => Role.create({ key: 'viewer', name: 'Viewer', permissions: ['product.view'], isSystem: true }));
+    await syncSystemRoles();
+    const viewer = (await api().get('/api/v1/roles').set(bearer(token))).body.data.find((r) => r.key === 'viewer');
+    expect(viewer.isSystem).toBe(false);
+    expect((await api().delete(`/api/v1/roles/${viewer.id}`).set(bearer(token))).status).toBe(200);
+  });
+
+  it('duplicates a default role as a new role', async () => {
     const { token } = await registerOrg();
     const roles = (await api().get('/api/v1/roles').set(bearer(token))).body.data;
     const sales = roles.find((r) => r.key === 'sales_staff');
-
-    const edit = await api().put(`/api/v1/roles/${sales.id}`).set(bearer(token)).send({ name: 'Changed', permissions: ['sales.view'] });
-    expect(edit.status).toBe(403);
-    expect((await api().delete(`/api/v1/roles/${sales.id}`).set(bearer(token))).status).toBe(403);
 
     const dup = await api().post(`/api/v1/roles/${sales.id}/duplicate`).set(bearer(token));
     expect(dup.status).toBe(201);
@@ -97,7 +125,7 @@ describe('roles', () => {
     const custom = roles.find((r) => !r.isSystem);
     const res = await api().delete(`/api/v1/roles/${custom.id}`).set(bearer(owner.token));
     expect(res.status).toBe(409);
-    expect(res.body.error.code).toBe('ROLE_IN_USE');
+    expect(res.body.error).toMatchObject({ code: 'IN_USE', message: expect.stringContaining('1 user') });
   });
 });
 

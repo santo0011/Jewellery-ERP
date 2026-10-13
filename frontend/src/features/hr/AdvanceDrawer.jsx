@@ -213,7 +213,7 @@ export default function AdvanceDrawer({ open, employee, advance, onClose }) {
         </Box>
 
         {planRows.length > 0 && (
-          <Box sx={{ p: 1.75, borderRadius: 2, border: '1px solid rgba(201, 162, 39, 0.35)', bgcolor: 'rgba(201, 162, 39, 0.06)' }}>
+          <Box sx={{ p: 1.75, borderRadius: 2, border: '1px solid rgba(var(--brand-rgb), 0.35)', bgcolor: 'rgba(var(--brand-rgb), 0.06)' }}>
             <Typography variant="body2" sx={{ fontWeight: 600 }}>
               {planRows.length === 1
                 ? `${formatINR(amountPaise, { decimals: 0 })} will be cut from ${monthLabel(planRows[0].month)} salary`

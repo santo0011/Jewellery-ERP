@@ -10,22 +10,28 @@ import StatusChip from '../../components/StatusChip.jsx';
 import { useListParams } from '../../hooks/useListParams.js';
 import { usePermission } from '../../hooks/usePermission.js';
 import SupplierFormDrawer from './SupplierFormDrawer.jsx';
-import { useSupplierListQuery } from './supplierApi.js';
+import { useSupplierListQuery, useSupplierQuery } from './supplierApi.js';
+import RowActions, { actionsWidth } from '../../components/RowActions.jsx';
+import { useListEditor } from '../../hooks/useListEditor.js';
 import SummaryCards, { SummaryCard } from '../../components/SummaryCards.jsx';
 import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined';
 import ShoppingBagOutlinedIcon from '@mui/icons-material/ShoppingBagOutlined';
 import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined';
-import { viewColumn } from '../../components/ViewButton.jsx';
 import { BalanceAmount } from '../../components/Amount.jsx';
+import { useDeleteStatus } from '../../services/recordApi.js';
 
 export const suppliesLabel = (list) => list.map((v) => SUPPLIER_SUPPLIES.find((s) => s.value === v)?.label ?? v).join(', ');
 
 export default function SuppliersPage() {
   const navigate = useNavigate();
   const canCreate = usePermission('supplier.create');
+  const canEdit = usePermission('supplier.edit');
+  const editor = useListEditor(useSupplierQuery);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const list = useListParams({ supplies: '', status: '' });
   const { data, isLoading, isFetching, error, refetch } = useSupplierListQuery(list.params);
+  // Which rows can be deleted (Delete stays visible; it is disabled with the reason when not).
+  const deleteStatus = useDeleteStatus('supplier', data?.items);
 
   const columns = [
     {
@@ -46,6 +52,15 @@ export default function SuppliersPage() {
     { key: 'supplies', label: 'Supplies', render: (s) => suppliesLabel(s.supplies) || '—' },
     { key: 'balance', label: 'Opening payable', align: 'right', render: (s) => (s.openingBalancePaise ? <BalanceAmount paise={s.openingBalancePaise} owedLabel="payable" advanceLabel="advance" decimals={0} /> : '—') },
     { key: 'status', label: 'Status', render: (s) => <StatusChip status={s.status} /> },
+    {
+      key: 'actions',
+      label: 'Action',
+      align: 'right',
+      width: actionsWidth(3),
+      render: (s) => (
+        <RowActions onView={() => navigate(`/suppliers/${s.id}`)} onEdit={canEdit ? () => editor.open(s) : undefined} deleteType="supplier" deleteStatus={deleteStatus(s.id)} id={s.id} name={s.companyName} />
+      ),
+    },
   ];
 
   return (
@@ -77,7 +92,7 @@ export default function SuppliersPage() {
         </SummaryCards>
       )}
       <DataTable
-        columns={[...columns, viewColumn((s) => navigate(`/suppliers/${s.id}`), { name: (s) => s.companyName })]}
+        columns={columns}
         rows={data?.items}
         loading={isLoading}
         fetching={isFetching}
@@ -105,6 +120,7 @@ export default function SuppliersPage() {
         }
       />
       <SupplierFormDrawer open={drawerOpen} supplier={null} onClose={() => setDrawerOpen(false)} />
+      <SupplierFormDrawer open={Boolean(editor.record)} supplier={editor.record} onClose={editor.close} />
     </>
   );
 }

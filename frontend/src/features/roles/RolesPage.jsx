@@ -8,6 +8,7 @@ import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router';
 import ConfirmDialog from '../../components/ConfirmDialog.jsx';
 import DataTable from '../../components/DataTable.jsx';
+import { DisabledDelete } from '../../components/RowActions.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
 import { usePermission } from '../../hooks/usePermission.js';
 import { getErrorMessage } from '../../utils/errors.js';
@@ -52,7 +53,7 @@ export default function RolesPage() {
         <Box>
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
             <Typography variant="subtitle2">{r.name}</Typography>
-            {r.isSystem && <Chip size="small" label="System" variant="outlined" sx={{ height: 20, fontSize: '0.6875rem' }} />}
+            {r.isSystem && <Chip size="small" label={r.customised ? 'Default · edited' : 'Default'} variant="outlined" sx={{ height: 20, fontSize: '0.6875rem' }} />}
           </Stack>
           {r.description && (
             <Typography variant="body2" color="textSecondary" sx={{ maxWidth: 520 }}>
@@ -83,13 +84,18 @@ export default function RolesPage() {
               </IconButton>
             </Tooltip>
           )}
-          {canDelete && !r.isSystem && (
-            <Tooltip title={r.userCount ? 'Reassign users before deleting' : 'Delete'}>
-              <span>
-                <IconButton size="small" color="error" onClick={() => setToDelete(r)} disabled={r.userCount > 0} aria-label={`Delete ${r.name}`}>
-                  <DeleteOutlineRoundedIcon fontSize="small" />
-                </IconButton>
-              </span>
+          {/* Delete is always shown; disabled with the reason when the role cannot go. */}
+          {!canDelete ? (
+            <DisabledDelete reason="You do not have permission to delete roles." />
+          ) : r.isSystem ? (
+            <DisabledDelete reason="Default roles cannot be deleted. You can change their permissions instead." />
+          ) : r.userCount ? (
+            <DisabledDelete reason={`Assigned to ${r.userCount} user${r.userCount === 1 ? '' : 's'}. Give them another role first.`} />
+          ) : (
+            <Tooltip title="Delete">
+              <IconButton size="small" color="error" onClick={() => setToDelete(r)} aria-label={`Delete ${r.name}`}>
+                <DeleteOutlineRoundedIcon fontSize="small" />
+              </IconButton>
             </Tooltip>
           )}
         </Stack>

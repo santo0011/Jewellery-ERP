@@ -92,6 +92,50 @@ describe('supplier page figures', () => {
   });
 });
 
+describe('receiving a purchase order', () => {
+  it('returns the saved item behind each order line, so the bill can be filled from it', async () => {
+    const ctx = await setup();
+    const ring = (await api().get('/api/v1/categories').set(bearer(ctx.t))).body.data.find((c) => c.name === 'Ring');
+    const item = (await api().post('/api/v1/items').set(bearer(ctx.t)).send({ name: 'Plain Gold Ring', categoryId: ring.id, jewelleryType: 'plain_gold', metal: 'gold', purity: 916, wastage: { mode: 'none', value: 0 }, making: { type: 'per_gram', value: 50000 } })).body.data;
+    const lines = [
+      { description: 'Plain Gold Ring', itemId: item.id, metal: 'gold', purity: 916, quantity: 2, weightMg: 8000, amountPaise: 6000000 },
+      { description: ' plain gold  RING ', metal: 'gold', purity: 916, quantity: 1, weightMg: 4000, amountPaise: 3000000 }, // typed by hand
+      { description: 'Plain Gold Ring', metal: 'gold', purity: 750, quantity: 1 }, // same name, another purity
+      { description: 'Temple necklace', metal: 'gold', purity: 916, quantity: 1 },
+    ];
+    const order = (await api().post('/api/v1/purchases/orders').set(bearer(ctx.t)).send({ supplierId: ctx.supplier.id, branchId: ctx.ho, lines })).body.data;
+    const got = (await api().get(`/api/v1/purchases/orders/${order.id}`).set(bearer(ctx.t))).body.data;
+    expect(got.lines.map((l) => l.item?.id ?? null)).toEqual([item.id, item.id, null, null]);
+    expect(got.lines[0]).toMatchObject({ itemId: item.id, quantity: 2, weightMg: 8000, amountPaise: 6000000, item: { name: 'Plain Gold Ring', purityLabel: '22K (916)' } });
+  });
+});
+
+describe('bill photos and purchase reports', () => {
+  it('attaches photos of the supplier bill and reports purchases bill-wise and supplier-wise', async () => {
+    const ctx = await setup();
+    const today = new Date().toISOString().slice(0, 10);
+    const piece = await ctx.draft();
+    const p = (await api().post('/api/v1/purchases').set(bearer(ctx.t)).send({ supplierId: ctx.supplier.id, branchId: ctx.ho, billNo: 'PH-1', billDate: today, items: [{ productId: piece.id, costPaise: 5000000 }], gstPaise: 150000, paidNow: { amountPaise: 2000000, mode: 'cash' } })).body.data;
+    expect(p.billImages).toEqual([]);
+
+    const png = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c6360000002000154a24f5d0000000049454e44ae426082', 'hex');
+    const withPhoto = (await api().post(`/api/v1/purchases/${p.id}/bill-images`).set(bearer(ctx.t)).attach('image', png, 'bill.png')).body.data;
+    expect(withPhoto.billImages).toHaveLength(1);
+    expect((await api().get(`/api/v1/files/${withPhoto.billImages[0]}`).set(bearer(ctx.t))).status).toBe(200);
+    expect((await api().post(`/api/v1/purchases/${p.id}/bill-images`).set(bearer(ctx.t)).attach('image', Buffer.from('not an image'), 'bill.txt')).status).toBe(400);
+    const removed = (await api().delete(`/api/v1/purchases/${p.id}/bill-images/${withPhoto.billImages[0]}`).set(bearer(ctx.t))).body.data;
+    expect(removed.billImages).toEqual([]);
+
+    const register = (await api().get('/api/v1/reports/purchase-register').set(bearer(ctx.t))).body.data;
+    expect(register.rows).toHaveLength(1);
+    expect(register.rows[0]).toMatchObject({ billNo: 'PH-1', supplier: 'Bowbazar Ornaments', totalPaise: 5150000, paidPaise: 2000000, duePaise: 3150000 });
+    expect(register.totals).toMatchObject({ gstPaise: 150000, totalPaise: 5150000, duePaise: 3150000 });
+
+    const bySupplier = (await api().get('/api/v1/reports/purchase-supplier').set(bearer(ctx.t))).body.data;
+    expect(bySupplier.rows).toEqual([expect.objectContaining({ supplier: 'Bowbazar Ornaments', bills: 1, totalPaise: 5150000, duePaise: 3150000, share: 100 })]);
+  });
+});
+
 describe('items catalogue', () => {
   it('saves an item once and creates pieces from it on a purchase', async () => {
     const ctx = await setup();

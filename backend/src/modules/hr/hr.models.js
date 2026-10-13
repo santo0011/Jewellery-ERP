@@ -148,6 +148,7 @@ const payrollRunSchema = new mongoose.Schema(
     runNo: { type: String, required: true },
     branchId: { type: ObjectId, ref: 'Branch', required: true },
     month: { type: String, required: true },
+    upTo: { type: String, default: null }, // running month: days counted only up to this date (null = the whole month)
     status: { type: String, enum: Object.values(PAYROLL_STATUS), default: PAYROLL_STATUS.DRAFT },
     lines: { type: [payrollLineSchema], default: [] },
     finalisedAt: { type: Date, default: null },

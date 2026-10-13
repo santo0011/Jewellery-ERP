@@ -2,13 +2,12 @@ import DarkModeOutlinedIcon from '@mui/icons-material/DarkModeOutlined';
 import LightModeOutlinedIcon from '@mui/icons-material/LightModeOutlined';
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import PersonOutlineRoundedIcon from '@mui/icons-material/PersonOutlineRounded';
-import { Avatar, Box, Divider, IconButton, ListItemIcon, Menu, MenuItem, Typography } from '@mui/material';
+import { Avatar, Divider, IconButton, ListItemIcon, Menu, MenuItem } from '@mui/material';
 import { useColorScheme } from '@mui/material/styles';
 import { useState } from 'react';
-import { useDispatch } from 'react-redux';
 import { useNavigate } from 'react-router';
-import { useLogoutMutation } from '../features/auth/authApi.js';
-import { sessionEnded } from '../store/authSlice.js';
+import ConfirmDialog from '../components/ConfirmDialog.jsx';
+import { useSignOut } from '../features/auth/useSignOut.js';
 
 const initials = (name = '') =>
   name
@@ -20,20 +19,13 @@ const initials = (name = '') =>
 
 export default function UserMenu({ user }) {
   const [anchor, setAnchor] = useState(null);
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
   const navigate = useNavigate();
-  const dispatch = useDispatch();
-  const [logout] = useLogoutMutation();
+  const [signOut, signingOut] = useSignOut();
   const { mode, systemMode, setMode } = useColorScheme();
   const dark = (mode === 'system' ? systemMode : mode) === 'dark';
 
   const close = () => setAnchor(null);
-
-  const signOut = async () => {
-    close();
-    await logout();
-    dispatch(sessionEnded());
-    navigate('/login', { replace: true });
-  };
 
   return (
     <>
@@ -41,16 +33,6 @@ export default function UserMenu({ user }) {
         <Avatar sx={{ width: 34, height: 34, bgcolor: 'secondary.main', color: 'primary.main', fontSize: '0.8125rem', fontWeight: 600 }}>{initials(user.name)}</Avatar>
       </IconButton>
       <Menu anchorEl={anchor} open={Boolean(anchor)} onClose={close} slotProps={{ paper: { sx: { minWidth: 240, mt: 1 } } }} transformOrigin={{ horizontal: 'right', vertical: 'top' }} anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}>
-        <Box sx={{ px: 2, py: 1.5 }}>
-          <Typography variant="subtitle2">{user.name}</Typography>
-          <Typography variant="body2" color="textSecondary" noWrap>
-            {user.email}
-          </Typography>
-          <Typography variant="body2" color="accent" sx={{ mt: 0.5 }}>
-            {user.roles.map((r) => r.name).join(', ')}
-          </Typography>
-        </Box>
-        <Divider />
         <MenuItem
           onClick={() => {
             close();
@@ -72,13 +54,28 @@ export default function UserMenu({ user }) {
           {dark ? 'Light mode' : 'Dark mode'}
         </MenuItem>
         <Divider />
-        <MenuItem onClick={signOut}>
+        <MenuItem
+          onClick={() => {
+            close();
+            setConfirmSignOut(true);
+          }}
+        >
           <ListItemIcon>
             <LogoutRoundedIcon fontSize="small" />
           </ListItemIcon>
           Sign out
         </MenuItem>
       </Menu>
+      <ConfirmDialog
+        open={confirmSignOut}
+        title="Sign out?"
+        message="You will be signed out on this device. Any unsaved changes will be lost."
+        confirmLabel="Sign out"
+        danger
+        loading={signingOut}
+        onConfirm={signOut}
+        onClose={() => setConfirmSignOut(false)}
+      />
     </>
   );
 }

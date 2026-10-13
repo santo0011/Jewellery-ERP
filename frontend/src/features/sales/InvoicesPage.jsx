@@ -9,6 +9,7 @@ import { formatINR } from '@jerp/shared';
 import { useNavigate } from 'react-router';
 import Amount, { MONEY_TONE } from '../../components/Amount.jsx';
 import DataTable from '../../components/DataTable.jsx';
+import DisabledDelete from '../../components/DisabledDelete.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
 import SearchField from '../../components/SearchField.jsx';
 import StatusChip from '../../components/StatusChip.jsx';
@@ -117,13 +118,16 @@ export default function InvoicesPage() {
       key: 'actions',
       label: 'Action',
       align: 'right',
-      width: 56,
+      width: 96,
       render: (s) => (
-        <Tooltip title="View invoice">
-          <IconButton size="small" onClick={() => navigate(`/sales/${s.id}`)} aria-label={`View ${s.invoiceNo}`}>
-            <VisibilityOutlinedIcon fontSize="small" />
-          </IconButton>
-        </Tooltip>
+        <Stack direction="row" spacing={0.25} sx={{ justifyContent: 'flex-end' }}>
+          <Tooltip title="View invoice">
+            <IconButton size="small" onClick={() => navigate(`/sales/${s.id}`)} aria-label={`View ${s.invoiceNo}`}>
+              <VisibilityOutlinedIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+          <DisabledDelete reason="Invoices are GST records and cannot be deleted. Cancel the bill or take a sales return instead." />
+        </Stack>
       ),
     },
   ];

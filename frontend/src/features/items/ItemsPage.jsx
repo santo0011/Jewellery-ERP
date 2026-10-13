@@ -9,6 +9,7 @@ import { formatINR, formatWeight } from '@jerp/shared';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 import DataTable from '../../components/DataTable.jsx';
+import { DeleteAction } from '../../components/RowActions.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
 import SearchField from '../../components/SearchField.jsx';
 import StatusChip from '../../components/StatusChip.jsx';
@@ -18,6 +19,7 @@ import { usePermission } from '../../hooks/usePermission.js';
 import { getErrorMessage } from '../../utils/errors.js';
 import ItemFormDrawer from './ItemFormDrawer.jsx';
 import { useItemListQuery, useSetItemStatusMutation } from './itemApi.js';
+import { useDeleteStatus } from '../../services/recordApi.js';
 
 /** "8%", "0.250 g", "₹500/g", "12%", "₹1,500 per piece" */
 export const wastageText = (w) => (!w || w.mode === 'none' ? 'None' : w.mode === 'weight' ? formatWeight(w.value) : `${w.value / 100}%`);
@@ -28,6 +30,8 @@ export default function ItemsPage() {
   const [editing, setEditing] = useState(null); // null | 'new' | item
   const list = useListParams({ status: 'active' });
   const { data, isLoading, isFetching, error, refetch } = useItemListQuery(list.params);
+  // Which rows can be deleted (Delete stays visible; it is disabled with the reason when not).
+  const deleteStatus = useDeleteStatus('item', data?.items);
   const [setStatus] = useSetItemStatusMutation();
   const summary = data?.meta?.summary;
 
@@ -64,20 +68,26 @@ export default function ItemsPage() {
       key: 'actions',
       label: 'Action',
       align: 'right',
-      width: 96,
+      width: 132,
       render: (i) =>
-        canEdit && (
+        (
           <Stack direction="row" sx={{ justifyContent: 'flex-end' }}>
-            <Tooltip title="Edit">
-              <IconButton size="small" onClick={() => setEditing(i)} aria-label={`Edit ${i.name}`}>
-                <EditOutlinedIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-            <Tooltip title={i.status === 'active' ? 'Deactivate — hide from search' : 'Activate'}>
-              <IconButton size="small" onClick={() => toggle(i)} aria-label={`${i.status === 'active' ? 'Deactivate' : 'Activate'} ${i.name}`}>
-                {i.status === 'active' ? <ToggleOnOutlinedIcon fontSize="small" color="success" /> : <ToggleOffOutlinedIcon fontSize="small" />}
-              </IconButton>
-            </Tooltip>
+            {canEdit && (
+              <Tooltip title="Edit">
+                <IconButton size="small" onClick={() => setEditing(i)} aria-label={`Edit ${i.name}`}>
+                  <EditOutlinedIcon fontSize="small" />
+                </IconButton>
+              </Tooltip>
+            )}
+            {canEdit && (
+              <Tooltip title={i.status === 'active' ? 'Deactivate — hide from search' : 'Activate'}>
+                <IconButton size="small" onClick={() => toggle(i)} aria-label={`${i.status === 'active' ? 'Deactivate' : 'Activate'} ${i.name}`}>
+                  {i.status === 'active' ? <ToggleOnOutlinedIcon fontSize="small" color="success" /> : <ToggleOffOutlinedIcon fontSize="small" />}
+                </IconButton>
+              </Tooltip>
+            )}
+            {/* An item pieces were made from stays; it can only be deactivated. */}
+            <DeleteAction type="item" id={i.id} name={i.name} status={deleteStatus(i.id)} />
           </Stack>
         ),
     },

@@ -4,8 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 
 // Single-series mark colour, validated (dataviz validator) against the card surface:
 // light #9C7A16 on #FFFFFF, dark #B38D1E on #232220 - both pass band, chroma and 3:1 contrast.
-const markSx = (theme) => ({ fill: '#9C7A16', ...theme.applyStyles('dark', { fill: '#B38D1E' }) });
-const barBg = (theme) => ({ bgcolor: '#9C7A16', ...theme.applyStyles('dark', { bgcolor: '#B38D1E' }) });
+const markSx = (theme) => ({ fill: 'var(--brand-strong)', ...theme.applyStyles('dark', { fill: 'var(--brand-mark)' }) });
+const barBg = (theme) => ({ bgcolor: 'var(--brand-strong)', ...theme.applyStyles('dark', { bgcolor: 'var(--brand-mark)' }) });
 
 /** ₹45K, ₹1.2L, ₹3.4Cr - for axes and tight labels; tooltips show the exact amount. */
 export function compactINR(paise) {

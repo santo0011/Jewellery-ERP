@@ -142,7 +142,7 @@ export default function InvoicePage() {
             )}
           </Box>
           <Box sx={{ textAlign: { sm: 'right' } }}>
-            <Typography sx={{ fontSize: 13, letterSpacing: '0.18em', fontWeight: 700, color: '#9C7A16' }}>TAX INVOICE</Typography>
+            <Typography sx={{ fontSize: 13, letterSpacing: '0.18em', fontWeight: 700, color: 'var(--brand-strong)' }}>TAX INVOICE</Typography>
             <Typography variant="h3" sx={{ mt: 0.5 }}>
               {sale.invoiceNo}
             </Typography>

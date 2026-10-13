@@ -98,6 +98,23 @@ export async function setItemStatus(id, { status }) {
   return getItem(id);
 }
 
+/**
+ * The saved item behind each purchase-order line (or null): the one it was picked from, else an active item with the
+ * same name, metal and purity — so orders typed by hand, or placed before lines kept their item, still match.
+ */
+export async function itemsForOrderLines(lines) {
+  const ids = lines.map((l) => l.itemId).filter(Boolean);
+  const keys = lines.filter((l) => !l.itemId && l.description).map((l) => nameKey(l.description));
+  const found = await Item.find({ status: 'active', $or: [{ _id: { $in: ids } }, { nameKey: { $in: keys } }] }).lean();
+  const categories = await categoryMap(found);
+  const byId = new Map(found.map((i) => [String(i._id), i]));
+  const byName = new Map(found.map((i) => [`${i.nameKey}|${i.metal}|${i.purity}`, i]));
+  return lines.map((l) => {
+    const item = l.itemId ? byId.get(String(l.itemId)) : byName.get(`${nameKey(l.description ?? '')}|${l.metal}|${l.purity}`);
+    return item ? serialize(item, categories) : null;
+  });
+}
+
 /** Items for new pieces on a bill, checked active; returns a map by id. */
 export async function itemsForPieces(ids) {
   const items = await Item.find({ _id: { $in: [...new Set(ids.map(String))] } }).lean();

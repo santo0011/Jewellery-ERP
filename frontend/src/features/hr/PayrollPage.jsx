@@ -3,7 +3,8 @@ import CalculateOutlinedIcon from '@mui/icons-material/CalculateOutlined';
 import CheckCircleRoundedIcon from '@mui/icons-material/CheckCircleRounded';
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
 import PlayArrowRoundedIcon from '@mui/icons-material/PlayArrowRounded';
-import { Alert, Box, Button, Card, CardContent, Dialog, DialogActions, DialogContent, DialogTitle, Divider, LinearProgress, MenuItem, Stack, TextField, Typography } from '@mui/material';
+import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
+import { Alert, Box, Button, Card, CardContent, Dialog, DialogActions, DialogContent, DialogTitle, Divider, IconButton, LinearProgress, MenuItem, Stack, TextField, Tooltip, Typography } from '@mui/material';
 import { formatINR } from '@jerp/shared';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
@@ -12,12 +13,13 @@ import { useNavigate } from 'react-router';
 import Amount from '../../components/Amount.jsx';
 import DataTable from '../../components/DataTable.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
-import { viewColumn } from '../../components/ViewButton.jsx';
+import ConfirmDialog from '../../components/ConfirmDialog.jsx';
+import RowActions, { actionsWidth, DisabledDelete } from '../../components/RowActions.jsx';
 import { useListParams } from '../../hooks/useListParams.js';
 import { usePermission, useSession } from '../../hooks/usePermission.js';
 import { tokens } from '../../theme/tokens.js';
 import { getErrorMessage } from '../../utils/errors.js';
-import { useCreatePayrollMutation, usePayrollListQuery } from './hrApi.js';
+import { useCreatePayrollMutation, useDeletePayrollMutation, usePayrollListQuery } from './hrApi.js';
 import { monthLabel, PayrollStatusChip, salaryMonth, thisMonth } from './hrUi.jsx';
 import PayrollSteps from './PayrollSteps.jsx';
 import SummaryCards, { SummaryCard } from '../../components/SummaryCards.jsx';
@@ -162,6 +164,40 @@ function SalaryMonthCard({ runs, canRun }) {
   );
 }
 
+/** A draft payroll has booked nothing yet, so it can be deleted (and calculated again later). */
+function DeleteDraftRun({ run }) {
+  const [open, setOpen] = useState(false);
+  const [remove, { isLoading }] = useDeletePayrollMutation();
+  const confirm = async () => {
+    try {
+      await remove(run.id).unwrap();
+      toast.success(`Payroll ${run.runNo} deleted`);
+      setOpen(false);
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+    }
+  };
+  return (
+    <>
+      <Tooltip title="Delete draft">
+        <IconButton size="small" color="error" onClick={() => setOpen(true)} aria-label={`Delete ${run.runNo}`}>
+          <DeleteOutlineRoundedIcon fontSize="small" />
+        </IconButton>
+      </Tooltip>
+      <ConfirmDialog
+        open={open}
+        title={`Delete payroll ${run.runNo}?`}
+        message={`This draft for ${monthLabel(run.month)} has not been finalised, so nothing was booked. You can calculate the month again any time.`}
+        confirmLabel="Delete"
+        danger
+        loading={isLoading}
+        onConfirm={confirm}
+        onClose={() => setOpen(false)}
+      />
+    </>
+  );
+}
+
 export default function PayrollPage() {
   const navigate = useNavigate();
   const { data: session } = useSession();
@@ -249,7 +285,26 @@ export default function PayrollPage() {
       </SummaryCards>
 
       <DataTable
-        columns={[...columns, viewColumn((r) => navigate(`/hr/payroll/${r.id}`), { name: (r) => r.runNo })]}
+        columns={[
+          ...columns,
+          {
+            key: 'actions',
+            label: 'Action',
+            align: 'right',
+            width: actionsWidth(2),
+            render: (r) => (
+              <RowActions onView={() => navigate(`/hr/payroll/${r.id}`)} name={r.runNo}>
+                {!canRun ? (
+                  <DisabledDelete reason="You do not have permission to delete payroll." />
+                ) : r.status === 'draft' ? (
+                  <DeleteDraftRun run={r} />
+                ) : (
+                  <DisabledDelete reason="Finalised payroll is booked in the accounts and cannot be deleted." />
+                )}
+              </RowActions>
+            ),
+          },
+        ]}
         rows={data?.items}
         loading={isLoading}
         fetching={isFetching}

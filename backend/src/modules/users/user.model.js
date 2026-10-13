@@ -23,7 +23,8 @@ const userSchema = new mongoose.Schema(
     lockedUntil: { type: Date, default: null },
     lastLoginAt: { type: Date, default: null },
     passwordReset: {
-      type: new mongoose.Schema({ tokenHash: String, expiresAt: Date }, { _id: false }),
+      // Forgot password: the emailed 6-digit code (hashed), when it expires, wrong tries so far, when it was sent.
+      type: new mongoose.Schema({ tokenHash: String, expiresAt: Date, attempts: { type: Number, default: 0 }, sentAt: Date }, { _id: false }),
       default: null,
       select: false,
     },

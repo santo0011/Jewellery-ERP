@@ -10,7 +10,7 @@ import DataTable from '../../components/DataTable.jsx';
 import FormDrawer from '../../components/FormDrawer.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
 import SearchField from '../../components/SearchField.jsx';
-import { viewColumn } from '../../components/ViewButton.jsx';
+import RowActions, { actionsWidth } from '../../components/RowActions.jsx';
 import { useListParams } from '../../hooks/useListParams.js';
 import { usePermission, useSession } from '../../hooks/usePermission.js';
 import { formatDate } from '../../utils/format.js';
@@ -23,8 +23,9 @@ import SummaryCards, { SummaryCard } from '../../components/SummaryCards.jsx';
 import PendingActionsOutlinedIcon from '@mui/icons-material/PendingActionsOutlined';
 import EventBusyOutlinedIcon from '@mui/icons-material/EventBusyOutlined';
 import CurrencyRupeeOutlinedIcon from '@mui/icons-material/CurrencyRupeeOutlined';
+import { useDeleteStatus } from '../../services/recordApi.js';
 
-const blankLine = () => ({ description: '', metal: 'gold', purity: 916, quantity: '1', weight: '', amount: '' });
+const blankLine = () => ({ description: '', itemId: null, metal: 'gold', purity: 916, quantity: '1', weight: '', amount: '' });
 const toMg = (v) => {
   try {
     return v ? (decimalToScaledInt(v, 3) ?? 0) : 0;
@@ -66,7 +67,7 @@ function NewOrderDrawer({ open, onClose }) {
         supplierId: supplier.id,
         branchId,
         ...(expectedDate && { expectedDate }),
-        lines: lines.map((l) => ({ description: l.description.trim(), metal: l.metal, purity: Number(l.purity), quantity: Math.max(1, Number(l.quantity) || 1), weightMg: toMg(l.weight), amountPaise: toP(l.amount) })),
+        lines: lines.map((l) => ({ description: l.description.trim(), ...(l.itemId && { itemId: l.itemId }), metal: l.metal, purity: Number(l.purity), quantity: Math.max(1, Number(l.quantity) || 1), weightMg: toMg(l.weight), amountPaise: toP(l.amount) })),
         note: note.trim() || null,
       }).unwrap();
       toast.success(`Order ${order.orderNo} placed with ${order.supplier.name}`);
@@ -114,7 +115,7 @@ function NewOrderDrawer({ open, onClose }) {
           helperText="Pick a saved item to fill its name, metal and purity — or type the line yourself below."
           onPick={(item) =>
             setLines((ls) => {
-              const line = { ...blankLine(), description: item.name, metal: item.metal, purity: item.purity };
+              const line = { ...blankLine(), description: item.name, itemId: item.id, metal: item.metal, purity: item.purity };
               // Fill the first empty line, otherwise add one.
               const empty = ls.findIndex((l) => !l.description.trim());
               return empty >= 0 ? ls.map((l, j) => (j === empty ? line : l)) : [...ls, line];
@@ -125,7 +126,7 @@ function NewOrderDrawer({ open, onClose }) {
           <Box key={i} sx={{ p: 1.5, border: 1, borderColor: 'divider', borderRadius: 2 }}>
             <Grid container spacing={1.5}>
               <Grid size={{ xs: 12, sm: 7 }}>
-                <TextField size="small" label="Item" placeholder="e.g. 22K bangles, 2 pairs" value={l.description} onChange={(e) => set(i, { description: e.target.value })} error={tried && l.description.trim().length < 2} />
+                <TextField size="small" label="Item" placeholder="e.g. 22K bangles, 2 pairs" value={l.description} onChange={(e) => set(i, { description: e.target.value, itemId: null })} error={tried && l.description.trim().length < 2} />
               </Grid>
               <Grid size={{ xs: 6, sm: 2.5 }}>
                 <TextField
@@ -133,7 +134,7 @@ function NewOrderDrawer({ open, onClose }) {
                   select
                   label="Metal"
                   value={l.metal}
-                  onChange={(e) => set(i, { metal: e.target.value, purity: PURITIES[e.target.value]?.[0]?.fineness ?? 0 })}
+                  onChange={(e) => set(i, { metal: e.target.value, purity: PURITIES[e.target.value]?.[0]?.fineness ?? 0, itemId: null })}
                 >
                   {METAL_OPTIONS.map((m) => (
                     <MenuItem key={m.value} value={m.value}>
@@ -143,7 +144,7 @@ function NewOrderDrawer({ open, onClose }) {
                 </TextField>
               </Grid>
               <Grid size={{ xs: 6, sm: 2.5 }}>
-                <TextField size="small" select label="Purity" value={l.purity} onChange={(e) => set(i, { purity: e.target.value })}>
+                <TextField size="small" select label="Purity" value={l.purity} onChange={(e) => set(i, { purity: e.target.value, itemId: null })}>
                   {(PURITIES[l.metal] ?? []).map((p) => (
                     <MenuItem key={p.fineness} value={p.fineness}>
                       {p.label}
@@ -190,6 +191,8 @@ export default function PurchaseOrdersPage() {
   const [open, setOpen] = useState(false);
   const list = useListParams({ status: 'open' });
   const { data, isLoading, isFetching, error, refetch } = usePurchaseOrderListQuery(list.params);
+  // Which rows can be deleted (Delete stays visible; it is disabled with the reason when not).
+  const deleteStatus = useDeleteStatus('purchaseOrder', data?.items);
   const meta = data?.meta;
 
   const columns = [
@@ -252,7 +255,17 @@ export default function PurchaseOrdersPage() {
         <SummaryCard icon={CurrencyRupeeOutlinedIcon} label="Open order value" value={formatINR(meta?.openAmountPaise ?? 0, { decimals: 0 })} caption="Estimated" tone="blue" />
       </SummaryCards>
       <DataTable
-        columns={[...columns, viewColumn((o) => navigate(`/purchases/orders/${o.id}`), { name: (o) => o.orderNo })]}
+        columns={[
+          ...columns,
+          {
+            key: 'actions',
+            label: 'Action',
+            align: 'right',
+            width: actionsWidth(2),
+            // An order already received on a bill stays with it.
+            render: (o) => <RowActions onView={() => navigate(`/purchases/orders/${o.id}`)} deleteType="purchaseOrder" deleteStatus={deleteStatus(o.id)} id={o.id} name={o.orderNo} />,
+          },
+        ]}
         rows={data?.items}
         loading={isLoading}
         fetching={isFetching}

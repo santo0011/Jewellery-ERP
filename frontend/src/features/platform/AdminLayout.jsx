@@ -3,11 +3,13 @@ import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import SellOutlinedIcon from '@mui/icons-material/SellOutlined';
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
+import MailOutlineRoundedIcon from '@mui/icons-material/MailOutlineRounded';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import { AppBar, Box, Button, Chip, Drawer, IconButton, Toolbar, Typography, useMediaQuery } from '@mui/material';
 import { useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { Outlet } from 'react-router';
+import ConfirmDialog from '../../components/ConfirmDialog.jsx';
 import Wordmark from '../../components/Wordmark.jsx';
 import Sidebar from '../../layouts/Sidebar.jsx';
 import { tokens } from '../../theme/tokens.js';
@@ -28,6 +30,7 @@ const NAV = [
       { label: 'Payments', path: '/admin/payments', icon: ReceiptLongOutlinedIcon },
     ],
   },
+  { label: 'Settings', items: [{ label: 'Email (SMTP)', path: '/admin/settings/email', icon: MailOutlineRoundedIcon }] },
 ];
 
 const readCollapsed = () => {
@@ -44,7 +47,8 @@ export default function AdminLayout() {
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const dispatch = useDispatch();
   const { data: me } = usePlatformMeQuery();
-  const [logout] = usePlatformLogoutMutation();
+  const [logout, { isLoading: signingOut }] = usePlatformLogoutMutation();
+  const [confirmSignOut, setConfirmSignOut] = useState(false);
 
   const toggleCollapsed = () => {
     setCollapsed((c) => {
@@ -90,13 +94,20 @@ export default function AdminLayout() {
               </>
             )}
             <Box sx={{ flex: 1 }} />
-            <Chip label="Super Admin" size="small" sx={{ bgcolor: tokens.light.gold, color: '#171717', fontWeight: 700, height: 22 }} />
-            <Typography variant="body2" sx={{ display: { xs: 'none', sm: 'block' }, fontWeight: 500 }}>
-              {me?.name}
-            </Typography>
-            <Button onClick={signOut} startIcon={<LogoutRoundedIcon />} color="inherit">
+
+            <Button onClick={() => setConfirmSignOut(true)} startIcon={<LogoutRoundedIcon />} color="inherit">
               Sign out
             </Button>
+            <ConfirmDialog
+              open={confirmSignOut}
+              title="Sign out?"
+              message="You will be signed out of the Super Admin panel on this device."
+              confirmLabel="Sign out"
+              danger
+              loading={signingOut}
+              onConfirm={signOut}
+              onClose={() => setConfirmSignOut(false)}
+            />
           </Toolbar>
         </AppBar>
 

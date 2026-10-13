@@ -177,7 +177,7 @@ export default function TransfersPage() {
               setRejectReason('');
               setViewing(t);
             },
-            { name: (t) => t.docNo },
+            { name: (t) => t.docNo, deleteDisabled: 'Transfers are part of the stock ledger and cannot be deleted. Reject or receive them instead.' },
           ),
         ]}
         rows={data?.items}

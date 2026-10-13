@@ -21,7 +21,6 @@ const orgBody = (o = {}) => ({
   mobile: '9830012345',
   stateCode: '19',
   password: 'Temp1234',
-  branchLimit: 3,
   ...o,
 });
 
@@ -67,42 +66,24 @@ describe('super admin', () => {
     expect(res.body.error.details[0].path).toBe('email');
   });
 
-  it.each([
-    ['missing', undefined],
-    ['zero', 0],
-    ['negative', -2],
-    ['fractional', 2.5],
-    ['text', '5'],
-    ['above the maximum', 501],
-  ])('rejects a %s branch limit', async (label, branchLimit) => {
+  it('edits organisation details; the branch limit is not an organisation setting', async () => {
     const sa = await superAdmin();
-    const res = await api().post('/api/v1/platform/organisations').set(bearer(sa.token)).send(orgBody({ branchLimit }));
-    expect(res.status).toBe(400);
-    expect(res.body.error.details.some((d) => d.path === 'branchLimit')).toBe(true);
-  });
-
-  it('edits organisation details and branch limit, but never below branches in use', async () => {
-    const sa = await superAdmin();
-    const body = orgBody({ branchLimit: 3 });
+    const body = orgBody();
     const org = (await api().post('/api/v1/platform/organisations').set(bearer(sa.token)).send(body)).body.data;
-    const edit = { organisationName: 'ABC Gold House', email: 'accounts@abc.local', mobile: '9830099999', stateCode: '27', branchLimit: 4 };
+    const edit = { organisationName: 'ABC Gold House', email: 'accounts@abc.local', mobile: '9830099999', stateCode: '27' };
 
-    const res = await api().patch(`/api/v1/platform/organisations/${org.id}`).set(bearer(sa.token)).send(edit);
+    // A branch limit sent by an old client is ignored: branches follow the trial or the plan.
+    const res = await api().patch(`/api/v1/platform/organisations/${org.id}`).set(bearer(sa.token)).send({ ...edit, branchLimit: 40 });
     expect(res.status).toBe(200);
-    expect(res.body.data).toMatchObject({ name: 'ABC Gold House', email: 'accounts@abc.local', phone: '9830099999', stateCode: '27', branchLimit: 4, branchesUsed: 1 });
+    expect(res.body.data).toMatchObject({ name: 'ABC Gold House', email: 'accounts@abc.local', phone: '9830099999', stateCode: '27', branchLimit: 2, branchesUsed: 1 });
     expect(res.body.data.owner.email).toBe('accounts@abc.local'); // the organisation email is its login
 
-    const tooLow = await api().patch(`/api/v1/platform/organisations/${org.id}`).set(bearer(sa.token)).send({ ...edit, branchLimit: 0 });
-    expect(tooLow.status).toBe(400);
     const invalid = await api().patch(`/api/v1/platform/organisations/${org.id}`).set(bearer(sa.token)).send({ ...edit, email: 'nope', mobile: '12' });
     expect(invalid.body.error.details.map((d) => d.path).sort()).toEqual(['email', 'mobile']);
 
     const owner = await ownerSession('accounts@abc.local');
-    await api().post('/api/v1/branches').set(bearer(owner)).send(branch('KOL'));
-    const belowUsage = await api().patch(`/api/v1/platform/organisations/${org.id}`).set(bearer(sa.token)).send({ ...edit, branchLimit: 1 });
-    expect(belowUsage.body.error.code).toBe('BRANCH_LIMIT_BELOW_USAGE');
-
     expect((await api().patch(`/api/v1/platform/organisations/${org.id}`).set(bearer(owner)).send(edit)).status).toBe(401);
+    expect((await api().patch(`/api/v1/platform/organisations/${org.id}/branch-limit`).set(bearer(sa.token)).send({ branchLimit: 5 })).status).toBe(404);
   });
 
   it('changes the organisation login email and resets its password, signing out old sessions', async () => {
@@ -113,7 +94,7 @@ describe('super admin', () => {
     for (let i = 0; i < 3; i += 1) await api().post('/api/v1/auth/login').send({ email: body.email, password: 'wrong-one' });
 
     const newEmail = `new${Date.now()}@abc.local`;
-    const edit = { organisationName: org.name, email: newEmail.toUpperCase(), password: '123456', mobile: '9830012345', stateCode: '19', branchLimit: 3 };
+    const edit = { organisationName: org.name, email: newEmail.toUpperCase(), password: '123456', mobile: '9830012345', stateCode: '19' };
     const res = await api().patch(`/api/v1/platform/organisations/${org.id}`).set(bearer(sa.token)).send(edit);
     expect(res.status).toBe(200);
     expect(res.body.data).toMatchObject({ email: newEmail, owner: { email: newEmail } });
@@ -132,11 +113,11 @@ describe('super admin', () => {
 
   it("enforces the plan's user limit", async () => {
     const sa = await superAdmin();
-    const body = orgBody({ branchLimit: 2 });
+    const body = orgBody();
     const org = (await api().post('/api/v1/platform/organisations').set(bearer(sa.token)).send(body)).body.data;
     expect(org).toMatchObject({ plan: 'trial', userLimit: 5, activeUsers: 1 });
     const owner = (await api().post('/api/v1/auth/login').send({ email: body.email, password: 'Temp1234' })).body.data.accessToken;
-    const roleId = (await api().get('/api/v1/roles').set(bearer(owner))).body.data.find((r) => r.key === 'staff').id;
+    const roleId = (await api().get('/api/v1/roles').set(bearer(owner))).body.data.find((r) => r.key === 'sales_staff').id;
     const addUser = (n) =>
       api().post('/api/v1/users').set(bearer(owner)).send({ name: `Staff ${n}`, email: `s${n}${Date.now()}@abc.local`, password: '123456', roleIds: [roleId], branchAccess: { all: true, branchIds: [] } });
     for (let n = 1; n <= 4; n += 1) expect((await addUser(n)).status).toBe(201);
@@ -148,7 +129,7 @@ describe('super admin', () => {
     const body = orgBody();
     const created = await api().post('/api/v1/platform/organisations').set(bearer(sa.token)).send(body);
     expect(created.status).toBe(201);
-    expect(created.body.data).toMatchObject({ branchLimit: 3, branchesUsed: 1, branchesAvailable: 2, owner: { email: body.email } });
+    expect(created.body.data).toMatchObject({ branchLimit: 2, branchesUsed: 1, branchesAvailable: 1, owner: { email: body.email } });
 
     expect(await bcrypt.compare('Temp1234', (await User.findOne({ email: body.email }).setOptions({ skipTenant: true }).select('+passwordHash').lean()).passwordHash)).toBe(true);
 
@@ -164,33 +145,33 @@ describe('super admin', () => {
     expect(dup.status).toBe(409);
   });
 
-  it('enforces the branch limit and lets super admin raise or lower it', async () => {
+  it('allows 2 branches on the free trial, then as many as the plan bought', async () => {
     const sa = await superAdmin();
-    const body = orgBody({ branchLimit: 3 });
+    const body = orgBody();
     const org = (await api().post('/api/v1/platform/organisations').set(bearer(sa.token)).send(body)).body.data;
     const owner = await ownerSession(body.email);
 
+    // Free trial: head office + 1.
     expect((await api().post('/api/v1/branches').set(bearer(owner)).send(branch('KOL'))).status).toBe(201);
+    const third = await api().post('/api/v1/branches').set(bearer(owner)).send(branch('BNG'));
+    expect(third.status).toBe(403);
+    expect(third.body.error).toMatchObject({ code: 'BRANCH_LIMIT_REACHED', message: expect.stringContaining('free trial allows 2 branches') });
+    expect((await api().get('/api/v1/branches/usage').set(bearer(owner))).body.data).toEqual({ limit: 2, used: 2, available: 0, trial: true });
+    expect((await api().get('/api/v1/auth/me').set(bearer(owner))).body.data.organisation.branchLimit).toBe(2);
+
+    // Buying a 3-branch plan allows a third branch, and no more.
+    const plan = (await api().post('/api/v1/platform/plans').set(bearer(sa.token)).send({ name: `Three Branch ${Date.now()}`, pricePaise: 100000, durationMonths: 1, limits: { users: 10, branches: 3, products: null } })).body.data;
+    await api().post(`/api/v1/platform/organisations/${org.id}/subscription`).set(bearer(sa.token)).send({ planId: plan.id, mode: 'manual', paymentMode: 'cash' });
+    expect((await api().get(`/api/v1/platform/organisations/${org.id}`).set(bearer(sa.token))).body.data).toMatchObject({ branchLimit: 3, branchesUsed: 2, branchesAvailable: 1 });
     expect((await api().post('/api/v1/branches').set(bearer(owner)).send(branch('BNG'))).status).toBe(201);
     const fourth = await api().post('/api/v1/branches').set(bearer(owner)).send(branch('BRS'));
-    expect(fourth.status).toBe(403);
-    expect(fourth.body.error.code).toBe('BRANCH_LIMIT_REACHED');
-    expect((await api().get('/api/v1/branches/usage').set(bearer(owner))).body.data).toEqual({ limit: 3, used: 3, available: 0 });
+    expect(fourth.body.error).toMatchObject({ code: 'BRANCH_LIMIT_REACHED', message: expect.stringContaining('Your plan allows 3 branches') });
+    expect((await api().get('/api/v1/branches/usage').set(bearer(owner))).body.data).toEqual({ limit: 3, used: 3, available: 0, trial: false });
 
-    const tooLow = await api().patch(`/api/v1/platform/organisations/${org.id}/branch-limit`).set(bearer(sa.token)).send({ branchLimit: 2 });
-    expect(tooLow.body.error.code).toBe('BRANCH_LIMIT_BELOW_USAGE');
-
-    const raised = await api().patch(`/api/v1/platform/organisations/${org.id}/branch-limit`).set(bearer(sa.token)).send({ branchLimit: 5 });
-    expect(raised.body.data).toMatchObject({ branchLimit: 5, branchesUsed: 3, branchesAvailable: 2 });
-    expect((await api().post('/api/v1/branches').set(bearer(owner)).send(branch('BRS'))).status).toBe(201);
-
-    const me = (await api().get('/api/v1/auth/me').set(bearer(owner))).body.data;
-    expect(me.organisation.branchLimit).toBe(5);
-
+    // Reactivating a branch counts against the limit too.
     const kol = (await api().get('/api/v1/branches?q=KOL').set(bearer(owner))).body.data[0];
     await api().patch(`/api/v1/branches/${kol._id}/status`).set(bearer(owner)).send({ status: 'inactive' });
-    const lowered = await api().patch(`/api/v1/platform/organisations/${org.id}/branch-limit`).set(bearer(sa.token)).send({ branchLimit: 3 });
-    expect(lowered.status).toBe(200);
+    expect((await api().post('/api/v1/branches').set(bearer(owner)).send(branch('BRS'))).status).toBe(201);
     const reactivate = await api().patch(`/api/v1/branches/${kol._id}/status`).set(bearer(owner)).send({ status: 'active' });
     expect(reactivate.body.error.code).toBe('BRANCH_LIMIT_REACHED');
   });
@@ -206,7 +187,7 @@ describe('super admin', () => {
     expect((await api().post('/api/v1/auth/login').send({ email: body.email, password: 'Owner1234' })).body.error.code).toBe('ORG_SUSPENDED');
 
     const list = await api().get(`/api/v1/platform/organisations?q=${encodeURIComponent(body.organisationName)}`).set(bearer(sa.token));
-    expect(list.body.data[0]).toMatchObject({ status: 'suspended', branchLimit: 3, activeUsers: 1 });
+    expect(list.body.data[0]).toMatchObject({ status: 'suspended', branchLimit: 2, activeUsers: 1 });
     const dash = (await api().get('/api/v1/platform/dashboard').set(bearer(sa.token))).body.data;
     expect(dash.suspended).toBeGreaterThanOrEqual(1);
   });
@@ -352,9 +333,9 @@ describe('super admin: editing free days and the edit history', () => {
     const org = (await api().post('/api/v1/platform/organisations').set(bearer(sa.token)).send(body)).body.data;
     expect(org.freeDays).toBe(14);
 
-    const edit = { organisationName: org.name, email: body.email, mobile: body.mobile, stateCode: '19', branchLimit: 3 };
-    const longer = (await api().patch(`/api/v1/platform/organisations/${org.id}`).set(bearer(sa.token)).send({ ...edit, freeDays: 30, branchLimit: 4 })).body.data;
-    expect(longer).toMatchObject({ freeDays: 30, branchLimit: 4 });
+    const edit = { organisationName: org.name, email: body.email, mobile: body.mobile, stateCode: '27' };
+    const longer = (await api().patch(`/api/v1/platform/organisations/${org.id}`).set(bearer(sa.token)).send({ ...edit, freeDays: 30 })).body.data;
+    expect(longer).toMatchObject({ freeDays: 30, stateCode: '27' });
     expect(longer.subscription.daysLeft).toBe(30);
 
     const owner = await ownerSession(body.email);
@@ -370,7 +351,6 @@ describe('super admin: editing free days and the edit history', () => {
     expect(adminView[1]).toMatchObject({ by: { kind: 'admin', name: 'Platform Owner' } });
     expect(adminView[1].changes).toEqual(
       expect.arrayContaining([
-        { field: 'branchLimit', label: 'Branch limit', from: '3', to: '4' },
         { field: 'freeDays', label: 'Free days', from: '14 days', to: '30 days' },
       ]),
     );

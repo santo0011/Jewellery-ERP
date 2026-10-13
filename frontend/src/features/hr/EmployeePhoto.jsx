@@ -34,11 +34,11 @@ export function EmployeeAvatar({ employee, name, size = 40, src: override, sx })
         display: 'grid',
         placeItems: 'center',
         background: src ? 'transparent' : tokens.sidebar.goldGradient,
-        color: '#171717',
+        color: 'var(--brand-contrast)',
         fontFamily: fonts.display,
         fontWeight: 700,
         fontSize: size * 0.42,
-        boxShadow: '0 0 0 2px rgba(201, 162, 39, 0.25)',
+        boxShadow: '0 0 0 2px rgba(var(--brand-rgb), 0.25)',
         ...sx,
       }}
     >
@@ -134,7 +134,7 @@ export function EmployeePhotoEditor({ employee, canEdit, size = 96 }) {
   return (
     <Stack spacing={1} sx={{ alignItems: 'center' }}>
       <Box sx={{ position: 'relative' }}>
-        <EmployeeAvatar employee={employee} size={size} sx={{ boxShadow: '0 0 0 3px rgba(201, 162, 39, 0.35), 0 8px 20px rgba(23, 23, 23, 0.15)' }} />
+        <EmployeeAvatar employee={employee} size={size} sx={{ boxShadow: '0 0 0 3px rgba(var(--brand-rgb), 0.35), 0 8px 20px rgba(23, 23, 23, 0.15)' }} />
         {busy && (
           <Box sx={{ position: 'absolute', inset: 0, borderRadius: '50%', display: 'grid', placeItems: 'center', bgcolor: 'rgba(23, 23, 23, 0.4)' }}>
             <CircularProgress size={28} sx={{ color: '#fff' }} />
@@ -144,7 +144,7 @@ export function EmployeePhotoEditor({ employee, canEdit, size = 96 }) {
           <ButtonBase
             onClick={() => input.current?.click()}
             aria-label={employee.photoFileId ? 'Change photo' : 'Upload photo'}
-            sx={{ position: 'absolute', right: 0, bottom: 0, width: 32, height: 32, borderRadius: '50%', background: tokens.sidebar.goldGradient, color: '#171717', boxShadow: '0 2px 8px rgba(23, 23, 23, 0.25)', border: '2px solid', borderColor: 'background.paper' }}
+            sx={{ position: 'absolute', right: 0, bottom: 0, width: 32, height: 32, borderRadius: '50%', background: tokens.sidebar.goldGradient, color: 'var(--brand-contrast)', boxShadow: '0 2px 8px rgba(23, 23, 23, 0.25)', border: '2px solid', borderColor: 'background.paper' }}
           >
             <CameraAltOutlinedIcon sx={{ fontSize: 16 }} />
           </ButtonBase>

@@ -11,7 +11,7 @@ const schema = z
     ACCESS_TOKEN_TTL: z.string().default('15m'),
     REFRESH_TOKEN_DAYS: z.coerce.number().int().positive().default(7),
     REFRESH_TOKEN_REMEMBER_DAYS: z.coerce.number().int().positive().default(30),
-    PASSWORD_RESET_MINUTES: z.coerce.number().int().positive().default(30),
+    PASSWORD_RESET_MINUTES: z.coerce.number().int().positive().default(5), // how long a forgot-password code lasts
     BCRYPT_ROUNDS: z.coerce.number().int().min(4).max(15).default(12),
     MAX_FAILED_LOGINS: z.coerce.number().int().positive().default(5),
     LOCKOUT_MINUTES: z.coerce.number().int().positive().default(15),
@@ -21,7 +21,11 @@ const schema = z
     TRUST_PROXY: z.coerce.number().int().min(0).default(0),
     ALLOW_PUBLIC_SIGNUP: bool.default(false),
     TRIAL_DAYS: z.coerce.number().int().positive().default(14),
+    // Fallback when SMTP is not set up (Super Admin → Email settings): 'console' writes emails to the log.
     EMAIL_PROVIDER: z.enum(['console']).default('console'),
+    APP_NAME: z.string().trim().min(1).default('Jewellery ERP'), // brand name in emails
+    // Encrypts secrets kept in the database (SMTP password). Defaults to a key derived from JWT_ACCESS_SECRET.
+    SETTINGS_ENCRYPTION_KEY: z.preprocess((v) => (v === '' ? undefined : v), z.string().min(32, 'SETTINGS_ENCRYPTION_KEY must be at least 32 characters').optional()),
     STORAGE_DRIVER: z.enum(['local']).default('local'),
     STORAGE_DIR: z.string().default('storage'),
     LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),

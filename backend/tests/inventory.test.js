@@ -239,7 +239,9 @@ describe('opening balance journals', () => {
     const net = entries.flatMap((e) => e.lines).filter((l) => l.key === 'sundry_debtors').reduce((s, l) => s + l.debitPaise - l.creditPaise, 0);
     expect(net).toBe(-200000);
 
-    expect((await api().delete(`/api/v1/customers/${c.id}`).set(bearer(ctx.owner.token))).body.error.code).toBe('HAS_BALANCE');
+    // Its opening-balance ledger entries use it, so it cannot be deleted.
+    const refused = (await api().delete(`/api/v1/customers/${c.id}`).set(bearer(ctx.owner.token))).body.error;
+    expect(refused).toMatchObject({ code: 'IN_USE', message: expect.stringContaining('ledger entries') });
 
     await api().post('/api/v1/suppliers').set(bearer(ctx.owner.token)).send({ companyName: 'Bullion Co', mobile: '9830000002', address: {}, openingBalancePaise: 900000 });
     const [supplier] = await journals(ctx, 'supplier_opening');

@@ -3,6 +3,7 @@ import { DEFAULT_CATEGORIES } from '@jerp/shared';
 import { AUDIT_ACTIONS, recordAudit } from '../../core/audit/audit.service.js';
 import { requireContext } from '../../core/context/requestContext.js';
 import { ApiError } from '../../utils/ApiError.js';
+import { deleteRecord } from '../records/record.deletion.js';
 import { diffChanges } from '../../utils/diff.js';
 import { Product } from '../products/product.model.js';
 import { Category } from './category.model.js';
@@ -74,14 +75,9 @@ export async function updateCategory(id, input) {
   return serialize(category.toObject());
 }
 
+/** Deletes it if nothing uses it — the same rules as every other delete (see record.deletion.js). */
 export async function deleteCategory(id) {
-  const category = await findCategory(id);
-  if (await Category.exists({ parentId: category._id })) throw ApiError.conflict('Delete or move its subcategories first', 'IN_USE');
-  const oid = new mongoose.Types.ObjectId(String(id));
-  const used = await Product.countDocuments({ isDeleted: false, $or: [{ categoryId: oid }, { subcategoryId: oid }] });
-  if (used) throw ApiError.conflict(`${used} product(s) use this category. Move them first.`, 'IN_USE');
-  await category.deleteOne();
-  await recordAudit({ action: AUDIT_ACTIONS.DELETE, module: 'category', recordType: 'Category', recordId: category._id, meta: { name: category.name } });
+  return deleteRecord('category', id);
 }
 
 export async function addDefaultCategories({ session } = {}) {

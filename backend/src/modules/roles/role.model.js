@@ -7,7 +7,8 @@ const roleSchema = new mongoose.Schema(
     name: { type: String, required: true, trim: true },
     description: { type: String, default: null },
     permissions: { type: [String], default: [] },
-    isSystem: { type: Boolean, default: false },
+    isSystem: { type: Boolean, default: false }, // one of the default roles every organisation starts with
+    customised: { type: Boolean, default: false }, // a default role the organisation has edited: start-up sync leaves it alone
     createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   },

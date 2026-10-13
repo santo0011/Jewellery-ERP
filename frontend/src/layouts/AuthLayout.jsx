@@ -16,7 +16,7 @@ export default function AuthLayout() {
           bgcolor: tokens.sidebar.background,
           color: '#F7F3E8',
           p: 6,
-          borderRight: `1px solid ${tokens.light.goldDark}`,
+          borderRight: `1px solid ${tokens.brand.strong}`,
         }}
       >
         <Wordmark size={28} />
@@ -27,7 +27,7 @@ export default function AuthLayout() {
           <Stack spacing={1.5}>
             {HIGHLIGHTS.map((h) => (
               <Stack key={h} direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
-                <Box sx={{ width: 6, height: 6, transform: 'rotate(45deg)', bgcolor: tokens.light.gold, flexShrink: 0 }} />
+                <Box sx={{ width: 6, height: 6, transform: 'rotate(45deg)', bgcolor: tokens.brand.main, flexShrink: 0 }} />
                 <Typography variant="body2" sx={{ color: tokens.sidebar.text }}>
                   {h}
                 </Typography>

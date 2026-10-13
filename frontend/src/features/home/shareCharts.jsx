@@ -12,8 +12,8 @@ const SERIES_DARK = ['#3987e5', '#d95926', '#199e70', '#c98500', '#d55181', '#00
 const MAX_SLOTS = SERIES_LIGHT.length;
 
 // Single-series mark colour shared with the column chart (validated light + dark).
-const GOLD = '#9C7A16';
-const GOLD_DARK = '#B38D1E';
+const GOLD = 'var(--brand-strong)';
+const GOLD_DARK = 'var(--brand-mark)';
 
 /** Keeps the first slots and folds the rest into "Other", so no hue is ever generated. */
 export function foldRows(rows, keep = MAX_SLOTS - 1) {
@@ -201,6 +201,92 @@ export function DonutChart({ rows: input, size = 156, thickness = 22, formatValu
       </Box>
       <Legend rows={rows} total={total} formatValue={formatValue} />
     </Stack>
+  );
+}
+
+const goldFill = (theme) => ({ bgcolor: GOLD, ...theme.applyStyles('dark', { bgcolor: GOLD_DARK }) });
+// Not-yet-received money: the same hue, hatched — so it reads as "part of the total, but owed".
+const owedFill = (theme) => ({
+  backgroundImage: `repeating-linear-gradient(135deg, ${GOLD} 0 4px, transparent 4px 7px)`,
+  boxShadow: `inset 0 0 0 1px ${GOLD}`,
+  ...theme.applyStyles('dark', { backgroundImage: `repeating-linear-gradient(135deg, ${GOLD_DARK} 0 4px, transparent 4px 7px)`, boxShadow: `inset 0 0 0 1px ${GOLD_DARK}` }),
+});
+
+/**
+ * How a total splits across a few parts, ranked: one gold bar per part sized by its share of the total, with the
+ * amount and % on every row (one hue — rank and labels carry identity, not colour). Parts in `owedKeys` (e.g. sold
+ * on credit) are hatched and split out in the headline. Hover or focus a row to highlight it.
+ * rows: [{ key, label, value }] sorted largest first.
+ */
+export function ShareBars({ rows: input, owedKeys = [], formatValue = (v) => formatINR(v, { decimals: 0 }), totalLabel = 'Total', empty = 'Nothing yet' }) {
+  const [active, setActive] = useState(null);
+  const rows = input.filter((r) => r.value > 0);
+  const total = rows.reduce((s, r) => s + r.value, 0);
+  if (!total) return <Empty>{empty}</Empty>;
+  const owed = rows.filter((r) => owedKeys.includes(r.key)).reduce((s, r) => s + r.value, 0);
+  const pct = (v) => (v / total) * 100;
+  const pctText = (v) => `${pct(v) < 1 ? '<1' : Math.round(pct(v))}%`;
+
+  return (
+    <Box>
+      <Stack direction="row" spacing={3} sx={{ mb: 2, alignItems: 'flex-end', flexWrap: 'wrap', rowGap: 1 }}>
+        <Box>
+          <Typography sx={{ fontSize: '1.5rem', fontWeight: 800, lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{formatValue(total)}</Typography>
+          <Typography variant="caption" color="textSecondary">
+            {totalLabel}
+          </Typography>
+        </Box>
+        {owed > 0 && (
+          <Box>
+            <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+              {formatValue(total - owed)}{' '}
+              <Typography component="span" variant="caption" color="textSecondary">
+                received
+              </Typography>
+            </Typography>
+            <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+              {formatValue(owed)}{' '}
+              <Typography component="span" variant="caption" color="textSecondary">
+                on credit
+              </Typography>
+            </Typography>
+          </Box>
+        )}
+      </Stack>
+      <Stack spacing={0.5} role="list" onMouseLeave={() => setActive(null)}>
+        {rows.map((r) => {
+          const isOwed = owedKeys.includes(r.key);
+          const dim = active != null && active !== r.key;
+          return (
+            <Box
+              key={r.key}
+              role="listitem"
+              tabIndex={0}
+              aria-label={`${r.label}: ${formatValue(r.value)}, ${pctText(r.value)} of ${totalLabel.toLowerCase()}`}
+              onMouseEnter={() => setActive(r.key)}
+              onFocus={() => setActive(r.key)}
+              onBlur={() => setActive(null)}
+              sx={{ px: 1, py: 0.75, mx: -1, borderRadius: 1.5, outline: 'none', bgcolor: active === r.key ? 'action.hover' : 'transparent', transition: 'background-color 120ms, opacity 120ms', opacity: dim ? 0.55 : 1 }}
+            >
+              <Stack direction="row" spacing={1} sx={{ alignItems: 'baseline', mb: 0.5 }}>
+                <Typography variant="body2" noWrap sx={{ flex: 1, minWidth: 0, fontWeight: 500 }}>
+                  {r.label}
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                  {formatValue(r.value)}
+                </Typography>
+                <Typography variant="caption" color="textSecondary" sx={{ width: 36, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
+                  {pctText(r.value)}
+                </Typography>
+              </Stack>
+              <Box sx={{ height: 8, borderRadius: 4, bgcolor: 'action.hover', overflow: 'hidden' }}>
+                <Box sx={(theme) => ({ ...(isOwed ? owedFill(theme) : goldFill(theme)), height: '100%', width: `${Math.max(1.5, pct(r.value))}%`, borderRadius: 4, transition: 'width 300ms ease' })} />
+              </Box>
+            </Box>
+          );
+        })}
+      </Stack>
+    </Box>
   );
 }
 

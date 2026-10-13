@@ -30,12 +30,12 @@ function BackButton({ to, label }) {
         fontWeight: 600,
         transition: 'color 160ms ease, border-color 160ms ease, background-color 160ms ease, box-shadow 160ms ease',
         '& .back-arrow': { transition: 'transform 160ms ease, background 160ms ease, color 160ms ease' },
-        '&:hover': { color: tokens.light.goldDark, borderColor: tokens.light.gold, bgcolor: 'rgba(201, 162, 39, 0.06)', boxShadow: '0 2px 10px rgba(201, 162, 39, 0.15)' },
-        '&:hover .back-arrow': { transform: 'translateX(-2px)', background: tokens.sidebar.goldGradient, color: '#171717' },
-        '&:focus-visible': { outline: `2px solid ${tokens.light.gold}`, outlineOffset: 2 },
+        '&:hover': { color: tokens.brand.strong, borderColor: tokens.brand.main, bgcolor: 'rgba(var(--brand-rgb), 0.06)', boxShadow: '0 2px 10px rgba(var(--brand-rgb), 0.15)' },
+        '&:hover .back-arrow': { transform: 'translateX(-2px)', background: tokens.sidebar.goldGradient, color: 'var(--brand-contrast)' },
+        '&:focus-visible': { outline: `2px solid ${tokens.brand.main}`, outlineOffset: 2 },
       }}
     >
-      <Box className="back-arrow" sx={{ width: 26, height: 26, borderRadius: '50%', display: 'grid', placeItems: 'center', bgcolor: 'rgba(201, 162, 39, 0.12)', color: tokens.light.goldDark }}>
+      <Box className="back-arrow" sx={{ width: 26, height: 26, borderRadius: '50%', display: 'grid', placeItems: 'center', bgcolor: 'rgba(var(--brand-rgb), 0.12)', color: tokens.brand.strong }}>
         <ArrowBackRoundedIcon sx={{ fontSize: 16 }} />
       </Box>
       Back to {label}

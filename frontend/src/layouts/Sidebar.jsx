@@ -29,7 +29,7 @@ function NavBadge({ collapsed }) {
         px: 0.75,
         borderRadius: 10,
         background: s.goldGradient,
-        color: '#171717',
+        color: 'var(--brand-contrast)',
         fontSize: '0.6875rem',
         fontWeight: 700,
         display: 'inline-flex',
@@ -64,9 +64,9 @@ function NavItem({ item, collapsed, onNavigate }) {
         transition: 'background-color 160ms ease, color 160ms ease',
         '& .nav-tile': { transition: 'background 160ms ease, color 160ms ease, box-shadow 160ms ease' },
         '&:hover': { bgcolor: 'rgba(255, 255, 255, 0.04)', color: '#fff' },
-        '&:hover .nav-tile': { color: s.active, bgcolor: 'rgba(201, 162, 39, 0.10)' },
+        '&:hover .nav-tile': { color: s.active, bgcolor: 'rgba(var(--brand-rgb), 0.10)' },
         '&.active': { background: s.activeFill, color: '#F7F3E8' },
-        '&.active .nav-tile': { background: s.goldGradient, color: '#171717', boxShadow: '0 4px 14px rgba(201, 162, 39, 0.35)' },
+        '&.active .nav-tile': { background: s.goldGradient, color: 'var(--brand-contrast)', boxShadow: '0 4px 14px rgba(var(--brand-rgb), 0.35)' },
         '&.active::before': {
           content: '""',
           position: 'absolute',
@@ -76,7 +76,7 @@ function NavItem({ item, collapsed, onNavigate }) {
           width: 3,
           borderRadius: '0 3px 3px 0',
           background: s.goldGradient,
-          boxShadow: '0 0 12px rgba(201, 162, 39, 0.6)',
+          boxShadow: '0 0 12px rgba(var(--brand-rgb), 0.6)',
         },
       }}
     >
@@ -159,28 +159,32 @@ function NavGroup({ group, open, onToggle, onNavigate, fixed = false }) {
   );
 }
 
-function Brand({ collapsed, panelName }) {
+/** Top of the sidebar: the organisation's logo and name when it has uploaded a logo, else the app's mark and name. */
+function Brand({ collapsed, panelName, logoUrl, brandName }) {
+  const name = logoUrl && brandName ? brandName : APP_NAME;
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
       <Box
         sx={{
-          width: 40,
-          height: 40,
+          width: logoUrl ? 44 : 40,
+          height: logoUrl ? 44 : 40,
           borderRadius: 2.5,
           flexShrink: 0,
           display: 'grid',
           placeItems: 'center',
-          border: '1px solid rgba(201, 162, 39, 0.35)',
-          background: 'linear-gradient(145deg, rgba(201, 162, 39, 0.14), rgba(201, 162, 39, 0.02))',
+          overflow: 'hidden',
+          border: '1px solid rgba(var(--brand-rgb), 0.35)',
+          // A logo sits on white so dark or transparent artwork stays visible on the dark sidebar.
+          background: logoUrl ? '#FFFFFF' : 'linear-gradient(145deg, rgba(var(--brand-rgb), 0.14), rgba(var(--brand-rgb), 0.02))',
           boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 6px 18px rgba(0, 0, 0, 0.35)',
         }}
       >
-        <DiamondMark size={24} />
+        {logoUrl ? <Box component="img" src={logoUrl} alt={`${name} logo`} sx={{ width: '100%', height: '100%', objectFit: 'contain', p: 0.5 }} /> : <DiamondMark size={24} />}
       </Box>
       {!collapsed && (
         <Box sx={{ minWidth: 0 }}>
-          <Typography noWrap sx={{ fontFamily: fonts.display, fontWeight: 600, fontSize: 22, lineHeight: 1, letterSpacing: '0.02em', color: '#F7F3E8' }}>
-            {APP_NAME}
+          <Typography noWrap title={name} sx={{ fontFamily: fonts.display, fontWeight: 600, fontSize: logoUrl ? 19 : 22, lineHeight: 1.05, letterSpacing: '0.02em', color: '#F7F3E8' }}>
+            {name}
           </Typography>
           {panelName && (
             <Typography noWrap sx={{ mt: 0.5, fontSize: '0.625rem', fontWeight: 600, letterSpacing: '0.16em', textTransform: 'uppercase', color: s.active, lineHeight: 1.2 }}>
@@ -195,7 +199,7 @@ function Brand({ collapsed, panelName }) {
 
 function WorkspaceCard({ name, caption, collapsed }) {
   const monogram = (
-    <Box sx={{ width: 34, height: 34, borderRadius: '50%', flexShrink: 0, display: 'grid', placeItems: 'center', background: s.goldGradient, color: '#171717', fontFamily: fonts.display, fontWeight: 700, fontSize: 17, boxShadow: '0 4px 14px rgba(201, 162, 39, 0.3)' }}>
+    <Box sx={{ width: 34, height: 34, borderRadius: '50%', flexShrink: 0, display: 'grid', placeItems: 'center', background: s.goldGradient, color: 'var(--brand-contrast)', fontFamily: fonts.display, fontWeight: 700, fontSize: 17, boxShadow: '0 4px 14px rgba(var(--brand-rgb), 0.3)' }}>
       {name.trim().charAt(0).toUpperCase()}
     </Box>
   );
@@ -207,7 +211,7 @@ function WorkspaceCard({ name, caption, collapsed }) {
     );
   }
   return (
-    <Box sx={{ m: 1.5, p: 1.25, display: 'flex', alignItems: 'center', gap: 1.25, borderRadius: 2.5, border: '1px solid rgba(201, 162, 39, 0.18)', background: 'linear-gradient(145deg, rgba(201, 162, 39, 0.08), rgba(255, 255, 255, 0.01))' }}>
+    <Box sx={{ m: 1.5, p: 1.25, display: 'flex', alignItems: 'center', gap: 1.25, borderRadius: 2.5, border: '1px solid rgba(var(--brand-rgb), 0.18)', background: 'linear-gradient(145deg, rgba(var(--brand-rgb), 0.08), rgba(255, 255, 255, 0.01))' }}>
       {monogram}
       <Box sx={{ minWidth: 0 }}>
         <Typography noWrap sx={{ fontSize: '0.8125rem', fontWeight: 600, color: '#F7F3E8', lineHeight: 1.3 }}>
@@ -225,7 +229,7 @@ function WorkspaceCard({ name, caption, collapsed }) {
  * `groups` overrides the store navigation (used by the Super Admin panel); `fixedGroups` shows every group open, without folding;
  * `panelName` sits under the logo; `organisationName` and `caption` fill the footer card.
  */
-export default function Sidebar({ collapsed = false, onToggleCollapse, onNavigate, organisationName, caption = 'Organisation', panelName = 'Organisation Panel', groups: groupsProp, fixedGroups = false }) {
+export default function Sidebar({ collapsed = false, onToggleCollapse, onNavigate, organisationName, caption = 'Organisation', panelName = 'Organisation Panel', logoUrl = null, groups: groupsProp, fixedGroups = false }) {
   const { data: session } = useSession();
   const storeGroups = visibleNav(usePermissions(), { branchLogin: session?.user?.branchLogin });
   const groups = groupsProp ?? storeGroups;
@@ -276,21 +280,21 @@ export default function Sidebar({ collapsed = false, onToggleCollapse, onNavigat
           gap: collapsed ? 1.25 : 1,
         }}
       >
-        <Brand collapsed={collapsed} panelName={panelName} />
+        <Brand collapsed={collapsed} panelName={panelName} logoUrl={logoUrl} brandName={organisationName} />
         {onToggleCollapse && (
           <Tooltip title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} placement="right">
             <IconButton
               size="small"
               onClick={onToggleCollapse}
               aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-              sx={{ width: 28, height: 28, borderRadius: 2, color: s.muted, border: `1px solid ${s.divider}`, bgcolor: s.tile, '&:hover': { color: s.active, borderColor: 'rgba(201, 162, 39, 0.4)', bgcolor: 'rgba(201, 162, 39, 0.08)' } }}
+              sx={{ width: 28, height: 28, borderRadius: 2, color: s.muted, border: `1px solid ${s.divider}`, bgcolor: s.tile, '&:hover': { color: s.active, borderColor: 'rgba(var(--brand-rgb), 0.4)', bgcolor: 'rgba(var(--brand-rgb), 0.08)' } }}
             >
               {collapsed ? <ChevronRightRoundedIcon sx={{ fontSize: 18 }} /> : <ChevronLeftRoundedIcon sx={{ fontSize: 18 }} />}
             </IconButton>
           </Tooltip>
         )}
       </Box>
-      <Box sx={{ height: '1px', mx: 2, mb: 1, background: 'linear-gradient(90deg, rgba(201, 162, 39, 0.35), rgba(255, 255, 255, 0.04))' }} />
+      <Box sx={{ height: '1px', mx: 2, mb: 1, background: 'linear-gradient(90deg, rgba(var(--brand-rgb), 0.35), rgba(255, 255, 255, 0.04))' }} />
 
       <Box
         component="nav"
@@ -300,9 +304,9 @@ export default function Sidebar({ collapsed = false, onToggleCollapse, onNavigat
           overflowX: 'hidden',
           py: 1.5,
           scrollbarWidth: 'thin',
-          scrollbarColor: 'rgba(201, 162, 39, 0.25) transparent',
+          scrollbarColor: 'rgba(var(--brand-rgb), 0.25) transparent',
           '&::-webkit-scrollbar': { width: 6 },
-          '&::-webkit-scrollbar-thumb': { borderRadius: 3, bgcolor: 'rgba(201, 162, 39, 0.25)' },
+          '&::-webkit-scrollbar-thumb': { borderRadius: 3, bgcolor: 'rgba(var(--brand-rgb), 0.25)' },
         }}
       >
         {groups.map((group, index) =>

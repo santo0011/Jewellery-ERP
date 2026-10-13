@@ -10,13 +10,15 @@ import StatusChip from '../../components/StatusChip.jsx';
 import { useListParams } from '../../hooks/useListParams.js';
 import { usePermission } from '../../hooks/usePermission.js';
 import CustomerFormDrawer from './CustomerFormDrawer.jsx';
-import { useCustomerListQuery } from './customerApi.js';
+import { useCustomerListQuery, useCustomerQuery } from './customerApi.js';
+import RowActions, { actionsWidth } from '../../components/RowActions.jsx';
+import { useListEditor } from '../../hooks/useListEditor.js';
 import SummaryCards, { SummaryCard } from '../../components/SummaryCards.jsx';
 import PeopleAltOutlinedIcon from '@mui/icons-material/PeopleAltOutlined';
 import PersonAddAltOutlinedIcon from '@mui/icons-material/PersonAddAltOutlined';
 import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined';
 import NotificationsActiveOutlinedIcon from '@mui/icons-material/NotificationsActiveOutlined';
-import { viewColumn } from '../../components/ViewButton.jsx';
+import { useDeleteStatus } from '../../services/recordApi.js';
 
 export const segmentLabel = (v) => CUSTOMER_SEGMENTS.find((s) => s.value === v)?.label ?? v;
 const SEGMENT_COLORS = { vip: 'primary', high_value: 'accent', inactive: 'default', regular: 'default', new: 'info' };
@@ -50,9 +52,13 @@ const filterSlots = { inputLabel: { shrink: true }, select: { displayEmpty: true
 export default function CustomersPage() {
   const navigate = useNavigate();
   const canCreate = usePermission('customer.create');
+  const canEdit = usePermission('customer.edit');
+  const editor = useListEditor(useCustomerQuery);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const list = useListParams({ due: '', status: '' });
   const { data, isLoading, isFetching, error, refetch } = useCustomerListQuery(list.params);
+  // Which rows can be deleted (Delete stays visible; it is disabled with the reason when not).
+  const deleteStatus = useDeleteStatus('customer', data?.items);
 
   const columns = [
     {
@@ -71,6 +77,15 @@ export default function CustomersPage() {
     { key: 'city', label: 'City', render: (c) => [c.address?.city, stateName(c.address?.stateCode)].filter(Boolean).join(', ') || '—' },
     { key: 'payment', label: 'Payment', render: (c) => <PaymentChip status={c.paymentStatus} /> },
     { key: 'status', label: 'Status', render: (c) => <StatusChip status={c.status} /> },
+    {
+      key: 'actions',
+      label: 'Action',
+      align: 'right',
+      width: actionsWidth(3),
+      render: (c) => (
+        <RowActions onView={() => navigate(`/customers/${c.id}`)} onEdit={canEdit ? () => editor.open(c) : undefined} deleteType="customer" deleteStatus={deleteStatus(c.id)} id={c.id} name={c.name} />
+      ),
+    },
   ];
 
   return (
@@ -95,7 +110,7 @@ export default function CustomersPage() {
         </SummaryCards>
       )}
       <DataTable
-        columns={[...columns, viewColumn((c) => navigate(`/customers/${c.id}`), { name: (c) => c.name })]}
+        columns={columns}
         rows={data?.items}
         loading={isLoading}
         fetching={isFetching}
@@ -124,6 +139,7 @@ export default function CustomersPage() {
         }
       />
       <CustomerFormDrawer open={drawerOpen} customer={null} onClose={() => setDrawerOpen(false)} />
+      <CustomerFormDrawer open={Boolean(editor.record)} customer={editor.record} onClose={editor.close} />
     </>
   );
 }

@@ -7,6 +7,7 @@ import { Box, Button, Chip, IconButton, InputAdornment, MenuItem, Stack, TextFie
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 import ConfirmDialog from '../../components/ConfirmDialog.jsx';
+import { DeleteAction } from '../../components/RowActions.jsx';
 import DataTable from '../../components/DataTable.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
 import { useDebounce } from '../../hooks/useDebounce.js';
@@ -17,10 +18,11 @@ import { useRolesQuery } from '../roles/roleApi.js';
 import ResetPasswordDialog from './ResetPasswordDialog.jsx';
 import { useSetUserStatusMutation, useUsersQuery } from './userApi.js';
 import UserFormDrawer from './UserFormDrawer.jsx';
+import { useDeleteStatus } from '../../services/recordApi.js';
 
 const smallChip = { height: 20, fontSize: '0.6875rem' };
-const goldChip = { height: 24, fontSize: '0.75rem', fontWeight: 500, color: tokens.light.goldDark, bgcolor: 'rgba(201, 162, 39, 0.10)', border: '1px solid rgba(201, 162, 39, 0.25)' };
-const actionButton = { width: 32, height: 32, borderRadius: 2, border: 1, borderColor: 'divider', color: 'text.secondary', '&:hover': { color: tokens.light.goldDark, borderColor: tokens.light.gold, bgcolor: 'rgba(201, 162, 39, 0.08)' } };
+const goldChip = { height: 24, fontSize: '0.75rem', fontWeight: 500, color: tokens.brand.strong, bgcolor: 'rgba(var(--brand-rgb), 0.10)', border: '1px solid rgba(var(--brand-rgb), 0.25)' };
+const actionButton = { width: 32, height: 32, borderRadius: 2, border: 1, borderColor: 'divider', color: 'text.secondary', '&:hover': { color: tokens.brand.strong, borderColor: tokens.brand.main, bgcolor: 'rgba(var(--brand-rgb), 0.08)' } };
 
 const initials = (name) =>
   name
@@ -46,8 +48,8 @@ function Monogram({ name, owner, muted }) {
         letterSpacing: '0.02em',
         opacity: muted ? 0.5 : 1,
         ...(owner
-          ? { background: tokens.sidebar.goldGradient, color: '#171717', boxShadow: '0 4px 12px rgba(201, 162, 39, 0.35)' }
-          : { bgcolor: 'rgba(201, 162, 39, 0.10)', color: tokens.light.goldDark, border: '1px solid rgba(201, 162, 39, 0.3)' }),
+          ? { background: tokens.sidebar.goldGradient, color: 'var(--brand-contrast)', boxShadow: '0 4px 12px rgba(var(--brand-rgb), 0.35)' }
+          : { bgcolor: 'rgba(var(--brand-rgb), 0.10)', color: tokens.brand.strong, border: '1px solid rgba(var(--brand-rgb), 0.3)' }),
       }}
     >
       {initials(name)}
@@ -103,7 +105,10 @@ export default function UsersPage() {
   const q = useDebounce(search.trim());
 
   const { data: roles = [] } = useRolesQuery(undefined, { skip: !canCreate && !canEdit && !canViewRoles });
+
   const { data, isLoading, isFetching, error, refetch } = useUsersQuery({ page, limit, ...(q && { q }), ...(status && { status }), ...(roleId && { roleId }) });
+  // Which rows can be deleted (Delete stays visible; it is disabled with the reason when not).
+  const deleteStatus = useDeleteStatus('user', data?.items);
   const [setUserStatus, { isLoading: toggling }] = useSetUserStatusMutation();
 
   const isProtected = (u) => u.isOwner || String(u.id) === String(session.user.id);
@@ -135,7 +140,7 @@ export default function UsersPage() {
               <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
                 {u.name}
               </Typography>
-              {u.isOwner && <Chip size="small" label="Owner" sx={{ ...smallChip, background: tokens.sidebar.goldGradient, color: '#171717', fontWeight: 700 }} />}
+              {u.isOwner && <Chip size="small" label="Owner" sx={{ ...smallChip, background: tokens.sidebar.goldGradient, color: 'var(--brand-contrast)', fontWeight: 700 }} />}
               {String(u.id) === String(session.user.id) && <Chip size="small" label="You" variant="outlined" sx={smallChip} />}
             </Stack>
             <Typography variant="body2" color="textSecondary" sx={{ overflowWrap: 'anywhere' }}>
@@ -178,9 +183,9 @@ export default function UsersPage() {
       key: 'actions',
       label: 'Action',
       align: 'right',
-      width: 132,
+      width: 172,
       render: (u) => (
-        <Stack direction="row" spacing={0.75} sx={{ justifyContent: 'flex-end' }}>
+        <Stack direction="row" spacing={0.75} sx={{ justifyContent: 'flex-end', alignItems: 'center' }}>
           {canEdit && (
             <Tooltip title="Edit">
               <IconButton size="small" sx={actionButton} onClick={() => setDrawer({ open: true, user: u })} aria-label={`Edit ${u.name}`}>
@@ -207,6 +212,8 @@ export default function UsersPage() {
               </IconButton>
             </Tooltip>
           )}
+          {/* Only a login that never did anything can be deleted; the check says why otherwise. */}
+          <DeleteAction type="user" id={u.id} name={u.name} status={deleteStatus(u.id)} />
         </Stack>
       ),
     },

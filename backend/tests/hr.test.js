@@ -308,3 +308,63 @@ describe('editing an advance', () => {
     expect(list[0]).toMatchObject({ editable: false, lockedReason: expect.stringContaining('2020-01-01') });
   });
 });
+
+describe('attendance before the joining date', () => {
+  it('ignores marks from before a corrected joining date in the register, the day screen, payroll and the report', async () => {
+    const ctx = await setup();
+    const month = prevMonth();
+    const days = daysIn(month);
+    const emp = await ctx.hire({ name: 'Late Joiner', joiningDate: `${month}-01` });
+    // Marked on the 2nd–5th (one absent), then the joining date is corrected to the 10th.
+    const marks = ['02', '03', '04', '05'].map((d) => ({ employeeId: emp.id, date: `${month}-${d}`, status: d === '05' ? 'absent' : 'present' }));
+    expect((await api().put('/api/v1/hr/attendance/register').set(bearer(ctx.t)).send({ branchId: ctx.ho, month, entries: marks })).status).toBe(200);
+    const body = { name: emp.name, mobile: emp.mobile, designation: emp.designation, branchId: ctx.ho, joiningDate: `${month}-10`, basicPaise: emp.basicPaise, allowancePaise: emp.allowancePaise };
+    const edited = await api().put(`/api/v1/hr/employees/${emp.id}`).set(bearer(ctx.t)).send(body);
+    expect(edited.status).toBe(200);
+    expect(edited.body.data.history.find((h) => h.event === 'joined').date).toBe(`${month}-10`);
+
+    const reg = (await api().get(`/api/v1/hr/attendance/register?branchId=${ctx.ho}&month=${month}`).set(bearer(ctx.t))).body.data;
+    const row = reg.employees.find((e) => e.id === emp.id);
+    expect(row).toMatchObject({ from: `${month}-10`, eligibleDays: days - 9, marks: {} });
+
+    const day = (await api().get(`/api/v1/hr/attendance?branchId=${ctx.ho}&date=${month}-20`).set(bearer(ctx.t))).body.data;
+    expect(day.employees.find((e) => e.id === emp.id).month.absent).toBe(0);
+
+    const line = (await api().post('/api/v1/hr/payroll').set(bearer(ctx.t)).send({ branchId: ctx.ho, month })).body.data.lines.find((l) => l.employeeId === emp.id);
+    expect(line.days).toMatchObject({ present: 0, absent: 0 });
+    expect(line.payableDays).toBe(days - 9);
+
+    const report = (await api().get(`/api/v1/reports/attendance-summary?month=${month}`).set(bearer(ctx.t))).body.data;
+    expect(report.rows.find((r) => r.code === emp.code)).toMatchObject({ eligible: days - 9, paidDays: days - 9 });
+
+    // A joining date after the employee left is refused.
+    expect((await api().patch(`/api/v1/hr/employees/${emp.id}/status`).set(bearer(ctx.t)).send({ status: 'left', exitDate: `${month}-20` })).status).toBe(200);
+    const tooLate = await api().put(`/api/v1/hr/employees/${emp.id}`).set(bearer(ctx.t)).send({ ...body, joiningDate: `${month}-25` });
+    expect(tooLate.body.error.details[0]).toMatchObject({ path: 'joiningDate', message: `Must be on or before ${month}-20` });
+  });
+});
+
+describe('payroll for the running month', () => {
+  it('counts and pays only the days up to today, not the days still to come', async () => {
+    const ctx = await setup();
+    const me = (await api().get('/api/v1/hr/attendance/register?branchId=' + ctx.ho + '&month=2000-01').set(bearer(ctx.t))).body.data;
+    const today = me.today;
+    const month = today.slice(0, 7);
+    const dayOfMonth = Number(today.slice(8));
+    const days = daysIn(month);
+    const emp = await ctx.hire({ name: 'Running Month', joiningDate: '2025-01-01', basicPaise: days * 100000, allowancePaise: 0 });
+    // Absent today: the only mark. Earlier days are unmarked, so they count as present.
+    await api().put('/api/v1/hr/attendance').set(bearer(ctx.t)).send({ branchId: ctx.ho, date: today, entries: [{ employeeId: emp.id, status: 'absent' }] });
+
+    const run = (await api().post('/api/v1/hr/payroll').set(bearer(ctx.t)).send({ branchId: ctx.ho, month })).body.data;
+    expect(run.upTo).toBe(today);
+    const line = run.lines.find((l) => l.employeeId === emp.id);
+    expect(line.daysInMonth).toBe(days);
+    expect(line.payableDays).toBe(dayOfMonth - 1); // days so far, less today's absence
+    expect(line.earnedPaise).toBe((dayOfMonth - 1) * 100000); // ₹1,000 a day: salary ÷ days in the month
+    expect(line.days.absent).toBe(1);
+
+    const reg = (await api().get(`/api/v1/hr/attendance/register?branchId=${ctx.ho}&month=${month}`).set(bearer(ctx.t))).body.data;
+    expect(reg.employees.find((e) => e.id === emp.id).eligibleDays).toBe(dayOfMonth);
+  });
+});

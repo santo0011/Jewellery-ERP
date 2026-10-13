@@ -155,7 +155,7 @@ function ActionIcon({ title, onClick, label, danger, disabled, children }) {
   return (
     <Tooltip title={title}>
       <span>
-        <IconButton size="small" onClick={onClick} disabled={disabled} aria-label={label} sx={{ width: 30, height: 30, color: 'text.secondary', '&:hover': { color: danger ? 'error.main' : 'primary.dark', bgcolor: danger ? 'rgba(155, 44, 44, 0.08)' : 'rgba(201, 162, 39, 0.10)' } }}>
+        <IconButton size="small" onClick={onClick} disabled={disabled} aria-label={label} sx={{ width: 30, height: 30, color: 'text.secondary', '&:hover': { color: danger ? 'error.main' : 'primary.dark', bgcolor: danger ? 'rgba(155, 44, 44, 0.08)' : 'rgba(var(--brand-rgb), 0.10)' } }}>
           {children}
         </IconButton>
       </span>
@@ -250,7 +250,7 @@ function CategoryCard({ root, canCreate, canEdit, canDelete, onEdit, onAddChild,
         {canCreate && (
           <ButtonBase
             onClick={onAddChild}
-            sx={{ mx: 0.5, mb: 0.5, mt: root.children.length ? 0.5 : 0.25, py: 0.75, gap: 0.5, borderRadius: 2, border: '1px dashed', borderColor: 'divider', color: 'text.secondary', fontSize: '0.8rem', fontWeight: 600, '&:hover': { borderColor: 'primary.main', color: 'primary.dark', bgcolor: 'rgba(201, 162, 39, 0.06)' } }}
+            sx={{ mx: 0.5, mb: 0.5, mt: root.children.length ? 0.5 : 0.25, py: 0.75, gap: 0.5, borderRadius: 2, border: '1px dashed', borderColor: 'divider', color: 'text.secondary', fontSize: '0.8rem', fontWeight: 600, '&:hover': { borderColor: 'primary.main', color: 'primary.dark', bgcolor: 'rgba(var(--brand-rgb), 0.06)' } }}
           >
             <AddRoundedIcon sx={{ fontSize: 17 }} />
             Add subcategory

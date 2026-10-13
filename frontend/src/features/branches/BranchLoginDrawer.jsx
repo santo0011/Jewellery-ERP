@@ -64,9 +64,9 @@ export default function BranchLoginDrawer({ branch, onClose, onEditBranch }) {
       width={460}
     >
       <Stack spacing={2.5}>
-        <Box sx={{ p: 2, borderRadius: 2.5, border: '1px solid rgba(201, 162, 39, 0.25)', background: 'linear-gradient(145deg, rgba(201, 162, 39, 0.08), rgba(201, 162, 39, 0.01))' }}>
+        <Box sx={{ p: 2, borderRadius: 2.5, border: '1px solid rgba(var(--brand-rgb), 0.25)', background: 'linear-gradient(145deg, rgba(var(--brand-rgb), 0.08), rgba(var(--brand-rgb), 0.01))' }}>
           <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
-            <Box sx={{ width: 40, height: 40, borderRadius: 2, flexShrink: 0, display: 'grid', placeItems: 'center', background: tokens.sidebar.goldGradient, color: '#171717' }}>
+            <Box sx={{ width: 40, height: 40, borderRadius: 2, flexShrink: 0, display: 'grid', placeItems: 'center', background: tokens.sidebar.goldGradient, color: 'var(--brand-contrast)' }}>
               <KeyOutlinedIcon fontSize="small" />
             </Box>
             <Box sx={{ minWidth: 0, flex: 1 }}>

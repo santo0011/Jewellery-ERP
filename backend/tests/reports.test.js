@@ -59,24 +59,17 @@ describe('reports', () => {
     expect(cgst.totals.taxablePaise).toBe(quote.totals.taxablePaise);
     expect(cgst.totals.taxPaise + sgst.totals.taxPaise).toBe(quote.totals.gstPaise);
 
-    const profit = (await run(ctx, 'profit')).body.data;
-    expect(profit.totals).toMatchObject({ costPaise: 6000000, profitPaise: quote.totals.taxablePaise - 6000000 });
-
     const owing = (await run(ctx, 'customer-outstanding')).body.data;
     expect(owing.rows[0]).toMatchObject({ customer: 'Report Buyer', creditPaise: 100000, oldDuePaise: 20000, duePaise: 120000 });
 
     const stock = (await run(ctx, 'stock-summary')).body.data;
     expect(stock.totals).toMatchObject({ items: 1, grossMg: 10000 });
 
-    const pay = (await run(ctx, 'sales-payment')).body.data;
-    expect(pay.rows.map((r) => r.mode).sort()).toEqual(['Cash', 'On credit (due)']);
-
-    const tb = (await run(ctx, 'trial-balance')).body.data;
-    expect(tb.totals.debitPaise).toBe(tb.totals.creditPaise);
-    expect(tb.totals.debitPaise).toBeGreaterThan(0);
-
-    const cash = (await run(ctx, 'cash-book', '?account=cash')).body.data;
-    expect(cash.totals.inPaise).toBe(total - 100000);
+    // Retired reports are neither listed nor runnable.
+    const retired = ['sales-metal', 'sales-payment', 'sales-staff', 'profit', 'day-book', 'cash-book', 'trial-balance'];
+    expect(list.some((r) => retired.includes(r.key) || r.group === 'Tax & finance')).toBe(false);
+    expect(list.filter((r) => r.group === 'Sales').map((r) => r.key)).toEqual(['sales-register', 'sales-daily', 'sales-category', 'sales-returns']);
+    for (const key of retired) expect((await run(ctx, key)).status, key).toBe(404);
 
     expect((await run(ctx, 'sales-register', '?from=2026-05-10&to=2026-05-01')).status).toBe(400);
     expect((await run(ctx, 'no-such-report')).status).toBe(404);
@@ -92,10 +85,10 @@ describe('reports', () => {
     const token = (await api().post('/api/v1/auth/login').send({ email, password: 'Secret123' })).body.data.accessToken;
     const keys = (await api().get('/api/v1/reports').set(bearer(token))).body.data.map((r) => r.key);
     expect(keys).toContain('sales-register');
-    expect(keys).not.toContain('trial-balance');
+    expect(keys).not.toContain('stock-summary');
     expect(keys).not.toContain('salary-register');
     expect(keys).not.toContain('orders-open');
-    expect((await api().get('/api/v1/reports/trial-balance').set(bearer(token))).status).toBe(403);
+    expect((await api().get('/api/v1/reports/salary-register').set(bearer(token))).status).toBe(403);
   });
 });
 

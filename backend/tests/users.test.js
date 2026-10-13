@@ -58,17 +58,17 @@ describe('user management', () => {
     const { role } = await context(owner.token);
     const { headOffice: foreignBranch, role: foreignRole } = await context(other.token);
 
-    const noBranch = await api().post('/api/v1/users').set(bearer(owner.token)).send(newUser({ roleIds: [role('viewer')] }));
+    const noBranch = await api().post('/api/v1/users').set(bearer(owner.token)).send(newUser({ roleIds: [role('sales_staff')] }));
     expect(noBranch.status).toBe(400);
     expect(noBranch.body.error.details[0].path).toBe('branchAccess.branchIds');
 
-    const crossBranch = await api().post('/api/v1/users').set(bearer(owner.token)).send(newUser({ roleIds: [role('viewer')], branchAccess: { all: false, branchIds: [foreignBranch] } }));
+    const crossBranch = await api().post('/api/v1/users').set(bearer(owner.token)).send(newUser({ roleIds: [role('sales_staff')], branchAccess: { all: false, branchIds: [foreignBranch] } }));
     expect(crossBranch.status).toBe(400);
 
-    const crossRole = await api().post('/api/v1/users').set(bearer(owner.token)).send(newUser({ roleIds: [foreignRole('viewer')], branchAccess: { all: true } }));
+    const crossRole = await api().post('/api/v1/users').set(bearer(owner.token)).send(newUser({ roleIds: [foreignRole('sales_staff')], branchAccess: { all: true } }));
     expect(crossRole.status).toBe(400);
 
-    const dup = await api().post('/api/v1/users').set(bearer(owner.token)).send(newUser({ email: owner.input.email, roleIds: [role('viewer')], branchAccess: { all: true } }));
+    const dup = await api().post('/api/v1/users').set(bearer(owner.token)).send(newUser({ email: owner.input.email, roleIds: [role('sales_staff')], branchAccess: { all: true } }));
     expect(dup.status).toBe(409);
   });
 
@@ -76,10 +76,10 @@ describe('user management', () => {
     const owner = await registerOrg();
     const { role } = await context(owner.token);
     for (let i = 0; i < 4; i += 1) {
-      const res = await api().post('/api/v1/users').set(bearer(owner.token)).send(newUser({ roleIds: [role('viewer')], branchAccess: { all: true } }));
+      const res = await api().post('/api/v1/users').set(bearer(owner.token)).send(newUser({ roleIds: [role('sales_staff')], branchAccess: { all: true } }));
       expect(res.status).toBe(201);
     }
-    const sixth = await api().post('/api/v1/users').set(bearer(owner.token)).send(newUser({ roleIds: [role('viewer')], branchAccess: { all: true } }));
+    const sixth = await api().post('/api/v1/users').set(bearer(owner.token)).send(newUser({ roleIds: [role('sales_staff')], branchAccess: { all: true } }));
     expect(sixth.status).toBe(403);
     expect(sixth.body.error.code).toBe('PLAN_LIMIT_REACHED');
   });
@@ -95,7 +95,7 @@ describe('user management', () => {
     const demote = await api()
       .put(`/api/v1/users/${ownerId}`)
       .set(bearer(owner.token))
-      .send({ name: 'Owner', roleIds: [role('viewer')], branchAccess: { all: true } });
+      .send({ name: 'Owner', roleIds: [role('sales_staff')], branchAccess: { all: true } });
     expect(demote.status).toBe(403);
 
     const rename = await api()
@@ -109,8 +109,8 @@ describe('user management', () => {
   it('prevents assigning roles with permissions the actor lacks', async () => {
     const owner = await registerOrg();
     const { role } = await context(owner.token);
-    const managerBody = newUser({ roleIds: [role('hr_manager')], branchAccess: { all: true } });
-    const hrRole = (await api().get('/api/v1/roles').set(bearer(owner.token))).body.data.find((r) => r.key === 'hr_manager');
+    const managerBody = newUser({ roleIds: [role('accountant')], branchAccess: { all: true } });
+    const hrRole = (await api().get('/api/v1/roles').set(bearer(owner.token))).body.data.find((r) => r.key === 'accountant');
 
     const custom = await api()
       .post('/api/v1/roles')
@@ -126,14 +126,14 @@ describe('user management', () => {
     expect(escalate.status).toBe(403);
     expect(escalate.body.error.code).toBe('PERMISSION_ESCALATION');
 
-    const allowed = await api().post('/api/v1/users').set(bearer(token)).send(newUser({ roleIds: [role('hr_manager')], branchAccess: { all: true } }));
+    const allowed = await api().post('/api/v1/users').set(bearer(token)).send(newUser({ roleIds: [role('accountant')], branchAccess: { all: true } }));
     expect(allowed.status).toBe(201);
   });
 
   it('deactivation and admin reset sign the user out everywhere', async () => {
     const owner = await registerOrg();
     const { role } = await context(owner.token);
-    const body = newUser({ roleIds: [role('viewer')], branchAccess: { all: true } });
+    const body = newUser({ roleIds: [role('sales_staff')], branchAccess: { all: true } });
     const id = (await api().post('/api/v1/users').set(bearer(owner.token)).send(body)).body.data.id;
 
     const token = await signIn(body.email, 'Temp1234');

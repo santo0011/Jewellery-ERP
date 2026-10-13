@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import { getErrorMessage } from '../utils/errors.js';
 import ConfirmDialog from './ConfirmDialog.jsx';
 
+/** Detail-page actions. Edit and Delete live in the list's Action column, so pages usually pass only onStatus. */
 export default function RecordActions({ name, status, canEdit, canDelete, onEdit, onStatus, onDelete, deleteMessage }) {
   const [confirm, setConfirm] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -27,7 +28,7 @@ export default function RecordActions({ name, status, canEdit, canDelete, onEdit
 
   return (
     <>
-      {canEdit && (
+      {canEdit && onEdit && (
         <Button variant="contained" startIcon={<EditOutlinedIcon />} onClick={onEdit}>
           Edit
         </Button>
@@ -37,7 +38,7 @@ export default function RecordActions({ name, status, canEdit, canDelete, onEdit
           {status === 'active' ? 'Deactivate' : 'Activate'}
         </Button>
       )}
-      {canDelete && (
+      {canDelete && onDelete && (
         <Button color="error" startIcon={<DeleteOutlineRoundedIcon />} onClick={() => setConfirm('delete')}>
           Delete
         </Button>

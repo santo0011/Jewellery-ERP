@@ -74,7 +74,7 @@ export default function StockEntriesPage({ mode }) {
         }
       />
       <DataTable
-        columns={[...columns, viewColumn(setViewing, { name: (e) => e.docNo })]}
+        columns={[...columns, viewColumn(setViewing, { name: (e) => e.docNo, deleteDisabled: 'Stock entries are part of the stock ledger and cannot be deleted. Make a correcting entry instead.' })]}
         rows={data?.items}
         loading={isLoading}
         fetching={isFetching}

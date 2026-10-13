@@ -1,10 +1,11 @@
-import { BRANCH_PERMISSIONS, BRANCH_STATUS } from '@jerp/shared';
+import { BRANCH_PERMISSIONS, BRANCH_STATUS, SUBSCRIPTION_STATUS } from '@jerp/shared';
 import { AUDIT_ACTIONS, recordAudit } from '../../core/audit/audit.service.js';
 import { requireContext } from '../../core/context/requestContext.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { diffChanges } from '../../utils/diff.js';
 import { escapeRegex, paginate } from '../../utils/pagination.js';
-import { Organisation } from '../organisations/organisation.model.js';
+import { limitsOf } from '../billing/limits.js';
+import { Subscription } from '../organisations/subscription.model.js';
 import { withTransaction } from '../../config/db.js';
 import { branchLoginsByBranch, syncBranchLoginEmail } from '../users/user.service.js';
 import { Branch } from './branch.model.js';
@@ -39,21 +40,19 @@ export async function getBranch(id) {
   return serializeBranch(branch);
 }
 
+/** Branches allowed by the subscription (2 on a free trial, else the plan's limit; null = unlimited) and in use. */
 export async function branchUsage() {
-  const { organisationId } = requireContext();
-  const [organisation, used] = await Promise.all([
-    Organisation.findById(organisationId).select('branchLimit').lean(),
-    Branch.countDocuments({ status: BRANCH_STATUS.ACTIVE }),
-  ]);
-  const limit = organisation?.branchLimit ?? 1;
-  return { limit, used, available: Math.max(0, limit - used) };
+  const [subscription, used] = await Promise.all([Subscription.findOne({}).lean(), Branch.countDocuments({ status: BRANCH_STATUS.ACTIVE })]);
+  const limit = limitsOf(subscription).branches;
+  return { limit, used, available: limit == null ? null : Math.max(0, limit - used), trial: subscription?.status === SUBSCRIPTION_STATUS.TRIAL };
 }
 
 async function assertBranchLimit() {
-  const { limit, used } = await branchUsage();
-  if (used >= limit) {
+  const { limit, used, trial } = await branchUsage();
+  if (limit != null && used >= limit) {
+    const allowed = `${limit} branch${limit === 1 ? '' : 'es'} (head office included)`;
     throw ApiError.forbidden(
-      `Your branch limit is ${limit} and all ${limit === 1 ? 'of it is' : `${limit} are`} in use. Contact your platform administrator to raise it.`,
+      trial ? `The free trial allows ${allowed}, and all are in use. Choose a subscription plan to add more.` : `Your plan allows ${allowed}, and all are in use. Upgrade your plan to add more.`,
       'BRANCH_LIMIT_REACHED',
     );
   }

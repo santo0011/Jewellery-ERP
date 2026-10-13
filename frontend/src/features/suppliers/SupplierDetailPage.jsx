@@ -25,9 +25,8 @@ import { formatDate } from '../../utils/format.js';
 import { formatAddress } from '../customers/CustomerDetailPage.jsx';
 import { usePurchaseListQuery, usePurchaseOrderListQuery } from '../purchases/purchaseApi.js';
 import { OrderStatusChip, PaymentChip } from '../purchases/purchaseUi.jsx';
-import SupplierFormDrawer from './SupplierFormDrawer.jsx';
 import { suppliesLabel } from './SuppliersPage.jsx';
-import { useDeleteSupplierMutation, useSetSupplierStatusMutation, useSupplierQuery } from './supplierApi.js';
+import { useSetSupplierStatusMutation, useSupplierQuery } from './supplierApi.js';
 
 const signed = (value, format, positive, negative) => (value ? `${format(Math.abs(value))} ${value > 0 ? positive : negative}` : 'Nil');
 const inr = (p) => formatINR(p, { decimals: 0 });
@@ -132,14 +131,11 @@ function OrdersTab({ supplierId }) {
 export default function SupplierDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [editing, setEditing] = useState(false);
   const [tab, setTab] = useState('bills');
   const canEdit = usePermission('supplier.edit');
-  const canDelete = usePermission('supplier.delete');
   const canBuy = usePermission('purchase.create');
   const { data: s, isLoading, error, refetch } = useSupplierQuery(id);
   const [setStatus] = useSetSupplierStatusMutation();
-  const [remove] = useDeleteSupplierMutation();
 
   if (isLoading) return <LoadingState label="Loading supplier" />;
   if (error) return <ErrorState error={error} onRetry={refetch} />;
@@ -165,18 +161,10 @@ export default function SupplierDetailPage() {
               name={s.companyName}
               status={s.status}
               canEdit={canEdit}
-              canDelete={canDelete}
-              onEdit={() => setEditing(true)}
               onStatus={async (status) => {
                 await setStatus({ id, status }).unwrap();
                 toast.success(status === 'active' ? 'Supplier activated' : 'Supplier deactivated');
               }}
-              onDelete={async () => {
-                await remove(id).unwrap();
-                toast.success('Supplier deleted');
-                navigate('/suppliers', { replace: true });
-              }}
-              deleteMessage="Suppliers linked to products cannot be deleted; deactivate them instead."
             />
           </Stack>
         }
@@ -186,7 +174,7 @@ export default function SupplierDetailPage() {
       <Card sx={{ mb: 2 }}>
         <CardContent sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, alignItems: 'center', gap: { xs: 2, md: 3 } }}>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2.5} sx={{ alignItems: 'center', textAlign: { xs: 'center', sm: 'left' }, flex: 1, minWidth: 0 }}>
-            <Box sx={{ width: 72, height: 72, borderRadius: 3, flexShrink: 0, display: 'grid', placeItems: 'center', background: tokens.sidebar.goldGradient, color: '#171717', fontFamily: fonts.display, fontWeight: 700, fontSize: 30, boxShadow: '0 6px 18px rgba(201, 162, 39, 0.3)' }}>
+            <Box sx={{ width: 72, height: 72, borderRadius: 3, flexShrink: 0, display: 'grid', placeItems: 'center', background: tokens.sidebar.goldGradient, color: 'var(--brand-contrast)', fontFamily: fonts.display, fontWeight: 700, fontSize: 30, boxShadow: '0 6px 18px rgba(var(--brand-rgb), 0.3)' }}>
               {initials(s.companyName)}
             </Box>
             <Box sx={{ minWidth: 0 }}>
@@ -197,7 +185,7 @@ export default function SupplierDetailPage() {
                 <Chip size="small" label={s.code} variant="outlined" sx={{ height: 22 }} />
                 <StatusChip status={s.status} />
                 {(s.supplies ?? []).map((x) => (
-                  <Chip key={x} size="small" label={suppliesLabel([x])} sx={{ height: 22, bgcolor: 'rgba(201, 162, 39, 0.12)', color: tokens.light.goldDark, fontWeight: 600 }} />
+                  <Chip key={x} size="small" label={suppliesLabel([x])} sx={{ height: 22, bgcolor: 'rgba(var(--brand-rgb), 0.12)', color: tokens.brand.strong, fontWeight: 600 }} />
                 ))}
               </Stack>
             </Box>
@@ -294,7 +282,6 @@ export default function SupplierDetailPage() {
       )}
       {current === 'history' && <RecordHistory recordId={id} />}
 
-      <SupplierFormDrawer open={editing} supplier={s} onClose={() => setEditing(false)} />
     </>
   );
 }
