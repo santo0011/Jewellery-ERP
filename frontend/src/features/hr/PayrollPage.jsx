@@ -14,7 +14,7 @@ import Amount from '../../components/Amount.jsx';
 import DataTable from '../../components/DataTable.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
 import ConfirmDialog from '../../components/ConfirmDialog.jsx';
-import RowActions, { actionsWidth } from '../../components/RowActions.jsx';
+import RowActions, { actionsWidth, DisabledDelete } from '../../components/RowActions.jsx';
 import { useListParams } from '../../hooks/useListParams.js';
 import { usePermission, useSession } from '../../hooks/usePermission.js';
 import { tokens } from '../../theme/tokens.js';
@@ -294,7 +294,13 @@ export default function PayrollPage() {
             width: actionsWidth(2),
             render: (r) => (
               <RowActions onView={() => navigate(`/hr/payroll/${r.id}`)} name={r.runNo}>
-                {canRun && r.status === 'draft' && <DeleteDraftRun run={r} />}
+                {!canRun ? (
+                  <DisabledDelete reason="You do not have permission to delete payroll." />
+                ) : r.status === 'draft' ? (
+                  <DeleteDraftRun run={r} />
+                ) : (
+                  <DisabledDelete reason="Finalised payroll is booked in the accounts and cannot be deleted." />
+                )}
               </RowActions>
             ),
           },

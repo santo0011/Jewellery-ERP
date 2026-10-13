@@ -49,6 +49,7 @@ import { useChangePasswordMutation, useLogoutAllMutation, useRevokeSessionMutati
 import { useSignOut } from '../auth/useSignOut.js';
 import { useOrganisationQuery, useUpdateOrganisationMutation } from '../settings/organisationApi.js';
 import { toFormValues as organisationFormValues } from '../settings/OrganisationPage.jsx';
+import LogoCard from '../settings/LogoCard.jsx';
 
 const passwordFormSchema = changePasswordSchema
   .and(z.object({ confirmPassword: z.string() }))
@@ -434,6 +435,7 @@ function AccountDetails({ session }) {
 
 export default function ProfilePage() {
   const { data: session } = useSession();
+  const canEditOrganisation = usePermission('organisation.edit');
 
   return (
     <>
@@ -455,6 +457,11 @@ export default function ProfilePage() {
           </Grid>
           <Grid size={{ xs: 12, lg: 6 }}>
             <Stack spacing={3}>
+              <LogoCard
+                canEdit={canEditOrganisation}
+                title="Organisation logo"
+                caption={canEditOrganisation ? 'Shown at the top of the sidebar and printed on invoices. PNG, JPEG or WebP up to 1 MB; a square logo looks best.' : 'Shown at the top of the sidebar and printed on invoices. Ask an administrator to change it.'}
+              />
               <Section title="Account" description="Your organisation, branch and role.">
                 <AccountDetails session={session} />
               </Section>

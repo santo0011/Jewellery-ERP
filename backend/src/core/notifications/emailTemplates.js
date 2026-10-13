@@ -80,10 +80,6 @@ function details(rows) {
 const note = (html) =>
   `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:8px 0 0;"><tr><td style="border-left:3px solid ${C.gold};padding:4px 0 4px 14px;font-family:${SANS};font-size:13px;line-height:1.6;color:${C.muted};">${html}</td></tr></table>`;
 
-/** A link written out in full, for clients that block buttons. */
-const fallbackLink = (href) =>
-  `<p style="margin:0 0 20px;font-family:${SANS};font-size:12px;line-height:1.6;color:${C.muted};">Button not working? Copy this link into your browser:<br><a href="${esc(href)}" style="color:${C.goldDark};word-break:break-all;">${esc(href)}</a></p>`;
-
 /** The page: header with the brand, the card, the footer. `preheader` is the inbox preview line. */
 function layout({ preheader, eyebrow, title, body, footerNote }) {
   const year = new Date().getFullYear();
@@ -194,23 +190,25 @@ export const templates = {
     text: `Hello ${name},\n\nA new one-time password was issued for ${organisationName}. Your previous password no longer works.\n\n  Email:    ${email}\n  Password: ${otp}\n\n${loginUrl}${textFooter()}`,
   }),
 
-  /** Forgot password: a link that lets the owner of the email choose a new password. */
-  passwordReset: ({ name, link, minutes }) => ({
-    subject: `Reset your ${env.APP_NAME} password`,
+  /** Forgot password: the 6-digit code the person types on the reset page. */
+  passwordReset: ({ name, otp, minutes }) => ({
+    subject: `${otp} is your ${env.APP_NAME} password reset code`,
     html: layout({
-      preheader: `Choose a new password. The link expires in ${minutes} minutes.`,
+      preheader: `Your password reset code. It expires in ${minutes} minutes.`,
       eyebrow: 'Account security',
-      title: 'Reset your password',
+      title: 'Your password reset code',
       body: [
         paragraph(`Hello ${esc(name)},`),
-        paragraph(`We received a request to reset the password for your ${esc(env.APP_NAME)} account. Click the button below to choose a new one.`),
-        button('Reset password', link),
-        details([['Link expires in', `${esc(minutes)} minutes`]]),
-        fallbackLink(link),
-        note('Didn’t ask for this? You can safely ignore this email — your password stays the same and the link expires on its own.'),
+        paragraph(`We received a request to reset the password for your ${esc(env.APP_NAME)} account. Enter this code on the reset page to choose a new password.`),
+        otpBlock(otp, `EXPIRES IN ${esc(minutes)} MINUTES`),
+        details([
+          ['Valid for', `${esc(minutes)} minutes`],
+          ['Tries allowed', '5'],
+        ]),
+        note('Didn’t ask for this? You can safely ignore this email — your password stays the same and the code expires on its own. Never share this code; our team will never ask for it.'),
       ].join(''),
     }),
-    text: `Hello ${name},\n\nUse the link below to reset your ${env.APP_NAME} password. It expires in ${minutes} minutes.\n\n${link}\n\nIf you did not request this, you can ignore this email.${textFooter()}`,
+    text: `Hello ${name},\n\nYour ${env.APP_NAME} password reset code is: ${otp}\n\nIt expires in ${minutes} minutes. If you did not request this, you can ignore this email — never share this code.${textFooter()}`,
   }),
 
   /** Super Admin's "send test email" from the SMTP settings page. */

@@ -1,4 +1,5 @@
 import bcrypt from 'bcryptjs';
+import { randomInt } from 'node:crypto';
 import { expandPermissions, ORG_STATUS, USER_STATUS } from '@jerp/shared';
 import { env } from '../../config/env.js';
 import { withTransaction } from '../../config/db.js';
@@ -7,7 +8,7 @@ import { trySendEmail } from '../../core/notifications/email.service.js';
 import { PlatformAdmin } from '../platform/platformAdmin.model.js';
 import { recordPlatformAudit } from '../platform/platformAuth.service.js';
 import { ApiError } from '../../utils/ApiError.js';
-import { randomToken, safeEqualHex, sha256 } from '../../utils/crypto.js';
+import { safeEqualHex, sha256 } from '../../utils/crypto.js';
 import { Branch } from '../branches/branch.model.js';
 import { Organisation } from '../organisations/organisation.model.js';
 import { organisationDeactivated } from '../organisations/organisationAccess.js';
@@ -176,55 +177,89 @@ export async function logoutAll(userId) {
   await recordAudit({ action: AUDIT_ACTIONS.SESSION_REVOKE, module: 'auth', recordType: 'User', recordId: userId, meta: { all: true } });
 }
 
+// ---------------------------------------------------------------- forgot password (6-digit emailed code)
+
+const RESET_MAX_TRIES = 5;
+const RESET_RESEND_SECONDS = 60;
+const resetHash = (accountId, otp) => sha256(`password-reset:${accountId}:${otp}`);
+
+/** The account that signs in with this email — an organisation user or a Super Admin — with its reset state. */
+async function resetAccount(email) {
+  const user = await User.findOne({ email, status: USER_STATUS.ACTIVE }).setOptions(SKIP).select('+passwordReset').lean();
+  if (user) return { kind: 'user', doc: user, model: User };
+  const admin = await PlatformAdmin.findOne({ email, status: 'active' }).lean();
+  return admin ? { kind: 'admin', doc: admin, model: PlatformAdmin } : null;
+}
+const updateAccount = (acct, update, opts) => (acct.kind === 'user' ? User.updateOne({ _id: acct.doc._id }, update, opts).setOptions(SKIP) : PlatformAdmin.updateOne({ _id: acct.doc._id }, update, opts));
+
 /**
- * Emails a reset link to anyone who signs in with this address: organisation users and Super Admins alike.
- * Says nothing about whether the address exists, and a mail failure is only logged (the answer is the same).
+ * Emails a 6-digit code (digits only) to whoever signs in with this address. Says nothing about whether the address
+ * exists, and a mail failure is only logged — the answer is the same either way. A new code replaces the old one;
+ * asking again within a minute does not send another.
  */
 export async function forgotPassword(email) {
-  const user = await User.findOne({ email, status: USER_STATUS.ACTIVE }).setOptions(SKIP).lean();
-  const admin = user ? null : await PlatformAdmin.findOne({ email, status: 'active' }).lean();
-  const account = user ?? admin;
-  if (!account) return;
+  const acct = await resetAccount(email);
+  if (!acct) return;
+  const sentAt = acct.doc.passwordReset?.sentAt;
+  if (sentAt && Date.now() - new Date(sentAt).getTime() < RESET_RESEND_SECONDS * 1000) return;
 
-  const token = randomToken(32);
-  const passwordReset = { tokenHash: sha256(token), expiresAt: new Date(Date.now() + env.PASSWORD_RESET_MINUTES * 60000) };
-  if (user) await User.updateOne({ _id: user._id }, { $set: { passwordReset } }).setOptions(SKIP);
-  else await PlatformAdmin.updateOne({ _id: admin._id }, { $set: { passwordReset } });
-
-  await trySendEmail({
-    to: account.email,
-    template: 'passwordReset',
-    data: { name: account.name, link: `${env.APP_URL}/reset-password?token=${token}`, minutes: env.PASSWORD_RESET_MINUTES },
-  });
+  const otp = String(randomInt(0, 1_000_000)).padStart(6, '0');
+  const passwordReset = { tokenHash: resetHash(acct.doc._id, otp), expiresAt: new Date(Date.now() + env.PASSWORD_RESET_MINUTES * 60000), attempts: 0, sentAt: new Date() };
+  await updateAccount(acct, { $set: { passwordReset } });
+  await trySendEmail({ to: acct.doc.email, template: 'passwordReset', data: { name: acct.doc.name, otp, minutes: env.PASSWORD_RESET_MINUTES } });
 }
 
-/** A Super Admin's reset: new password, and every platform session signed out. */
-async function resetPlatformAdminPassword(tokenHash, password, meta) {
-  const admin = await PlatformAdmin.findOne({ 'passwordReset.tokenHash': tokenHash, 'passwordReset.expiresAt': { $gt: new Date() }, status: 'active' }).lean();
-  if (!admin) return false;
-  await PlatformAdmin.updateOne(
-    { _id: admin._id },
-    { $set: { passwordHash: await hashPassword(password), passwordReset: { tokenHash: null, expiresAt: null }, failedLoginCount: 0, lockedUntil: null }, $inc: { tokenVersion: 1 } },
-  );
-  await Session.updateMany({ userId: admin._id, realm: 'platform', revokedAt: null }, { $set: { revokedAt: new Date(), revokedReason: 'password_reset' } });
-  await recordPlatformAudit({ adminId: admin._id, action: 'password_reset' }, meta);
-  return true;
+/**
+ * Checks a reset code. A wrong code uses up one of RESET_MAX_TRIES; after that (or once expired) a new code is
+ * needed. Unknown emails get the same answer as a wrong code.
+ */
+async function checkResetCode(email, otp) {
+  const acct = await resetAccount(email);
+  const reset = acct?.doc.passwordReset;
+  if (!reset?.tokenHash || !reset.expiresAt || new Date(reset.expiresAt) < new Date()) {
+    throw ApiError.badRequest('This code is wrong or has expired. Request a new one.', [{ path: 'otp', message: 'Wrong or expired code' }], 'RESET_EXPIRED');
+  }
+  if ((reset.attempts ?? 0) >= RESET_MAX_TRIES) {
+    throw ApiError.badRequest('Too many wrong tries. Request a new code.', [{ path: 'otp', message: 'Request a new code' }], 'RESET_LOCKED');
+  }
+  if (!safeEqualHex(resetHash(acct.doc._id, otp), reset.tokenHash)) {
+    await updateAccount(acct, { $inc: { 'passwordReset.attempts': 1 } });
+    const left = RESET_MAX_TRIES - (reset.attempts ?? 0) - 1;
+    throw ApiError.badRequest(
+      left > 0 ? `That code is not right. ${left} ${left === 1 ? 'try' : 'tries'} left.` : 'Too many wrong tries. Request a new code.',
+      [{ path: 'otp', message: 'Wrong code' }],
+      left > 0 ? 'RESET_INVALID' : 'RESET_LOCKED',
+    );
+  }
+  return acct;
 }
 
-export async function resetPassword({ token, password }, meta) {
-  const user = await User.findOne({ 'passwordReset.tokenHash': sha256(token), 'passwordReset.expiresAt': { $gt: new Date() } })
-    .setOptions(SKIP)
-    .lean();
-  if (!user) {
-    if (await resetPlatformAdminPassword(sha256(token), password, meta)) return;
-    throw ApiError.badRequest('This reset link is invalid or has expired', undefined, 'RESET_INVALID');
+/** Step 2: is the code right? (Leaves it valid for step 3.) */
+export async function verifyResetCode({ email, otp }) {
+  await checkResetCode(email, otp);
+}
+
+/** Step 3: the code again and the new password. Every session of the account is signed out. */
+export async function resetPassword({ email, otp, password }, meta) {
+  const acct = await checkResetCode(email, otp);
+  const passwordHash = await hashPassword(password);
+
+  if (acct.kind === 'admin') {
+    await PlatformAdmin.updateOne(
+      { _id: acct.doc._id },
+      { $set: { passwordHash, passwordReset: { tokenHash: null, expiresAt: null, attempts: 0, sentAt: null }, failedLoginCount: 0, lockedUntil: null }, $inc: { tokenVersion: 1 } },
+    );
+    await Session.updateMany({ userId: acct.doc._id, realm: 'platform', revokedAt: null }, { $set: { revokedAt: new Date(), revokedReason: 'password_reset' } });
+    await recordPlatformAudit({ adminId: acct.doc._id, action: 'password_reset' }, meta);
+    return;
   }
 
+  const user = acct.doc;
   await withTransaction(async (session) => {
     await User.updateOne(
       { _id: user._id },
       {
-        $set: { passwordHash: await hashPassword(password), passwordChangedAt: new Date(), passwordReset: null, failedLoginCount: 0, lockedUntil: null, mustChangePassword: false },
+        $set: { passwordHash, passwordChangedAt: new Date(), passwordReset: null, failedLoginCount: 0, lockedUntil: null, mustChangePassword: false },
         $inc: { tokenVersion: 1 },
       },
       { session },
@@ -301,6 +336,7 @@ export async function getMe(auth) {
       currency: organisation.currency,
       stateCode: organisation.address?.stateCode ?? null,
       hasLogo: Boolean(organisation.logoFileId),
+      logoVersion: organisation.logoFileId ? String(organisation.logoFileId) : null, // changes on every upload: refreshes cached logo images
       branchLimit: limitsOf(subscription).branches, // from the plan (2 on a free trial); null = unlimited
     },
     subscription: subscription && (() => {

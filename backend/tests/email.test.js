@@ -93,17 +93,18 @@ describe('SMTP settings', () => {
 });
 
 describe('forgot password', () => {
-  it('lets a Super Admin reset their password by email link', async () => {
+  it('lets a Super Admin reset their password with an emailed code', async () => {
     const sa = await superAdmin();
     expect((await api().post('/api/v1/auth/forgot-password').send({ email: sa.email })).status).toBe(200);
-    expect((await PlatformAdmin.findOne({ email: sa.email }).lean()).passwordReset.tokenHash).toMatch(/^[0-9a-f]{64}$/);
+    const admin = await PlatformAdmin.findOne({ email: sa.email }).lean();
+    expect(admin.passwordReset.tokenHash).toMatch(/^[0-9a-f]{64}$/);
 
-    // The emailed link carries the token; plant a known one to follow it.
-    await PlatformAdmin.updateOne({ email: sa.email }, { $set: { passwordReset: { tokenHash: sha256('known-reset-token-0123456789'), expiresAt: new Date(Date.now() + 60000) } } });
-    expect((await api().post('/api/v1/auth/reset-password').send({ token: 'known-reset-token-0123456789', password: 'NewAdmin99' })).status).toBe(200);
+    // The code is only in the email; plant a known one the way the server stores it.
+    await PlatformAdmin.updateOne({ _id: admin._id }, { $set: { 'passwordReset.tokenHash': sha256(`password-reset:${admin._id}:731004`) } });
+    expect((await api().post('/api/v1/auth/reset-password').send({ email: sa.email, otp: '731004', password: 'NewAdmin99' })).status).toBe(200);
     expect((await login(sa.email, 'Admin1234')).status).toBe(401);
     expect((await login(sa.email, 'NewAdmin99')).body.data.realm).toBe('platform');
-    expect((await api().post('/api/v1/auth/reset-password').send({ token: 'known-reset-token-0123456789', password: 'Again1234' })).body.error.code).toBe('RESET_INVALID');
+    expect((await api().post('/api/v1/auth/reset-password').send({ email: sa.email, otp: '731004', password: 'Again1234' })).body.error.code).toBe('RESET_EXPIRED');
   });
 });
 
@@ -115,8 +116,9 @@ describe('email templates', () => {
     expect(welcome.html).toContain('Sonar &amp; Co');
     for (const d of '042917') expect(welcome.html).toContain(`>${d}</td>`);
     expect(welcome.text).toContain('Password: 042917');
-    const reset = templates.passwordReset({ name: 'A', link: 'https://app.example.com/reset-password?token=abc', minutes: 30 });
-    expect(reset.html).toContain('href="https://app.example.com/reset-password?token=abc"');
-    expect(reset.text).toContain('30 minutes');
+    const reset = templates.passwordReset({ name: 'A', otp: '519306', minutes: 10 });
+    expect(reset.subject).toContain('519306');
+    for (const d of '519306') expect(reset.html).toContain(`>${d}</td>`);
+    expect(reset.text).toContain('10 minutes');
   });
 });

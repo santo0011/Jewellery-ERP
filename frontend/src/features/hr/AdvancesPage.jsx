@@ -5,6 +5,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import Amount from '../../components/Amount.jsx';
 import DataTable from '../../components/DataTable.jsx';
+import DisabledDelete from '../../components/DisabledDelete.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
 import SearchField from '../../components/SearchField.jsx';
 import ViewButton from '../../components/ViewButton.jsx';
@@ -115,11 +116,12 @@ export default function AdvancesPage() {
             key: 'actions',
             label: 'Action',
             align: 'right',
-            width: 130,
+            width: 166,
             render: (a) => (
               <Stack direction="row" sx={{ justifyContent: 'flex-end', alignItems: 'center' }}>
                 <AdvanceActions advance={a} canEdit={canGive} onEdit={setEditAdvance} />
                 <ViewButton title="Open employee" name={a.employee.name} onClick={() => navigate(`/hr/employees/${a.employee.id}`)} />
+                <DisabledDelete reason="Salary advances are in the accounts and cannot be deleted. You can still edit one on the day it was given." />
               </Stack>
             ),
           },

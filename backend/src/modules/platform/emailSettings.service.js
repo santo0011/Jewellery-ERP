@@ -69,7 +69,7 @@ export async function sendTestEmail(input, admin) {
 const SAMPLES = {
   organisationWelcome: { name: 'Rina Paul', organisationName: 'Sonar Bangla Jewellers', email: 'owner@sonarbangla.in', otp: '482915' },
   loginOtp: { name: 'Rina Paul', organisationName: 'Sonar Bangla Jewellers', email: 'owner@sonarbangla.in', otp: '730264' },
-  passwordReset: { name: 'Rina Paul', minutes: env.PASSWORD_RESET_MINUTES },
+  passwordReset: { name: 'Rina Paul', otp: '519306', minutes: env.PASSWORD_RESET_MINUTES },
   smtpTest: { host: 'smtp.example.com:587', fromEmail: 'noreply@example.com', sentBy: 'Super Admin' },
 };
 export const PREVIEW_TEMPLATES = Object.keys(SAMPLES);

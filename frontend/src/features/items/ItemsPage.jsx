@@ -27,7 +27,6 @@ export const makingText = (m) => (!m ? '—' : m.type === 'percent' ? `${m.value
 
 export default function ItemsPage() {
   const canEdit = usePermission(['purchase.create', 'product.create']);
-  const canDelete = usePermission(['product.delete', 'purchase.edit']);
   const [editing, setEditing] = useState(null); // null | 'new' | item
   const list = useListParams({ status: 'active' });
   const { data, isLoading, isFetching, error, refetch } = useItemListQuery(list.params);

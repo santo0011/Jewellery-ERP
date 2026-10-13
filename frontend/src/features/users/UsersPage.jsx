@@ -106,10 +106,9 @@ export default function UsersPage() {
 
   const { data: roles = [] } = useRolesQuery(undefined, { skip: !canCreate && !canEdit && !canViewRoles });
 
-  // Which rows can be deleted (Delete stays visible; it is disabled with the reason when not).
-
-  const deleteStatus = useDeleteStatus('user', data?.items);
   const { data, isLoading, isFetching, error, refetch } = useUsersQuery({ page, limit, ...(q && { q }), ...(status && { status }), ...(roleId && { roleId }) });
+  // Which rows can be deleted (Delete stays visible; it is disabled with the reason when not).
+  const deleteStatus = useDeleteStatus('user', data?.items);
   const [setUserStatus, { isLoading: toggling }] = useSetUserStatusMutation();
 
   const isProtected = (u) => u.isOwner || String(u.id) === String(session.user.id);

@@ -145,21 +145,39 @@ describe('passwords', () => {
     expect((await api().post('/api/v1/auth/login').send({ email: input.email, password: 'NewSecret1' })).status).toBe(200);
   });
 
-  it('resets password with a valid token only once', async () => {
+  it('resets the password with the emailed 6-digit code, once, with limited tries', async () => {
     const { input, token } = await registerOrg();
     const forgot = await api().post('/api/v1/auth/forgot-password').send({ email: input.email });
     expect(forgot.status).toBe(200);
     const unknown = await api().post('/api/v1/auth/forgot-password').send({ email: 'missing@example.com' });
     expect(unknown.body.message).toBe(forgot.body.message);
+    const stored = (await User.findOne({ email: input.email }).setOptions(SKIP).select('+passwordReset').lean()).passwordReset;
+    expect(stored).toMatchObject({ tokenHash: expect.stringMatching(/^[0-9a-f]{64}$/), attempts: 0 });
 
-    const resetToken = 'a'.repeat(43);
+    // The code is only in the email; plant a known one the way the server stores it.
     const { sha256 } = await import('../src/utils/crypto.js');
-    await User.updateOne({ email: input.email }, { $set: { 'passwordReset.tokenHash': sha256(resetToken) } }).setOptions(SKIP);
+    const user = await User.findOne({ email: input.email }).setOptions(SKIP).lean();
+    await User.updateOne({ _id: user._id }, { $set: { 'passwordReset.tokenHash': sha256(`password-reset:${user._id}:482913`) } }).setOptions(SKIP);
 
-    const reset = await api().post('/api/v1/auth/reset-password').send({ token: resetToken, password: 'Reset1234' });
+    const verify = (otp) => api().post('/api/v1/auth/verify-reset-code').send({ email: input.email, otp });
+    expect((await verify('12345')).status).toBe(400); // not 6 digits
+    const wrong = await verify('000000');
+    expect(wrong.body.error).toMatchObject({ code: 'RESET_INVALID', message: 'That code is not right. 4 tries left.' });
+    expect((await verify('482913')).body.data).toEqual({ valid: true });
+
+    const reset = await api().post('/api/v1/auth/reset-password').send({ email: input.email, otp: '482913', password: 'Reset1234' });
     expect(reset.status).toBe(200);
     expect((await api().get('/api/v1/auth/me').set(bearer(token))).status).toBe(401);
-    expect((await api().post('/api/v1/auth/reset-password').send({ token: resetToken, password: 'Again1234' })).status).toBe(400);
+    expect((await api().post('/api/v1/auth/reset-password').send({ email: input.email, otp: '482913', password: 'Again1234' })).body.error.code).toBe('RESET_EXPIRED');
     expect((await api().post('/api/v1/auth/login').send({ email: input.email, password: 'Reset1234' })).status).toBe(200);
+  });
+
+  it('locks a reset code after 5 wrong tries', async () => {
+    const { input } = await registerOrg();
+    await api().post('/api/v1/auth/forgot-password').send({ email: input.email });
+    const verify = () => api().post('/api/v1/auth/verify-reset-code').send({ email: input.email, otp: '999999' });
+    for (let i = 0; i < 4; i += 1) expect((await verify()).body.error.code).toBe('RESET_INVALID');
+    expect((await verify()).body.error.code).toBe('RESET_LOCKED');
+    expect((await verify()).body.error.code).toBe('RESET_LOCKED');
   });
 });

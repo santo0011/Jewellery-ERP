@@ -6,20 +6,10 @@ import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { useDeleteRecordMutation, useLazyDeleteCheckQuery } from '../services/recordApi.js';
 import { getErrorMessage } from '../utils/errors.js';
+import DisabledDelete from './DisabledDelete.jsx';
 import ViewButton from './ViewButton.jsx';
 
-/** A Delete button that cannot be used, with the reason on hover — every table keeps the same set of buttons. */
-export function DisabledDelete({ reason, size = 'small' }) {
-  return (
-    <Tooltip title={reason}>
-      <span>
-        <IconButton size={size} disabled aria-label={`Cannot delete: ${reason}`}>
-          <DeleteOutlineRoundedIcon fontSize="small" />
-        </IconButton>
-      </span>
-    </Tooltip>
-  );
-}
+export { DisabledDelete };
 
 /**
  * Delete for one record. `status` (from useDeleteStatus) disables the button up front when the record cannot be

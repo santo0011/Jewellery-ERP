@@ -159,28 +159,32 @@ function NavGroup({ group, open, onToggle, onNavigate, fixed = false }) {
   );
 }
 
-function Brand({ collapsed, panelName }) {
+/** Top of the sidebar: the organisation's logo and name when it has uploaded a logo, else the app's mark and name. */
+function Brand({ collapsed, panelName, logoUrl, brandName }) {
+  const name = logoUrl && brandName ? brandName : APP_NAME;
   return (
     <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
       <Box
         sx={{
-          width: 40,
-          height: 40,
+          width: logoUrl ? 44 : 40,
+          height: logoUrl ? 44 : 40,
           borderRadius: 2.5,
           flexShrink: 0,
           display: 'grid',
           placeItems: 'center',
+          overflow: 'hidden',
           border: '1px solid rgba(201, 162, 39, 0.35)',
-          background: 'linear-gradient(145deg, rgba(201, 162, 39, 0.14), rgba(201, 162, 39, 0.02))',
+          // A logo sits on white so dark or transparent artwork stays visible on the dark sidebar.
+          background: logoUrl ? '#FFFFFF' : 'linear-gradient(145deg, rgba(201, 162, 39, 0.14), rgba(201, 162, 39, 0.02))',
           boxShadow: 'inset 0 1px 0 rgba(255, 255, 255, 0.06), 0 6px 18px rgba(0, 0, 0, 0.35)',
         }}
       >
-        <DiamondMark size={24} />
+        {logoUrl ? <Box component="img" src={logoUrl} alt={`${name} logo`} sx={{ width: '100%', height: '100%', objectFit: 'contain', p: 0.5 }} /> : <DiamondMark size={24} />}
       </Box>
       {!collapsed && (
         <Box sx={{ minWidth: 0 }}>
-          <Typography noWrap sx={{ fontFamily: fonts.display, fontWeight: 600, fontSize: 22, lineHeight: 1, letterSpacing: '0.02em', color: '#F7F3E8' }}>
-            {APP_NAME}
+          <Typography noWrap title={name} sx={{ fontFamily: fonts.display, fontWeight: 600, fontSize: logoUrl ? 19 : 22, lineHeight: 1.05, letterSpacing: '0.02em', color: '#F7F3E8' }}>
+            {name}
           </Typography>
           {panelName && (
             <Typography noWrap sx={{ mt: 0.5, fontSize: '0.625rem', fontWeight: 600, letterSpacing: '0.16em', textTransform: 'uppercase', color: s.active, lineHeight: 1.2 }}>
@@ -225,7 +229,7 @@ function WorkspaceCard({ name, caption, collapsed }) {
  * `groups` overrides the store navigation (used by the Super Admin panel); `fixedGroups` shows every group open, without folding;
  * `panelName` sits under the logo; `organisationName` and `caption` fill the footer card.
  */
-export default function Sidebar({ collapsed = false, onToggleCollapse, onNavigate, organisationName, caption = 'Organisation', panelName = 'Organisation Panel', groups: groupsProp, fixedGroups = false }) {
+export default function Sidebar({ collapsed = false, onToggleCollapse, onNavigate, organisationName, caption = 'Organisation', panelName = 'Organisation Panel', logoUrl = null, groups: groupsProp, fixedGroups = false }) {
   const { data: session } = useSession();
   const storeGroups = visibleNav(usePermissions(), { branchLogin: session?.user?.branchLogin });
   const groups = groupsProp ?? storeGroups;
@@ -276,7 +280,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse, onNavigat
           gap: collapsed ? 1.25 : 1,
         }}
       >
-        <Brand collapsed={collapsed} panelName={panelName} />
+        <Brand collapsed={collapsed} panelName={panelName} logoUrl={logoUrl} brandName={organisationName} />
         {onToggleCollapse && (
           <Tooltip title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} placement="right">
             <IconButton

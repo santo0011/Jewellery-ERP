@@ -28,7 +28,6 @@ export default function EmployeesPage() {
   const { data: session } = useSession();
   const canCreate = usePermission('employee.create');
   const canEdit = usePermission('employee.edit');
-  const canDelete = usePermission('employee.delete');
   const editor = useListEditor(useEmployeeQuery);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const list = useListParams({ status: 'active', branchId: '' });

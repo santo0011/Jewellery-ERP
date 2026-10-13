@@ -14,7 +14,6 @@ import { useNavigate } from 'react-router';
 import { z } from 'zod';
 import ConfirmDialog from '../../components/ConfirmDialog.jsx';
 import DataTable from '../../components/DataTable.jsx';
-import PasswordField from '../../components/form/PasswordField.jsx';
 import LoginCodeDialog from './LoginCodeDialog.jsx';
 import RHFSelect from '../../components/form/RHFSelect.jsx';
 import RHFTextField from '../../components/form/RHFTextField.jsx';
@@ -64,7 +63,8 @@ const formSchema = platformCreateOrganisationSchema.extend({
   freeDays: z.string().trim().min(1, 'Enter the free days (0 for none)').regex(/^\d+$/, 'Enter whole days, e.g. 14').transform(Number).pipe(z.number().max(365, 'At most 365 days')),
 });
 const STATE_OPTIONS = INDIAN_STATES.map((s) => ({ value: s.code, label: s.name }));
-const EMPTY = { organisationName: '', ownerName: '', email: '', mobile: '', stateCode: '', password: '', freeDays: '14' };
+// No password: a 6-digit sign-in code is emailed instead (an empty password here would fail validation unseen).
+const EMPTY = { organisationName: '', ownerName: '', email: '', mobile: '', stateCode: '', freeDays: '14' };
 
 function CreateOrganisationDrawer({ open, onClose }) {
   const navigate = useNavigate();
@@ -178,7 +178,6 @@ const editValues = (org) => ({
   mobile: org?.phone ?? org?.owner?.mobile ?? '',
   stateCode: org?.stateCode ?? '',
   freeDays: org?.freeDays != null ? String(org.freeDays) : '',
-  password: '',
 });
 
 export function EditOrganisationDrawer({ organisation, onClose }) {
@@ -244,7 +243,9 @@ export function EditOrganisationDrawer({ organisation, onClose }) {
           <RHFTextField control={control} name="mobile" label="Business phone" slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 10 } }} />
         </Grid>
         <Grid size={12}>
-          <PasswordField control={control} name="password" label="New password" autoComplete="new-password" helperText="Leave blank to keep the current password" />
+          <Typography variant="caption" color="textSecondary">
+            To give the organisation a new password, use “Send sign-in code” on its page — a fresh 6-digit code is emailed to the login email.
+          </Typography>
         </Grid>
       </Grid>
     </FormDrawer>

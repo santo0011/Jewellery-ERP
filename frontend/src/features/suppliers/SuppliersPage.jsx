@@ -26,7 +26,6 @@ export default function SuppliersPage() {
   const navigate = useNavigate();
   const canCreate = usePermission('supplier.create');
   const canEdit = usePermission('supplier.edit');
-  const canDelete = usePermission('supplier.delete');
   const editor = useListEditor(useSupplierQuery);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const list = useListParams({ supplies: '', status: '' });

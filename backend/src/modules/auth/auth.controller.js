@@ -52,7 +52,12 @@ export async function logoutAll(req, res) {
 
 export async function forgotPassword(req, res) {
   await authService.forgotPassword(req.valid.body.email);
-  sendOk(res, null, { message: 'If an account exists for this email, a reset link has been sent.' });
+  sendOk(res, null, { message: 'If an account exists for this email, a 6-digit code has been sent to it.' });
+}
+
+export async function verifyResetCode(req, res) {
+  await authService.verifyResetCode(req.valid.body);
+  sendOk(res, { valid: true }, { message: 'Code confirmed' });
 }
 
 export async function resetPassword(req, res) {

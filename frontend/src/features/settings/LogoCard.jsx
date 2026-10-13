@@ -1,19 +1,22 @@
 import CloudUploadOutlinedIcon from '@mui/icons-material/CloudUploadOutlined';
 import { Box, Button, Card, CardContent, Stack, Typography } from '@mui/material';
-import { useRef, useState } from 'react';
+import { useRef } from 'react';
 import toast from 'react-hot-toast';
 import { DiamondMark } from '../../components/Wordmark.jsx';
 import { useOrganisationLogo } from '../../hooks/useOrganisationLogo.js';
+import { useSession } from '../../hooks/usePermission.js';
 import { getErrorMessage } from '../../utils/errors.js';
 import { useRemoveLogoMutation, useUploadLogoMutation } from './organisationApi.js';
 
 const MAX_BYTES = 1024 * 1024;
 const ACCEPT = 'image/png,image/jpeg,image/webp';
 
-export default function LogoCard({ hasLogo, canEdit }) {
+/** The organisation's logo: shown in the sidebar and printed on invoices. Upload, replace or remove it. */
+export default function LogoCard({ canEdit, title = 'Logo', caption = 'Shown at the top of the sidebar and printed on invoices and receipts. PNG, JPEG or WebP up to 1 MB.' }) {
   const input = useRef(null);
-  const [version, setVersion] = useState(0);
-  const logoUrl = useOrganisationLogo(hasLogo, version);
+  const { data: session } = useSession();
+  const hasLogo = Boolean(session?.organisation?.logoVersion);
+  const logoUrl = useOrganisationLogo();
   const [uploadLogo, { isLoading: uploading }] = useUploadLogoMutation();
   const [removeLogo, { isLoading: removing }] = useRemoveLogoMutation();
 
@@ -27,7 +30,6 @@ export default function LogoCard({ hasLogo, canEdit }) {
     }
     try {
       await uploadLogo(file).unwrap();
-      setVersion((v) => v + 1);
       toast.success('Logo updated');
     } catch (err) {
       toast.error(getErrorMessage(err));
@@ -47,7 +49,7 @@ export default function LogoCard({ hasLogo, canEdit }) {
     <Card>
       <CardContent>
         <Typography variant="overline" color="textSecondary">
-          Logo
+          {title}
         </Typography>
         <Box
           sx={{
@@ -66,7 +68,7 @@ export default function LogoCard({ hasLogo, canEdit }) {
           {logoUrl ? <Box component="img" src={logoUrl} alt="Organisation logo" sx={{ maxHeight: 96, maxWidth: '90%', objectFit: 'contain' }} /> : <DiamondMark size={40} />}
         </Box>
         <Typography variant="body2" color="textSecondary" sx={{ mt: 1 }}>
-          Printed on invoices and receipts. PNG, JPEG or WebP up to 1 MB.
+          {caption}
         </Typography>
         {canEdit && (
           <Stack direction="row" spacing={1} sx={{ mt: 2 }}>

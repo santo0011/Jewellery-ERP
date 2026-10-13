@@ -47,8 +47,6 @@ function NewOrderDrawer({ open, onClose }) {
   const { data: session } = useSession();
   const activeBranchId = useSelector((s) => s.auth.activeBranchId);
   const { data: suppliers } = useSupplierListQuery({ status: 'active', limit: 100 }, { skip: !open });
-  // Which rows can be deleted (Delete stays visible; it is disabled with the reason when not).
-  const deleteStatus = useDeleteStatus('purchaseOrder', data?.items);
   const [create, state] = useCreatePurchaseOrderMutation();
   const [supplier, setSupplier] = useState(null);
   const [branchId, setBranchId] = useState(activeBranchId ?? session.branches[0]?.id ?? '');
@@ -190,10 +188,11 @@ function NewOrderDrawer({ open, onClose }) {
 export default function PurchaseOrdersPage() {
   const navigate = useNavigate();
   const canCreate = usePermission('purchase.create');
-  const canDelete = usePermission('purchase.cancel');
   const [open, setOpen] = useState(false);
   const list = useListParams({ status: 'open' });
   const { data, isLoading, isFetching, error, refetch } = usePurchaseOrderListQuery(list.params);
+  // Which rows can be deleted (Delete stays visible; it is disabled with the reason when not).
+  const deleteStatus = useDeleteStatus('purchaseOrder', data?.items);
   const meta = data?.meta;
 
   const columns = [

@@ -31,7 +31,6 @@ export default function OrdersPage() {
   const navigate = useNavigate();
   const { data: session } = useSession();
   const canCreate = usePermission('order.create');
-  const canDelete = usePermission('order.cancel');
   const list = useListParams({ status: 'open' });
   const { data, isLoading, isFetching, error, refetch } = useOrdersQuery(list.params);
   // Which rows can be deleted (Delete stays visible; it is disabled with the reason when not).

@@ -18,10 +18,14 @@ export const registerOrganisationSchema = z.object({
 
 export const forgotPasswordSchema = z.object({ email: emailSchema });
 
-export const resetPasswordSchema = z.object({
-  token: z.string().min(20, 'Invalid or expired reset link').max(200),
-  password: passwordSchema,
-});
+/** The 6-digit code emailed for a password reset (digits only). */
+export const resetCodeSchema = z.string().trim().regex(/^[0-9]{6}$/, 'Enter the 6-digit code');
+
+/** Step 2 of forgot password: is this code right (without using it up)? */
+export const verifyResetCodeSchema = z.object({ email: emailSchema, otp: resetCodeSchema });
+
+/** Step 3: the code again, and the new password. */
+export const resetPasswordSchema = z.object({ email: emailSchema, otp: resetCodeSchema, password: passwordSchema });
 
 export const changePasswordSchema = z
   .object({

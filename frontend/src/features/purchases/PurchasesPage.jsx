@@ -103,7 +103,7 @@ export default function PurchasesPage() {
         />
       </SummaryCards>
       <DataTable
-        columns={[...columns, viewColumn((p) => navigate(`/purchases/${p.id}`), { name: (p) => p.billNo })]}
+        columns={[...columns, viewColumn((p) => navigate(`/purchases/${p.id}`), { name: (p) => p.billNo, deleteDisabled: 'A purchase bill has moved stock and is in the accounts, so it cannot be deleted.' })]}
         rows={data?.items}
         loading={isLoading}
         fetching={isFetching}

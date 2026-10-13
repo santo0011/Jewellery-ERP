@@ -53,7 +53,6 @@ export default function CustomersPage() {
   const navigate = useNavigate();
   const canCreate = usePermission('customer.create');
   const canEdit = usePermission('customer.edit');
-  const canDelete = usePermission('customer.delete');
   const editor = useListEditor(useCustomerQuery);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const list = useListParams({ due: '', status: '' });

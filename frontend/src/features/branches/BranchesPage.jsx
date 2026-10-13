@@ -42,13 +42,13 @@ export default function BranchesPage() {
   const canManageLogin = canManageAccess && canEditUsers;
   const [loginFor, setLoginFor] = useState(null);
   const { data: usage } = useBranchUsageQuery();
-  // Which rows can be deleted (Delete stays visible; it is disabled with the reason when not).
-  const deleteStatus = useDeleteStatus('branch', data?.items);
   const full = usage ? usage.available === 0 : false;
   const q = useDebounce(search.trim());
 
   const params = { page, limit, ...(q && { q }), ...(status && { status }) };
   const { data, isLoading, isFetching, error, refetch } = useBranchesQuery(params);
+  // Which rows can be deleted (Delete stays visible; it is disabled with the reason when not).
+  const deleteStatus = useDeleteStatus('branch', data?.items);
   const [setBranchStatus, { isLoading: toggling }] = useSetBranchStatusMutation();
 
   const toggle = async () => {

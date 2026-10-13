@@ -167,7 +167,7 @@ export default function OrganisationPage() {
         </Grid>
         <Grid size={{ xs: 12, lg: 4 }}>
           <Stack spacing={3}>
-            <LogoCard hasLogo={Boolean(data.logoFileId)} canEdit={canEdit} />
+            <LogoCard canEdit={canEdit} />
             {canViewSubscription && <SubscriptionCard />}
           </Stack>
         </Grid>

@@ -11,7 +11,7 @@ const schema = z
     ACCESS_TOKEN_TTL: z.string().default('15m'),
     REFRESH_TOKEN_DAYS: z.coerce.number().int().positive().default(7),
     REFRESH_TOKEN_REMEMBER_DAYS: z.coerce.number().int().positive().default(30),
-    PASSWORD_RESET_MINUTES: z.coerce.number().int().positive().default(30),
+    PASSWORD_RESET_MINUTES: z.coerce.number().int().positive().default(5), // how long a forgot-password code lasts
     BCRYPT_ROUNDS: z.coerce.number().int().min(4).max(15).default(12),
     MAX_FAILED_LOGINS: z.coerce.number().int().positive().default(5),
     LOCKOUT_MINUTES: z.coerce.number().int().positive().default(15),
