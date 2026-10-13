@@ -4,7 +4,8 @@ import CreditCardOffOutlinedIcon from '@mui/icons-material/CreditCardOffOutlined
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import ReplayRoundedIcon from '@mui/icons-material/ReplayRounded';
-import { Box, Card, CardContent, Chip, Divider, Grid, Link, Stack, Tab, Tabs, Typography } from '@mui/material';
+import { Box, Button, Card, CardContent, Chip, Divider, Grid, Link, Stack, Tab, Tabs, Typography } from '@mui/material';
+import CollectDueDialog from './CollectDueDialog.jsx';
 import { formatINR, formatWeight, KYC_DOC_TYPES, stateName } from '@jerp/shared';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
@@ -15,7 +16,7 @@ import DataTable from '../../components/DataTable.jsx';
 import InfoCard from '../../components/InfoCard.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
 import RecordActions from '../../components/RecordActions.jsx';
-import RecordHistory from '../../components/RecordHistory.jsx';
+import EditHistory from '../../components/EditHistory.jsx';
 import { EmptyState, ErrorState, LoadingState } from '../../components/StateViews.jsx';
 import SummaryCards, { SummaryCard } from '../../components/SummaryCards.jsx';
 import StatusChip from '../../components/StatusChip.jsx';
@@ -25,7 +26,7 @@ import { fonts, tokens } from '../../theme/tokens.js';
 import { formatDate, formatDateTime } from '../../utils/format.js';
 import { OrderStatusChip, paymentLabel } from '../orders/orderUi.jsx';
 import { purityLabel } from '../products/productForm.js';
-import { useCustomerActivityQuery, useCustomerQuery, useSetCustomerStatusMutation } from './customerApi.js';
+import { useCustomerActivityQuery, useCustomerHistoryQuery, useCustomerQuery, useSetCustomerStatusMutation } from './customerApi.js';
 
 
 export function formatAddress(a = {}) {
@@ -45,6 +46,7 @@ const PAYMENT_KIND = {
   payment: { title: 'Paid on bill', icon: PaymentsOutlinedIcon, tone: 'paid' },
   refund: { title: 'Advance refunded', icon: ReplayRoundedIcon, tone: 'due' },
   credit: { title: 'On credit (due)', icon: CreditCardOffOutlinedIcon, tone: 'due' },
+  collection: { title: 'Due collected', icon: CallReceivedRoundedIcon, tone: 'paid' },
 };
 
 function PaymentsTimeline({ payments, openingBalance }) {
@@ -74,9 +76,15 @@ function PaymentsTimeline({ payments, openingBalance }) {
                   </Typography>
                   <Typography variant="caption" color="textSecondary">
                     {formatDateTime(p.at)} ·{' '}
-                    <Link component={RouterLink} to={p.ref.type === 'sale' ? `/sales/${p.ref.id}` : `/orders/${p.ref.id}`} underline="hover" color="inherit" sx={{ fontWeight: 600 }}>
-                      {p.ref.type === 'sale' ? p.ref.no : `${p.docNo} · ${p.ref.no}`}
-                    </Link>
+                    {p.ref.type === 'receipt' ? (
+                      <Box component="span" sx={{ fontWeight: 600 }}>
+                        {p.ref.no} · for {p.ref.bills.join(', ')}
+                      </Box>
+                    ) : (
+                      <Link component={RouterLink} to={p.ref.type === 'sale' ? `/sales/${p.ref.id}` : `/orders/${p.ref.id}`} underline="hover" color="inherit" sx={{ fontWeight: 600 }}>
+                        {p.ref.type === 'sale' ? p.ref.no : `${p.docNo} · ${p.ref.no}`}
+                      </Link>
+                    )}
                     {p.reference ? ` · ${p.reference}` : ''}
                   </Typography>
                 </Box>
@@ -111,6 +119,9 @@ export default function CustomerDetailPage() {
   const navigate = useNavigate();
   const [chosenTab, setTab] = useState('purchases');
   const canEdit = usePermission('customer.edit');
+  const canCollect = usePermission('accounts.receipt');
+  const [collecting, setCollecting] = useState(false);
+  const history = useCustomerHistoryQuery(id);
   const { data: c, isLoading, error, refetch } = useCustomerQuery(id);
   const { data: activity, isLoading: loadingActivity } = useCustomerActivityQuery(id);
   const [setStatus] = useSetCustomerStatusMutation();
@@ -221,24 +232,32 @@ export default function CustomerDetailPage() {
           </Stack>
         }
         actions={
-          <RecordActions
-            name={c.name}
-            status={c.status}
-            canEdit={canEdit}
-            onStatus={async (status) => {
-              await setStatus({ id, status }).unwrap();
-              toast.success(status === 'active' ? 'Customer activated' : 'Customer deactivated');
-            }}
-          />
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+            {canCollect && stats?.duePaise > 0 && (
+              <Button variant="contained" startIcon={<PaymentsOutlinedIcon />} onClick={() => setCollecting(true)}>
+                Collect payment
+              </Button>
+            )}
+            <RecordActions
+              name={c.name}
+              status={c.status}
+              canEdit={canEdit}
+              onStatus={async (status) => {
+                await setStatus({ id, status }).unwrap();
+                toast.success(status === 'active' ? 'Customer activated' : 'Customer deactivated');
+              }}
+            />
+          </Stack>
         }
       />
+      <CollectDueDialog open={collecting} onClose={() => setCollecting(false)} customerId={id} />
 
       {stats && (
         <SummaryCards>
           {stats.purchasesPaise != null && (
             <SummaryCard icon={ReceiptLongOutlinedIcon} label="Total purchases" value={formatINR(stats.purchasesPaise, { decimals: 0 })} caption={`${stats.bills} bill${stats.bills === 1 ? '' : 's'}${stats.lastPurchaseAt ? ` · last ${formatDate(stats.lastPurchaseAt)}` : ''}`} />
           )}
-          <SummaryCard icon={PaymentsOutlinedIcon} label="Paid" value={formatINR(stats.paidPaise, { decimals: 0 })} caption="Advances and bill payments" tone="green" valueTone="paid" />
+          <SummaryCard icon={PaymentsOutlinedIcon} label="Paid" value={formatINR(stats.paidPaise, { decimals: 0 })} caption={stats.advanceLeftPaise ? `${formatINR(stats.advanceLeftPaise, { decimals: 0 })} advance left for next bills` : 'Advances and bill payments'} tone="green" valueTone="paid" />
           <SummaryCard
             icon={CreditCardOffOutlinedIcon}
             label="Due"
@@ -258,7 +277,7 @@ export default function CustomerDetailPage() {
         <Tab value="payments" label={`Payments (${activity?.payments.length ?? 0})`} />
         {activity?.orders && <Tab value="orders" label={`Orders (${activity.orders.length})`} />}
         <Tab value="details" label="Details" />
-        <Tab value="history" label="Activity log" />
+        <Tab value="history" label={history.data?.length ? `Edit history (${history.data.length})` : 'Edit history'} />
       </Tabs>
 
       {loadingActivity && tab !== 'details' && tab !== 'history' && <LoadingState />}
@@ -304,7 +323,7 @@ export default function CustomerDetailPage() {
         </Grid>
       )}
 
-      {tab === 'history' && <RecordHistory recordId={id} />}
+      {tab === 'history' && <EditHistory entries={history.data} isLoading={history.isLoading} error={history.error} showSource={false} />}
 
     </>
   );

@@ -5,6 +5,9 @@ import { accessibleBranchFilter, nameMaps, pick } from '../inventory/inventory.h
 import { Order } from '../orders/order.model.js';
 import { Product } from '../products/product.model.js';
 import { Sale } from '../sales/sale.model.js';
+import { billBalance, customerAdvanceLeft } from '../sales/sale.service.js';
+import { CustomerReceipt } from './customerReceipt.model.js';
+import { billDue, openingDueLeft } from './customerReceipt.service.js';
 import { Customer } from './customer.model.js';
 
 const sum = (list, fn) => list.reduce((s, x) => s + fn(x), 0);
@@ -15,14 +18,15 @@ const sum = (list, fn) => list.reduce((s, x) => s + fn(x), 0);
  */
 export async function customerActivity(id) {
   const { permissions } = requireContext();
-  const customer = await Customer.findOne({ _id: id, isDeleted: false }).select('openingBalancePaise').lean();
+  const customer = await Customer.findOne({ _id: id, isDeleted: false }).select('_id openingBalancePaise openingDuePaidPaise').lean();
   if (!customer) throw ApiError.notFound('Customer');
   const canSales = hasPermission(permissions, 'sales.view');
   const canOrders = hasPermission(permissions, 'order.view');
 
-  const [sales, orders] = await Promise.all([
+  const [sales, orders, receipts] = await Promise.all([
     canSales ? Sale.find({ customerId: id, ...accessibleBranchFilter() }).sort({ createdAt: -1 }).lean() : [],
     canOrders ? Order.find({ customerId: id, ...accessibleBranchFilter() }).sort({ createdAt: -1 }).lean() : [],
+    canSales ? CustomerReceipt.find({ customerId: id, ...accessibleBranchFilter() }).sort({ createdAt: -1 }).lean() : [],
   ]);
   const completed = sales.filter((s) => s.status === SALE_STATUS.COMPLETED);
   const productIds = completed.flatMap((s) => s.items.map((i) => i.productId));
@@ -78,11 +82,25 @@ export async function customerActivity(id) {
         reference: p.reference,
       })),
     ),
+    // Dues paid later (Collect payment).
+    ...receipts.map((r) => ({
+      at: r.createdAt,
+      kind: 'collection',
+      mode: r.mode,
+      amountPaise: r.amountPaise,
+      docNo: r.receiptNo,
+      ref: { type: 'receipt', id: r._id, no: r.receiptNo, bills: r.allocations.map((a) => a.invoiceNo ?? 'Old due') },
+      reference: r.reference,
+    })),
   ].sort((a, b) => new Date(b.at) - new Date(a.at));
 
   const openOrders = orders.filter((o) => OPEN_ORDER_STATUSES.includes(o.status));
-  const creditDue = sum(payments.filter((p) => p.kind === 'credit'), (p) => p.amountPaise);
-  const openingDue = Math.max(0, customer.openingBalancePaise ?? 0);
+  // Still owed: credit on bills less what was collected later, and the old due less what was collected.
+  const creditDue = sum(completed, billDue);
+  const openingDue = openingDueLeft(customer);
+  // Advance paid before (a minus opening balance): counted as paid; what bills have not used yet is still held.
+  const openingAdvance = Math.max(0, -(customer.openingBalancePaise ?? 0));
+  const advanceLeft = openingAdvance ? Math.max(0, await customerAdvanceLeft(customer)) : 0;
 
   return {
     stats: {
@@ -90,7 +108,8 @@ export async function customerActivity(id) {
       bills: canSales ? completed.length : null,
       items: canSales ? purchases.filter((p) => !p.returned).length : null,
       grossWeightMg: canSales ? sum(purchases.filter((p) => !p.returned), (p) => p.grossWeightMg ?? 0) : null,
-      paidPaise: sum(payments.filter((p) => p.kind === 'payment' || p.kind === 'advance' || p.kind === 'refund'), (p) => p.amountPaise),
+      paidPaise: sum(payments.filter((p) => p.kind === 'payment' || p.kind === 'advance' || p.kind === 'refund' || p.kind === 'collection'), (p) => p.amountPaise) + openingAdvance,
+      advanceLeftPaise: advanceLeft,
       duePaise: creditDue + openingDue,
       creditDuePaise: creditDue,
       openingDuePaise: openingDue,
@@ -108,7 +127,7 @@ export async function customerActivity(id) {
           branch: pick(maps.branches, s.branchId),
           itemCount: s.items.length,
           grandTotalPaise: s.totals.grandTotalPaise,
-          duePaise: sum(s.payments.filter((p) => p.mode === 'credit'), (p) => p.amountPaise),
+          ...billBalance(s),
           orderNo: s.orderNo ?? null,
         }))
       : null,

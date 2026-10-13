@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { BRANCH_STATUS, hasPermission } from '@jerp/shared';
+import { BRANCH_SCOPED_MODULES, BRANCH_STATUS, hasPermission } from '@jerp/shared';
 import { requireContext } from '../../core/context/requestContext.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { Branch } from '../branches/branch.model.js';
@@ -23,6 +23,44 @@ export async function requireBranch(branchId, { path = 'branchId', active = true
   const branch = await Branch.findOne({ _id: branchId, ...(active && { status: BRANCH_STATUS.ACTIVE }) }).lean();
   if (!branch) throw ApiError.badRequest('Select an active branch', [{ path, message: 'Branch not available' }], 'VALIDATION_ERROR');
   return branch;
+}
+
+// ---------------------------------------------------------------- navbar branch filter (list pages)
+
+/**
+ * Modules the organisation has opened to at least one other active branch (Settings → Branches → Branch access):
+ * a branch without its own list allows every module. Their list pages show the navbar branch filter; the rest
+ * only ever show the head office's data. Giving a branch a module later adds it here — nothing else to change.
+ */
+export async function sharedBranchModules() {
+  const branches = await Branch.find({ isHeadOffice: false, status: BRANCH_STATUS.ACTIVE }).select('allowedPermissions').lean();
+  const modules = new Set();
+  for (const b of branches) {
+    if (!b.allowedPermissions) BRANCH_SCOPED_MODULES.forEach((m) => modules.add(m));
+    else b.allowedPermissions.forEach((p) => modules.add(p.split('.')[0]));
+  }
+  return modules;
+}
+
+async function headOfficeId() {
+  const ho = await Branch.findOne({ isHeadOffice: true }).select('_id').lean();
+  return ho ? String(ho._id) : null;
+}
+
+/**
+ * The branch a module's list page should show, from the navbar filter: the chosen branch (the working branch,
+ * X-Branch-Id), or null for "All branches" (X-Branch-View: all — still limited to the user's branches). A module not
+ * shared with any branch shows the head office only. A branchId the page passes itself always wins over this.
+ */
+export async function viewBranchFor(module) {
+  const { branchId, branchView, branchAccess } = requireContext();
+  if (!(await sharedBranchModules()).has(module)) {
+    const ho = await headOfficeId();
+    // Someone without head-office access (e.g. a branch login) keeps to their own branch.
+    return ho && (branchAccess?.all || branchAccess?.branchIds?.includes(ho)) ? ho : (branchId ?? null);
+  }
+  if (branchView === 'all') return null;
+  return branchId ?? null;
 }
 
 export const canSeeCost = () => hasPermission(requireContext().permissions, 'product.viewCost');

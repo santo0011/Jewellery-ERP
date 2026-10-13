@@ -5,12 +5,14 @@ import { createApp } from './app.js';
 import { ensureDefaultSuperAdmin } from './modules/platform/bootstrapSuperAdmin.js';
 import { syncSystemRoles } from './modules/roles/syncSystemRoles.js';
 import { ensureBillingSetup } from './modules/billing/billing.service.js';
+import { syncHeadOfficeAddresses } from './modules/organisations/headOfficeAddress.js';
 
 async function start() {
   await connectDb();
   await ensureDefaultSuperAdmin();
   await syncSystemRoles();
   await ensureBillingSetup();
+  await syncHeadOfficeAddresses();
   const server = createApp().listen(env.PORT, () => logger.info(`API listening on http://localhost:${env.PORT}/api/v1`));
 
   const shutdown = (signal) => {

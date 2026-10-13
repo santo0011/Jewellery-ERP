@@ -1,6 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import AddCardOutlinedIcon from '@mui/icons-material/AddCardOutlined';
 import BlockRoundedIcon from '@mui/icons-material/BlockRounded';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import { Alert, Box, Button, Card, Chip, CardContent, Dialog, DialogActions, DialogContent, DialogTitle, Divider, Grid, Stack, Step, StepLabel, Stepper, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material';
 import { formatINR, formatWeight, JEWELLERY_TYPES, ORDER_STATUS_LABELS, STONE_TYPES, toPaise } from '@jerp/shared';
@@ -245,6 +246,11 @@ export default function OrderDetailPage() {
             {open && canCancel && (
               <Button color="error" startIcon={<BlockRoundedIcon />} onClick={() => setDialog('cancel')}>
                 Cancel order
+              </Button>
+            )}
+            {canEdit && ['booked', 'in_progress'].includes(order.status) && (
+              <Button variant="outlined" startIcon={<EditOutlinedIcon />} onClick={() => navigate(`/orders/${order.id}/edit`)}>
+                Edit order
               </Button>
             )}
             {open && canEdit && (

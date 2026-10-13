@@ -217,3 +217,36 @@ describe('products', () => {
     expect(removed.body.data.images).toEqual([second]);
   });
 });
+
+describe('metal rates are one set for the organisation', () => {
+  it('is updated at organisation level and used by every branch; branch-only users can only view', async () => {
+    const { token } = await registerOrg();
+    const res = await api().post('/api/v1/rates').set(bearer(token)).send({ rates: [{ metal: 'gold', purity: 916, ratePerGramPaise: 725000 }] });
+    expect(res.status).toBe(201);
+    const me = (await api().get('/api/v1/auth/me').set(bearer(token))).body.data;
+    const branchOnly = await staffWith(token, ['rate.view', 'rate.create'], { all: false, branchIds: [me.branches[0].id] });
+    expect((await api().post('/api/v1/rates').set(bearer(branchOnly)).send({ rates: [{ metal: 'gold', purity: 916, ratePerGramPaise: 730000 }] })).status).toBe(403);
+    const seen = (await api().get('/api/v1/rates/current').set(bearer(branchOnly))).body.data;
+    expect(seen.find((r) => r.metal === 'gold' && r.purity === 916).ratePerGramPaise).toBe(725000);
+  });
+});
+
+describe('customer edit history', () => {
+  it('lists every change with who, when and old → new', async () => {
+    const { token } = await registerOrg();
+    const c = (await api().post('/api/v1/customers').set(bearer(token)).send(customer({ mobile: '9830011111' }))).body.data;
+    await api().put(`/api/v1/customers/${c.id}`).set(bearer(token)).send(customer({ mobile: '9830011111', name: 'Meera Sen', segment: 'vip', openingBalancePaise: -500000 }));
+    await api().patch(`/api/v1/customers/${c.id}/status`).set(bearer(token)).send({ status: 'inactive' });
+    const res = await api().get(`/api/v1/customers/${c.id}/history`).set(bearer(token));
+    expect(res.status).toBe(200);
+    expect(res.body.data.map((e) => e.title)).toEqual(['Customer deactivated', 'Details edited', 'Customer created']);
+    expect(res.body.data[1].changes).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ label: 'Name', from: 'Meera Banerjee', to: 'Meera Sen' }),
+        expect.objectContaining({ label: 'Segment', from: 'New', to: 'VIP' }),
+        expect.objectContaining({ label: 'Opening balance', from: 'None', to: 'Advance paid ₹5,000' }),
+      ]),
+    );
+    expect(res.body.data[0].by.name).toBeTruthy();
+  });
+});

@@ -1,5 +1,7 @@
 import BlockRoundedIcon from '@mui/icons-material/BlockRounded';
 import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
+import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
+import CollectDueDialog from '../customers/CollectDueDialog.jsx';
 import { Alert, Box, Button, Card, Dialog, DialogActions, DialogContent, DialogTitle, Divider, GlobalStyles, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
 import { formatINR, formatWeight, rupeesInWords, stateName } from '@jerp/shared';
 import { useState } from 'react';
@@ -85,7 +87,9 @@ export default function InvoicePage() {
   const { id } = useParams();
   const { data: sale, isLoading, error, refetch } = useSaleQuery(id);
   const canCancel = usePermission('sales.cancel');
+  const canCollect = usePermission('accounts.receipt');
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [collectOpen, setCollectOpen] = useState(false);
 
   if (isLoading) return <LoadingState />;
   if (error) return <ErrorState error={error} onRetry={refetch} />;
@@ -93,7 +97,9 @@ export default function InvoicePage() {
   const { seller, customer, totals } = sale;
   const cancelled = sale.status === 'cancelled';
   const paidNow = sale.payments.filter((p) => p.mode !== 'credit').reduce((s, p) => s + p.amountPaise, 0);
-  const duePaise = sale.payments.filter((p) => p.mode === 'credit').reduce((s, p) => s + p.amountPaise, 0);
+  // Still owed (the server takes off what was collected later).
+  const duePaise = sale.duePaise ?? 0;
+  const collectedLater = sale.collectedLaterPaise ?? 0;
 
   return (
     <>
@@ -107,6 +113,11 @@ export default function InvoicePage() {
             {!cancelled && canCancel && (
               <Button color="error" startIcon={<BlockRoundedIcon />} onClick={() => setCancelOpen(true)}>
                 Cancel
+              </Button>
+            )}
+            {!cancelled && canCollect && customer?.id && duePaise > 0 && (
+              <Button variant="outlined" startIcon={<PaymentsOutlinedIcon />} onClick={() => setCollectOpen(true)}>
+                Collect due {formatINR(duePaise, { decimals: 0 })}
               </Button>
             )}
             <Button variant="contained" startIcon={<PrintOutlinedIcon />} onClick={() => window.print()}>
@@ -267,9 +278,14 @@ export default function InvoicePage() {
                 Order advance <Amount paise={sale.advanceAdjustedPaise} tone="paid" />
               </Typography>
             )}
+            {sale.customerAdvancePaise > 0 && (
+              <Typography variant="body2">
+                Advance paid earlier <Amount paise={sale.customerAdvancePaise} tone="paid" />
+              </Typography>
+            )}
             {sale.payments.map((p, n) => (
               <Typography key={n} variant="body2">
-                {p.mode === 'credit' ? 'Customer credit (due)' : paymentLabel(p.mode)} <Amount paise={p.amountPaise} tone={p.mode === 'credit' ? 'due' : 'paid'} />
+                {p.mode === 'credit' ? 'Left due at billing' : paymentLabel(p.mode)} <Amount paise={p.amountPaise} tone={p.mode === 'credit' ? 'due' : 'paid'} />
                 {p.reference ? ` · ${p.reference}` : ''}
               </Typography>
             ))}
@@ -294,9 +310,11 @@ export default function InvoicePage() {
             <Divider sx={{ my: 1, borderColor: '#E6E1D3' }} />
             <Line label="Invoice total" value={formatINR(totals.grandTotalPaise)} strong />
             {sale.advanceAdjustedPaise > 0 && <Line label="Order advance" value={formatINR(sale.advanceAdjustedPaise)} tone="paid" />}
-            <Line label={sale.advanceAdjustedPaise > 0 ? 'Paid now' : 'Paid'} value={formatINR(paidNow)} tone="paid" strong />
+            {sale.customerAdvancePaise > 0 && <Line label="Advance paid earlier" value={formatINR(sale.customerAdvancePaise)} tone="paid" />}
+            <Line label={sale.advanceAdjustedPaise > 0 || sale.customerAdvancePaise > 0 ? 'Paid now' : 'Paid'} value={formatINR(paidNow)} tone="paid" strong />
+            {collectedLater > 0 && <Line label="Collected later" value={formatINR(collectedLater)} tone="paid" />}
             {duePaise > 0 ? (
-              <Line label="Due (customer credit)" value={formatINR(duePaise)} tone="due" strong />
+              <Line label={paidNow > 0 || collectedLater > 0 || sale.advanceAdjustedPaise > 0 || sale.customerAdvancePaise > 0 ? 'Due (partly paid)' : 'Due'} value={formatINR(duePaise)} tone="due" strong />
             ) : (
               <Line label="Due" value="Fully paid" tone="paid" />
             )}
@@ -315,6 +333,7 @@ export default function InvoicePage() {
         </Stack>
       </Card>
       <CancelDialog sale={sale} open={cancelOpen} onClose={() => setCancelOpen(false)} />
+      {customer?.id && <CollectDueDialog open={collectOpen} onClose={() => setCollectOpen(false)} customerId={customer.id} saleId={sale.id} />}
     </>
   );
 }

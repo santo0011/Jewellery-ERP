@@ -1,19 +1,20 @@
 import { createSlice } from '@reduxjs/toolkit';
 
 const BRANCH_KEY = 'jerp.activeBranchId';
+const VIEW_KEY = 'jerp.branchView';
 
-const readBranch = () => {
+const read = (key) => {
   try {
-    return localStorage.getItem(BRANCH_KEY);
+    return localStorage.getItem(key);
   } catch {
     return null;
   }
 };
 
-const writeBranch = (id) => {
+const write = (key, value) => {
   try {
-    if (id) localStorage.setItem(BRANCH_KEY, id);
-    else localStorage.removeItem(BRANCH_KEY);
+    if (value) localStorage.setItem(key, value);
+    else localStorage.removeItem(key);
   } catch {
     /* storage unavailable */
   }
@@ -21,7 +22,9 @@ const writeBranch = (id) => {
 
 const authSlice = createSlice({
   name: 'auth',
-  initialState: { status: 'checking', accessToken: null, activeBranchId: readBranch() },
+  // activeBranchId: the working branch (new bills, forms, and that branch's module access).
+  // branchView: 'all' when the navbar filter shows every branch on list pages (the working branch is then the head office).
+  initialState: { status: 'checking', accessToken: null, activeBranchId: read(BRANCH_KEY), branchView: read(VIEW_KEY) === 'all' ? 'all' : null },
   reducers: {
     signedIn(state, action) {
       state.accessToken = action.payload;
@@ -31,12 +34,22 @@ const authSlice = createSlice({
       state.accessToken = null;
       state.status = 'guest';
     },
+    /** One branch: its data on list pages, and it becomes the working branch. */
     branchSelected(state, action) {
       state.activeBranchId = action.payload;
-      writeBranch(action.payload);
+      state.branchView = null;
+      write(BRANCH_KEY, action.payload);
+      write(VIEW_KEY, null);
+    },
+    /** Every branch on list pages; the payload (the head office) stays the working branch. */
+    allBranchesSelected(state, action) {
+      state.activeBranchId = action.payload;
+      state.branchView = 'all';
+      write(BRANCH_KEY, action.payload);
+      write(VIEW_KEY, 'all');
     },
   },
 });
 
-export const { signedIn, sessionEnded, branchSelected } = authSlice.actions;
+export const { signedIn, sessionEnded, branchSelected, allBranchesSelected } = authSlice.actions;
 export default authSlice.reducer;

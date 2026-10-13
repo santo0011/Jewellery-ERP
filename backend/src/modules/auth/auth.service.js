@@ -10,6 +10,7 @@ import { recordPlatformAudit } from '../platform/platformAuth.service.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { safeEqualHex, sha256 } from '../../utils/crypto.js';
 import { Branch } from '../branches/branch.model.js';
+import { sharedBranchModules } from '../inventory/inventory.helpers.js';
 import { Organisation } from '../organisations/organisation.model.js';
 import { organisationDeactivated } from '../organisations/organisationAccess.js';
 import { onboardOrganisation } from '../organisations/organisation.service.js';
@@ -345,6 +346,8 @@ export async function getMe(auth) {
     })(),
     permissions: expandPermissions(auth.permissions),
     activeBranchId: auth.branchId,
+    // Modules opened to at least one other branch: their list pages show the navbar branch filter.
+    branchModules: [...(await sharedBranchModules())],
     branches: branches.map((b) => ({ id: b._id, code: b.code, name: b.name, isHeadOffice: b.isHeadOffice })),
     catalog: {
       enabledPurities: settings.jewellery.enabledPurities,

@@ -82,6 +82,8 @@ export const platformApi = createApi({
       transformResponse: data,
       invalidatesTags: ['Org', 'Dashboard'],
     }),
+    // PIN code -> post offices, city, district, state (India Post), cached for the session.
+    pincode: build.query({ query: (pin) => ({ url: `/pincode/${pin}` }), transformResponse: data, keepUnusedDataFor: 3600 }),
     sendLoginCode: build.mutation({ query: (id) => ({ url: `/organisations/${id}/send-login`, method: 'post' }), transformResponse: data, invalidatesTags: ['Org'] }),
     // Email (SMTP) settings
     emailSettings: build.query({ query: () => ({ url: '/email-settings' }), transformResponse: data, providesTags: ['Email'] }),
@@ -117,6 +119,7 @@ export const {
   useUpdateOrganisationMutation,
   useDeleteOrganisationMutation,
   useSendLoginCodeMutation,
+  useLazyPincodeQuery,
   useEmailSettingsQuery,
   useSaveEmailSettingsMutation,
   useTestEmailSettingsMutation,

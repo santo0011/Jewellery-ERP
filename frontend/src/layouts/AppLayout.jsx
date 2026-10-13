@@ -12,7 +12,7 @@ import { useOrganisationLogo } from '../hooks/useOrganisationLogo.js';
 import { usePermissions, useSession } from '../hooks/usePermission.js';
 import { branchSelected } from '../store/authSlice.js';
 import BranchSwitcher from './BranchSwitcher.jsx';
-import { PROFILE_ITEM, visibleNav } from './navConfig.js';
+import { branchControlFor, PROFILE_ITEM, visibleNav } from './navConfig.js';
 import Sidebar from './Sidebar.jsx';
 import UserMenu from './UserMenu.jsx';
 import ForcePasswordChange from '../features/profile/ForcePasswordChange.jsx';
@@ -65,6 +65,7 @@ export default function AppLayout() {
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const dispatch = useDispatch();
   const activeBranchId = useSelector((s) => s.auth.activeBranchId);
+  const { pathname } = useLocation();
   const { data: session, error, isLoading, refetch } = useSession();
   const logoUrl = useOrganisationLogo(); // shown at the top of the sidebar
   // The panel's colours follow the logo's main colour (gold when there is no logo or it has no clear colour).
@@ -74,7 +75,9 @@ export default function AppLayout() {
     if (!session) return;
     const ids = session.branches.map((b) => b.id);
     if (!ids.includes(activeBranchId)) {
-      dispatch(branchSelected(ids.includes(session.user.defaultBranchId) ? session.user.defaultBranchId : (ids[0] ?? null)));
+      // Head Office is the default (the user's own default branch if they cannot open the head office).
+      const headOffice = session.branches.find((b) => b.isHeadOffice)?.id;
+      dispatch(branchSelected(headOffice ?? (ids.includes(session.user.defaultBranchId) ? session.user.defaultBranchId : (ids[0] ?? null))));
     }
   }, [session, activeBranchId, dispatch]);
 
@@ -93,6 +96,7 @@ export default function AppLayout() {
   if (error || !session) return <ErrorState error={error} onRetry={refetch} title="Could not load your account" />;
 
   const width = collapsed ? SIDEBAR_COLLAPSED : SIDEBAR_WIDTH;
+  const branchControl = branchControlFor(pathname, session.branchModules);
   const panelName = panelNameFor(session.user);
 
   return (
@@ -122,7 +126,8 @@ export default function AppLayout() {
             )}
             <Box sx={{ flex: 1 }} />
             <RateTicker />
-            <BranchSwitcher branches={session.branches} />
+            {/* Branch filter on list pages of modules shared with a branch; one-branch picker on dashboard and billing. */}
+            {branchControl && <BranchSwitcher branches={session.branches} allowAll={branchControl === 'filter'} />}
             <UserMenu user={session.user} />
           </Toolbar>
         </AppBar>

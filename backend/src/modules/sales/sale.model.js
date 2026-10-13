@@ -53,6 +53,10 @@ const saleSchema = new mongoose.Schema(
     orderId: { type: ObjectId, ref: 'Order', default: null },
     orderNo: { type: String, default: null },
     advanceAdjustedPaise: { type: Number, default: 0 },
+    // The customer's own advance (a minus opening balance) used on this bill.
+    customerAdvancePaise: { type: Number, default: 0 },
+    // Collected later against this bill's due (Customers → Collect payment).
+    duePaidPaise: { type: Number, default: 0 },
     idempotencyKey: { type: String, default: null },
     cancelledAt: { type: Date, default: null },
     cancelledBy: { type: ObjectId, ref: 'User', default: null },

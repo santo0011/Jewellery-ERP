@@ -49,6 +49,8 @@ export async function authenticate(req, res, next) {
       fullAccess,
       branchAccess: principal.branchAccess,
       branchId,
+      // Navbar filter set to 'All branches': list pages show every branch the user can see.
+      branchView: req.get('x-branch-view') === 'all' ? 'all' : null,
       ip: req.ip,
       userAgent: req.get('user-agent') ?? null,
       requestId: req.id,

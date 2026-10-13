@@ -4,7 +4,7 @@ import { Box, Button, Card, CardContent, Stack, Typography } from '@mui/material
 import { Navigate, Link as RouterLink, useLocation } from 'react-router';
 import { usePermission } from '../../hooks/usePermission.js';
 import { tokens } from '../../theme/tokens.js';
-import { formatDate } from '../../utils/format.js';
+import { formatDateTime } from '../../utils/format.js';
 
 const BILLING_PATH = '/settings/subscription';
 const REMIND_DAYS = 3;
@@ -56,7 +56,8 @@ function EndingSoonAlert({ subscription: s, canSee }) {
             {what} ends {when}
           </Typography>
           <Typography sx={{ fontSize: '0.8125rem', opacity: 0.88, mt: 0.25 }}>
-            {s.endsAt ? `Last day: ${formatDate(s.endsAt)}. ` : ''}
+            {/* The exact moment it ends, so "today" is clear (e.g. 13 Oct 2026, 03:45 pm). */}
+            {s.endsAt ? `Ends on ${formatDateTime(s.endsAt)}. ` : ''}
             {canSee ? 'Renew now so billing, stock and reports keep running without a break.' : 'Please ask your shop owner to renew so the software keeps running.'}
           </Typography>
         </Box>
@@ -102,7 +103,7 @@ export default function SubscriptionGate({ subscription, children }) {
             </Typography>
             <Typography color="textSecondary" sx={{ mb: 3 }}>
               {subscription.planName ? `${subscription.planName} ` : ''}
-              {subscription.status === 'expired' && subscription.endsAt ? `ended on ${formatDate(subscription.endsAt)}. ` : ''}
+              {subscription.status === 'expired' && subscription.endsAt ? `ended on ${formatDateTime(subscription.endsAt)}. ` : ''}
               Your data is safe — renew to keep billing, stock and reports running.
             </Typography>
             {canSee ? (

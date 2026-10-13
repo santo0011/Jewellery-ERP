@@ -47,7 +47,7 @@ function ChangeRow({ c }) {
   );
 }
 
-function Entry({ e, last }) {
+function Entry({ e, last, showSource = true }) {
   const who = WHO[e.by.kind] ?? WHO.user;
   return (
     <Box sx={{ display: 'flex', gap: 1.75 }}>
@@ -61,7 +61,7 @@ function Entry({ e, last }) {
       <Box sx={{ flex: 1, minWidth: 0, pb: last ? 0 : 2.5 }}>
         <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap', rowGap: 0.5, minHeight: 34 }}>
           <Typography sx={{ fontWeight: 700, fontSize: '0.9375rem' }}>{e.title}</Typography>
-          <Chip size="small" label={who.label} sx={{ height: 20, fontSize: '0.6875rem', fontWeight: 700, bgcolor: who.chipBg, color: who.chipInk }} />
+          {showSource && <Chip size="small" label={who.label} sx={{ height: 20, fontSize: '0.6875rem', fontWeight: 700, bgcolor: who.chipBg, color: who.chipInk }} />}
           <Typography variant="caption" color="textSecondary" sx={{ ml: { sm: 'auto !important' } }}>
             {formatDateTime(e.at)}
           </Typography>
@@ -87,7 +87,8 @@ function Entry({ e, last }) {
 }
 
 /** Timeline of every change to the organisation, who made it and old → new. Shared by the Super Admin and Organisation panels. */
-export default function EditHistory({ entries, isLoading, error, title = 'Edit history' }) {
+// showSource: the Super Admin / Organisation chips and legend (off where every change is made inside the organisation).
+export default function EditHistory({ entries, isLoading, error, title = 'Edit history', showSource = true }) {
   const [all, setAll] = useState(false);
   const shown = all ? entries : entries?.slice(0, FIRST);
   return (
@@ -102,7 +103,7 @@ export default function EditHistory({ entries, isLoading, error, title = 'Edit h
             {entries?.length ? `${entries.length} change${entries.length === 1 ? '' : 's'} · last on ${formatDate(entries[0].at)}` : 'Every change, who made it and when'}
           </Typography>
         </Box>
-        <Stack direction="row" spacing={1.5} sx={{ display: { xs: 'none', sm: 'flex' } }}>
+        <Stack direction="row" spacing={1.5} sx={{ display: { xs: 'none', sm: showSource ? 'flex' : 'none' } }}>
           {Object.values(WHO).map((w) => (
             <Stack key={w.label} direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
               <Box sx={{ width: 10, height: 10, borderRadius: '50%', background: w.dot }} />
@@ -135,7 +136,7 @@ export default function EditHistory({ entries, isLoading, error, title = 'Edit h
         ) : (
           <>
             {shown.map((e, i) => (
-              <Entry key={e.id} e={e} last={i === shown.length - 1} />
+              <Entry key={e.id} e={e} last={i === shown.length - 1} showSource={showSource} />
             ))}
             {entries.length > FIRST && (
               <Box sx={{ textAlign: 'center', mt: 2 }}>

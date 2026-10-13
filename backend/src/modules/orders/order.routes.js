@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { advanceSchema, idParamsSchema, objectIdSchema, orderCancelSchema, orderEstimateSchema, orderFinishSchema, orderItemParamsSchema, orderListQuerySchema, orderSchema, orderStatusSchema } from '@jerp/shared/schemas';
+import { advanceSchema, idParamsSchema, objectIdSchema, orderCancelSchema, orderEstimateSchema, orderFinishSchema, orderItemParamsSchema, orderListQuerySchema, orderSchema, orderStatusSchema, orderUpdateSchema } from '@jerp/shared/schemas';
 import { authenticate } from '../../middleware/authenticate.js';
 import { z } from 'zod';
 import { authorize } from '../../middleware/authorize.js';
@@ -14,6 +14,7 @@ router.get('/', authorize('order.view'), validate({ query: orderListQuerySchema 
 router.post('/', authorize('order.create'), validate({ body: orderSchema }), controller.create);
 router.post('/estimate', authorize('order.create'), validate({ body: orderEstimateSchema }), controller.estimate);
 router.get('/:id', authorize('order.view'), validate({ params: idParamsSchema }), controller.get);
+router.put('/:id', authorize('order.edit'), validate({ params: idParamsSchema, body: orderUpdateSchema }), controller.update);
 router.post('/:id/images', authorize('order.edit'), validate({ params: idParamsSchema }), singleImageUpload('image', { maxBytes: 5 * 1024 * 1024 }), controller.addImage);
 router.delete('/:id/images/:fileId', authorize('order.edit'), validate({ params: z.object({ id: objectIdSchema, fileId: objectIdSchema }) }), controller.removeImage);
 router.post('/:id/advances', authorize('order.edit'), validate({ params: idParamsSchema, body: advanceSchema }), controller.addAdvance);

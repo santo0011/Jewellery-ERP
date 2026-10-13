@@ -9,7 +9,7 @@ import { ApiError } from '../../utils/ApiError.js';
 import { todayContext } from '../../utils/businessDate.js';
 import { searchFilter } from '../../utils/pagination.js';
 import { Branch } from '../branches/branch.model.js';
-import { canAccessBranch, canSeeCost, nameMaps, oid, pick, requireBranch } from './inventory.helpers.js';
+import { canAccessBranch, canSeeCost, nameMaps, oid, pick, requireBranch, viewBranchFor } from './inventory.helpers.js';
 import { StockTransfer } from './stockTransfer.model.js';
 
 function visibleFilter() {
@@ -125,7 +125,8 @@ async function closeTransfer(id, { accept, reason }) {
 export const receiveTransfer = (id) => closeTransfer(id, { accept: true });
 export const rejectTransfer = (id, reason) => closeTransfer(id, { accept: false, reason });
 
-export async function listTransfers({ page, limit, q, status, branchId }) {
+export async function listTransfers({ page, limit, q, status, branchId: chosen }) {
+  const branchId = chosen ?? (await viewBranchFor('inventory')); // navbar filter: transfers in or out of the branch
   const clauses = [visibleFilter(), searchFilter(q, ['docNo', 'note'])];
   if (status) clauses.push({ status });
   if (branchId) clauses.push({ $or: [{ fromBranchId: oid(branchId) }, { toBranchId: oid(branchId) }] });

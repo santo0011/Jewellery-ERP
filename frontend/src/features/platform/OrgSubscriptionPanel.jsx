@@ -1,8 +1,5 @@
-import AddCardOutlinedIcon from '@mui/icons-material/AddCardOutlined';
-import MoreTimeRoundedIcon from '@mui/icons-material/MoreTimeRounded';
-import RocketLaunchOutlinedIcon from '@mui/icons-material/RocketLaunchOutlined';
-import { Alert, Box, Button, Card, CardContent, Dialog, DialogActions, DialogContent, DialogTitle, Grid, InputAdornment, MenuItem, Stack, TextField, Typography } from '@mui/material';
-import { toPaise } from '@jerp/shared';
+import VerifiedOutlinedIcon from '@mui/icons-material/VerifiedOutlined';
+import { Box, Button, Card, CardContent, Dialog, DialogActions, DialogContent, DialogTitle, Grid, InputAdornment, Link, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
 import DataTable from '../../components/DataTable.jsx';
@@ -12,48 +9,61 @@ import { inr, SubscriptionChip, UsageBar } from '../billing/billingUi.jsx';
 import { paymentColumns } from './PaymentsPage.jsx';
 import { useAssignPlanMutation, useOrganisationBillingQuery, usePlansQuery } from './platformApi.js';
 
-const COPY = {
-  trial: { title: 'Start a free trial', button: 'Start trial', icon: RocketLaunchOutlinedIcon },
-  manual: { title: 'Record a payment', button: 'Record payment', icon: AddCardOutlinedIcon },
-  extend: { title: 'Extend the subscription', button: 'Extend', icon: MoreTimeRoundedIcon },
-};
+// How the plan was paid. "Free" activates it complimentary (no amount).
+const PAID_BY = [
+  ['bank', 'Bank transfer'],
+  ['upi', 'UPI'],
+  ['cash', 'Cash'],
+  ['cheque', 'Cheque'],
+  ['free', 'Free (complimentary)'],
+];
 
-function AssignDialog({ orgId, mode, current, onClose }) {
+/**
+ * Activate a plan in one step: the plan (its price and length come with it) and how it was paid. Rarely needed
+ * trials and extra days sit behind a link. Every activation is kept in the records with how it happened.
+ */
+function ActivatePlanDialog({ orgId, current, onClose }) {
   const { data: plans } = usePlansQuery();
   const [assign, state] = useAssignPlanMutation();
-  const [f, setF] = useState({ planId: '', days: '', months: '', amount: '', paymentMode: 'bank', reference: '', note: '' });
-  const plan = plans?.find((p) => String(p.id) === String(f.planId));
+  const [planId, setPlanId] = useState('');
+  const [paidBy, setPaidBy] = useState('bank');
+  const [reference, setReference] = useState('');
+  const [other, setOther] = useState(null); // null, or 'trial' / 'extend' when chosen from "Other options"
+  const [days, setDays] = useState('14');
+  const plan = plans?.find((p) => String(p.id) === String(planId));
 
   useEffect(() => {
-    if (!plans?.length) return;
+    if (!plans?.length || planId) return;
     const start = plans.find((p) => String(p.id) === String(current?.planId)) ?? plans.find((p) => p.isDefault) ?? plans[0];
-    setF((x) => ({ ...x, planId: String(start.id), days: mode === 'trial' ? '14' : mode === 'extend' ? '30' : '', months: String(start.durationMonths), amount: String(start.pricePaise / 100) }));
-  }, [plans, mode, current?.planId]);
+    setPlanId(String(start.id));
+  }, [plans, current?.planId, planId]);
 
-  const pick = (id) => {
-    const p = plans.find((x) => String(x.id) === id);
-    setF((x) => ({ ...x, planId: id, months: String(p.durationMonths), amount: String(p.pricePaise / 100) }));
-  };
-  const set = (k, digits) => (e) => setF((x) => ({ ...x, [k]: digits ? e.target.value.replace(/[^\d.]/g, '') : e.target.value }));
+  const free = paidBy === 'free' || !plan?.pricePaise;
+  const n = Number(days) || 0;
+  const summary = !plan
+    ? ''
+    : other === 'trial'
+      ? `${n}-day free trial of ${plan.name}, from today`
+      : other === 'extend'
+        ? `${n} more day${n === 1 ? '' : 's'} on the current ${current?.status === 'trial' ? 'trial' : 'plan'}`
+        : `${plan.name} · ${plan.durationMonths} month${plan.durationMonths === 1 ? '' : 's'} · ${free ? 'Free' : inr(plan.pricePaise)}`;
 
   const submit = async () => {
-    let amountPaise;
-    try {
-      amountPaise = toPaise(f.amount || '0');
-    } catch {
-      toast.error('Enter a valid amount');
+    if (other && !n) {
+      toast.error('Enter the number of days');
       return;
     }
     try {
       await assign({
         id: orgId,
-        planId: f.planId,
-        mode,
-        ...(f.days && mode !== 'manual' && { days: Number(f.days) }),
-        ...(mode === 'manual' && { months: Number(f.months), amountPaise, paymentMode: f.paymentMode, reference: f.reference || null }),
-        note: f.note || null,
+        planId,
+        ...(other
+          ? { mode: other, days: n }
+          : free
+            ? { mode: 'complimentary', months: plan.durationMonths }
+            : { mode: 'manual', months: plan.durationMonths, amountPaise: plan.pricePaise, paymentMode: paidBy, reference: reference.trim() || null }),
       }).unwrap();
-      toast.success(mode === 'trial' ? 'Trial started' : mode === 'manual' ? 'Payment recorded — subscription active' : 'Subscription extended');
+      toast.success(other === 'trial' ? 'Free trial started' : other === 'extend' ? 'Subscription extended' : `${plan.name} activated`);
       onClose();
     } catch (err) {
       toast.error(getErrorMessage(err));
@@ -62,66 +72,108 @@ function AssignDialog({ orgId, mode, current, onClose }) {
 
   return (
     <Dialog open onClose={state.isLoading ? undefined : onClose} maxWidth="xs" fullWidth>
-      <DialogTitle sx={{ fontWeight: 700 }}>{COPY[mode].title}</DialogTitle>
+      <DialogTitle sx={{ fontWeight: 700 }}>{other === 'trial' ? 'Start a free trial' : other === 'extend' ? 'Add days' : 'Activate plan'}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ pt: 1 }}>
-          <TextField select label="Plan" value={f.planId} onChange={(e) => pick(e.target.value)}>
+          <TextField select label="Plan" value={planId} onChange={(e) => setPlanId(e.target.value)}>
             {(plans ?? []).map((p) => (
               <MenuItem key={p.id} value={String(p.id)}>
                 {p.name} · {p.pricePaise ? `${inr(p.pricePaise)} / ${p.durationMonths} mo` : 'Free'}
-                {!p.isActive ? ' (not offered)' : ''}
               </MenuItem>
             ))}
           </TextField>
-          {mode !== 'manual' && <TextField label={mode === 'trial' ? 'Trial length' : 'Add'} value={f.days} onChange={set('days', true)} slotProps={{ input: { endAdornment: <InputAdornment position="end">days</InputAdornment> } }} />}
-          {mode === 'manual' && (
+
+          {other ? (
+            <TextField label={other === 'trial' ? 'Trial days' : 'Days to add'} value={days} onChange={(e) => setDays(e.target.value.replace(/\D/g, ''))} slotProps={{ input: { endAdornment: <InputAdornment position="end">days</InputAdornment> } }} />
+          ) : (
             <>
-              <Grid container spacing={2}>
-                <Grid size={6}>
-                  <TextField label="Months" value={f.months} onChange={set('months', true)} />
-                </Grid>
-                <Grid size={6}>
-                  <TextField label="Amount received" value={f.amount} onChange={set('amount', true)} slotProps={{ input: { startAdornment: <InputAdornment position="start">₹</InputAdornment> } }} />
-                </Grid>
-                <Grid size={6}>
-                  <TextField select label="Paid by" value={f.paymentMode} onChange={set('paymentMode')}>
-                    {[['bank', 'Bank transfer'], ['upi', 'UPI'], ['cash', 'Cash'], ['cheque', 'Cheque'], ['other', 'Other']].map(([v, l]) => (
-                      <MenuItem key={v} value={v}>
-                        {l}
-                      </MenuItem>
-                    ))}
-                  </TextField>
-                </Grid>
-                <Grid size={6}>
-                  <TextField label="Reference" value={f.reference} onChange={set('reference')} placeholder="UTR / cheque no." />
-                </Grid>
-              </Grid>
-              {plan && (
-                <Alert severity="info" icon={false}>
-                  {plan.name} for {f.months || plan.durationMonths} month{Number(f.months) === 1 ? '' : 's'} — starts when the current period ends (or today if it has lapsed).
-                </Alert>
-              )}
+              <TextField select label="Paid by" value={paidBy} onChange={(e) => setPaidBy(e.target.value)}>
+                {PAID_BY.map(([v, l]) => (
+                  <MenuItem key={v} value={v}>
+                    {l}
+                  </MenuItem>
+                ))}
+              </TextField>
+              {!free && <TextField label="Reference (optional)" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="UTR / cheque / receipt no." />}
             </>
           )}
-          <TextField label="Note (optional)" value={f.note} onChange={set('note')} slotProps={{ htmlInput: { maxLength: 200 } }} />
+
+          {summary && (
+            <Box sx={{ px: 1.5, py: 1.25, borderRadius: 2, bgcolor: 'rgba(var(--brand-rgb), 0.08)' }}>
+              <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                {summary}
+              </Typography>
+            </Box>
+          )}
+
+          <Typography variant="caption" color="textSecondary" sx={{ textAlign: 'center' }}>
+            {other ? (
+              <Link component="button" type="button" variant="caption" onClick={() => setOther(null)}>
+                Back to activate plan
+              </Link>
+            ) : (
+              <>
+                Need a{' '}
+                <Link
+                  component="button"
+                  type="button"
+                  variant="caption"
+                  onClick={() => {
+                    setOther('trial');
+                    setDays('14');
+                  }}
+                >
+                  free trial
+                </Link>{' '}
+                or{' '}
+                <Link
+                  component="button"
+                  type="button"
+                  variant="caption"
+                  onClick={() => {
+                    setOther('extend');
+                    setDays('30');
+                  }}
+                >
+                  extra days
+                </Link>{' '}
+                instead?
+              </>
+            )}
+          </Typography>
         </Stack>
       </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose} disabled={state.isLoading}>
+      <DialogActions sx={{ px: 3, pb: 2 }}>
+        <Button color="secondary" onClick={onClose} disabled={state.isLoading}>
           Cancel
         </Button>
-        <Button variant="contained" onClick={submit} disabled={!f.planId || state.isLoading}>
-          {COPY[mode].button}
+        <Button variant="contained" onClick={submit} disabled={!plan} loading={state.isLoading}>
+          {other === 'trial' ? 'Start trial' : other === 'extend' ? 'Add days' : 'Activate'}
         </Button>
       </DialogActions>
     </Dialog>
   );
 }
 
-/** The organisation's plan, period, usage and payments, with the Super Admin's three actions. */
+/** Every activation of the organisation's plan — online payments, recorded payments, complimentary, trials, extensions. */
+export function OrgPaymentsTable({ orgId }) {
+  const { data, isLoading, error, refetch } = useOrganisationBillingQuery(orgId);
+  return (
+    <DataTable
+      columns={paymentColumns({ showOrg: false })}
+      rows={data?.payments}
+      loading={isLoading}
+      error={error}
+      onRetry={refetch}
+      empty={{ title: 'Nothing yet', description: 'Every activation shows here — online payments, payments you record, complimentary plans, trials and extensions.' }}
+    />
+  );
+}
+
+/** The organisation's plan, period and usage, with the Super Admin's "Activate plan" (records are on their own tab). */
 export default function OrgSubscriptionPanel({ orgId }) {
   const { data } = useOrganisationBillingQuery(orgId);
-  const [mode, setMode] = useState(null);
+  const [activating, setActivating] = useState(false);
   if (!data) return null;
   const s = data.subscription;
 
@@ -145,13 +197,9 @@ export default function OrgSubscriptionPanel({ orgId }) {
                   : '—'}
             </Typography>
           </Box>
-          <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
-            {Object.entries(COPY).map(([m, c]) => (
-              <Button key={m} size="small" variant={m === 'manual' ? 'contained' : 'outlined'} startIcon={<c.icon />} onClick={() => setMode(m)}>
-                {c.button}
-              </Button>
-            ))}
-          </Stack>
+          <Button variant="contained" startIcon={<VerifiedOutlinedIcon />} onClick={() => setActivating(true)} sx={{ flexShrink: 0 }}>
+            Activate plan
+          </Button>
         </Stack>
         <Grid container spacing={2} sx={{ mb: 2.5 }}>
           <Grid size={{ xs: 12, md: 4 }}>
@@ -164,12 +212,8 @@ export default function OrgSubscriptionPanel({ orgId }) {
             <UsageBar label="Products" used={data.usage.products} limit={s.limits.products} />
           </Grid>
         </Grid>
-        <Typography variant="subtitle2" sx={{ mb: 1 }}>
-          Payments
-        </Typography>
-        <DataTable columns={paymentColumns({ showOrg: false })} rows={data.payments} empty={{ title: 'No payments yet', description: 'Online payments and the ones you record show here.' }} />
       </CardContent>
-      {mode && <AssignDialog orgId={orgId} mode={mode} current={s} onClose={() => setMode(null)} />}
+      {activating && <ActivatePlanDialog orgId={orgId} current={s} onClose={() => setActivating(false)} />}
     </Card>
   );
 }

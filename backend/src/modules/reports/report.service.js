@@ -30,7 +30,7 @@ const metalPurity = (metal, purity) => {
 const modeLabel = (m) => (m === 'advance' ? 'Order advance adjusted' : m === 'credit' ? 'On credit (due)' : (PAYMENT_MODES.find((x) => x.value === m)?.label ?? m));
 const pct = (part, whole) => (whole ? Math.round((part / whole) * 1000) / 10 : 0);
 const daysBetween = (a, b) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000);
-const received = (s) => sum(s.payments.filter((p) => p.mode !== 'credit'), (p) => p.amountPaise) + (s.advanceAdjustedPaise ?? 0);
+const received = (s) => sum(s.payments.filter((p) => p.mode !== 'credit'), (p) => p.amountPaise) + (s.advanceAdjustedPaise ?? 0) + (s.customerAdvancePaise ?? 0);
 const credit = (s) => sum(s.payments.filter((p) => p.mode === 'credit'), (p) => p.amountPaise);
 
 // ---------------------------------------------------------------- GST helpers
@@ -656,20 +656,20 @@ const REPORTS = [
     permission: 'report.customer',
     filters: ['branch'],
     async run({ branchId }) {
-      const sales = await Sale.find({ ...(await branchScope(branchId)), status: SALE_STATUS.COMPLETED, customerId: { $ne: null } }).select('customerId payments businessDate').lean();
+      const sales = await Sale.find({ ...(await branchScope(branchId)), status: SALE_STATUS.COMPLETED, customerId: { $ne: null } }).select('customerId payments businessDate duePaidPaise').lean();
       const byCust = new Map();
       for (const s of sales) {
         const r = byCust.get(String(s.customerId)) ?? { credit: 0, last: null };
-        r.credit += credit(s);
+        r.credit += Math.max(0, credit(s) - (s.duePaidPaise ?? 0)); // still owed after later collections
         if (!r.last || s.businessDate > r.last) r.last = s.businessDate;
         byCust.set(String(s.customerId), r);
       }
       const withOld = allBranchView(branchId);
-      const customers = await Customer.find({ isDeleted: false, $or: [{ _id: { $in: [...byCust.keys()] } }, ...(withOld ? [{ openingBalancePaise: { $gt: 0 } }] : [])] }).select('code name mobile openingBalancePaise').lean();
+      const customers = await Customer.find({ isDeleted: false, $or: [{ _id: { $in: [...byCust.keys()] } }, ...(withOld ? [{ openingBalancePaise: { $gt: 0 } }] : [])] }).select('code name mobile openingBalancePaise openingDuePaidPaise').lean();
       const rows = customers
         .map((c) => {
           const s = byCust.get(String(c._id)) ?? { credit: 0, last: null };
-          const old = withOld ? Math.max(0, c.openingBalancePaise ?? 0) : 0;
+          const old = withOld ? Math.max(0, (c.openingBalancePaise ?? 0) - (c.openingDuePaidPaise ?? 0)) : 0;
           return { customer: c.name, code: c.code, mobile: c.mobile, creditPaise: s.credit, oldDuePaise: old, duePaise: s.credit + old, lastPurchase: s.last, _links: { customer: `/customers/${c._id}` } };
         })
         .filter((r) => r.duePaise > 0)

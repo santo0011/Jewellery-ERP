@@ -97,7 +97,7 @@ export async function branchDashboard({ branchId, days }) {
         grossWeightMg: sum(items, (i) => i.grossWeightMg ?? 0),
         discountPaise: sum(sales, (s) => s.totals.discountPaise ?? 0),
         gstPaise: sum(sales, (s) => s.totals.gstPaise ?? 0),
-        creditDuePaise: sum(sales, (s) => sum(s.payments.filter((p) => p.mode === 'credit'), (p) => p.amountPaise)),
+        creditDuePaise: sum(sales, (s) => Math.max(0, sum(s.payments.filter((p) => p.mode === 'credit'), (p) => p.amountPaise) - (s.duePaidPaise ?? 0))),
       },
       daily: [...byDay.values()],
       byCategory: top([...byCategory.values()], 6),

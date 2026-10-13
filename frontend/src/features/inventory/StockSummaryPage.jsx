@@ -1,21 +1,19 @@
-import { Alert, Box, Button, Card, CardContent, Grid, MenuItem, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, Card, CardContent, Grid, Stack, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material';
 import { formatINR, formatWeight, METAL_OPTIONS, METAL_POOL_KINDS } from '@jerp/shared';
-import { useState } from 'react';
 import { Link as RouterLink } from 'react-router';
 import PageHeader from '../../components/PageHeader.jsx';
 import { EmptyState, ErrorState, LoadingState } from '../../components/StateViews.jsx';
-import { usePermission, useSession } from '../../hooks/usePermission.js';
+import { usePermission } from '../../hooks/usePermission.js';
 import { purityLabel } from '../products/productForm.js';
 import { useStockSummaryQuery } from './inventoryApi.js';
 
 const metalName = (m) => METAL_OPTIONS.find((o) => o.value === m)?.label ?? m;
 
 export default function StockSummaryPage() {
-  const { data: session } = useSession();
   const canSeeCost = usePermission('product.viewCost');
   const canAdjust = usePermission('inventory.adjust');
-  const [branchId, setBranchId] = useState('');
-  const { data, isLoading, error, refetch } = useStockSummaryQuery(branchId ? { branchId } : {});
+  // Which branch (or all) follows the navbar branch filter.
+  const { data, isLoading, error, refetch } = useStockSummaryQuery({});
 
   const fineByMetal = (data?.products ?? []).reduce((acc, r) => ({ ...acc, [r.metal]: (acc[r.metal] ?? 0) + r.fineMg }), {});
   for (const p of data?.metalPools ?? []) fineByMetal[p.metal] = (fineByMetal[p.metal] ?? 0) + p.fineMg;
@@ -26,18 +24,6 @@ export default function StockSummaryPage() {
         title="Stock summary"
         subtitle="Live stock by metal and purity, weighed to the milligram."
         breadcrumbs={[{ label: 'Stock' }, { label: 'Stock summary' }]}
-        actions={
-          session.branches.length > 1 && (
-            <TextField select size="small" label="Branch" value={branchId} onChange={(e) => setBranchId(e.target.value)} sx={{ minWidth: 200 }}>
-              <MenuItem value="">All my branches</MenuItem>
-              {session.branches.map((b) => (
-                <MenuItem key={b.id} value={b.id}>
-                  {b.name}
-                </MenuItem>
-              ))}
-            </TextField>
-          )
-        }
       />
       {isLoading ? (
         <LoadingState />

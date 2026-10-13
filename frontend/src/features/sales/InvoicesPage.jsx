@@ -92,7 +92,7 @@ export default function InvoicesPage() {
         </Stack>
       ),
     },
-    { key: 'payment', label: 'Paid by', render: (s) => s.paymentModes.map(paymentLabel).join(', ') || 'Order advance' },
+    { key: 'payment', label: 'Paid by', render: (s) => [...(s.advanceUsed ? ['Advance'] : []), ...s.paymentModes.map((m) => (m === 'credit' ? 'Due' : paymentLabel(m)))].join(', ') || '—' },
     {
       key: 'total',
       label: 'Total',
@@ -113,7 +113,7 @@ export default function InvoicesPage() {
         </Box>
       ),
     },
-    { key: 'status', label: 'Status', render: (s) => (s.status !== 'completed' ? <StatusChip status="cancelled" label="Cancelled" /> : s.duePaise > 0 ? <StatusChip status="suspended" label="Due" /> : <StatusChip status="active" label="Paid" />) },
+    { key: 'status', label: 'Status', render: (s) => (s.status !== 'completed' ? <StatusChip status="cancelled" label="Cancelled" /> : s.paymentStatus === 'partly_paid' ? <StatusChip status="past_due" label="Partly paid" /> : s.duePaise > 0 ? <StatusChip status="suspended" label="Due" /> : <StatusChip status="active" label="Paid" />) },
     {
       key: 'actions',
       label: 'Action',

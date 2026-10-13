@@ -132,7 +132,8 @@ function UpdateRatesDialog({ open, onClose, current, catalog }) {
 
 export default function RatesPage() {
   const { data: session } = useSession();
-  const canUpdate = usePermission('rate.create');
+  // One set of rates for the whole organisation: updated at organisation level, used by every branch.
+  const canUpdate = usePermission('rate.create') && Boolean(session?.user?.allBranches);
   const [open, setOpen] = useState(false);
   const { data: current = [], isLoading, error, refetch } = useCurrentRatesQuery();
   const list = useListParams({ metal: '' });
@@ -151,7 +152,7 @@ export default function RatesPage() {
     <>
       <PageHeader
         title="Metal rates"
-        subtitle="Daily rates per gram used for pricing. History is never overwritten."
+        subtitle="One set of daily rates per gram for the whole organisation — every branch bills with them. History is never overwritten."
         actions={
           canUpdate && (
             <Button variant="contained" startIcon={<EditOutlinedIcon />} onClick={() => setOpen(true)}>
@@ -168,12 +169,12 @@ export default function RatesPage() {
         <>
           {current.length === 0 ? (
             <Alert severity="warning" sx={{ mb: 3 }}>
-              No rates entered yet. Enter today's rates before billing.
+              {canUpdate ? "No rates entered yet. Enter today's rates before billing." : 'No rates entered yet. The organisation enters the rates once for all branches.'}
             </Alert>
           ) : (
             stale && (
               <Alert severity="warning" icon={<WarningAmberRoundedIcon />} sx={{ mb: 3 }}>
-                Some rates were not updated today.
+                Some rates were not updated today.{canUpdate ? '' : ' The organisation updates them for all branches.'}
               </Alert>
             )
           )}

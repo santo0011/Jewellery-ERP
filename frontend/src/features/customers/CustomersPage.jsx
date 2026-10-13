@@ -1,6 +1,7 @@
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
-import { Box, Button, Chip, MenuItem, Stack, TextField, Typography } from '@mui/material';
-import { CUSTOMER_SEGMENTS, formatINR, stateName } from '@jerp/shared';
+import { Box, Button, Chip, IconButton, MenuItem, Stack, TextField, Tooltip, Typography } from '@mui/material';
+import { CUSTOMER_SEGMENTS, formatINR } from '@jerp/shared';
+import Amount from '../../components/Amount.jsx';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import DataTable from '../../components/DataTable.jsx';
@@ -12,6 +13,8 @@ import { usePermission } from '../../hooks/usePermission.js';
 import CustomerFormDrawer from './CustomerFormDrawer.jsx';
 import { useCustomerListQuery, useCustomerQuery } from './customerApi.js';
 import RowActions, { actionsWidth } from '../../components/RowActions.jsx';
+import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
+import CollectDueDialog from './CollectDueDialog.jsx';
 import { useListEditor } from '../../hooks/useListEditor.js';
 import SummaryCards, { SummaryCard } from '../../components/SummaryCards.jsx';
 import PeopleAltOutlinedIcon from '@mui/icons-material/PeopleAltOutlined';
@@ -53,6 +56,8 @@ export default function CustomersPage() {
   const navigate = useNavigate();
   const canCreate = usePermission('customer.create');
   const canEdit = usePermission('customer.edit');
+  const canCollect = usePermission('accounts.receipt');
+  const [collectFor, setCollectFor] = useState(null);
   const editor = useListEditor(useCustomerQuery);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const list = useListParams({ due: '', status: '' });
@@ -74,16 +79,42 @@ export default function CustomersPage() {
       ),
     },
     { key: 'mobile', label: 'Mobile', render: (c) => c.mobile },
-    { key: 'city', label: 'City', render: (c) => [c.address?.city, stateName(c.address?.stateCode)].filter(Boolean).join(', ') || '—' },
+    {
+      // Advance the customer has with you: left from the advance paid before (used on next bills) + on open orders.
+      key: 'advance',
+      label: 'Advance',
+      align: 'right',
+      render: (c) =>
+        c.advancePaise > 0 ? (
+          <Box>
+            <Amount paise={c.advancePaise} tone="paid" decimals={0} sx={{ fontWeight: 700 }} />
+            <Typography variant="caption" color="textSecondary" sx={{ display: 'block', whiteSpace: 'nowrap' }}>
+              {[c.advanceLeftPaise > 0 && 'For next bills', c.orderAdvancePaise > 0 && 'On orders'].filter(Boolean).join(' + ')}
+            </Typography>
+          </Box>
+        ) : (
+          <Typography variant="body2" color="textSecondary">
+            —
+          </Typography>
+        ),
+    },
     { key: 'payment', label: 'Payment', render: (c) => <PaymentChip status={c.paymentStatus} /> },
     { key: 'status', label: 'Status', render: (c) => <StatusChip status={c.status} /> },
     {
       key: 'actions',
       label: 'Action',
       align: 'right',
-      width: actionsWidth(3),
+      width: actionsWidth(4),
       render: (c) => (
-        <RowActions onView={() => navigate(`/customers/${c.id}`)} onEdit={canEdit ? () => editor.open(c) : undefined} deleteType="customer" deleteStatus={deleteStatus(c.id)} id={c.id} name={c.name} />
+        <RowActions onView={() => navigate(`/customers/${c.id}`)} onEdit={canEdit ? () => editor.open(c) : undefined} deleteType="customer" deleteStatus={deleteStatus(c.id)} id={c.id} name={c.name}>
+          {canCollect && c.duePaise > 0 && (
+            <Tooltip title={`Collect payment (${formatINR(c.duePaise, { decimals: 0 })} due)`}>
+              <IconButton size="small" color="success" onClick={() => setCollectFor(c.id)} aria-label={`Collect payment: ${c.name}`}>
+                <PaymentsOutlinedIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
+          )}
+        </RowActions>
       ),
     },
   ];
@@ -140,6 +171,7 @@ export default function CustomersPage() {
       />
       <CustomerFormDrawer open={drawerOpen} customer={null} onClose={() => setDrawerOpen(false)} />
       <CustomerFormDrawer open={Boolean(editor.record)} customer={editor.record} onClose={editor.close} />
+      <CollectDueDialog open={Boolean(collectFor)} onClose={() => setCollectFor(null)} customerId={collectFor} />
     </>
   );
 }

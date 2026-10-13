@@ -40,9 +40,12 @@ export const passwordSchema = z
   .max(128, 'Password must be at most 128 characters');
 
 export const addressSchema = z.object({
-  line1: optionalText(200),
-  line2: optionalText(200),
+  line1: optionalText(200), // house / shop number and building
+  line2: optionalText(200), // area / street
+  landmark: optionalText(120),
+  postOffice: optionalText(120),
   city: optionalText(80),
+  district: optionalText(80),
   stateCode: optional(stateCodeSchema),
   pincode: optional(z.string().trim().regex(PINCODE_REGEX, 'Enter a valid 6-digit PIN code')),
 });

@@ -5,6 +5,13 @@ import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import StorefrontOutlinedIcon from '@mui/icons-material/StorefrontOutlined';
 import WorkspacePremiumOutlinedIcon from '@mui/icons-material/WorkspacePremiumOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import BadgeOutlinedIcon from '@mui/icons-material/BadgeOutlined';
+import LocationOnOutlinedIcon from '@mui/icons-material/LocationOnOutlined';
+import MailOutlineRoundedIcon from '@mui/icons-material/MailOutlineRounded';
+import PhoneOutlinedIcon from '@mui/icons-material/PhoneOutlined';
+import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
+import { DiamondMark } from '../../components/Wordmark.jsx';
+import { useOrganisationLogo } from '../../hooks/useOrganisationLogo.js';
 import {
   Alert,
   Avatar,
@@ -39,11 +46,13 @@ import ConfirmDialog from '../../components/ConfirmDialog.jsx';
 import PasswordField from '../../components/form/PasswordField.jsx';
 import RHFTextField from '../../components/form/RHFTextField.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
+import SummaryCards, { SummaryCard } from '../../components/SummaryCards.jsx';
 import { ErrorState, LoadingState } from '../../components/StateViews.jsx';
 import { usePermission, useSession } from '../../hooks/usePermission.js';
 import { sessionEnded } from '../../store/authSlice.js';
 import { applyServerErrors, getErrorMessage } from '../../utils/errors.js';
-import { describeDevice, formatDateTime } from '../../utils/format.js';
+import { describeDevice, formatDate, formatDateTime } from '../../utils/format.js';
+import { stateName } from '@jerp/shared';
 import { tokens } from '../../theme/tokens.js';
 import { useChangePasswordMutation, useLogoutAllMutation, useRevokeSessionMutation, useSessionsQuery, useUpdateProfileMutation } from '../auth/authApi.js';
 import { useSignOut } from '../auth/useSignOut.js';
@@ -282,31 +291,6 @@ function ProfileHero({ session }) {
   );
 }
 
-function StatTile({ icon: Icon, label, value, hint }) {
-  return (
-    <Card sx={{ height: '100%' }}>
-      <CardContent sx={{ p: 2.25, display: 'flex', gap: 1.75, alignItems: 'flex-start' }}>
-        <Box sx={{ width: 40, height: 40, flexShrink: 0, borderRadius: 2, display: 'grid', placeItems: 'center', bgcolor: 'rgba(var(--brand-rgb), 0.12)', color: 'accent.main' }}>
-          <Icon fontSize="small" />
-        </Box>
-        <Box sx={{ minWidth: 0 }}>
-          <Typography variant="caption" color="textSecondary" sx={{ textTransform: 'uppercase', letterSpacing: 0.6, fontWeight: 600 }}>
-            {label}
-          </Typography>
-          <Typography variant="subtitle1" sx={{ fontWeight: 600, lineHeight: 1.3 }} noWrap>
-            {value}
-          </Typography>
-          {hint && (
-            <Typography variant="caption" color="textSecondary" noWrap component="div">
-              {hint}
-            </Typography>
-          )}
-        </Box>
-      </CardContent>
-    </Card>
-  );
-}
-
 function ProfileStats({ session }) {
   const { user, subscription, branches } = session;
   const { data: sessions } = useSessionsQuery();
@@ -320,41 +304,27 @@ function ProfileStats({ session }) {
         : subscription.status;
 
   const stats = [
-    { icon: AccessTimeRoundedIcon, label: 'Last sign-in', value: formatDateTime(user.lastLoginAt) },
-    { icon: DevicesRoundedIcon, label: 'Active devices', value: sessions ? sessions.length : '—', hint: 'Signed in right now' },
+    { icon: AccessTimeRoundedIcon, label: 'Last sign-in', value: formatDate(user.lastLoginAt), hint: user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }) : null, tone: 'blue' },
+    { icon: DevicesRoundedIcon, label: 'Active devices', value: sessions ? sessions.length : '—', hint: 'Signed in right now', tone: 'green' },
     {
       icon: StorefrontOutlinedIcon,
       label: 'Branch access',
       value: user.allBranches ? 'All branches' : `${branches.length} branch${branches.length === 1 ? '' : 'es'}`,
       hint: branches.map((b) => b.name).join(', '),
+      tone: 'amber',
     },
-    subscription && { icon: WorkspacePremiumOutlinedIcon, label: 'Plan', value: subscription.planName, hint: planHint },
+    subscription && { icon: WorkspacePremiumOutlinedIcon, label: 'Plan', value: subscription.planName, hint: planHint, tone: subscription.expired ? 'red' : 'gold' },
   ].filter(Boolean);
 
   return (
-    <Grid container spacing={2}>
+    // Same cards as the dashboard.
+    <Box sx={{ '& > *': { mb: '0 !important' } }}>
+    <SummaryCards>
       {stats.map((s) => (
-        <Grid key={s.label} size={{ xs: 12, sm: 6, lg: 12 / stats.length }}>
-          <StatTile {...s} />
-        </Grid>
+        <SummaryCard key={s.label} icon={s.icon} label={s.label} value={s.value} caption={s.hint} tone={s.tone} />
       ))}
-    </Grid>
-  );
-}
-
-function DetailRow({ label, value, action }) {
-  return (
-    <Stack direction="row" spacing={2} sx={{ justifyContent: 'space-between', alignItems: 'center', py: 1.25, borderBottom: 1, borderColor: 'divider', '&:last-of-type': { borderBottom: 0 } }}>
-      <Typography variant="body2" color="textSecondary">
-        {label}
-      </Typography>
-      <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', minWidth: 0 }}>
-        <Typography variant="body2" sx={{ fontWeight: 500, textAlign: 'right' }}>
-          {value || '—'}
-        </Typography>
-        {action}
-      </Stack>
-    </Stack>
+    </SummaryCards>
+    </Box>
   );
 }
 
@@ -401,35 +371,156 @@ function BusinessNameDialog({ open, onClose }) {
   );
 }
 
-function AccountDetails({ session }) {
-  const { user, organisation, branches } = session;
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+/** One fact with its icon: label on top, value below (wraps; blank shows "Not added"). */
+function InfoTile({ icon: Icon, label, value, mono }) {
+  return (
+    <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-start', minWidth: 0 }}>
+      <Box sx={{ width: 36, height: 36, flexShrink: 0, borderRadius: 1.5, display: 'grid', placeItems: 'center', bgcolor: 'rgba(var(--brand-rgb), 0.10)', color: 'var(--brand-strong)' }}>
+        <Icon sx={{ fontSize: 18 }} />
+      </Box>
+      <Box sx={{ minWidth: 0 }}>
+        <Typography sx={{ fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'text.secondary' }}>{label}</Typography>
+        <Typography variant="body2" sx={{ fontWeight: 600, wordBreak: 'break-word', color: value ? 'text.primary' : 'text.disabled', ...(mono && value && { fontVariantNumeric: 'tabular-nums', letterSpacing: '0.02em' }) }}>
+          {value || 'Not added'}
+        </Typography>
+      </Box>
+    </Stack>
+  );
+}
+
+/** The organisation at a glance: logo and name, tax and contact details, the registered address and accounting basics. */
+function OrganisationCard({ session }) {
+  const canView = usePermission('organisation.view');
   const canEditOrganisation = usePermission('organisation.edit');
+  const navigate = useNavigate();
+  const logoUrl = useOrganisationLogo();
+  const { data: full, isLoading } = useOrganisationQuery(undefined, { skip: !canView });
   const [editingName, setEditingName] = useState(false);
-  const findBranch = (id) => branches.find((b) => sameId(b.id, id))?.name;
+  const org = { ...session.organisation, ...(full ?? {}) };
+  const a = full?.address ?? {};
+  const stateCode = a.stateCode ?? org.stateCode;
+  const street = [a.line1, a.line2, a.landmark && `Near ${a.landmark}`].filter(Boolean).join(', ');
+  const place = [a.postOffice && a.postOffice !== a.city ? `${a.postOffice} PO` : null, a.city, a.district && a.district !== a.city ? a.district : null].filter(Boolean).join(', ');
+  const region = [stateCode ? stateName(stateCode) : null, a.pincode].filter(Boolean).join(' – ');
+  const hasAddress = Boolean(a.line1 || a.city || a.pincode);
+  const fyStart = (full?.fyStartMonth ?? 4) - 1;
 
   return (
-    <Box>
-      <DetailRow
-        label="Business name"
-        value={organisation.name}
-        action={
-          canEditOrganisation && (
-            <Tooltip title="Edit business name">
-              <IconButton size="small" onClick={() => setEditingName(true)} aria-label="Edit business name">
-                <EditOutlinedIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          )
-        }
-      />
-      {canEditOrganisation && <BusinessNameDialog open={editingName} onClose={() => setEditingName(false)} />}
-      <DetailRow label="Legal name" value={organisation.legalName} />
-      <DetailRow label="GSTIN" value={organisation.gstin} />
-      <DetailRow label="Current branch" value={findBranch(session.activeBranchId)} />
-      <DetailRow label="Default branch" value={findBranch(user.defaultBranchId)} />
-      <DetailRow label="Roles" value={user.roles.map((r) => r.name).join(', ')} />
-      <DetailRow label="Currency · Timezone" value={[organisation.currency, organisation.timezone].filter(Boolean).join(' · ')} />
-    </Box>
+    <Card sx={{ overflow: 'hidden' }}>
+      {/* Header: logo, name and the key registrations. */}
+      <Box sx={{ px: { xs: 2.5, sm: 3 }, pt: 3, pb: 2.5, background: 'linear-gradient(135deg, rgba(var(--brand-rgb), 0.14) 0%, rgba(var(--brand-rgb), 0.03) 60%, transparent 100%)', borderBottom: 1, borderColor: 'divider' }}>
+        <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
+          <Box sx={{ width: 64, height: 64, flexShrink: 0, borderRadius: 2.5, display: 'grid', placeItems: 'center', bgcolor: 'background.paper', border: 1, borderColor: 'divider', boxShadow: '0 6px 18px rgba(23, 23, 23, 0.08)', overflow: 'hidden' }}>
+            {logoUrl ? <Box component="img" src={logoUrl} alt="" sx={{ maxWidth: '82%', maxHeight: '82%', objectFit: 'contain' }} /> : <DiamondMark size={30} />}
+          </Box>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography sx={{ fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--brand-strong)' }}>Organisation</Typography>
+            <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', minWidth: 0 }}>
+              <Typography variant="h4" noWrap sx={{ fontWeight: 700 }}>
+                {org.name}
+              </Typography>
+              {canEditOrganisation && (
+                <Tooltip title="Edit business name">
+                  <IconButton size="small" onClick={() => setEditingName(true)} aria-label="Edit business name">
+                    <EditOutlinedIcon sx={{ fontSize: 16 }} />
+                  </IconButton>
+                </Tooltip>
+              )}
+            </Stack>
+            <Typography variant="body2" color="textSecondary" noWrap>
+              {org.legalName && org.legalName !== org.name ? org.legalName : 'As shown on invoices and reports'}
+            </Typography>
+          </Box>
+        </Stack>
+        <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 0.75, mt: 2 }}>
+          <Chip size="small" label={org.gstin ? `GSTIN ${org.gstin}` : 'GSTIN not added'} color={org.gstin ? 'primary' : 'default'} variant={org.gstin ? 'filled' : 'outlined'} sx={{ fontWeight: 600 }} />
+          {stateCode && <Chip size="small" variant="outlined" label={stateName(stateCode)} />}
+          {full?.createdAt && <Chip size="small" variant="outlined" label={`Since ${formatDate(full.createdAt)}`} />}
+        </Stack>
+        {canEditOrganisation && <BusinessNameDialog open={editingName} onClose={() => setEditingName(false)} />}
+      </Box>
+
+      <CardContent sx={{ p: { xs: 2.5, sm: 3 } }}>
+        {canView && isLoading ? (
+          <LoadingState />
+        ) : (
+          <Stack spacing={2.5}>
+            {full && (
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2.25 }}>
+                <InfoTile icon={PhoneOutlinedIcon} label="Phone" value={full.phone} mono />
+                <InfoTile icon={MailOutlineRoundedIcon} label="Email" value={full.email} />
+                <InfoTile icon={ReceiptLongOutlinedIcon} label="GSTIN" value={full.gstin} mono />
+                <InfoTile icon={BadgeOutlinedIcon} label="PAN" value={full.pan} mono />
+              </Box>
+            )}
+
+            {/* Registered address — the same one as the head office branch and the Super Admin's record. */}
+            {full && (
+              <Box sx={{ p: 2, borderRadius: 2, border: 1, borderColor: 'divider', bgcolor: 'action.hover' }}>
+                <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-start' }}>
+                  <Box sx={{ width: 36, height: 36, flexShrink: 0, borderRadius: '50%', display: 'grid', placeItems: 'center', background: 'linear-gradient(135deg, var(--brand-light), var(--brand) 60%, var(--brand-deep))', color: '#fff' }}>
+                    <LocationOnOutlinedIcon sx={{ fontSize: 18 }} />
+                  </Box>
+                  <Box sx={{ flex: 1, minWidth: 0 }}>
+                    <Typography sx={{ fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'text.secondary' }}>Registered address</Typography>
+                    {hasAddress ? (
+                      <>
+                        {street && (
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            {street}
+                          </Typography>
+                        )}
+                        {place && <Typography variant="body2">{place}</Typography>}
+                        {region && (
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            {region}
+                          </Typography>
+                        )}
+                      </>
+                    ) : (
+                      <Typography variant="body2" color="textSecondary">
+                        {region ? `${region} · ` : ''}Full address not added yet.
+                      </Typography>
+                    )}
+                  </Box>
+                  {canEditOrganisation && (
+                    <Button size="small" onClick={() => navigate('/settings/organisation')} sx={{ flexShrink: 0 }}>
+                      {hasAddress ? 'Change' : 'Add address'}
+                    </Button>
+                  )}
+                </Stack>
+              </Box>
+            )}
+
+            {/* Accounting basics. */}
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', borderRadius: 2, border: 1, borderColor: 'divider', overflow: 'hidden' }}>
+              {[
+                ['Currency', org.currency ?? 'INR'],
+                ['Financial year', `${MONTHS[fyStart].slice(0, 3)} – ${MONTHS[(fyStart + 11) % 12].slice(0, 3)}`],
+                ['Timezone', (org.timezone ?? '').replace('Asia/', '') || '—'],
+              ].map(([label, value], n) => (
+                <Box key={label} sx={{ px: 1.5, py: 1.25, textAlign: 'center', borderLeft: n ? 1 : 0, borderColor: 'divider' }}>
+                  <Typography variant="caption" color="textSecondary" sx={{ display: 'block' }}>
+                    {label}
+                  </Typography>
+                  <Typography variant="body2" sx={{ fontWeight: 700 }} noWrap>
+                    {value}
+                  </Typography>
+                </Box>
+              ))}
+            </Box>
+
+            {canEditOrganisation && (
+              <Button variant="outlined" startIcon={<EditOutlinedIcon />} onClick={() => navigate('/settings/organisation')} sx={{ alignSelf: 'flex-start' }}>
+                Edit organisation details
+              </Button>
+            )}
+          </Stack>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -453,6 +544,7 @@ export default function ProfilePage() {
               <Section title="Password" description="Changing your password signs you out on other devices.">
                 <ChangePasswordForm />
               </Section>
+              <OrganisationCard session={session} />
             </Stack>
           </Grid>
           <Grid size={{ xs: 12, lg: 6 }}>
@@ -462,9 +554,6 @@ export default function ProfilePage() {
                 title="Organisation logo"
                 caption={canEditOrganisation ? 'Shown at the top of the sidebar and printed on invoices. PNG, JPEG or WebP up to 1 MB; a square logo looks best.' : 'Shown at the top of the sidebar and printed on invoices. Ask an administrator to change it.'}
               />
-              <Section title="Account" description="Your organisation, branch and role.">
-                <AccountDetails session={session} />
-              </Section>
               <Section title="Signed-in devices" description="Sign out of any device you do not recognise.">
                 <SessionsList />
               </Section>

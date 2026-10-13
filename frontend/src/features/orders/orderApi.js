@@ -11,6 +11,7 @@ export const orderApi = baseApi.injectEndpoints({
     }),
     order: build.query({ query: (id) => ({ url: `/orders/${id}` }), transformResponse: unwrapData, providesTags: (r, e, id) => [{ type: 'Order', id }] }),
     createOrder: build.mutation({ query: (data) => ({ url: '/orders', method: 'post', data }), transformResponse: unwrapData, invalidatesTags: [{ type: 'Order', id: 'LIST' }, 'Audit'] }),
+    updateOrder: build.mutation({ query: ({ id, ...data }) => ({ url: `/orders/${id}`, method: 'put', data }), transformResponse: unwrapData, invalidatesTags: changed }),
     addOrderAdvance: build.mutation({ query: ({ id, ...data }) => ({ url: `/orders/${id}/advances`, method: 'post', data }), transformResponse: unwrapData, invalidatesTags: changed }),
     setOrderStatus: build.mutation({ query: ({ id, ...data }) => ({ url: `/orders/${id}/status`, method: 'patch', data }), transformResponse: unwrapData, invalidatesTags: changed }),
     finishOrderItem: build.mutation({
@@ -37,4 +38,4 @@ export const orderApi = baseApi.injectEndpoints({
   }),
 });
 
-export const { useOrdersQuery, useOrderQuery, useCreateOrderMutation, useAddOrderAdvanceMutation, useSetOrderStatusMutation, useCancelOrderMutation, useFinishOrderItemMutation, useEstimateOrderMutation, useAddOrderImageMutation, useRemoveOrderImageMutation } = orderApi;
+export const { useOrdersQuery, useOrderQuery, useCreateOrderMutation, useUpdateOrderMutation, useAddOrderAdvanceMutation, useSetOrderStatusMutation, useCancelOrderMutation, useFinishOrderItemMutation, useEstimateOrderMutation, useAddOrderImageMutation, useRemoveOrderImageMutation } = orderApi;

@@ -45,6 +45,13 @@ export const PURITIES = Object.freeze({
   platinum: [{ fineness: 950, label: 'Platinum (950)' }],
 });
 
+/**
+ * The parts of an address, in display order (the state is `stateCode`, kept with the GST state). Create, edit and
+ * display forms, the API and the change history all use this one list, so they always map the same fields.
+ *   line1 house / shop no. & building · line2 area / street · landmark · postOffice · city · district · pincode
+ */
+export const ADDRESS_FIELDS = Object.freeze(['line1', 'line2', 'landmark', 'postOffice', 'city', 'district', 'pincode']);
+
 export const INDIAN_STATES = Object.freeze([
   { code: '01', name: 'Jammu and Kashmir' },
   { code: '02', name: 'Himachal Pradesh' },

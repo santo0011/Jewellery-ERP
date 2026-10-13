@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { ORG_ADMIN_ROLE_KEY, PLAN_KEYS, SUBSCRIPTION_STATUS, SYSTEM_ROLE_TEMPLATES } from '@jerp/shared';
+import { ADDRESS_FIELDS, ORG_ADMIN_ROLE_KEY, PLAN_KEYS, SUBSCRIPTION_STATUS, SYSTEM_ROLE_TEMPLATES } from '@jerp/shared';
 import { env } from '../../config/env.js';
 import { AUDIT_ACTIONS, recordAudit } from '../../core/audit/audit.service.js';
 import { requireContext, runWithContext } from '../../core/context/requestContext.js';
@@ -16,9 +16,10 @@ import { createDefaultSettings } from '../settings/settings.service.js';
 import { User } from '../users/user.model.js';
 import { Organisation } from './organisation.model.js';
 import { Subscription } from './subscription.model.js';
+import { copyToHeadOffice } from './headOfficeAddress.js';
 import { Plan } from '../billing/billing.models.js';
 
-const EDITABLE_FIELDS = ['name', 'legalName', 'gstin', 'pan', 'phone', 'email', 'timezone', 'address.line1', 'address.line2', 'address.city', 'address.stateCode', 'address.pincode'];
+const EDITABLE_FIELDS = ['name', 'legalName', 'gstin', 'pan', 'phone', 'email', 'timezone', ...ADDRESS_FIELDS.map((f) => `address.${f}`), 'address.stateCode'];
 
 const slugify = (name) =>
   name
@@ -28,7 +29,7 @@ const slugify = (name) =>
     .replace(/^-+|-+$/g, '')
     .slice(0, 40) || 'org';
 
-export async function onboardOrganisation({ organisationName, ownerName, email, mobile, stateCode, passwordHash, freeDays, mustChangePassword = false, platformAdminId = null }, session) {
+export async function onboardOrganisation({ organisationName, ownerName, email, mobile, stateCode, address: addressInput, passwordHash, freeDays, mustChangePassword = false, platformAdminId = null }, session) {
   const organisationId = new mongoose.Types.ObjectId();
   const userId = new mongoose.Types.ObjectId();
 
@@ -41,7 +42,7 @@ export async function onboardOrganisation({ organisationName, ownerName, email, 
           slug: `${slugify(organisationName)}-${randomToken(4).toLowerCase().replace(/[^a-z0-9]/g, 'x')}`,
           phone: mobile,
           email,
-          address: { stateCode },
+          address: { ...addressInput, stateCode },
           ownerUserId: userId,
           createdByPlatformAdmin: platformAdminId,
         },
@@ -65,7 +66,7 @@ export async function onboardOrganisation({ organisationName, ownerName, email, 
     );
 
     const [branch] = await Branch.create(
-      [{ code: 'HO', name: 'Head Office', phone: mobile, email, address: { stateCode }, isHeadOffice: true, createdBy: userId }],
+      [{ code: 'HO', name: 'Head Office', phone: mobile, email, address: { ...addressInput, stateCode }, isHeadOffice: true, createdBy: userId }],
       { session },
     );
 
@@ -126,6 +127,8 @@ export async function updateCurrentOrganisation(input) {
 
   await organisation.save();
   await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'organisation', recordType: 'Organisation', recordId: organisation._id, changes });
+  // The head office branch shares this address.
+  await copyToHeadOffice(organisation._id, organisation.address, { changes });
   return organisation.toObject();
 }
 

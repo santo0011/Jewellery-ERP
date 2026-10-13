@@ -5,7 +5,7 @@ import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import PowerSettingsNewRoundedIcon from '@mui/icons-material/PowerSettingsNewRounded';
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import { Alert, Box, Button, Card, CardContent, Grid, IconButton, InputAdornment, LinearProgress, MenuItem, Stack, TextField, Tooltip, Typography } from '@mui/material';
-import { INDIAN_STATES, TRIAL_BRANCH_LIMIT } from '@jerp/shared';
+import { TRIAL_BRANCH_LIMIT } from '@jerp/shared';
 import { platformCreateOrganisationSchema, platformUpdateOrganisationSchema } from '@jerp/shared/schemas';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -15,7 +15,7 @@ import { z } from 'zod';
 import ConfirmDialog from '../../components/ConfirmDialog.jsx';
 import DataTable from '../../components/DataTable.jsx';
 import LoginCodeDialog from './LoginCodeDialog.jsx';
-import RHFSelect from '../../components/form/RHFSelect.jsx';
+import PincodeAddressFields, { addressFormValues } from '../../components/form/PincodeAddressFields.jsx';
 import RHFTextField from '../../components/form/RHFTextField.jsx';
 import FormDrawer from '../../components/FormDrawer.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
@@ -25,7 +25,7 @@ import StatusChip from '../../components/StatusChip.jsx';
 import { useListParams } from '../../hooks/useListParams.js';
 import { applyServerErrors, getErrorMessage } from '../../utils/errors.js';
 import { formatDate } from '../../utils/format.js';
-import { useCreateOrganisationMutation, useDeleteOrganisationMutation, useOrganisationsQuery, useSetOrganisationStatusMutation, useUpdateOrganisationMutation } from './platformApi.js';
+import { useCreateOrganisationMutation, useDeleteOrganisationMutation, useLazyPincodeQuery, useOrganisationsQuery, useSetOrganisationStatusMutation, useUpdateOrganisationMutation } from './platformApi.js';
 import { SubscriptionChip } from '../billing/billingUi.jsx';
 
 /** Organisations are 'suspended' in the data; the panel calls that Deactivated. */
@@ -62,14 +62,14 @@ export function BranchUsage({ used, limit }) {
 const formSchema = platformCreateOrganisationSchema.extend({
   freeDays: z.string().trim().min(1, 'Enter the free days (0 for none)').regex(/^\d+$/, 'Enter whole days, e.g. 14').transform(Number).pipe(z.number().max(365, 'At most 365 days')),
 });
-const STATE_OPTIONS = INDIAN_STATES.map((s) => ({ value: s.code, label: s.name }));
 // No password: a 6-digit sign-in code is emailed instead (an empty password here would fail validation unseen).
-const EMPTY = { organisationName: '', ownerName: '', email: '', mobile: '', stateCode: '', freeDays: '14' };
+const EMPTY = { organisationName: '', ownerName: '', email: '', mobile: '', stateCode: '', freeDays: '14', address: addressFormValues() };
 
 function CreateOrganisationDrawer({ open, onClose }) {
   const navigate = useNavigate();
   const [create, { isLoading, error, reset: resetMutation }] = useCreateOrganisationMutation();
-  const { control, handleSubmit, reset, setError } = useForm({ resolver: zodResolver(formSchema), defaultValues: EMPTY });
+  const [findPincode] = useLazyPincodeQuery();
+  const { control, handleSubmit, reset, setError, setValue } = useForm({ resolver: zodResolver(formSchema), defaultValues: EMPTY });
 
   useEffect(() => {
     if (open) {
@@ -106,7 +106,7 @@ function CreateOrganisationDrawer({ open, onClose }) {
         navigate(`/admin/organisations/${id}`);
       }}
     />
-    <FormDrawer open={open} title="New organisation" subtitle="Creates the business, its head office branch, standard roles and its login." onClose={onClose} onSubmit={onSubmit} submitting={isLoading} submitLabel="Create organisation">
+    <FormDrawer open={open} title="New organisation" subtitle="Creates the business, its head office branch, standard roles and its login." onClose={onClose} onSubmit={onSubmit} submitting={isLoading} submitLabel="Create organisation" width={640}>
       <Grid container spacing={2}>
         {error && !error.data?.error?.details && (
           <Grid size={12}>
@@ -115,9 +115,6 @@ function CreateOrganisationDrawer({ open, onClose }) {
         )}
         <Grid size={12}>
           <RHFTextField control={control} name="organisationName" label="Business name" placeholder="e.g. ABC Jewellery" autoFocus />
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6 }}>
-          <RHFSelect control={control} name="stateCode" label="State (GST)" options={STATE_OPTIONS} placeholder="Select state" />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
           <RHFTextField
@@ -135,6 +132,15 @@ function CreateOrganisationDrawer({ open, onClose }) {
           </Alert>
         </Grid>
         <Grid size={12}>
+          <Typography variant="overline" color="textSecondary" sx={{ display: 'block' }}>
+            Registered address
+          </Typography>
+          <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mb: 1.5 }}>
+            Start with the PIN code — the post office, city, district and state fill in by themselves. Also used for the head office branch.
+          </Typography>
+          <PincodeAddressFields control={control} setValue={setValue} lookup={(pin) => findPincode(pin, true).unwrap()} />
+        </Grid>
+        <Grid size={12}>
           <Typography variant="overline" color="textSecondary">
             Organisation login
           </Typography>
@@ -148,16 +154,13 @@ function CreateOrganisationDrawer({ open, onClose }) {
         <Grid size={{ xs: 12, sm: 6 }}>
           <RHFTextField control={control} name="mobile" label="Owner mobile" slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 10 } }} />
         </Grid>
-        <Grid size={12}>
-          <Alert severity="info" variant="outlined" icon={false}>
-            A 6-digit sign-in code is emailed to the login email. It is the organisation’s first password; they choose their own after signing in.
-          </Alert>
-        </Grid>
+
       </Grid>
     </FormDrawer>
     </>
   );
 }
+
 
 /** "3 products, 1 customer" — why an organisation can no longer be deleted. */
 export const recordsText = (records = []) => records.map((r) => `${r.count} ${r.type}${r.count === 1 ? '' : 's'}`).join(', ');
@@ -177,12 +180,14 @@ const editValues = (org) => ({
   email: org?.owner?.email ?? org?.email ?? '',
   mobile: org?.phone ?? org?.owner?.mobile ?? '',
   stateCode: org?.stateCode ?? '',
+  address: addressFormValues(org?.address),
   freeDays: org?.freeDays != null ? String(org.freeDays) : '',
 });
 
 export function EditOrganisationDrawer({ organisation, onClose }) {
   const [update, { isLoading, error, reset: resetMutation }] = useUpdateOrganisationMutation();
-  const { control, handleSubmit, reset, setError } = useForm({ resolver: zodResolver(editSchema), defaultValues: editValues(organisation) });
+  const [findPincode] = useLazyPincodeQuery();
+  const { control, handleSubmit, reset, setError, setValue } = useForm({ resolver: zodResolver(editSchema), defaultValues: editValues(organisation) });
 
   useEffect(() => {
     if (organisation) {
@@ -213,6 +218,7 @@ export function EditOrganisationDrawer({ organisation, onClose }) {
       onSubmit={onSubmit}
       submitting={isLoading}
       submitLabel="Save changes"
+      width={640}
     >
       <Grid container spacing={2}>
         {error && !error.data?.error?.details && (
@@ -222,9 +228,6 @@ export function EditOrganisationDrawer({ organisation, onClose }) {
         )}
         <Grid size={12}>
           <RHFTextField control={control} name="organisationName" label="Business name" autoFocus />
-        </Grid>
-        <Grid size={{ xs: 12, sm: 6 }}>
-          <RHFSelect control={control} name="stateCode" label="State (GST)" options={STATE_OPTIONS} placeholder="Select state" />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
           <RHFTextField
@@ -243,8 +246,17 @@ export function EditOrganisationDrawer({ organisation, onClose }) {
           <RHFTextField control={control} name="mobile" label="Business phone" slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 10 } }} />
         </Grid>
         <Grid size={12}>
+          <Typography variant="overline" color="textSecondary" sx={{ display: 'block' }}>
+            Registered address
+          </Typography>
+          <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mb: 1.5 }}>
+            Change the PIN code to fill post office, city, district and state again — fields you edited yourself are kept.
+          </Typography>
+          <PincodeAddressFields control={control} setValue={setValue} lookup={(pin) => findPincode(pin, true).unwrap()} />
+        </Grid>
+        <Grid size={12}>
           <Typography variant="caption" color="textSecondary">
-            To give the organisation a new password, use “Send sign-in code” on its page — a fresh 6-digit code is emailed to the login email.
+            To change its password, the organisation uses “Forgot password” on the sign-in page — a 6-digit code is emailed to the login email.
           </Typography>
         </Grid>
       </Grid>

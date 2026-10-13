@@ -52,6 +52,10 @@ const paymentSchema = new mongoose.Schema(
     note: { type: String, default: null },
     createdByUserId: { type: ObjectId, ref: 'User', default: null }, // organisation user who started checkout
     createdByAdminId: { type: ObjectId, ref: 'PlatformAdmin', default: null }, // Super Admin who recorded it
+    // How the plan was activated: online (Cashfree), payment (received and recorded), complimentary (free of charge),
+    // trial or extension (days added). Trials and extensions are kept here too, with no amount, so every activation is on record.
+    activation: { type: String, enum: ['online', 'payment', 'complimentary', 'trial', 'extension'], default: null },
+    days: { type: Number, default: null }, // trial / extension length
   },
   { timestamps: true },
 );

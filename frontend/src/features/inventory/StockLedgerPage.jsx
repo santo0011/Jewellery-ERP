@@ -4,17 +4,17 @@ import { useState } from 'react';
 import DataTable from '../../components/DataTable.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
 import { useListParams } from '../../hooks/useListParams.js';
-import { usePermission, useSession } from '../../hooks/usePermission.js';
+import { usePermission } from '../../hooks/usePermission.js';
 import { useStockMovementsQuery } from './inventoryApi.js';
 import { MovementDetailsDrawer, movementColumns } from './movements.jsx';
 
 export { movementColumns } from './movements.jsx';
 
 export default function StockLedgerPage() {
-  const { data: session } = useSession();
   const [viewing, setViewing] = useState(null);
   const showCost = usePermission('product.viewCost');
-  const list = useListParams({ type: '', metal: '', branchId: '', from: '', to: '' });
+  // Branch follows the navbar branch filter.
+  const list = useListParams({ type: '', metal: '', from: '', to: '' });
   const { data, isLoading, isFetching, error, refetch } = useStockMovementsQuery(list.params);
   const set = (key) => (e) => list.setFilter(key, e.target.value);
 
@@ -48,16 +48,6 @@ export default function StockLedgerPage() {
                 </MenuItem>
               ))}
             </TextField>
-            {session.branches.length > 1 && (
-              <TextField select label="Branch" value={list.filters.branchId} onChange={set('branchId')} sx={{ maxWidth: { md: 180 } }}>
-                <MenuItem value="">All branches</MenuItem>
-                {session.branches.map((b) => (
-                  <MenuItem key={b.id} value={b.id}>
-                    {b.name}
-                  </MenuItem>
-                ))}
-              </TextField>
-            )}
             <TextField type="date" label="From" value={list.filters.from} onChange={set('from')} slotProps={{ inputLabel: { shrink: true } }} sx={{ maxWidth: { md: 170 } }} />
             <TextField type="date" label="To" value={list.filters.to} onChange={set('to')} slotProps={{ inputLabel: { shrink: true } }} sx={{ maxWidth: { md: 170 } }} />
           </Stack>

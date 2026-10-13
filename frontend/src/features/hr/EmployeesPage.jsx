@@ -1,5 +1,5 @@
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
-import { Box, Button, Chip, MenuItem, Stack, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
+import { Box, Button, Chip, Stack, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import { useState } from 'react';
 import { formatINR } from '@jerp/shared';
 import { useNavigate } from 'react-router';
@@ -21,7 +21,6 @@ import RequestQuoteOutlinedIcon from '@mui/icons-material/RequestQuoteOutlined';
 import PersonOffOutlinedIcon from '@mui/icons-material/PersonOffOutlined';
 import { useDeleteStatus } from '../../services/recordApi.js';
 
-const filterSlots = { inputLabel: { shrink: true }, select: { displayEmpty: true } };
 
 export default function EmployeesPage() {
   const navigate = useNavigate();
@@ -30,7 +29,8 @@ export default function EmployeesPage() {
   const canEdit = usePermission('employee.edit');
   const editor = useListEditor(useEmployeeQuery);
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const list = useListParams({ status: 'active', branchId: '' });
+  // Branch follows the navbar branch filter.
+  const list = useListParams({ status: 'active' });
   const { data, isLoading, isFetching, error, refetch } = useEmployeeListQuery(list.params);
   // Which rows can be deleted (Delete stays visible; it is disabled with the reason when not).
   const deleteStatus = useDeleteStatus('employee', data?.items);
@@ -123,16 +123,6 @@ export default function EmployeesPage() {
         toolbar={
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
             <SearchField value={list.search} onChange={list.setSearch} placeholder="Search name, mobile, code or designation" />
-            {multiBranch && (
-              <TextField select label="Branch" value={list.filters.branchId} onChange={(e) => list.setFilter('branchId', e.target.value)} slotProps={filterSlots} sx={{ width: { sm: 190 }, flexShrink: 0 }}>
-                <MenuItem value="">All branches</MenuItem>
-                {session.branches.map((b) => (
-                  <MenuItem key={b.id} value={b.id}>
-                    {b.name}
-                  </MenuItem>
-                ))}
-              </TextField>
-            )}
             <ToggleButtonGroup exclusive size="small" value={list.filters.status} onChange={(e, v) => v !== null && list.setFilter('status', v)} aria-label="Show" sx={{ flexShrink: 0, height: 40 }}>
               <ToggleButton value="active">Working</ToggleButton>
               <ToggleButton value="left">Left</ToggleButton>

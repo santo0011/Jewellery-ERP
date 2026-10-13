@@ -1,4 +1,5 @@
-import { BRANCH_PERMISSIONS, BRANCH_STATUS, SUBSCRIPTION_STATUS } from '@jerp/shared';
+import { ADDRESS_FIELDS, BRANCH_PERMISSIONS, BRANCH_STATUS, SUBSCRIPTION_STATUS } from '@jerp/shared';
+import { copyToOrganisation } from '../organisations/headOfficeAddress.js';
 import { AUDIT_ACTIONS, recordAudit } from '../../core/audit/audit.service.js';
 import { requireContext } from '../../core/context/requestContext.js';
 import { ApiError } from '../../utils/ApiError.js';
@@ -10,7 +11,7 @@ import { withTransaction } from '../../config/db.js';
 import { branchLoginsByBranch, syncBranchLoginEmail } from '../users/user.service.js';
 import { Branch } from './branch.model.js';
 
-const EDITABLE_FIELDS = ['code', 'name', 'phone', 'email', 'gstin', 'address.line1', 'address.line2', 'address.city', 'address.stateCode', 'address.pincode'];
+const EDITABLE_FIELDS = ['code', 'name', 'phone', 'email', 'gstin', ...ADDRESS_FIELDS.map((f) => `address.${f}`), 'address.stateCode'];
 
 function accessFilter() {
   const { branchAccess } = requireContext();
@@ -105,6 +106,11 @@ export async function updateBranch(id, input) {
     if (changes.some((c) => c.field === 'email')) await syncBranchLoginEmail(branch._id, branch.email ?? null, { session });
     await branch.save({ session });
     await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'branch', recordType: 'Branch', recordId: branch._id, changes }, { session });
+    // The head office's address is the organisation's registered address: keep them the same (and in its history).
+    if (branch.isHeadOffice && (await copyToOrganisation(branch.organisationId, branch.address, { session, changes }))) {
+      const addressChanges = changes.filter((c) => c.field.startsWith('address.'));
+      await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'organisation', recordType: 'Organisation', recordId: branch.organisationId, changes: addressChanges, meta: { via: 'Head office branch' } }, { session });
+    }
   });
   return branch.toObject();
 }

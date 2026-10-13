@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { ORG_STATUS } from '../enums.js';
-import { emailSchema, listQuerySchema, mobileSchema, optional, passwordSchema, requiredText, stateCodeSchema } from './common.js';
+import { addressSchema, emailSchema, listQuerySchema, mobileSchema, optional, passwordSchema, requiredText, stateCodeSchema } from './common.js';
 
 // Free days count from the day the organisation was created.
 const freeDaysSchema = z.coerce.number({ error: 'Enter the free days' }).int('Whole days only').min(0, 'Cannot be negative').max(365, 'At most 365 days');
@@ -11,6 +11,8 @@ export const platformCreateOrganisationSchema = z.object({
   email: emailSchema,
   mobile: mobileSchema,
   stateCode: stateCodeSchema,
+  // Registered address (PIN code look-up fills post office, city, district and state). Its state is `stateCode`.
+  address: addressSchema.optional(),
   // Optional: when left out (the panel always does), a 6-digit code is emailed and becomes the first password.
   password: passwordSchema.optional(),
   // Branches are not set here: 2 (head office included) during the free trial, then whatever the plan allows.
@@ -25,6 +27,8 @@ export const platformUpdateOrganisationSchema = z.object({
   password: optional(passwordSchema),
   mobile: mobileSchema,
   stateCode: stateCodeSchema,
+  // Registered address; left out keeps the current one. Its state is `stateCode`.
+  address: addressSchema.optional(),
   freeDays: freeDaysSchema.optional(), // only while it is still on its free period
 });
 

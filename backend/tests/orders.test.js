@@ -221,3 +221,26 @@ describe('customer orders', () => {
     expect((await api().get('/api/v1/orders')).status).toBe(401);
   });
 });
+
+describe('editing an order', () => {
+  it('can be edited while booked or in progress, not once ready', async () => {
+    const ctx = await setup();
+    const order = (await api().post('/api/v1/orders').set(bearer(ctx.t)).send(orderBody(ctx))).body.data;
+    const items = [
+      { description: '22K bridal ring, size 15', categoryId: ctx.ring.id, metal: 'gold', purity: 916, approxWeightMg: 12000, size: '15', estimatedPaise: 9500000 },
+      { description: 'Matching earrings', metal: 'gold', purity: 916, approxWeightMg: 6000, quantity: 2, estimatedPaise: 4000000 },
+    ];
+    const res = await api().put(`/api/v1/orders/${order.id}`).set(bearer(ctx.t)).send({ items, priority: 'urgent', notes: 'Changed design' });
+    expect(res.status).toBe(200);
+    expect(res.body.data).toMatchObject({ estimatedPaise: 9500000 + 2 * 4000000, priority: 'urgent', notes: 'Changed design', advancePaise: 2000000, customer: { name: 'Rupa Sen' } });
+    expect(res.body.data.items.map((i) => i.description)).toEqual(['22K bridal ring, size 15', 'Matching earrings']);
+
+    await api().patch(`/api/v1/orders/${order.id}/status`).set(bearer(ctx.t)).send({ status: 'in_progress' });
+    expect((await api().put(`/api/v1/orders/${order.id}`).set(bearer(ctx.t)).send({ items })).status).toBe(200);
+
+    await api().patch(`/api/v1/orders/${order.id}/status`).set(bearer(ctx.t)).send({ status: 'ready' });
+    const late = await api().put(`/api/v1/orders/${order.id}`).set(bearer(ctx.t)).send({ items });
+    expect(late.status).toBe(409);
+    expect(late.body.error.code).toBe('INVALID_STATE');
+  });
+});

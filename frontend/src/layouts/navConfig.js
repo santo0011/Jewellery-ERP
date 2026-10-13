@@ -123,3 +123,39 @@ export const BRANCH_NAV_GROUPS = [
 export function visibleNav(permissions, { branchLogin = false } = {}) {
   return (branchLogin ? BRANCH_NAV_GROUPS : NAV_GROUPS).map((g) => ({ ...g, items: g.items.filter((i) => !i.permission || [].concat(i.permission).some((p) => permissions.has(p))) })).filter((g) => g.items.length);
 }
+
+/**
+ * List pages whose data follows the navbar branch filter, and the module each belongs to. The filter shows on a page
+ * only while its module is opened to at least one other branch (session.branchModules, from Branch access); otherwise
+ * the page shows the head office's data. A new list page that filters by branch is one more line here.
+ */
+export const BRANCH_FILTER_PAGES = [
+  { path: '/sales', module: 'sales' },
+  { path: '/orders', module: 'order' },
+  { path: '/products', module: 'product' },
+  { path: '/inventory', module: 'inventory' },
+  { path: '/inventory/opening', module: 'inventory' },
+  { path: '/inventory/adjustments', module: 'inventory' },
+  { path: '/inventory/transfers', module: 'inventory' },
+  { path: '/inventory/ledger', module: 'inventory' },
+  { path: '/purchases', module: 'purchase' },
+  { path: '/purchases/orders', module: 'purchase' },
+  { path: '/hr/employees', module: 'employee' },
+];
+
+/** Pages that work in one branch at a time (they keep the switcher, without "All branches"). */
+export const WORKING_BRANCH_PAGES = [
+  { path: '/', module: null },
+  { path: '/billing', module: 'sales' },
+];
+
+/** How the navbar branch control behaves on a page: 'filter' (with All), 'working' (one branch), or null (hidden). */
+export function branchControlFor(pathname, sharedModules) {
+  const shared = new Set(sharedModules ?? []);
+  const exact = (list) => list.find((p) => p.path === pathname.replace(/\/+$/, '') || (p.path === '/' && pathname === '/'));
+  const filterPage = exact(BRANCH_FILTER_PAGES);
+  if (filterPage) return shared.has(filterPage.module) ? 'filter' : null;
+  const workingPage = exact(WORKING_BRANCH_PAGES);
+  if (workingPage) return !workingPage.module || shared.has(workingPage.module) ? 'working' : null;
+  return null;
+}

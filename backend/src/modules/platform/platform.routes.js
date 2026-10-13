@@ -5,6 +5,7 @@ import { validate } from '../../middleware/validate.js';
 import * as controller from './platform.controller.js';
 import { assignPlanSchema, billingPaymentListQuerySchema, emailSettingsSchema, emailTestSchema, planSchema } from '@jerp/shared/schemas';
 import * as emailSettings from './emailSettings.service.js';
+import { lookupPincode } from '../../core/address/pincode.service.js';
 import * as platformService from './platform.service.js';
 import { sendCreated, sendOk } from '../../utils/response.js';
 import * as billing from '../billing/billing.service.js';
@@ -35,6 +36,11 @@ router.delete('/organisations/:id', validate({ params: idParamsSchema }), contro
 router.patch('/organisations/:id/status', validate({ params: idParamsSchema, body: platformOrgStatusSchema }), controller.setStatus);
 
 // Subscriptions & billing
+// PIN code -> post offices, city, district and state (India Post), to fill an address.
+router.get('/pincode/:pincode', validate({ params: z.object({ pincode: z.string().regex(/^[1-9][0-9]{5}$/, 'Enter a valid 6-digit PIN code') }) }), async (req, res) =>
+  sendOk(res, await lookupPincode(req.valid.params.pincode)),
+);
+
 // Outgoing email (SMTP): where sign-in codes and password reset links are sent from.
 router.get('/email-settings', async (req, res) => sendOk(res, await emailSettings.getEmailSettings()));
 router.put('/email-settings', validate({ body: emailSettingsSchema }), async (req, res) =>

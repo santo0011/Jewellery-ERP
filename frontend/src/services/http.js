@@ -64,9 +64,11 @@ export function refreshAccessToken() {
 }
 
 http.interceptors.request.use((config) => {
-  const { accessToken, activeBranchId } = store.getState().auth;
+  const { accessToken, activeBranchId, branchView } = store.getState().auth;
   if (accessToken) config.headers.Authorization = `Bearer ${accessToken}`;
   if (accessToken && activeBranchId) config.headers['X-Branch-Id'] = activeBranchId;
+  // Navbar filter on "All branches": list pages show every branch (the server limits it to the user's own).
+  if (accessToken && branchView === 'all') config.headers['X-Branch-View'] = 'all';
   return config;
 });
 
