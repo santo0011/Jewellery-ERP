@@ -130,7 +130,7 @@ describe('customer orders', () => {
     expect((await api().patch(`/api/v1/products/${piece.id}/huid`).set(bearer(ctx.t)).send({ huid: 'OR12D3' })).status).toBe(409);
     const saved = await api().patch(`/api/v1/products/${piece.id}/huid`).set(bearer(ctx.t)).send({ huid: 'ch45n6' });
     expect(saved.body.data.huid).toBe('CH45N6');
-    expect((await api().post('/api/v1/sales/quote').set(bearer(ctx.t)).send({ branchId: ctx.ho, items: [{ productId: piece.id }] })).status).toBe(200);
+    expect((await api().post('/api/v1/sales/quote').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: ctx.customer.id, items: [{ productId: piece.id }] })).status).toBe(200);
   });
 
   it('shows a customer everything they bought and paid', async () => {
@@ -242,5 +242,24 @@ describe('editing an order', () => {
     const late = await api().put(`/api/v1/orders/${order.id}`).set(bearer(ctx.t)).send({ items });
     expect(late.status).toBe(409);
     expect(late.body.error.code).toBe('INVALID_STATE');
+  });
+});
+
+describe('a piece made for an order', () => {
+  it('can be billed only to that order’s customer', async () => {
+    const ctx = await setup();
+    const order = (await api().post('/api/v1/orders').set(bearer(ctx.t)).send(orderBody(ctx))).body.data;
+    const piece = (
+      await api().post(`/api/v1/orders/${order.id}/items/0/finish`).set(bearer(ctx.t)).send({ grossWeightMg: 10000, huid: 'RS5T01', wastage: { mode: 'none', value: 0 }, making: { type: 'per_gram', value: 40000 } })
+    ).body.data.items[0].product;
+    const other = (await api().post('/api/v1/customers').set(bearer(ctx.t)).send({ name: 'Someone Else', mobile: `97${Math.floor(10000000 + Math.random() * 89999999)}`, address: { stateCode: '19' } })).body.data;
+    const quote = (customerId) => api().post('/api/v1/sales/quote').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId, items: [{ productId: piece.id }] });
+
+    const walkIn = await quote(undefined);
+    expect(walkIn.status).toBe(422);
+    expect(walkIn.body.error.message).toContain(`made for order ${order.orderNo} of Rupa Sen`);
+    expect((await quote(other.id)).status).toBe(422);
+    expect((await api().post('/api/v1/sales').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: other.id, items: [{ productId: piece.id }], payments: [] })).status).toBe(422);
+    expect((await quote(ctx.customer.id)).status).toBe(200);
   });
 });

@@ -16,13 +16,15 @@ export default function RateTicker() {
   return (
     <ButtonBase
       onClick={() => navigate('/rates')}
-      sx={{ display: { xs: 'none', sm: 'flex' }, alignItems: 'center', gap: 1, px: 1.5, py: 0.75, border: 1, borderColor: 'divider', borderRadius: 1 }}
+      sx={{ display: 'flex', flexShrink: 0, alignItems: 'center', gap: { xs: 0.75, sm: 1 }, px: { xs: 1, sm: 1.5 }, py: 0.75, border: 1, borderColor: 'divider', borderRadius: { xs: 999, sm: 1 }, bgcolor: 'background.paper' }}
       aria-label="Metal rates"
     >
       <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: gold?.isToday ? 'success.main' : 'warning.main' }} />
       {gold ? (
         <Typography variant="body2" sx={{ fontWeight: 600 }}>
-          {purityLabel('gold', gold.purity).split(' ')[0]}{' '}
+          <Box component="span" sx={{ display: { xs: 'none', sm: 'inline' } }}>
+            {purityLabel('gold', gold.purity).split(' ')[0]}{' '}
+          </Box>
           <Box component="span" sx={{ color: 'accent.main' }}>
             {formatINR(gold.ratePerGramPaise, { decimals: 0 })}
           </Box>

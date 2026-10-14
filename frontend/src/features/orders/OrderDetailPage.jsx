@@ -311,9 +311,10 @@ export default function OrderDetailPage() {
               <Typography variant="h4" sx={{ mb: 2 }}>
                 Items
               </Typography>
-              {/* Fits the card without a sideways scrollbar: metal and weight share a column, text wraps, tighter cells. */}
-              <Box>
-                <Table size="small" sx={{ width: '100%', '& th, & td': { px: 1 }, '& th:first-of-type, & td:first-of-type': { pl: 0 }, '& th:last-of-type, & td:last-of-type': { pr: 0 }, '& th': { whiteSpace: 'nowrap' } }}>
+              {/* Fits the card on wider screens (metal and weight share a column, text wraps); on a phone it keeps a
+                  readable width and scrolls sideways inside the card. */}
+              <Box sx={{ overflowX: 'auto', mx: { xs: -2, sm: 0 }, px: { xs: 2, sm: 0 } }}>
+                <Table size="small" sx={{ width: '100%', minWidth: { xs: 560, sm: 0 }, '& th, & td': { px: 1 }, '& th:first-of-type, & td:first-of-type': { pl: 0 }, '& th:last-of-type, & td:last-of-type': { pr: 0 }, '& th': { whiteSpace: 'nowrap' } }}>
                   <TableHead>
                     <TableRow>
                       <TableCell>Item</TableCell>

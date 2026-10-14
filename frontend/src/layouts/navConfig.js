@@ -33,7 +33,7 @@ import WorkspacePremiumOutlinedIcon from '@mui/icons-material/WorkspacePremiumOu
 export const REPORT_PERMISSIONS = ['report.sales', 'report.inventory', 'report.customer', 'report.finance', 'payroll.view', 'attendance.view'];
 
 /** Always first and never folded away: a `pinned` group renders without a collapsible header. */
-export const DASHBOARD_GROUP = { label: 'Dashboard', pinned: true, items: [{ label: 'Dashboard', path: '/', icon: DashboardOutlinedIcon, end: true, mobile: true }] };
+export const DASHBOARD_GROUP = { label: 'Dashboard', pinned: true, items: [{ label: 'Dashboard', mobileLabel: 'Home', path: '/', icon: DashboardOutlinedIcon, end: true, mobile: true }] };
 
 export const NAV_GROUPS = [
   DASHBOARD_GROUP,

@@ -23,22 +23,23 @@ const VALUE_TONE = { paid: MONEY_TONE.paid, due: MONEY_TONE.due };
 export function SummaryCard({ icon: Icon, label, value, caption, tone = 'gold', valueTone, onClick }) {
   const t = TONE[tone] ?? TONE.gold;
   const body = (
-    <Box sx={{ position: 'relative', width: '100%', height: '100%', px: 2, pt: 1.5, pb: 1.25, textAlign: 'left', overflow: 'hidden' }}>
+    <Box sx={{ position: 'relative', width: '100%', height: '100%', px: { xs: 1.5, sm: 2 }, pt: { xs: 1.25, sm: 1.5 }, pb: { xs: 1, sm: 1.25 }, textAlign: 'left', overflow: 'hidden' }}>
       {/* Large faint icon in the corner — decoration only. */}
       {Icon && <Icon aria-hidden sx={{ position: 'absolute', right: -12, bottom: -16, fontSize: 76, color: t.fg, opacity: 0.07, pointerEvents: 'none' }} />}
 
       <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 1, mb: 0.5 }}>
-        <Typography noWrap sx={{ fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'text.secondary', minWidth: 0 }}>
+        {/* Phones: a long label takes two lines instead of being cut short. */}
+        <Typography sx={{ fontSize: { xs: '0.625rem', sm: '0.6875rem' }, fontWeight: 700, letterSpacing: { xs: '0.06em', sm: '0.08em' }, textTransform: 'uppercase', color: 'text.secondary', minWidth: 0, lineHeight: 1.35, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: { xs: 2, sm: 1 } }}>
           {label}
         </Typography>
         {Icon && (
-          <Box sx={{ width: 28, height: 28, borderRadius: 1.5, flexShrink: 0, display: 'grid', placeItems: 'center', background: t.line, color: '#fff', boxShadow: '0 4px 12px rgba(23, 23, 23, 0.12)' }}>
+          <Box sx={{ width: { xs: 24, sm: 28 }, height: { xs: 24, sm: 28 }, borderRadius: 1.5, flexShrink: 0, display: 'grid', placeItems: 'center', background: t.line, color: '#fff', boxShadow: '0 4px 12px rgba(23, 23, 23, 0.12)' }}>
             <Icon sx={{ fontSize: 16 }} />
           </Box>
         )}
       </Box>
 
-      <Typography sx={{ position: 'relative', fontSize: { xs: '1.35rem', md: '1.45rem' }, fontWeight: 800, lineHeight: 1.15, letterSpacing: '-0.01em', whiteSpace: 'nowrap', color: VALUE_TONE[valueTone] ?? 'text.primary', fontVariantNumeric: 'tabular-nums' }}>
+      <Typography sx={{ position: 'relative', fontSize: { xs: '1.0625rem', sm: '1.35rem', md: '1.45rem' }, fontWeight: 800, lineHeight: 1.15, letterSpacing: '-0.01em', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: VALUE_TONE[valueTone] ?? 'text.primary', fontVariantNumeric: 'tabular-nums' }}>
         {value}
       </Typography>
 
@@ -47,7 +48,7 @@ export function SummaryCard({ icon: Icon, label, value, caption, tone = 'gold', 
           {caption && (
             <>
               <Box sx={{ width: 6, height: 6, borderRadius: '50%', flexShrink: 0, bgcolor: t.fg, opacity: 0.8 }} />
-              <Typography variant="caption" color="textSecondary" noWrap sx={{ minWidth: 0 }}>
+              <Typography variant="caption" color="textSecondary" sx={{ minWidth: 0, lineHeight: 1.35, overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: { xs: 2, sm: 1 } }}>
                 {caption}
               </Typography>
             </>
@@ -84,8 +85,8 @@ export function SummaryCard({ icon: Icon, label, value, caption, tone = 'gold', 
   );
 }
 
-/** The row of cards above a list: 1 per row on phones, 2 on tablets, 3 on small laptops, all in one row (up to 5) on desktop. */
+/** The row of cards above a list: 2 per row on phones and tablets, 3 on small laptops, all in one row (up to 5) on desktop. */
 export default function SummaryCards({ children }) {
   const count = [children].flat().filter(Boolean).length;
-  return <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, 1fr)', md: `repeat(${Math.min(Math.max(count, 1), 3)}, 1fr)`, lg: `repeat(${Math.min(Math.max(count, 1), 5)}, 1fr)` }, gap: 2, mb: 2.5 }}>{children}</Box>;
+  return <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(2, 1fr)', md: `repeat(${Math.min(Math.max(count, 1), 3)}, 1fr)`, lg: `repeat(${Math.min(Math.max(count, 1), 5)}, 1fr)` }, gap: { xs: 1.25, sm: 2 }, mb: { xs: 2, sm: 2.5 } }}>{children}</Box>;
 }

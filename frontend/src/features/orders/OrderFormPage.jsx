@@ -333,12 +333,13 @@ function ItemCard({ index, control, setValue, categories, onRemove, canRemove, e
               <RHFTextField control={control} name={`${p}.wastage`} label="Wastage" placeholder="0" slotProps={{ input: { endAdornment: <InputAdornment position="end">%</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }} />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <Stack direction="row" spacing={1}>
+              {/* Phones: the making type as a full-width switch above its amount. */}
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
                 <Controller
                   control={control}
                   name={`${p}.makingType`}
                   render={({ field }) => (
-                    <ToggleButtonGroup exclusive size="small" value={field.value} onChange={(e, v) => v && field.onChange(v)} sx={{ height: 41, flexShrink: 0 }}>
+                    <ToggleButtonGroup exclusive size="small" value={field.value} onChange={(e, v) => v && field.onChange(v)} aria-label="Making charge type" sx={{ height: 41, flexShrink: 0, width: { xs: '100%', sm: 'auto' }, '& .MuiToggleButton-root': { flex: { xs: 1, sm: 'none' }, minWidth: 44, fontWeight: 700 } }}>
                       <ToggleButton value="per_gram">₹/g</ToggleButton>
                       <ToggleButton value="percent">%</ToggleButton>
                       <ToggleButton value="fixed">₹</ToggleButton>
@@ -538,7 +539,7 @@ export default function OrderFormPage() {
         <PageHeader title="New order" subtitle="Book exactly what the customer wants, at the agreed charges, and take an advance." back={{ to: '/orders', label: 'Orders' }} />
       )}
       <Grid container spacing={3}>
-        <Grid size={{ xs: 12, lg: 8 }}>
+        <Grid size={{ xs: 12, lg: 7, xl: 7.5 }}>
           <Stack spacing={3}>
             <Card>
               <CardContent>
@@ -611,7 +612,7 @@ export default function OrderFormPage() {
           </Stack>
         </Grid>
 
-        <Grid size={{ xs: 12, lg: 4 }}>
+        <Grid size={{ xs: 12, lg: 5, xl: 4.5 }}>
           <Card sx={{ position: { lg: 'sticky' }, top: { lg: 88 } }}>
             <CardContent>
               <Typography variant="h4" sx={{ mb: 2 }}>

@@ -690,7 +690,7 @@ export default function BillingPage() {
           </Card>
         </Grid>
 
-        <Grid size={{ xs: 12, md: 5, xl: 4.5 }}>
+        <Grid size={{ xs: 12, md: 5, xl: 4.5 }} id="bill-payment" sx={{ scrollMarginTop: 72 }}>
           <Stack spacing={2.5} sx={{ position: { md: 'sticky' }, top: { md: 88 } }}>
             <Card>
               <CardContent>
@@ -853,6 +853,23 @@ export default function BillingPage() {
         </Grid>
       </Grid>
       {linkedOrder && <FinishItemDialog order={linkedOrder} index={finishing} onClose={() => setFinishing(null)} onFinished={(piece) => { autoAdded.current.add(String(piece.id)); addFinished(piece); }} />}
+      {/* Phones: the amount to collect stays in view above the bottom bar, one tap from the payment section. */}
+      {lines.length > 0 && quote && <Box sx={{ display: { xs: 'block', md: 'none' }, height: 72 }} />}
+      {lines.length > 0 && quote && (
+        <Box sx={{ display: { xs: 'flex', md: 'none' }, position: 'fixed', left: 12, right: 12, bottom: 'calc(84px + env(safe-area-inset-bottom))', zIndex: (t) => t.zIndex.appBar - 1, alignItems: 'center', gap: 1.5, pl: 2, pr: 1, py: 1, borderRadius: 3, bgcolor: '#171717', color: '#F7F3E8', boxShadow: '0 12px 30px -10px rgba(0, 0, 0, 0.5)' }}>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography sx={{ fontSize: '0.625rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(247, 243, 232, 0.6)' }}>
+              To collect · {lines.length} item{lines.length === 1 ? '' : 's'}
+            </Typography>
+            <Typography noWrap sx={{ fontWeight: 800, fontSize: '1.125rem', color: '#F4A09A' }}>
+              {formatINR(payable)}
+            </Typography>
+          </Box>
+          <Button variant="contained" onClick={() => document.getElementById('bill-payment')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} sx={{ flexShrink: 0 }}>
+            Payment
+          </Button>
+        </Box>
+      )}
     </>
   );
 }

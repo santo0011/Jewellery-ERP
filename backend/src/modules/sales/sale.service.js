@@ -1,4 +1,4 @@
-import { hasPermission, ORDER_STATUS, PRODUCT_STATUS, SALE_STATUS } from '@jerp/shared';
+import { hasPermission, OPEN_ORDER_STATUSES, ORDER_STATUS, PRODUCT_STATUS, SALE_STATUS } from '@jerp/shared';
 import { withTransaction } from '../../config/db.js';
 import { AUDIT_ACTIONS, recordAudit } from '../../core/audit/audit.service.js';
 import { requireContext } from '../../core/context/requestContext.js';
@@ -77,6 +77,19 @@ async function buildQuote({ branchId, customerId: requestedCustomerId, orderId, 
 
   const byId = new Map(products.map((p) => [String(p._id), p]));
   const issues = [];
+
+  // A piece made for a customer's order is theirs: it can be billed only to that customer.
+  const reserved = await Order.find({ status: { $in: OPEN_ORDER_STATUSES }, 'items.productId': { $in: items.map((i) => i.productId) } })
+    .select('orderNo customerId customer items.productId')
+    .lean();
+  for (const o of reserved) {
+    if (customer && String(o.customerId) === String(customer._id)) continue;
+    for (const line of o.items.filter((l) => l.productId && items.some((i) => String(i.productId) === String(l.productId)))) {
+      const sku = byId.get(String(line.productId))?.sku ?? 'This item';
+      const who = o.customer?.name ?? 'that customer';
+      issues.push({ path: 'items', message: `${sku} is made for order ${o.orderNo} of ${who}; it can be billed only to ${who}` });
+    }
+  }
   const lines = [];
   for (const item of items) {
     const p = byId.get(String(item.productId));

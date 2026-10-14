@@ -10,6 +10,7 @@ import { errorHandler, notFound } from './middleware/errorHandler.js';
 import { apiLimiter } from './middleware/rateLimiters.js';
 import { sanitizeBody } from './middleware/sanitize.js';
 import apiRoutes from './routes/index.js';
+import { isLocalNetworkOrigin } from './utils/network.js';
 
 const REQUEST_ID_PATTERN = /^[\w-]{8,64}$/;
 
@@ -36,7 +37,8 @@ export function createApp() {
   app.use(helmet());
   app.use(
     cors({
-      origin: (origin, callback) => callback(null, !origin || env.corsOrigins.includes(origin)),
+      // Listed origins, plus (outside production) any device on the local Wi-Fi, e.g. http://192.168.1.20:5173.
+      origin: (origin, callback) => callback(null, !origin || env.corsOrigins.includes(origin) || (env.corsAllowLan && isLocalNetworkOrigin(origin))),
       credentials: true,
       exposedHeaders: ['x-request-id'],
     }),

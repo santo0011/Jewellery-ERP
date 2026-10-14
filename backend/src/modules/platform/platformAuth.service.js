@@ -49,6 +49,12 @@ export async function platformLogin({ email, password }, meta) {
   return openSession(admin, meta);
 }
 
+/** A Super Admin signed in with an emailed code (forgot password): a new platform session. */
+export async function platformCodeSignIn(admin, meta) {
+  await recordPlatformAudit({ adminId: admin._id, action: 'login' }, meta);
+  return openSession(admin, meta);
+}
+
 export async function platformRefresh(cookieValue, meta) {
   const decoded = decodeRefreshToken(cookieValue);
   if (!decoded) throw invalid();

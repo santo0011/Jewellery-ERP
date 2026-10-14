@@ -208,7 +208,8 @@ export default function InvoicePage() {
         </Stack>
 
         <Box sx={{ overflowX: 'auto', mt: 2.5 }}>
-          <Table size="small" sx={{ '& td, & th': { borderColor: '#E6E1D3' } }}>
+          {/* Phones: the table keeps a readable width and scrolls sideways (the printed invoice is unchanged). */}
+          <Table size="small" sx={{ minWidth: { xs: 600, md: 0 }, '& td, & th': { borderColor: '#E6E1D3' } }}>
             <TableHead>
               <TableRow>
                 <TableCell>#</TableCell>

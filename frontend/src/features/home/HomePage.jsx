@@ -47,13 +47,14 @@ export default function HomePage() {
           </Typography>
         </Box>
         {actions.length > 0 && (
-          <Stack direction="row" sx={{ flexWrap: "wrap", gap: 1 }}>
+          // Phones: an even 2 × 2 grid of big buttons; wider screens: one row.
+          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", sm: "repeat(4, auto)" }, gap: 1, "& .MuiButton-root": { justifyContent: { xs: "flex-start", sm: "center" }, minHeight: { xs: 48, sm: 40 } } }}>
             {actions.map(({ to, label, icon: Icon, primary }) => (
               <Button key={to} component={RouterLink} to={to} variant={primary ? "contained" : "outlined"} color={primary ? "primary" : "secondary"} startIcon={primary ? <Icon /> : to.endsWith("/new") ? <AddRoundedIcon /> : <Icon />}>
                 {label}
               </Button>
             ))}
-          </Stack>
+          </Box>
         )}
       </Stack>
 

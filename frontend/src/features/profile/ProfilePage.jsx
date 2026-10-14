@@ -114,6 +114,9 @@ function ProfileForm({ user }) {
 
 export function ChangePasswordForm() {
   const [changePassword, { isLoading }] = useChangePasswordMutation();
+  // Signed in with an emailed code (forgot password): a new password can be set without the old one.
+  const { data: session } = useSession();
+  const viaCode = Boolean(session?.user?.signedInWithCode);
   const { control, handleSubmit, setError, reset } = useForm({
     resolver: zodResolver(passwordFormSchema),
     defaultValues: { currentPassword: '', newPassword: '', confirmPassword: '' },
@@ -121,7 +124,7 @@ export function ChangePasswordForm() {
 
   const onSubmit = handleSubmit(async ({ currentPassword, newPassword }) => {
     try {
-      await changePassword({ currentPassword, newPassword }).unwrap();
+      await changePassword({ currentPassword: viaCode ? '' : currentPassword, newPassword }).unwrap();
       reset();
       toast.success('Password changed. Other devices have been signed out.');
     } catch (err) {
@@ -131,7 +134,13 @@ export function ChangePasswordForm() {
 
   return (
     <Stack component="form" spacing={2} noValidate onSubmit={onSubmit}>
-      <PasswordField control={control} name="currentPassword" label="Current password" autoComplete="current-password" />
+      {viaCode ? (
+        <Alert severity="info" variant="outlined">
+          You signed in with a code sent to your email, so the current password is not needed. Set a new one below.
+        </Alert>
+      ) : (
+        <PasswordField control={control} name="currentPassword" label="Current password" autoComplete="current-password" />
+      )}
       <PasswordField control={control} name="newPassword" label="New password" autoComplete="new-password" helperText="At least 6 characters" />
       <PasswordField control={control} name="confirmPassword" label="Confirm new password" autoComplete="new-password" />
       <Stack direction="row" sx={{ justifyContent: 'flex-end' }}>
@@ -423,7 +432,7 @@ function OrganisationCard({ session }) {
               </Typography>
               {canEditOrganisation && (
                 <Tooltip title="Edit business name">
-                  <IconButton size="small" onClick={() => setEditingName(true)} aria-label="Edit business name">
+                  <IconButton size="small" onClick={() => setEditingName(true)} aria-label="Edit business name" sx={{ width: 34, height: 34 }}>
                     <EditOutlinedIcon sx={{ fontSize: 16 }} />
                   </IconButton>
                 </Tooltip>

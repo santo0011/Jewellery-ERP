@@ -6,6 +6,10 @@ const schema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     PORT: z.coerce.number().int().positive().default(5000),
+    // 0.0.0.0 = reachable from other devices on the network (phones on the same Wi-Fi); 127.0.0.1 = this computer only.
+    HOST: z.string().trim().min(1).default('0.0.0.0'),
+    // Accept browser requests from any address on the private local network (192.168.x.x, 10.x …). Default: on outside production.
+    CORS_ALLOW_LAN: z.enum(['true', 'false']).optional(),
     MONGODB_URI: z.string().min(1, 'MONGODB_URI is required'),
     JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET must be at least 32 characters'),
     ACCESS_TOKEN_TTL: z.string().default('15m'),
@@ -55,6 +59,7 @@ if (!parsed.success) {
 export const env = Object.freeze({
   ...parsed.data,
   corsOrigins: parsed.data.CORS_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean),
+  corsAllowLan: parsed.data.CORS_ALLOW_LAN ? parsed.data.CORS_ALLOW_LAN === 'true' : parsed.data.NODE_ENV !== 'production',
   isProduction: parsed.data.NODE_ENV === 'production',
   isTest: parsed.data.NODE_ENV === 'test',
 });

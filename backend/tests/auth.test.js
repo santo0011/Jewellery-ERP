@@ -172,6 +172,41 @@ describe('passwords', () => {
     expect((await api().post('/api/v1/auth/login').send({ email: input.email, password: 'Reset1234' })).status).toBe(200);
   });
 
+  it('signs in with the emailed code (forgot password); the new password is set later without the old one', async () => {
+    const { input } = await registerOrg();
+    await api().post('/api/v1/auth/forgot-password').send({ email: input.email });
+    const { sha256 } = await import('../src/utils/crypto.js');
+    const user = await User.findOne({ email: input.email }).setOptions(SKIP).lean();
+    await User.updateOne({ _id: user._id }, { $set: { 'passwordReset.tokenHash': sha256(`password-reset:${user._id}:271828`) } }).setOptions(SKIP);
+
+    expect((await api().post('/api/v1/auth/code-login').send({ email: input.email, otp: '000000' })).body.error.code).toBe('RESET_INVALID');
+    const res = await api().post('/api/v1/auth/code-login').send({ email: input.email, otp: '271828' });
+    expect(res.status).toBe(200);
+    expect(res.body.data.realm).toBe('tenant');
+    expect(refreshCookie(res)).toBeTruthy();
+    const t = res.body.data.accessToken;
+    const me = (await api().get('/api/v1/auth/me').set(bearer(t))).body.data;
+    expect(me.user.signedInWithCode).toBe(true);
+    // The code is used up.
+    expect((await api().post('/api/v1/auth/code-login').send({ email: input.email, otp: '271828' })).body.error.code).toBe('RESET_EXPIRED');
+    // The old password still works until it is changed.
+    expect((await api().post('/api/v1/auth/login').send({ email: input.email, password: input.password })).status).toBe(200);
+
+    // From the profile: a new password without the current one.
+    const changed = await api().post('/api/v1/auth/change-password').set(bearer(t)).send({ newPassword: 'Fresh1234' });
+    expect(changed.status).toBe(200);
+    expect((await api().post('/api/v1/auth/login').send({ email: input.email, password: 'Fresh1234' })).status).toBe(200);
+    // After that the session is an ordinary one again: the current password is required.
+    const t2 = changed.body.data.accessToken;
+    expect((await api().get('/api/v1/auth/me').set(bearer(t2))).body.data.user.signedInWithCode).toBe(false);
+    expect((await api().post('/api/v1/auth/change-password').set(bearer(t2)).send({ newPassword: 'Other1234' })).status).toBe(400);
+  });
+
+  it('still asks for the current password in a normal session', async () => {
+    const { token } = await registerOrg();
+    expect((await api().post('/api/v1/auth/change-password').set(bearer(token)).send({ newPassword: 'Other1234' })).body.error.code).toBe('VALIDATION_ERROR');
+  });
+
   it('locks a reset code after 5 wrong tries', async () => {
     const { input } = await registerOrg();
     await api().post('/api/v1/auth/forgot-password').send({ email: input.email });

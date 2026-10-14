@@ -133,6 +133,66 @@ function taxReport(kind) {
   };
 }
 
+/**
+ * All GST in one view: one row per tax head (CGST, SGST, IGST) with the taxable value it was charged on, the rate,
+ * what was collected, what returns reversed and the net payable — plus the total GST.
+ */
+function gstSummaryReport() {
+  return {
+    key: 'gst-summary',
+    group: 'GST',
+    title: 'GST summary (all types)',
+    description: 'CGST, SGST and IGST side by side: collected, reversed on returns and net payable.',
+    permission: 'report.finance',
+    filters: ['range', 'branch'],
+    async run(p) {
+      const [sales, notes] = await Promise.all([completedSales(p), creditNotes(p)]);
+      const rows = Object.entries(TAX_KINDS).map(([kind, { label, interState, share }]) => {
+        const field = `${kind}Paise`;
+        const own = sales.filter((s) => Boolean(s.interState) === interState);
+        const back = notes.filter((n) => n.interState === interState);
+        const collected = sum(own, (s) => s.totals[field] ?? 0);
+        const reversed = sum(back, (n) => splitTax(n.gstPaise, n.interState)[field]);
+        const rates = [...new Set(own.flatMap((s) => saleRates(s)))].sort((a, b) => a - b);
+        return {
+          head: label,
+          supply: interState ? 'Inter-state' : 'Intra-state',
+          rate: rates.length ? rates.map((bps) => rateText(bps * share)).join(' / ') : '—',
+          invoices: own.length,
+          taxablePaise: sum(own, (s) => s.totals.taxablePaise) - sum(back, (n) => n.taxablePaise),
+          collectedPaise: collected,
+          reversedPaise: -reversed,
+          netPaise: collected - reversed,
+          _links: { head: `/reports/gst-${kind}` },
+        };
+      });
+      const totals = totalsOf(rows, ['collectedPaise', 'reversedPaise', 'netPaise']);
+      const byHead = Object.fromEntries(rows.map((r) => [r.head, r.netPaise]));
+      return {
+        columns: [
+          col('head', 'GST type'),
+          col('supply', 'Applies to'),
+          col('rate', 'Rate'),
+          col('invoices', 'Invoices', 'number'),
+          col('taxablePaise', 'Taxable value', 'money'),
+          col('collectedPaise', 'Collected', 'money'),
+          col('reversedPaise', 'Reversed (returns)', 'money', { signed: true }),
+          col('netPaise', 'Net payable', 'money', { strong: true }),
+        ],
+        rows,
+        totals,
+        summary: [
+          { label: 'CGST payable', value: byHead.CGST, type: 'money' },
+          { label: 'SGST payable', value: byHead.SGST, type: 'money' },
+          { label: 'IGST payable', value: byHead.IGST, type: 'money' },
+          { label: 'Total GST payable', value: totals.netPaise, type: 'money', tone: 'paid' },
+        ],
+        note: 'Intra-state sales split GST equally into CGST and SGST; inter-state sales carry IGST. Open a GST type for its invoice-wise detail.',
+      };
+    },
+  };
+}
+
 /** Rows limited to a chosen branch, or to every branch the user can see. */
 async function branchScope(branchId, field = 'branchId') {
   if (!branchId) return accessibleBranchFilter(field);
@@ -604,6 +664,7 @@ const REPORTS = [
     },
   },
   // ------------------------------------------------ GST
+  gstSummaryReport(),
   taxReport('cgst'),
   taxReport('sgst'),
   taxReport('igst'),

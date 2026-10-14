@@ -113,12 +113,12 @@ export default function FinishItemDialog({ order, index, onClose, onFinished }) 
               <RHFTextField control={control} name="wastage" label="Wastage" placeholder="0" slotProps={{ input: { endAdornment: <InputAdornment position="end">%</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }} />
             </Grid>
             <Grid size={{ xs: 12, sm: 8 }}>
-              <Stack direction="row" spacing={1}>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
                 <Controller
                   control={control}
                   name="makingType"
                   render={({ field }) => (
-                    <ToggleButtonGroup exclusive size="small" value={field.value} onChange={(e, v) => v && field.onChange(v)} sx={{ height: 41, flexShrink: 0 }}>
+                    <ToggleButtonGroup exclusive size="small" value={field.value} onChange={(e, v) => v && field.onChange(v)} aria-label="Making charge type" sx={{ height: 41, flexShrink: 0, width: { xs: '100%', sm: 'auto' }, '& .MuiToggleButton-root': { flex: { xs: 1, sm: 'none' }, minWidth: 44, fontWeight: 700 } }}>
                       <ToggleButton value="per_gram">₹/g</ToggleButton>
                       <ToggleButton value="percent">%</ToggleButton>
                       <ToggleButton value="fixed">₹</ToggleButton>

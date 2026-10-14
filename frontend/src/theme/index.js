@@ -1,6 +1,10 @@
 import { createTheme } from '@mui/material/styles';
 import { BRAND_DEFAULTS, BRAND_DEFAULTS_DARK, fonts, tokens } from './tokens.js';
 
+// Mobile first: phones (< 600px) get tighter headings; touch screens get finger-sized targets.
+const PHONE = '@media (max-width:599.95px)';
+const TOUCH = '@media (pointer: coarse)';
+
 const palette = (t) => ({
   primary: { main: t.gold, dark: t.goldDark, contrastText: '#171717' },
   secondary: { main: t.ink, contrastText: t.cream },
@@ -26,10 +30,10 @@ export const theme = createTheme({
   typography: {
     fontFamily: fonts.body,
     fontSize: 14,
-    h1: { fontSize: '2rem', fontWeight: 600, letterSpacing: '-0.01em' },
-    h2: { fontSize: '1.5rem', fontWeight: 600, letterSpacing: '-0.01em' },
-    h3: { fontSize: '1.25rem', fontWeight: 600 },
-    h4: { fontSize: '1.125rem', fontWeight: 600 },
+    h1: { fontSize: '2rem', fontWeight: 600, letterSpacing: '-0.01em', [PHONE]: { fontSize: '1.5rem' } },
+    h2: { fontSize: '1.5rem', fontWeight: 600, letterSpacing: '-0.01em', [PHONE]: { fontSize: '1.25rem' } },
+    h3: { fontSize: '1.25rem', fontWeight: 600, [PHONE]: { fontSize: '1.125rem' } },
+    h4: { fontSize: '1.125rem', fontWeight: 600, [PHONE]: { fontSize: '1rem' } },
     h5: { fontSize: '1rem', fontWeight: 600 },
     h6: { fontSize: '0.875rem', fontWeight: 600 },
     subtitle2: { fontSize: '0.8125rem', fontWeight: 500 },
@@ -43,12 +47,15 @@ export const theme = createTheme({
         // Brand colours (gold) — the Organisation Panel replaces them with its logo's palette.
         ':root': BRAND_DEFAULTS,
         '.dark': BRAND_DEFAULTS_DARK,
-        body: { fontFeatureSettings: '"tnum" 1', WebkitFontSmoothing: 'antialiased' },
+        html: { WebkitTextSizeAdjust: '100%', WebkitTapHighlightColor: 'transparent' },
+        body: { fontFeatureSettings: '"tnum" 1', WebkitFontSmoothing: 'antialiased', overscrollBehaviorY: 'none' },
+        // Nothing may push the page sideways on a phone.
+        '#root': { overflowX: 'clip' },
       },
     },
     MuiButton: {
       defaultProps: { disableElevation: true },
-      styleOverrides: { root: { borderRadius: 6, paddingInline: 16, minHeight: 40 } },
+      styleOverrides: { root: { borderRadius: 6, paddingInline: 16, minHeight: 40, [TOUCH]: { minHeight: 44 } }, sizeSmall: { [TOUCH]: { minHeight: 36 } } },
     },
     MuiPaper: {
       defaultProps: { elevation: 0 },
@@ -66,13 +73,24 @@ export const theme = createTheme({
       defaultProps: { variant: 'outlined' },
       styleOverrides: { root: { borderRadius: 8 } },
     },
+    // Tighter card padding on phones (cards inside cards stay roomy enough without wasting the screen).
+    MuiCardContent: { styleOverrides: { root: { [PHONE]: { padding: 16, '&:last-child': { paddingBottom: 16 } } } } },
     MuiDialog: {
-      styleOverrides: { paper: { borderRadius: 12 } },
+      // On a phone a dialog uses almost the whole width, with a small margin, and scrolls inside.
+      styleOverrides: { paper: { borderRadius: 12, [PHONE]: { margin: 12, width: 'calc(100% - 24px)', maxWidth: 'calc(100% - 24px) !important', maxHeight: 'calc(100% - 24px)', borderRadius: 16 } } },
     },
+    MuiDialogTitle: { styleOverrides: { root: { [PHONE]: { paddingInline: 18, paddingTop: 16 } } } },
+    MuiDialogContent: { styleOverrides: { root: { [PHONE]: { paddingInline: 18 } } } },
+    MuiDialogActions: { styleOverrides: { root: { [PHONE]: { paddingInline: 18, paddingBottom: 16, gap: 8, '& > :not(style) ~ :not(style)': { marginLeft: 0 }, '& > .MuiButton-root': { flex: 1 } } } } },
+    MuiIconButton: { styleOverrides: { sizeSmall: { [TOUCH]: { padding: 7 } } } },
+    MuiMenuItem: { styleOverrides: { root: { [TOUCH]: { minHeight: 44 } } } },
+    MuiTab: { styleOverrides: { root: { textTransform: 'none', fontWeight: 600, [PHONE]: { minWidth: 0, paddingInline: 14 } } } },
     MuiTextField: { defaultProps: { size: 'small', fullWidth: true } },
     MuiOutlinedInput: {
       styleOverrides: {
         root: ({ theme }) => ({ backgroundColor: theme.vars.palette.background.paper }),
+        // 16px text on touch screens: iPhones zoom into any smaller input when it is tapped.
+        input: { [TOUCH]: { fontSize: 16 } },
         inputSizeSmall: { paddingTop: 10.5, paddingBottom: 10.5 },
       },
     },
@@ -116,6 +134,7 @@ export const theme = createTheme({
       },
     },
     MuiChip: { styleOverrides: { root: { borderRadius: 6, fontWeight: 500 } } },
+    MuiToggleButton: { styleOverrides: { root: { textTransform: 'none', whiteSpace: 'nowrap' } } },
     MuiTooltip: { defaultProps: { arrow: true } },
   },
 });
