@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Alert, Grid, InputAdornment, Typography } from '@mui/material';
-import { fromPaise, KYC_DOC_TYPES, toPaise } from '@jerp/shared';
+import { formatINR, fromPaise, KYC_DOC_TYPES, toPaise } from '@jerp/shared';
 import { customerSchema } from '@jerp/shared/schemas';
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
@@ -14,7 +14,7 @@ import FormDrawer from '../../components/FormDrawer.jsx';
 import MoreDetails from '../../components/MoreDetails.jsx';
 import { usePermission } from '../../hooks/usePermission.js';
 import { applyServerErrors, getErrorMessage } from '../../utils/errors.js';
-import { useCreateCustomerMutation, useUpdateCustomerMutation } from './customerApi.js';
+import { useCreateCustomerMutation, useCustomerDuesQuery, useUpdateCustomerMutation } from './customerApi.js';
 
 const EMPTY_ADDRESS = { line1: '', line2: '', city: '', stateCode: '', pincode: '' };
 const EMPTY = {
@@ -58,7 +58,13 @@ const toForm = (c) =>
         preferredMetals: c.preferredMetals,
         tags: c.tags,
         balanceType: c.openingBalancePaise > 0 ? 'due' : 'advance',
-        openingBalance: c.openingBalancePaise ? String(fromPaise(Math.abs(c.openingBalancePaise))) : '',
+        // An advance shows only what is still available (bills may have used part or all of it — then it is empty).
+        openingBalance:
+          c.openingBalancePaise > 0
+            ? String(fromPaise(c.openingBalancePaise))
+            : (c.advanceLeftPaise ?? Math.max(0, -c.openingBalancePaise)) > 0
+              ? String(fromPaise(c.advanceLeftPaise ?? -c.openingBalancePaise))
+              : '',
         notes: blank(c.notes),
       }
     : EMPTY;
@@ -75,6 +81,12 @@ export default function CustomerFormDrawer({ open, customer, onClose, onCreated 
   const [update, updateState] = useUpdateCustomerMutation();
   const { control, handleSubmit, reset, setError, formState, watch } = useForm({ resolver: zodResolver(formSchema), defaultValues: EMPTY });
   const balanceType = watch('balanceType');
+  // While the customer owes anything, no new (or bigger) advance can be taken: the dues are settled first.
+  const { data: dues } = useCustomerDuesQuery(customer?.id, { skip: !open || !editing });
+  // Dues on bills (the old due is this very field, so changing it is a correction, not a new advance).
+  const owes = editing ? (dues?.bills ?? []).reduce((n, b) => n + b.duePaise, 0) : 0;
+  const advanceBefore = Math.max(0, -(customer?.openingBalancePaise ?? 0));
+  const balanceOptions = BALANCE_TYPES.map((o) => (o.value === 'advance' && owes > 0 && advanceBefore === 0 ? { ...o, label: 'Advance paid — clear the due first', disabled: true } : o));
   const error = editing ? updateState.error : createState.error;
 
   useEffect(() => {
@@ -88,7 +100,17 @@ export default function CustomerFormDrawer({ open, customer, onClose, onCreated 
 
   const onSubmit = handleSubmit(async ({ openingBalance, balanceType, ...values }) => {
     const amount = toPaise(openingBalance || '0');
-    const payload = { ...values, openingBalancePaise: balanceType === 'advance' ? -amount : amount };
+    // The field holds the advance still available; what bills already used stays on record (added back on save).
+    const used = editing ? (customer.advanceUsedPaise ?? 0) : 0;
+    if (used > 0 && balanceType === 'due' && amount > 0) {
+      setError('openingBalance', { message: `${formatINR(used)} of the advance is already used on bills — an old due cannot be set` });
+      return;
+    }
+    if (owes > 0 && balanceType === 'advance' && amount + used > advanceBefore) {
+      setError('openingBalance', { message: `${formatINR(owes)} is due — collect it before taking an advance` });
+      return;
+    }
+    const payload = { ...values, openingBalancePaise: balanceType === 'advance' || (used > 0 && amount === 0) ? -(amount + used) : amount };
     if (!kycEditable) {
       delete payload.pan;
       delete payload.kyc;
@@ -137,15 +159,30 @@ export default function CustomerFormDrawer({ open, customer, onClose, onCreated 
         <Grid size={{ xs: 12, sm: 6 }}>
           <RHFTextField control={control} name="address.city" label="City / area" />
         </Grid>
+        {owes > 0 && (
+          <Grid size={12}>
+            <Alert severity="info" variant="outlined">
+              {customer.name} owes <strong>{formatINR(owes)}</strong> on bills. A new advance can be taken once those dues are paid.
+            </Alert>
+          </Grid>
+        )}
         <Grid size={{ xs: 12, sm: 5 }}>
-          <RHFSelect control={control} name="balanceType" label="Opening balance" options={BALANCE_TYPES} />
+          <RHFSelect control={control} name="balanceType" label="Opening balance" options={balanceOptions} />
         </Grid>
         <Grid size={{ xs: 12, sm: 7 }}>
           <RHFTextField
             control={control}
             name="openingBalance"
             label="Amount (optional)"
-            helperText={balanceType === 'advance' ? 'Money they paid you in advance — used automatically on their next bills.' : 'What they already owe you from before — shows in their due.'}
+            helperText={
+              balanceType === 'advance'
+                ? owes > 0
+                  ? `Cannot be more than ${formatINR(Math.max(0, advanceBefore - (customer?.advanceUsedPaise ?? 0)), { decimals: 0 })} while ${formatINR(owes, { decimals: 0 })} is due.`
+                  : customer?.advanceUsedPaise > 0
+                    ? `Advance still available. ${formatINR(customer.advanceUsedPaise, { decimals: 0 })} was already used on bills.`
+                    : 'Money they paid you in advance — used automatically on their next bills.'
+                : 'What they already owe you from before — shows in their due.'
+            }
             slotProps={{ input: { startAdornment: <InputAdornment position="start">₹</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }}
           />
         </Grid>

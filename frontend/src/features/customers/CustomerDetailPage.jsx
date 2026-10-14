@@ -49,6 +49,22 @@ const PAYMENT_KIND = {
   collection: { title: 'Due collected', icon: CallReceivedRoundedIcon, tone: 'paid' },
 };
 
+const BILL_STATUS = {
+  paid: { label: 'Paid', color: MONEY_TONE.paid, bg: 'rgba(46, 107, 79, 0.10)' },
+  partly_paid: { label: 'Partly paid', color: MONEY_TONE.due, bg: 'rgba(155, 44, 44, 0.08)' },
+  due: { label: 'Unpaid', color: MONEY_TONE.due, bg: 'rgba(155, 44, 44, 0.08)' },
+  cancelled: { label: 'Cancelled', color: 'text.secondary', bg: 'action.hover' },
+};
+
+function BillStatus({ status }) {
+  const st = BILL_STATUS[status] ?? BILL_STATUS.due;
+  return (
+    <Box component="span" sx={{ display: 'inline-block', px: 1, py: 0.25, borderRadius: 999, fontSize: '0.75rem', fontWeight: 700, whiteSpace: 'nowrap', color: st.color, bgcolor: st.bg }}>
+      {st.label}
+    </Box>
+  );
+}
+
 function PaymentsTimeline({ payments, openingBalance }) {
   const rows = [...payments];
   if (!rows.length && !openingBalance) return <EmptyState title="No payments yet" description="Advances, bill payments and credit for this customer appear here." />;
@@ -117,7 +133,7 @@ function PaymentsTimeline({ payments, openingBalance }) {
 export default function CustomerDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [chosenTab, setTab] = useState('purchases');
+  const [chosenTab, setTab] = useState('bills');
   const canEdit = usePermission('customer.edit');
   const canCollect = usePermission('accounts.receipt');
   const [collecting, setCollecting] = useState(false);
@@ -132,7 +148,7 @@ export default function CustomerDetailPage() {
   const balance = c.openingBalancePaise;
   const stats = activity?.stats;
   // Purchases/Orders tabs exist only once loaded and permitted; fall back to Payments otherwise.
-  const hidden = (t) => (t === 'purchases' && !activity?.purchases) || (t === 'orders' && !activity?.orders);
+  const hidden = (t) => ((t === 'bills' || t === 'purchases') && !activity?.purchases) || (t === 'orders' && !activity?.orders);
   const tab = hidden(chosenTab) ? 'payments' : chosenTab;
 
   const purchaseColumns = [
@@ -187,6 +203,80 @@ export default function CustomerDetailPage() {
       ),
     },
     { key: 'actions', label: 'Action', align: 'right', width: 80, render: (p) => <ViewButton title="Open invoice" name={p.invoiceNo} icon={ReceiptLongOutlinedIcon} onClick={() => navigate(`/sales/${p.saleId}`)} /> },
+  ];
+
+  // One row per bill: what it came to, what was paid (at billing, from advances and collected later) and what is still due.
+  const billColumns = [
+    {
+      key: 'bill',
+      label: 'Bill',
+      render: (b) => (
+        <Box>
+          <Typography variant="body2" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
+            {b.invoiceNo}
+          </Typography>
+          <Typography variant="caption" color="textSecondary">
+            {[formatDate(b.at), `${b.itemCount} item${b.itemCount === 1 ? '' : 's'}`, b.orderNo].filter(Boolean).join(' · ')}
+          </Typography>
+        </Box>
+      ),
+    },
+    {
+      key: 'total',
+      label: 'Bill amount',
+      align: 'right',
+      render: (b) => (
+        <Typography variant="body2" sx={{ fontWeight: 600, whiteSpace: 'nowrap', textDecoration: b.status === 'cancelled' ? 'line-through' : 'none', color: b.status === 'cancelled' ? 'text.secondary' : 'text.primary' }}>
+          {formatINR(b.grandTotalPaise)}
+        </Typography>
+      ),
+    },
+    {
+      key: 'paid',
+      label: 'Paid',
+      align: 'right',
+      render: (b) =>
+        b.status === 'cancelled' ? (
+          <Typography variant="body2" color="textSecondary">—</Typography>
+        ) : (
+          <Box sx={{ whiteSpace: 'nowrap' }}>
+            <Amount paise={b.paidPaise} tone="paid" variant="body2" sx={{ fontWeight: 600 }} />
+            {b.collectedLaterPaise > 0 && (
+              <Typography variant="caption" color="textSecondary" sx={{ display: 'block' }}>
+                incl. {formatINR(b.collectedLaterPaise, { decimals: 0 })} collected later
+              </Typography>
+            )}
+          </Box>
+        ),
+    },
+    {
+      key: 'due',
+      label: 'Due',
+      align: 'right',
+      render: (b) =>
+        b.status !== 'cancelled' && b.duePaise > 0 ? (
+          <Amount paise={b.duePaise} tone="due" variant="body2" sx={{ fontWeight: 800, whiteSpace: 'nowrap' }} />
+        ) : (
+          <Typography variant="body2" color="textSecondary">—</Typography>
+        ),
+    },
+    { key: 'status', label: 'Status', render: (b) => <BillStatus status={b.status === 'cancelled' ? 'cancelled' : b.paymentStatus} /> },
+    {
+      key: 'actions',
+      label: 'Action',
+      align: 'right',
+      width: 150,
+      render: (b) => (
+        <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end', alignItems: 'center' }}>
+          {canCollect && b.status !== 'cancelled' && b.duePaise > 0 && (
+            <Button size="small" variant="outlined" color="primary" onClick={() => setCollecting(String(b.id))} sx={{ whiteSpace: 'nowrap' }}>
+              Collect
+            </Button>
+          )}
+          <ViewButton title="Open invoice" name={b.invoiceNo} icon={ReceiptLongOutlinedIcon} onClick={() => navigate(`/sales/${b.id}`)} />
+        </Stack>
+      ),
+    },
   ];
 
   const orderColumns = [
@@ -250,7 +340,7 @@ export default function CustomerDetailPage() {
           </Stack>
         }
       />
-      <CollectDueDialog open={collecting} onClose={() => setCollecting(false)} customerId={id} />
+      <CollectDueDialog open={Boolean(collecting)} onClose={() => setCollecting(false)} customerId={id} saleId={typeof collecting === 'string' ? collecting : null} />
 
       {stats && (
         <SummaryCards>
@@ -273,7 +363,8 @@ export default function CustomerDetailPage() {
       )}
 
       <Tabs value={tab} onChange={(e, v) => setTab(v)} variant="scrollable" sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
-        {activity?.purchases && <Tab value="purchases" label={`Purchases (${activity.purchases.length})`} />}
+        {activity?.invoices && <Tab value="bills" label={`Bills (${activity.invoices.length})`} />}
+        {activity?.purchases && <Tab value="purchases" label={`Items bought (${activity.purchases.length})`} />}
         <Tab value="payments" label={`Payments (${activity?.payments.length ?? 0})`} />
         {activity?.orders && <Tab value="orders" label={`Orders (${activity.orders.length})`} />}
         <Tab value="details" label="Details" />
@@ -281,6 +372,13 @@ export default function CustomerDetailPage() {
       </Tabs>
 
       {loadingActivity && tab !== 'details' && tab !== 'history' && <LoadingState />}
+
+      {tab === 'bills' && activity?.invoices && (
+        <>
+          <DataTable columns={billColumns} rows={activity.invoices} getRowId={(b) => b.id} empty={{ title: 'No bills yet', description: 'Bills made for this customer appear here with what is paid and what is still due.' }} />
+        </>
+      )}
+      {tab === 'bills' && activity && !activity.invoices && <EmptyState title="Bills hidden" description="You need permission to view invoices." />}
 
       {tab === 'purchases' && activity?.purchases && (
         <DataTable columns={purchaseColumns} rows={activity.purchases} getRowId={(p) => `${p.saleId}-${p.productId}`} empty={{ title: 'No purchases yet', description: 'Items bought by this customer appear here with their invoice.' }} />

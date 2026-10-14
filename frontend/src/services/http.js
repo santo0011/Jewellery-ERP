@@ -1,7 +1,8 @@
 import axios from 'axios';
+import { API_ORIGIN } from '../config.js';
 import { branchSelected, sessionEnded, signedIn } from '../store/authSlice.js';
 
-const BASE_URL = '/api/v1';
+const BASE_URL = `${API_ORIGIN}/api/v1`;
 
 export const http = axios.create({ baseURL: BASE_URL, withCredentials: true, timeout: 30000 });
 

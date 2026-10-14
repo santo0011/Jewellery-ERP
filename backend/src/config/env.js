@@ -22,6 +22,11 @@ const schema = z
     CORS_ORIGINS: z.string().default('http://localhost:5173'),
     APP_URL: z.url().default('http://localhost:5173'),
     COOKIE_SECURE: bool.default(false),
+    // 'strict' for the website only. The mobile app (Capacitor) calls the API from another origin, so a deployment
+    // with the app needs 'none' (which browsers allow only with COOKIE_SECURE=true, i.e. HTTPS).
+    COOKIE_SAMESITE: z.enum(['strict', 'lax', 'none']).default('strict'),
+    // Let the mobile app's built-in origins (https://localhost, capacitor://localhost) call the API.
+    CORS_ALLOW_APP: bool.default(true),
     TRUST_PROXY: z.coerce.number().int().min(0).default(0),
     ALLOW_PUBLIC_SIGNUP: bool.default(false),
     TRIAL_DAYS: z.coerce.number().int().positive().default(14),
@@ -43,6 +48,9 @@ const schema = z
     CASHFREE_ENV: z.enum(['sandbox', 'production']).default('sandbox'),
   })
   .superRefine((cfg, ctx) => {
+    if (cfg.COOKIE_SAMESITE === 'none' && !cfg.COOKIE_SECURE) {
+      ctx.addIssue({ code: 'custom', path: ['COOKIE_SAMESITE'], message: 'COOKIE_SAMESITE=none needs COOKIE_SECURE=true (HTTPS)' });
+    }
     if (cfg.NODE_ENV === 'production' && !cfg.COOKIE_SECURE) {
       ctx.addIssue({ code: 'custom', path: ['COOKIE_SECURE'], message: 'COOKIE_SECURE must be true in production' });
     }

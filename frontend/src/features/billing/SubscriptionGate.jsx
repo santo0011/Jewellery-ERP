@@ -17,14 +17,14 @@ function EndingSoonAlert({ subscription: s, canSee }) {
     <Box
       role="alert"
       sx={{
-        mb: { xs: 2, sm: 2.5 },
-        p: { xs: 1.75, sm: 2.25 },
-        pl: { xs: 1.75, sm: 2.5 },
+        mb: { xs: 1.5, sm: 2.5 },
+        p: { xs: 1.25, sm: 2.25 },
+        pl: { xs: 1.5, sm: 2.5 },
         display: 'flex',
         flexDirection: { xs: 'column', sm: 'row' },
         alignItems: { xs: 'stretch', sm: 'center' },
-        gap: { xs: 1.5, sm: 2 },
-        borderRadius: 3,
+        gap: { xs: 1, sm: 2 },
+        borderRadius: { xs: 2.5, sm: 3 },
         color: '#fff',
         position: 'relative',
         overflow: 'hidden',
@@ -33,11 +33,11 @@ function EndingSoonAlert({ subscription: s, canSee }) {
         '&::after': { content: '""', position: 'absolute', right: -60, top: -60, width: 200, height: 200, borderRadius: '50%', background: 'radial-gradient(circle, rgba(255,255,255,0.16), rgba(255,255,255,0) 70%)', pointerEvents: 'none' },
       }}
     >
-      <Stack direction="row" spacing={{ xs: 1.5, sm: 2 }} sx={{ alignItems: { xs: 'flex-start', sm: 'center' }, flex: 1, minWidth: 0, zIndex: 1 }}>
+      <Stack direction="row" spacing={{ xs: 1.25, sm: 2 }} sx={{ alignItems: 'center', flex: 1, minWidth: 0, zIndex: 1 }}>
         <Box
           sx={{
-            width: { xs: 40, sm: 52 },
-            height: { xs: 40, sm: 52 },
+            width: { xs: 34, sm: 52 },
+            height: { xs: 34, sm: 52 },
             borderRadius: 2.5,
             flexShrink: 0,
             display: 'grid',
@@ -49,21 +49,24 @@ function EndingSoonAlert({ subscription: s, canSee }) {
             '@media (prefers-reduced-motion: reduce)': { '& svg': { animation: 'none' } },
           }}
         >
-          <NotificationsActiveOutlinedIcon sx={{ fontSize: { xs: 20, sm: 24 } }} />
+          <NotificationsActiveOutlinedIcon sx={{ fontSize: { xs: 18, sm: 24 } }} />
         </Box>
         <Box sx={{ minWidth: 0, flex: 1 }}>
-          <Typography sx={{ fontWeight: 800, fontSize: { xs: '1rem', sm: '1.0625rem' }, lineHeight: 1.3 }}>
+          <Typography sx={{ fontWeight: 800, fontSize: { xs: '0.875rem', sm: '1.0625rem' }, lineHeight: 1.25 }}>
             {what} ends {when}
           </Typography>
-          <Typography sx={{ fontSize: { xs: '0.75rem', sm: '0.8125rem' }, opacity: 0.88, mt: 0.25, lineHeight: 1.5 }}>
+          <Typography sx={{ fontSize: { xs: '0.6875rem', sm: '0.8125rem' }, opacity: 0.88, mt: 0.25, lineHeight: 1.4 }}>
             {/* The exact moment it ends, so "today" is clear (e.g. 13 Oct 2026, 03:45 pm). */}
             {s.endsAt ? `Ends on ${formatDateTime(s.endsAt)}. ` : ''}
-            {canSee ? 'Renew now so billing, stock and reports keep running without a break.' : 'Please ask your shop owner to renew so the software keeps running.'}
+            {/* Phones show only the end time, to keep the strip short. */}
+            <Box component="span" sx={{ display: { xs: canSee ? 'none' : 'inline', sm: 'inline' } }}>
+              {canSee ? 'Renew now so billing, stock and reports keep running without a break.' : 'Please ask your shop owner to renew so the software keeps running.'}
+            </Box>
           </Typography>
         </Box>
         {/* Phones: the days left as a small pill beside the title. */}
-        <Box sx={{ display: { xs: 'block', sm: 'none' }, flexShrink: 0, textAlign: 'center', px: 1, py: 0.5, borderRadius: 2, bgcolor: 'rgba(0, 0, 0, 0.2)', minWidth: 48 }}>
-          <Typography sx={{ fontWeight: 800, fontSize: 18, lineHeight: 1.1 }}>{s.daysLeft}</Typography>
+        <Box sx={{ display: { xs: 'block', sm: 'none' }, flexShrink: 0, textAlign: 'center', px: 0.75, py: 0.375, borderRadius: 1.5, bgcolor: 'rgba(0, 0, 0, 0.2)', minWidth: 44 }}>
+          <Typography sx={{ fontWeight: 800, fontSize: 16, lineHeight: 1.1 }}>{s.daysLeft}</Typography>
           <Typography sx={{ fontSize: '0.5625rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', opacity: 0.85, whiteSpace: 'nowrap' }}>{s.daysLeft === 1 ? 'day left' : 'days left'}</Typography>
         </Box>
       </Stack>
@@ -73,7 +76,7 @@ function EndingSoonAlert({ subscription: s, canSee }) {
           <Typography sx={{ fontSize: '0.625rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', opacity: 0.85 }}>{s.daysLeft === 1 ? 'day left' : 'days left'}</Typography>
         </Box>
         {canSee && (
-          <Button component={RouterLink} to={BILLING_PATH} variant="contained" sx={{ bgcolor: '#fff', color: '#9B2C2C', fontWeight: 800, px: 2.5, boxShadow: 'none', '&:hover': { bgcolor: '#FFF1F1', boxShadow: 'none' }, flex: { xs: 1, sm: 'none' }, minHeight: { xs: 44, sm: 40 } }}>
+          <Button component={RouterLink} to={BILLING_PATH} variant="contained" sx={{ bgcolor: '#fff', color: '#9B2C2C', fontWeight: 800, px: 2.5, boxShadow: 'none', '&:hover': { bgcolor: '#FFF1F1', boxShadow: 'none' }, flex: { xs: 1, sm: 'none' }, minHeight: { xs: 38, sm: 40 }, py: { xs: 0.5, sm: 0.75 } }}>
             {s.status === 'trial' ? 'Choose a plan' : 'Renew now'}
           </Button>
         )}

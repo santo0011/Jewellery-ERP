@@ -338,24 +338,47 @@ export async function listPayments({ page, limit, q, status, organisationId, sou
 }
 
 /** Super Admin dashboard: revenue, how subscriptions stand, who expires soon, latest payments. */
-export async function billingDashboard() {
+export const DASHBOARD_PERIODS = ['today', 'week', 'month', 'year', 'all'];
+
+/** Start of the dashboard period: today, this week (from Monday), this month, this year (from January) or all time (null). */
+export function periodStart(period, now = new Date()) {
+  const day = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (period === 'today') return day;
+  if (period === 'week') return new Date(day.getFullYear(), day.getMonth(), day.getDate() - ((day.getDay() + 6) % 7));
+  if (period === 'month') return new Date(now.getFullYear(), now.getMonth(), 1);
+  if (period === 'year') return new Date(now.getFullYear(), 0, 1);
+  return null;
+}
+
+export async function billingDashboard({ period = 'month' } = {}) {
   const now = new Date();
+  const from = periodStart(period, now);
+  const inPeriod = from ? { paidAt: { $gte: from } } : {};
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const [subs, orgs, paidRows, recent] = await Promise.all([
     Subscription.find({}).setOptions(SKIP).lean(),
     Organisation.find({}).select('name status').lean(),
     SubscriptionPayment.find({ status: 'paid', paidAt: { $gte: sixMonthsAgo } }).select('amountPaise paidAt').lean(),
-    SubscriptionPayment.find({}).sort({ createdAt: -1 }).limit(6).lean(),
+    SubscriptionPayment.find({ amountPaise: { $gt: 0 }, ...(from && { createdAt: { $gte: from } }) }).sort({ createdAt: -1 }).limit(6).lean(),
   ]);
+  // Money in during the chosen period: total, number of payments and how many organisations paid.
+  const periodPaid = await SubscriptionPayment.find({ status: 'paid', amountPaise: { $gt: 0 }, ...inPeriod }).select('amountPaise organisationId').lean();
   const orgName = new Map(orgs.map((o) => [String(o._id), o.name]));
   const counts = { active: 0, trial: 0, expired: 0 };
   const expiring = [];
+  // Paying organisations on each plan (trials and lapsed ones are not counted).
+  const byPlan = new Map();
   for (const sub of subs) {
     const eff = effectiveSubscription(sub, now);
     if (eff.expired) counts.expired += 1;
     else if (eff.status === SUBSCRIPTION_STATUS.TRIAL) counts.trial += 1;
-    else counts.active += 1;
+    else {
+      counts.active += 1;
+      const name = sub.planName ?? sub.plan ?? 'Plan';
+      byPlan.set(name, (byPlan.get(name) ?? 0) + 1);
+    }
     if (!eff.expired && eff.daysLeft <= 7) expiring.push({ organisationId: sub.organisationId, name: orgName.get(String(sub.organisationId)) ?? '—', planName: sub.planName ?? sub.plan, status: eff.status, endsAt: eff.endsAt, daysLeft: eff.daysLeft });
   }
   const months = Array.from({ length: 6 }, (_, i) => {
@@ -373,8 +396,21 @@ export async function billingDashboard() {
   }
   const [all] = await SubscriptionPayment.aggregate([{ $match: { status: 'paid' } }, { $group: { _id: null, total: { $sum: '$amountPaise' } } }]);
   return {
-    revenue: { totalPaise: all?.total ?? 0, monthPaise: paidRows.filter((p) => new Date(p.paidAt) >= monthStart).reduce((s, p) => s + p.amountPaise, 0), months },
+    revenue: {
+      totalPaise: all?.total ?? 0,
+      monthPaise: paidRows.filter((p) => new Date(p.paidAt) >= monthStart).reduce((s, p) => s + p.amountPaise, 0),
+      lastMonthPaise: paidRows.filter((p) => new Date(p.paidAt) >= lastMonthStart && new Date(p.paidAt) < monthStart).reduce((s, p) => s + p.amountPaise, 0),
+      months,
+    },
+    period: {
+      key: period,
+      from,
+      revenuePaise: periodPaid.reduce((s, p) => s + p.amountPaise, 0),
+      payments: periodPaid.length,
+      payingOrganisations: new Set(periodPaid.map((p) => String(p.organisationId))).size,
+    },
     subscriptions: counts,
+    plans: [...byPlan].map(([label, value]) => ({ key: label, label, value })).sort((a, b) => b.value - a.value),
     expiring: expiring.sort((a, b) => a.daysLeft - b.daysLeft).slice(0, 8),
     recentPayments: recent.map((p) => serializePayment(p)),
   };

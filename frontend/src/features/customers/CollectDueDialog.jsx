@@ -125,12 +125,19 @@ export default function CollectDueDialog({ open, onClose, customerId, saleId = n
           </Stack>
         )}
       </DialogContent>
-      <DialogActions sx={{ px: 3, pb: 2 }}>
+      {/* Phones: Save full width on top (one line, easy to tap), Cancel under it. */}
+      <DialogActions
+        sx={{
+          px: 3,
+          pb: 2,
+          '@media (max-width:599.95px)': { flexDirection: 'column-reverse', alignItems: 'stretch', gap: 1, '& > .MuiButton-root': { flex: 'none', width: '100%', ml: '0 !important' } },
+        }}
+      >
         <Button color="secondary" onClick={onClose} disabled={saving}>
           Cancel
         </Button>
         {total > 0 && (
-          <Button variant="contained" onClick={submit} loading={saving} disabled={Boolean(problem)}>
+          <Button variant="contained" onClick={submit} loading={saving} disabled={Boolean(problem)} sx={{ whiteSpace: 'nowrap', minHeight: { xs: 48, sm: 40 }, px: 2.5, fontSize: { xs: '0.9375rem', sm: '0.875rem' } }}>
             Save receipt {paise > 0 && !problem ? `· ${formatINR(paise, { decimals: 0 })}` : ''}
           </Button>
         )}

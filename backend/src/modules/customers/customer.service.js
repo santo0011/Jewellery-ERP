@@ -13,7 +13,7 @@ import { accessibleBranchFilter } from '../inventory/inventory.helpers.js';
 import { Order } from '../orders/order.model.js';
 import { Sale } from '../sales/sale.model.js';
 import { Customer } from './customer.model.js';
-import { billDue, openingDueLeft } from './customerReceipt.service.js';
+import { billDue, customerDues, openingDueLeft } from './customerReceipt.service.js';
 
 const TRACKED = [
   'name', 'mobile', 'alternateMobile', 'email', 'address', 'dob', 'anniversary', 'gstin', 'pan',
@@ -97,7 +97,7 @@ async function billsByCustomer() {
   const paid = new Map();
   if (!hasPermission(requireContext().permissions, 'sales.view')) return { credit, paid };
   const sales = await Sale.find({ status: SALE_STATUS.COMPLETED, customerId: { $ne: null }, ...accessibleBranchFilter() })
-    .select('customerId payments duePaidPaise')
+    .select('customerId payments duePaidPaise returnCreditPaise advanceAdjustedPaise customerAdvancePaise')
     .lean();
   const add = (map, key, amount) => amount && map.set(key, (map.get(key) ?? 0) + amount);
   for (const s of sales) {
@@ -106,6 +106,8 @@ async function billsByCustomer() {
     // Credit still owed on the bill; what was collected later counts as paid.
     add(credit, key, billDue(s));
     add(paid, key, s.duePaidPaise ?? 0);
+    // Advances used on the bill (order advance, advance paid before) are money already received.
+    add(paid, key, (s.advanceAdjustedPaise ?? 0) + (s.customerAdvancePaise ?? 0));
   }
   return { credit, paid };
 }
@@ -181,8 +183,17 @@ async function customerSummary(credit, owing) {
   return { total, newThisMonth: fresh, duePaise: creditPaise + (opening[0]?.total ?? 0), owing: owingCount };
 }
 
+/** How much of the advance paid before (a minus opening balance) bills have already used. */
+async function advanceUsed(customerId) {
+  const used = await Sale.find({ customerId, status: SALE_STATUS.COMPLETED, customerAdvancePaise: { $gt: 0 } }).select('customerAdvancePaise').lean();
+  return used.reduce((n, s) => n + s.customerAdvancePaise, 0);
+}
+
 export async function getCustomer(id) {
-  return serialize((await findCustomer(id)).toObject());
+  const c = (await findCustomer(id)).toObject();
+  const used = await advanceUsed(c._id);
+  // The edit form shows only the advance still available (what was paid before, less what bills have used).
+  return { ...serialize(c), advanceUsedPaise: used, advanceLeftPaise: Math.max(0, -(c.openingBalancePaise ?? 0) - used) };
 }
 
 export async function createCustomer(input) {
@@ -207,6 +218,29 @@ export async function updateCustomer(id, input) {
   const collectedOld = customer.openingDuePaidPaise ?? 0;
   if (collectedOld > 0 && (input.openingBalancePaise ?? 0) < collectedOld) {
     throw ApiError.badRequest(`${(collectedOld / 100).toFixed(2)} of the old due was already collected, so it cannot be less than that`, [{ path: 'openingBalancePaise', message: 'Already partly collected' }], 'VALIDATION_ERROR');
+  }
+  // No new (or bigger) advance while bills are still due: the dues are settled first. (The opening balance itself —
+  // an old due — is the same field being edited, so correcting it is not blocked.)
+  const advanceBefore = Math.max(0, -(customer.openingBalancePaise ?? 0));
+  const advanceAfter = Math.max(0, -(input.openingBalancePaise ?? 0));
+  // Advance already used on bills stays part of the record: it cannot be taken back or turned into an old due.
+  const used = await advanceUsed(customer._id);
+  if (used > 0 && advanceAfter < used) {
+    throw new ApiError(422, 'ADVANCE_USED', `${(used / 100).toFixed(2)} of ${customer.name}'s advance is already used on bills, so the advance cannot be less than that.`, [
+      { path: 'openingBalancePaise', message: 'Advance already used on bills' },
+    ]);
+  }
+  if (advanceAfter > advanceBefore) {
+    const { bills } = await customerDues(customer._id);
+    const totalDuePaise = bills.reduce((n, b) => n + b.duePaise, 0);
+    if (totalDuePaise > 0) {
+      throw new ApiError(
+        422,
+        'DUE_PENDING',
+        `${customer.name} still owes ${(totalDuePaise / 100).toFixed(2)}. Collect the due first — an advance can be taken once everything is paid.`,
+        [{ path: 'openingBalancePaise', message: 'Clear the due before taking an advance' }],
+      );
+    }
   }
   customer.set({ ...toDocument(input, customer.toObject()), updatedBy: userId });
   const after = serialize(customer.toObject());

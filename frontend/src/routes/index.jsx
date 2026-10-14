@@ -65,6 +65,9 @@ const AdminOrganisationsPage = lazyPage(() => import('../features/platform/Admin
 const AdminDashboardPage = lazyPage(() => import('../features/platform/AdminDashboardPage.jsx'));
 const PlansPage = lazyPage(() => import('../features/platform/PlansPage.jsx'));
 const PaymentsPage = lazyPage(() => import('../features/platform/PaymentsPage.jsx'));
+const AdminProfilePage = lazyPage(() => import('../features/platform/AdminProfilePage.jsx'));
+const AdminReportsPage = lazyPage(() => import('../features/platform/AdminReportsPage.jsx'));
+const AdminReportViewPage = lazyPage(() => import('../features/platform/AdminReportViewPage.jsx'));
 
 const guard = (perm, element) => <RequirePermission perm={perm}>{element}</RequirePermission>;
 
@@ -110,6 +113,9 @@ export const router = createBrowserRouter([
           { path: 'organisations/:id', element: <AdminOrganisationDetailPage /> },
           { path: 'plans', element: <PlansPage /> },
           { path: 'payments', element: <PaymentsPage /> },
+          { path: 'reports', element: <AdminReportsPage /> },
+          { path: 'profile', element: <AdminProfilePage /> },
+          { path: 'reports/:key', element: <AdminReportViewPage /> },
           { path: 'settings/email', element: <EmailSettingsPage /> },
           { path: '*', element: <NotFound /> },
         ],

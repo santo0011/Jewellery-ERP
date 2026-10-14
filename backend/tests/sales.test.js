@@ -176,13 +176,16 @@ describe('cancel and return', () => {
     const b = await stockedProduct(ctx, { name: 'Ring', grossWeightMg: 4000 });
     const c = await customer(ctx);
     const q = (await api().post('/api/v1/sales/quote').set(bearer(ctx.t)).send({ branchId: ctx.ho, items: [{ productId: a.id }, { productId: b.id }] })).body.data;
-    const sale = (await api().post('/api/v1/sales').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: c.id, items: [{ productId: a.id }, { productId: b.id }], payments: [{ mode: 'bank', amountPaise: q.totals.grandTotalPaise }] })).body.data;
+    // The ring's price is left due, so its refund can stay on the customer's account (it clears that due).
+    const sale = (await api().post('/api/v1/sales').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: c.id, items: [{ productId: a.id }, { productId: b.id }], payments: [{ mode: 'bank', amountPaise: q.totals.grandTotalPaise - q.items[1].breakdown.totalPaise }] })).body.data;
+    expect((await api().post(`/api/v1/sales/${sale.id}/returns`).set(bearer(ctx.t)).send({ productIds: [a.id, b.id], refundMode: 'credit', reason: 'Both back' })).body.error.code).toBe('SALE_BLOCKED');
 
     const ret = await api().post(`/api/v1/sales/${sale.id}/returns`).set(bearer(ctx.t)).send({ productIds: [b.id], refundMode: 'credit', reason: 'Size does not fit' });
     expect(ret.status).toBe(201);
     expect(ret.body.data.creditNoteNo).toMatch(/^CN\/HO\//);
     expect(ret.body.data.amountPaise).toBe(q.items[1].breakdown.totalPaise);
     expect(ret.body.data.sale.items.find((i) => i.productId === b.id).returned).toBe(true);
+    expect(ret.body.data.sale).toMatchObject({ duePaise: 0, paymentStatus: 'paid' });
     expect((await api().get(`/api/v1/products/${b.id}`).set(bearer(ctx.t))).body.data.status).toBe('in_stock');
 
     const [credit] = await ledger(ctx, 'sales_return');
@@ -367,5 +370,34 @@ describe('collecting dues later', () => {
 
     // A bill with money collected later cannot be cancelled.
     expect((await api().post(`/api/v1/sales/${s2.id}/cancel`).set(bearer(ctx.t)).send({ reason: 'Wrong customer' })).body.error.code).toBe('HAS_COLLECTIONS');
+  });
+});
+
+describe('advance while a due is pending', () => {
+  it('cannot take a new or bigger advance until every due is paid', async () => {
+    const ctx = await setup();
+    const p = await stockedProduct(ctx);
+    const c = await customer(ctx, { openingBalancePaise: -100000 }); // ₹1,000 advance
+    const body = (o) => ({ name: c.name, mobile: c.mobile, address: { stateCode: '19' }, ...o });
+    const edit = (o) => api().put(`/api/v1/customers/${c.id}`).set(bearer(ctx.t)).send(body(o));
+
+    // The bill uses the ₹1,000 advance; ₹20,000 is paid; the rest stays due.
+    const q = (await api().post('/api/v1/sales/quote').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: c.id, items: [{ productId: p.id }] })).body.data;
+    await api().post('/api/v1/sales').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: c.id, items: [{ productId: p.id }], payments: [{ mode: 'cash', amountPaise: 2000000 }] });
+    const due = q.payablePaise - 2000000;
+
+    const bigger = await edit({ openingBalancePaise: -500000 });
+    expect(bigger.status).toBe(422);
+    expect(bigger.body.error.code).toBe('DUE_PENDING');
+    expect((await edit({ openingBalancePaise: -100000, notes: 'Same advance is fine' })).status).toBe(200); // unchanged advance
+    // The ₹1,000 was used on the bill: it cannot be taken back, and the edit form sees nothing left.
+    expect((await edit({ openingBalancePaise: -50000 })).body.error.code).toBe('ADVANCE_USED');
+    expect((await api().get(`/api/v1/customers/${c.id}`).set(bearer(ctx.t))).body.data).toMatchObject({ advanceUsedPaise: 100000, advanceLeftPaise: 0 });
+
+    // Once the due is collected, an advance can be taken again.
+    await api().post(`/api/v1/customers/${c.id}/payments`).set(bearer(ctx.t)).send({ branchId: ctx.ho, mode: 'cash', amountPaise: due });
+    expect((await edit({ openingBalancePaise: -500000 })).status).toBe(200);
+    // Total ₹5,000 recorded, ₹1,000 used → ₹4,000 available for the next bills.
+    expect((await api().get(`/api/v1/customers/${c.id}`).set(bearer(ctx.t))).body.data).toMatchObject({ advanceUsedPaise: 100000, advanceLeftPaise: 400000 });
   });
 });

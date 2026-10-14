@@ -16,7 +16,7 @@ export default function RateTicker() {
   return (
     <ButtonBase
       onClick={() => navigate('/rates')}
-      sx={{ display: 'flex', flexShrink: 0, alignItems: 'center', gap: { xs: 0.75, sm: 1 }, px: { xs: 1, sm: 1.5 }, py: 0.75, border: 1, borderColor: 'divider', borderRadius: { xs: 999, sm: 1 }, bgcolor: 'background.paper' }}
+      sx={{ display: 'flex', flexShrink: 0, alignItems: 'center', gap: { xs: 0.75, sm: 1 }, px: { xs: 1.25, sm: 1.5 }, height: 36, border: '1px solid rgba(var(--brand-rgb), 0.35)', borderRadius: 999, background: 'linear-gradient(135deg, rgba(var(--brand-rgb), 0.10), rgba(var(--brand-rgb), 0.02))', transition: 'border-color 160ms ease', '&:hover': { borderColor: 'var(--brand)' } }}
       aria-label="Metal rates"
     >
       <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: gold?.isToday ? 'success.main' : 'warning.main' }} />

@@ -17,6 +17,7 @@ import { User } from '../users/user.model.js';
 import { PlatformAdmin } from './platformAdmin.model.js';
 import { recordPlatformAudit } from './platformAuth.service.js';
 import { effectiveSubscription, limitsOf } from '../billing/limits.js';
+import { periodStart } from '../billing/billing.service.js';
 import { assertEmailAvailable } from '../users/emailAvailability.js';
 
 const SKIP = { skipTenant: true };
@@ -77,16 +78,33 @@ async function serializeMany(orgs) {
   });
 }
 
-export async function platformDashboard() {
-  const [organisations, active, suspended, branches, users, recent] = await Promise.all([
+export async function platformDashboard({ period = 'month' } = {}) {
+  const now = new Date();
+  const from = periodStart(period, now);
+  const joinedInPeriod = from ? { createdAt: { $gte: from } } : {};
+  const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+  const [organisations, active, suspended, branches, users, recent, joined, newInPeriod] = await Promise.all([
     Organisation.countDocuments({}),
     Organisation.countDocuments({ status: ORG_STATUS.ACTIVE }),
     Organisation.countDocuments({ status: ORG_STATUS.SUSPENDED }),
     Branch.countDocuments({ status: BRANCH_STATUS.ACTIVE }).setOptions(SKIP),
     User.countDocuments({ status: USER_STATUS.ACTIVE }).setOptions(SKIP),
-    Organisation.find({}).sort({ createdAt: -1 }).limit(5).lean(),
+    Organisation.find(joinedInPeriod).sort({ createdAt: -1 }).limit(5).lean(),
+    Organisation.find({ createdAt: { $gte: sixMonthsAgo } }).select('createdAt').lean(),
+    Organisation.countDocuments(joinedInPeriod),
   ]);
-  return { organisations, active, suspended, branches, users, recent: await serializeMany(recent) };
+  // Sign-ups in each of the last six months (oldest first).
+  const signups = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1);
+    return { key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, count: 0 };
+  });
+  const byKey = new Map(signups.map((m) => [m.key, m]));
+  for (const o of joined) {
+    const d = new Date(o.createdAt);
+    const m = byKey.get(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+    if (m) m.count += 1;
+  }
+  return { organisations, active, suspended, branches, users, newThisMonth: signups[5].count, newInPeriod, signups, recent: await serializeMany(recent) };
 }
 
 export async function listOrganisations({ page, limit, q, status }) {

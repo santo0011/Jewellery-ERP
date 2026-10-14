@@ -14,7 +14,7 @@ import { accessibleBranchFilter, nameMaps, oid, pick, requireBranch } from '../i
 import { Order } from '../orders/order.model.js';
 import { Product } from '../products/product.model.js';
 import { Purchase } from '../purchases/purchase.model.js';
-import { Sale, SalesReturn } from '../sales/sale.model.js';
+import { Sale, SalesReturn, billDue } from '../sales/sale.model.js';
 
 // ---------------------------------------------------------------- helpers
 
@@ -717,11 +717,11 @@ const REPORTS = [
     permission: 'report.customer',
     filters: ['branch'],
     async run({ branchId }) {
-      const sales = await Sale.find({ ...(await branchScope(branchId)), status: SALE_STATUS.COMPLETED, customerId: { $ne: null } }).select('customerId payments businessDate duePaidPaise').lean();
+      const sales = await Sale.find({ ...(await branchScope(branchId)), status: SALE_STATUS.COMPLETED, customerId: { $ne: null } }).select('customerId payments businessDate duePaidPaise returnCreditPaise').lean();
       const byCust = new Map();
       for (const s of sales) {
         const r = byCust.get(String(s.customerId)) ?? { credit: 0, last: null };
-        r.credit += Math.max(0, credit(s) - (s.duePaidPaise ?? 0)); // still owed after later collections
+        r.credit += billDue(s); // still owed after later collections and returns
         if (!r.last || s.businessDate > r.last) r.last = s.businessDate;
         byCust.set(String(s.customerId), r);
       }

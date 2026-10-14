@@ -11,7 +11,7 @@ import { formatDate, formatDateTime } from '../../utils/format.js';
 import { useReportQuery } from './reportApi.js';
 
 // Print only the report sheet.
-const printStyles = (
+export const printStyles = (
   <GlobalStyles
     styles={{
       '@media print': {
@@ -26,7 +26,7 @@ const printStyles = (
 );
 
 const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-function presets() {
+export function presets() {
   const now = new Date();
   const y = now.getFullYear();
   const m = now.getMonth();
@@ -40,7 +40,7 @@ function presets() {
 }
 
 /** One formatter per column type, shared by the table and the summary tiles. */
-function formatValue(type, v) {
+export function formatValue(type, v) {
   if (v === null || v === undefined || v === '') return '—';
   switch (type) {
     case 'money':
@@ -68,7 +68,7 @@ function csvValue(type, v) {
   return String(v);
 }
 
-function downloadCsv(report) {
+export function downloadCsv(report) {
   const head = report.columns.map((c) => c.label + (c.type === 'money' ? ' (₹)' : c.type === 'weight' ? ' (g)' : ''));
   const body = report.rows.map((r) => report.columns.map((c) => csvValue(c.type, r[c.key])));
   const totals = report.totals && Object.keys(report.totals).length ? [report.columns.map((c, i) => (i === 0 ? 'Total' : c.key in report.totals ? csvValue(c.type, report.totals[c.key]) : ''))] : [];
@@ -103,6 +103,100 @@ function Cell({ column, row, value, total }) {
   );
 }
 
+/** The report itself: print heading, summary tiles, note and table with totals. Shared with the Super Admin reports. */
+export function ReportSheet({ report, isFetching, period, scope, printTitle, emptyHint }) {
+  const hasTotals = report.totals && Object.keys(report.totals).length > 0 && report.rows.length > 0;
+  return (
+    <Box id="report-sheet" sx={{ opacity: isFetching ? 0.6 : 1, transition: 'opacity 120ms' }}>
+      {/* Print heading: hidden on screen, shown on paper. */}
+      <Box sx={{ display: 'none', '@media print': { display: 'block' }, mb: 2 }}>
+        <Typography variant="h2">{printTitle}</Typography>
+        <Typography variant="h3">{report.title}</Typography>
+        <Typography variant="body2">
+          {period}{scope ? ` · ${scope}` : ''} · printed {formatDateTime(new Date())}
+        </Typography>
+      </Box>
+
+      {report.summary?.length > 0 && (
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: `repeat(${Math.min(report.summary.length, 4)}, minmax(0, 1fr))` }, gap: 1.5, mb: 2 }}>
+          {report.summary.map((s) => (
+            <Card key={s.label} sx={{ p: 2 }}>
+              <Typography variant="caption" color="textSecondary">
+                {s.label}
+              </Typography>
+              <Typography variant="h3" sx={{ color: s.tone && s.value ? MONEY_TONE[s.tone] : 'text.primary', fontVariantNumeric: 'tabular-nums' }}>
+                {formatValue(s.type, s.value ?? 0)}
+              </Typography>
+            </Card>
+          ))}
+        </Box>
+      )}
+
+      {report.note && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          {report.note}
+        </Alert>
+      )}
+
+      <Card>
+        <Stack direction="row" sx={{ px: 2, py: 1.25, justifyContent: 'space-between', alignItems: 'center', borderBottom: 1, borderColor: 'divider' }}>
+          <Typography variant="body2" color="textSecondary">
+            {period}
+            {scope ? ` · ${scope}` : ''}
+          </Typography>
+          <Typography variant="body2" color="textSecondary">
+            {report.rows.length} row{report.rows.length === 1 ? '' : 's'}
+          </Typography>
+        </Stack>
+        {report.rows.length === 0 ? (
+          <EmptyState title="Nothing in this period" description={emptyHint} />
+        ) : (
+          <TableContainer>
+            <Table size="small" stickyHeader sx={{ '& th, & td': { px: 1.25 }, '& th:first-of-type, & td:first-of-type': { pl: 2 }, '& th:last-of-type, & td:last-of-type': { pr: 2 }, '& th': { fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'text.secondary', whiteSpace: 'nowrap', py: 1.25 }, '& td': { fontSize: 13, py: 1 } }}>
+              <TableHead>
+                <TableRow>
+                  {report.columns.map((c) => (
+                    <TableCell key={c.key} align={numeric(c.type) ? 'right' : 'left'}>
+                      {c.label}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {report.rows.map((r, i) => (
+                  <TableRow key={i} hover>
+                    {report.columns.map((c) => (
+                      <Cell key={c.key} column={c} row={r} value={r[c.key]} />
+                    ))}
+                  </TableRow>
+                ))}
+                {hasTotals && (
+                  <TableRow sx={{ '& td': { borderTop: 2, borderColor: 'divider', bgcolor: 'action.hover' } }}>
+                    {report.columns.map((c, i) =>
+                      i === 0 ? (
+                        <TableCell key={c.key} sx={{ fontWeight: 700 }}>
+                          Total
+                        </TableCell>
+                      ) : c.key in report.totals ? (
+                        <Cell key={c.key} column={c} value={report.totals[c.key]} total />
+                      ) : (
+                        <TableCell key={c.key} />
+                      ),
+                    )}
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+      </Card>
+      <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 1 }} className="no-print">
+        Generated {formatDateTime(report.generatedAt)}
+      </Typography>
+    </Box>
+  );
+}
+
 export default function ReportViewPage() {
   const { key } = useParams();
   const { data: session } = useSession();
@@ -122,7 +216,6 @@ export default function ReportViewPage() {
   const multiBranch = session.branches.length > 1;
   const branchName = p.branchId ? (session.branches.find((b) => b.id === p.branchId)?.name ?? '') : 'All branches';
   const period = f.includes('month') ? new Date(`${p.month}-01T00:00:00Z`).toLocaleString('en-IN', { month: 'long', year: 'numeric', timeZone: 'UTC' }) : f.includes('range') ? `${formatDate(p.from)} – ${formatDate(p.to)}` : f.includes('asOf') ? `As on ${formatDate(p.to)}` : 'As on today';
-  const hasTotals = report.totals && Object.keys(report.totals).length > 0 && report.rows.length > 0;
 
   return (
     <>
@@ -217,93 +310,7 @@ export default function ReportViewPage() {
         </Box>
       </Card>
 
-      <Box id="report-sheet" sx={{ opacity: isFetching ? 0.6 : 1, transition: 'opacity 120ms' }}>
-        {/* Print heading: hidden on screen, shown on paper. */}
-        <Box sx={{ display: 'none', '@media print': { display: 'block' }, mb: 2 }}>
-          <Typography variant="h2">{session.organisation.name}</Typography>
-          <Typography variant="h3">{report.title}</Typography>
-          <Typography variant="body2">
-            {period} · {branchName} · printed {formatDateTime(new Date())}
-          </Typography>
-        </Box>
-
-        {report.summary?.length > 0 && (
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: `repeat(${Math.min(report.summary.length, 4)}, minmax(0, 1fr))` }, gap: 1.5, mb: 2 }}>
-            {report.summary.map((s) => (
-              <Card key={s.label} sx={{ p: 2 }}>
-                <Typography variant="caption" color="textSecondary">
-                  {s.label}
-                </Typography>
-                <Typography variant="h3" sx={{ color: s.tone && s.value ? MONEY_TONE[s.tone] : 'text.primary', fontVariantNumeric: 'tabular-nums' }}>
-                  {formatValue(s.type, s.value ?? 0)}
-                </Typography>
-              </Card>
-            ))}
-          </Box>
-        )}
-
-        {report.note && (
-          <Alert severity="info" sx={{ mb: 2 }}>
-            {report.note}
-          </Alert>
-        )}
-
-        <Card>
-          <Stack direction="row" sx={{ px: 2, py: 1.25, justifyContent: 'space-between', alignItems: 'center', borderBottom: 1, borderColor: 'divider' }}>
-            <Typography variant="body2" color="textSecondary">
-              {period}
-              {f.includes('branch') ? ` · ${branchName}` : ''}
-            </Typography>
-            <Typography variant="body2" color="textSecondary">
-              {report.rows.length} row{report.rows.length === 1 ? '' : 's'}
-            </Typography>
-          </Stack>
-          {report.rows.length === 0 ? (
-            <EmptyState title="Nothing in this period" description="Try a wider date range or another branch." />
-          ) : (
-            <TableContainer>
-              <Table size="small" stickyHeader sx={{ '& th, & td': { px: 1.25 }, '& th:first-of-type, & td:first-of-type': { pl: 2 }, '& th:last-of-type, & td:last-of-type': { pr: 2 }, '& th': { fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'text.secondary', whiteSpace: 'nowrap', py: 1.25 }, '& td': { fontSize: 13, py: 1 } }}>
-                <TableHead>
-                  <TableRow>
-                    {report.columns.map((c) => (
-                      <TableCell key={c.key} align={numeric(c.type) ? 'right' : 'left'}>
-                        {c.label}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {report.rows.map((r, i) => (
-                    <TableRow key={i} hover>
-                      {report.columns.map((c) => (
-                        <Cell key={c.key} column={c} row={r} value={r[c.key]} />
-                      ))}
-                    </TableRow>
-                  ))}
-                  {hasTotals && (
-                    <TableRow sx={{ '& td': { borderTop: 2, borderColor: 'divider', bgcolor: 'action.hover' } }}>
-                      {report.columns.map((c, i) =>
-                        i === 0 ? (
-                          <TableCell key={c.key} sx={{ fontWeight: 700 }}>
-                            Total
-                          </TableCell>
-                        ) : c.key in report.totals ? (
-                          <Cell key={c.key} column={c} value={report.totals[c.key]} total />
-                        ) : (
-                          <TableCell key={c.key} />
-                        ),
-                      )}
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          )}
-        </Card>
-        <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 1 }} className="no-print">
-          Generated {formatDateTime(report.generatedAt)}
-        </Typography>
-      </Box>
+      <ReportSheet report={report} isFetching={isFetching} period={period} scope={f.includes('branch') ? branchName : null} printTitle={session.organisation.name} emptyHint="Try a wider date range or another branch." />
     </>
   );
 }

@@ -74,6 +74,14 @@ describe('subscriptions & billing', () => {
 
     const dash = (await api().get('/api/v1/platform/billing/dashboard').set(bearer(sa))).body.data;
     expect(dash.revenue.totalPaise).toBeGreaterThanOrEqual(999900);
+    // The period filter: today's payment counts for today and all time; an unknown period is refused.
+    const today = (await api().get('/api/v1/platform/billing/dashboard?period=today').set(bearer(sa))).body.data.period;
+    expect(today).toMatchObject({ key: 'today' });
+    expect(today.revenuePaise).toBeGreaterThanOrEqual(999900);
+    expect(today.payingOrganisations).toBeGreaterThanOrEqual(1);
+    expect((await api().get('/api/v1/platform/billing/dashboard?period=all').set(bearer(sa))).body.data.period.revenuePaise).toBe(dash.revenue.totalPaise);
+    expect((await api().get('/api/v1/platform/dashboard?period=week').set(bearer(sa))).body.data.newInPeriod).toBeGreaterThanOrEqual(1);
+    expect((await api().get('/api/v1/platform/billing/dashboard?period=decade').set(bearer(sa))).status).toBe(400);
     const payments = (await api().get('/api/v1/platform/payments?source=manual').set(bearer(sa))).body.data;
     expect(payments.some((p) => String(p.organisation.id) === String(o.id))).toBe(true);
   });

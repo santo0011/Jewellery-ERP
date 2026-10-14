@@ -70,9 +70,9 @@ export const paymentColumns = ({ showOrg = true } = {}) => [
               {detail}
             </Typography>
           )}
-          {(p.activatedBy || p.note) && (
+          {(p.activatedBy?.kind === 'admin' || p.note) && (
             <Typography variant="caption" color="textSecondary" sx={{ display: 'block' }}>
-              {[p.activatedBy && (p.activatedBy.kind === 'admin' ? `by ${p.activatedBy.name} (Super Admin)` : 'by the organisation'), p.note].filter(Boolean).join(' · ')}
+              {[p.activatedBy?.kind === 'admin' && `by ${p.activatedBy.name} (Super Admin)`, p.note].filter(Boolean).join(' · ')}
             </Typography>
           )}
         </Box>

@@ -29,7 +29,7 @@ export default function RHFSelect({ name, control, options, placeholder, helperT
             </MenuItem>
           )}
           {options.map((o) => (
-            <MenuItem key={o.value} value={o.value}>
+            <MenuItem key={o.value} value={o.value} disabled={Boolean(o.disabled)}>
               {o.label}
             </MenuItem>
           ))}

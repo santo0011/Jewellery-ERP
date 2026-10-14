@@ -77,7 +77,7 @@ const REPORT_ICONS = {
   'advances-outstanding': RequestQuoteOutlinedIcon,
 };
 
-const FILTER_LABELS = { range: 'Date range', month: 'Monthly', asOf: 'As on date', branch: 'By branch' };
+const FILTER_LABELS = { range: 'Date range', month: 'Monthly', asOf: 'As on date', branch: 'By branch', status: 'By status' };
 
 
 /** One count in the banner: a big number over a small label. */
@@ -216,13 +216,14 @@ function GroupTabs({ groups, active, onChange, total }) {
   );
 }
 
-function ReportCard({ report, accent }) {
-  const Icon = REPORT_ICONS[report.key] ?? GROUP_ICONS[report.group] ?? ReceiptLongOutlinedIcon;
+/** A report tile. `to` and `icon` let other panels (Super Admin) reuse it with their own routes and icons. */
+export function ReportCard({ report, accent, to, icon }) {
+  const Icon = icon ?? REPORT_ICONS[report.key] ?? GROUP_ICONS[report.group] ?? ReceiptLongOutlinedIcon;
   const tags = (report.filters ?? []).map((f) => FILTER_LABELS[f]).filter(Boolean);
   return (
     <ButtonBase
       component={RouterLink}
-      to={`/reports/${report.key}`}
+      to={to ?? `/reports/${report.key}`}
       sx={{
         position: 'relative',
         display: 'flex',
@@ -278,9 +279,9 @@ function ReportCard({ report, accent }) {
   );
 }
 
-function GroupHeader({ name, count }) {
-  const Icon = GROUP_ICONS[name] ?? PointOfSaleOutlinedIcon;
-  const accent = GROUP_ACCENT[name] ?? GROUP_ACCENT.Sales;
+export function GroupHeader({ name, count, icon, accent: givenAccent }) {
+  const Icon = icon ?? GROUP_ICONS[name] ?? PointOfSaleOutlinedIcon;
+  const accent = givenAccent ?? GROUP_ACCENT[name] ?? GROUP_ACCENT.Sales;
   return (
     <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 2 }}>
       <Box sx={{ width: 36, height: 36, borderRadius: 2.5, display: 'grid', placeItems: 'center', bgcolor: accent.tint, color: accent.color, flexShrink: 0 }}>

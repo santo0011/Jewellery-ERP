@@ -19,7 +19,7 @@ import { Organisation } from '../organisations/organisation.model.js';
 import { Product } from '../products/product.model.js';
 import { getApplicableRate } from '../rates/rate.service.js';
 import { getSettings } from '../settings/settings.service.js';
-import { Sale, SalesReturn } from './sale.model.js';
+import { Sale, SalesReturn, billDue } from './sale.model.js';
 
 const problem = (message, details, code = 'SALE_BLOCKED') => new ApiError(422, code, message, details);
 
@@ -51,18 +51,29 @@ export async function customerAdvanceLeft(customer, { session } = {}) {
 
 /** Paid (money received now, plus any advance used) and due (left on the customer's account) for one bill. */
 export function billBalance(s) {
-  const credit = s.payments.filter((p) => p.mode === 'credit').reduce((sum, p) => sum + p.amountPaise, 0);
-  const due = Math.max(0, credit - (s.duePaidPaise ?? 0)); // less what was collected later
+  const due = billDue(s); // left on credit, less what was collected later and returns adjusted against it
   const paid = s.totals.grandTotalPaise - due;
   return { paidPaise: paid, duePaise: due, collectedLaterPaise: s.duePaidPaise ?? 0, paymentStatus: due <= 0 ? 'paid' : paid > 0 ? 'partly_paid' : 'due' };
 }
 
-async function buildQuote({ branchId, customerId: requestedCustomerId, orderId, items, useCustomerAdvance = true }) {
+async function buildQuote({ branchId, customerId: requestedCustomerId, orderId: requestedOrderId, items, useCustomerAdvance = true }) {
   const { permissions } = requireContext();
   if (items.some((i) => i.discountPaise > 0) && !hasPermission(permissions, 'sales.discount')) {
     throw ApiError.forbidden('You are not allowed to give discounts', 'DISCOUNT_FORBIDDEN');
   }
   const branch = await requireBranch(branchId);
+  // A piece made for this customer's open order bills against that order even when the order was not picked,
+  // so its advance is deducted and the order is delivered (otherwise the advance would be left hanging).
+  let orderId = requestedOrderId;
+  if (!orderId && requestedCustomerId) {
+    const own = await Order.find({ customerId: requestedCustomerId, status: { $in: OPEN_ORDER_STATUSES }, 'items.productId': { $in: items.map((i) => i.productId) } })
+      .select('orderNo')
+      .lean();
+    if (own.length > 1) {
+      throw problem(`These pieces belong to different orders (${own.map((o) => o.orderNo).join(', ')}). Bill one order at a time.`, [{ path: 'items', message: 'Pieces from several orders' }]);
+    }
+    orderId = own[0]?._id ?? null;
+  }
   const order = orderId ? await orderForBilling(orderId, { branchId, customerId: requestedCustomerId }) : null;
   const customerId = requestedCustomerId ?? order?.customerId ?? null;
   const [settings, today, org, customer, products] = await Promise.all([
@@ -430,7 +441,7 @@ async function salesSummary(branchId) {
   const scope = { ...accessibleBranchFilter(), ...(branchId && { branchId: oid(branchId) }), status: SALE_STATUS.COMPLETED };
   const credit = { $sum: { $map: { input: { $filter: { input: '$payments', cond: { $eq: ['$$this.mode', 'credit'] } } }, in: '$$this.amountPaise' } } };
   // Still owed = left on credit less what was collected later.
-  const owed = { $max: [0, { $subtract: [credit, { $ifNull: ['$duePaidPaise', 0] }] }] };
+  const owed = { $max: [0, { $subtract: [credit, { $add: [{ $ifNull: ['$duePaidPaise', 0] }, { $ifNull: ['$returnCreditPaise', 0] }] }] }] };
   const [row] = await Sale.aggregate([
     { $match: scope },
     { $project: { businessDate: 1, total: '$totals.grandTotalPaise', credit, owed } },
@@ -502,6 +513,16 @@ export async function returnItems(id, { productIds, refundMode, reason }) {
   const gstPaise = lines.reduce((s, l) => s + l.breakdown.gstPaise, 0);
   const cost = lines.reduce((s, l) => s + (l.costPaise ?? 0), 0);
   const amountPaise = taxablePaise + gstPaise;
+  // Refund kept on the customer's account only settles what is still due on this bill; more than that is paid back.
+  const dueOnBill = billDue(sale);
+  if (refundMode === 'credit' && amountPaise > dueOnBill) {
+    throw problem(
+      dueOnBill > 0
+        ? `Only ${(dueOnBill / 100).toFixed(2)} is due on this bill, less than the return (${(amountPaise / 100).toFixed(2)}). Refund by cash or bank.`
+        : `Nothing is due on this bill. Refund ${(amountPaise / 100).toFixed(2)} by cash or bank.`,
+      [{ path: 'refundMode', message: 'Choose cash or bank' }],
+    );
+  }
   const today = await todayContext();
   const branch = await requireBranch(sale.branchId, { active: false });
 
@@ -513,7 +534,7 @@ export async function returnItems(id, { productIds, refundMode, reason }) {
     );
     const updated = await Sale.updateOne(
       { _id: sale._id, status: SALE_STATUS.COMPLETED, items: { $not: { $elemMatch: { productId: { $in: productIds.map(oid) }, returned: true } } } },
-      { $set: { 'items.$[line].returned': true } },
+      { $set: { 'items.$[line].returned': true }, ...(refundMode === 'credit' && { $inc: { returnCreditPaise: amountPaise } }) },
       { session, arrayFilters: [{ 'line.productId': { $in: productIds.map(oid) } }] },
     );
     if (updated.modifiedCount !== 1) throw ApiError.conflict('This invoice changed while returning. Try again.', 'CONCURRENT_UPDATE');

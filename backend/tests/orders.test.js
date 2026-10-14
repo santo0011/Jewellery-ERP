@@ -263,3 +263,26 @@ describe('a piece made for an order', () => {
     expect((await quote(ctx.customer.id)).status).toBe(200);
   });
 });
+
+describe('billing an order piece without picking the order', () => {
+  it('links the order: its advance is deducted and the order is delivered', async () => {
+    const ctx = await setup();
+    const order = (await api().post('/api/v1/orders').set(bearer(ctx.t)).send(orderBody(ctx))).body.data; // ₹20,000 advance
+    const piece = (
+      await api().post(`/api/v1/orders/${order.id}/items/0/finish`).set(bearer(ctx.t)).send({ grossWeightMg: 10000, huid: 'AL1NK1', wastage: { mode: 'none', value: 0 }, making: { type: 'per_gram', value: 40000 } })
+    ).body.data.items[0].product;
+
+    // Scanned straight onto the bill for the customer, no order picked.
+    const quote = (await api().post('/api/v1/sales/quote').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: ctx.customer.id, items: [{ productId: piece.id }] })).body.data;
+    expect(quote).toMatchObject({ order: { orderNo: order.orderNo }, advancePaise: 2000000, payablePaise: quote.totals.grandTotalPaise - 2000000 });
+
+    const sale = await api().post('/api/v1/sales').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: ctx.customer.id, items: [{ productId: piece.id }], payments: [{ mode: 'card', amountPaise: 1000000 }] });
+    expect(sale.status).toBe(201);
+    expect(sale.body.data).toMatchObject({ order: { orderNo: order.orderNo }, advanceAdjustedPaise: 2000000, duePaise: quote.totals.grandTotalPaise - 2000000 - 1000000 });
+    expect((await api().get(`/api/v1/orders/${order.id}`).set(bearer(ctx.t))).body.data.status).toBe('delivered');
+
+    // The customer list: the advance is gone (it was used); the rest shows as due, partly paid.
+    const row = (await api().get('/api/v1/customers').query({ q: ctx.customer.code }).set(bearer(ctx.t))).body.data.find((c) => c.id === ctx.customer.id);
+    expect(row).toMatchObject({ advancePaise: 0, duePaise: quote.totals.grandTotalPaise - 3000000, paymentStatus: 'partly_paid' });
+  });
+});

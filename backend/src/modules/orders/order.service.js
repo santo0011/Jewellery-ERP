@@ -21,7 +21,7 @@ import { Product } from '../products/product.model.js';
 import { createProduct } from '../products/product.service.js';
 import { getApplicableRate } from '../rates/rate.service.js';
 import { getSettings } from '../settings/settings.service.js';
-import { Sale } from '../sales/sale.model.js';
+import { Sale, billDue } from '../sales/sale.model.js';
 import { Order } from './order.model.js';
 
 const customerSnapshot = (c) => ({ id: c._id, code: c.code, name: c.name, mobile: c.mobile });
@@ -263,7 +263,7 @@ async function orderSummary(branchId, today) {
 export async function getOrder(id) {
   const o = (await findOrder(id)).toObject();
   const userIds = [o.createdBy, ...o.advances.map((a) => a.by), ...o.timeline.map((t) => t.by)];
-  const sale = o.saleId ? await Sale.findById(o.saleId).select('invoiceNo status createdAt totals payments advanceAdjustedPaise customerAdvancePaise duePaidPaise').lean() : null;
+  const sale = o.saleId ? await Sale.findById(o.saleId).select('invoiceNo status createdAt totals payments advanceAdjustedPaise customerAdvancePaise duePaidPaise returnCreditPaise').lean() : null;
   const [maps, categories, products] = await Promise.all([
     nameMaps({ branchIds: [o.branchId], userIds }),
     Category.find({ _id: { $in: o.items.map((i) => i.categoryId).filter(Boolean) } }).select('name').lean(),
@@ -304,7 +304,7 @@ export async function getOrder(id) {
       payments: sale.payments.map((p) => ({ mode: p.mode, amountPaise: p.amountPaise, reference: p.reference })),
       customerAdvancePaise: sale.customerAdvancePaise ?? 0,
       paidPaise: sale.payments.filter((p) => p.mode !== 'credit').reduce((sum, p) => sum + p.amountPaise, 0),
-      duePaise: Math.max(0, sale.payments.filter((p) => p.mode === 'credit').reduce((sum, p) => sum + p.amountPaise, 0) - (sale.duePaidPaise ?? 0)),
+      duePaise: billDue(sale),
       collectedLaterPaise: sale.duePaidPaise ?? 0,
     },
     deliveredAt: o.deliveredAt,

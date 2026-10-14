@@ -456,7 +456,6 @@ export default function BillingPage() {
   const [customer, setCustomer] = useState(null);
   const [orderId, setOrderId] = useState(params.get('orderId'));
   const [payments, setPayments] = useState([{ mode: 'cash', amount: '', reference: '' }]);
-  const [tendered, setTendered] = useState('');
   const [notes, setNotes] = useState('');
   const idempotencyKey = useRef(newKey());
 
@@ -549,7 +548,6 @@ export default function BillingPage() {
   const clearBill = () => {
     setLines([]);
     setPayments([{ mode: 'cash', amount: '', reference: '' }]);
-    setTendered('');
     setNotes('');
   };
 
@@ -563,19 +561,24 @@ export default function BillingPage() {
     setCustomer(c);
     if (orderId && linkedOrder && c?.id !== linkedOrder.customer.id) pickOrder(null);
   };
+  // A piece made for this customer's order was added: the server bills it against that order, so show it here too
+  // (its advance is deducted and the order is delivered with this bill).
+  useEffect(() => {
+    if (quote?.order?.id && !orderId) pickOrder(String(quote.order.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quote?.order?.id]);
 
   const compliance = quote?.compliance;
   const cashPaid = payments.filter((p) => p.mode === 'cash').reduce((s, p) => s + safePaise(p.amount), 0);
   const cashOver = compliance && cashPaid > compliance.cashLimitPaise;
-  const change = cashPaid > 0 && tendered ? safePaise(tendered) - cashPaid : null;
   const problems = [];
   if (!lines.length) problems.push('Add at least one item');
   if (quoteError) problems.push(getErrorMessage(quoteError));
   // A customer may pay part now: the rest stays due on their account. A walk-in pays in full.
-  if (quote && remaining < 0) problems.push(`${formatINR(-remaining)} more than due`);
-  if (quote && remaining > 0 && !customer) problems.push(`${formatINR(remaining)} still to collect — select the customer to keep it as due`);
-  if (compliance?.panMissing) problems.push('PAN required for this bill value');
-  if (cashOver && compliance.cashLimitAction === 'block') problems.push('Cash above the legal limit');
+  if (quote && remaining < 0) problems.push(`Payment is ${formatINR(-remaining)} more than the bill — lower the amount.`);
+  if (quote && remaining > 0 && !customer) problems.push(`${formatINR(remaining)} is unpaid — select the customer to keep it as due (a walk-in pays in full).`);
+  if (compliance?.panMissing) problems.push(customer ? `Bills above ₹2 lakh need the customer's PAN — add PAN to ${customer.name}.` : 'Bills above ₹2 lakh need a customer with PAN — select the customer.');
+  if (cashOver && compliance.cashLimitAction === 'block') problems.push(`Cash cannot be more than ${formatINR(compliance.cashLimitPaise, { decimals: 0 })} (Section 269ST) — take the rest by card, UPI or bank (use Split).`);
 
   const generate = async () => {
     try {
@@ -815,37 +818,25 @@ export default function BillingPage() {
                   </Typography>
                 )}
 
-                {cashPaid > 0 && (
-                  <Stack direction="row" spacing={1} sx={{ mt: 2, alignItems: 'center' }}>
-                    <TextField
-                      label="Cash received"
-                      value={tendered}
-                      onChange={(e) => setTendered(e.target.value.replace(/[^\d.]/g, ''))}
-                      slotProps={{ input: { startAdornment: <InputAdornment position="start">₹</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }}
-                    />
-                    <Box sx={{ minWidth: 110, textAlign: 'right' }}>
-                      <Typography variant="caption" color="textSecondary">
-                        Change to return
-                      </Typography>
-                      <Typography variant="subtitle1" sx={{ fontWeight: 700, color: change != null && change < 0 ? 'error.main' : 'success.main' }}>
-                        {change == null ? '—' : change < 0 ? `${formatINR(-change)} short` : formatINR(change)}
-                      </Typography>
-                    </Box>
-                  </Stack>
-                )}
-
                 <Stack spacing={1.5} sx={{ mt: 2 }}>
-                  {compliance?.panMissing && <Alert severity="warning">This bill needs the customer&apos;s PAN. {customer ? 'Add PAN to the customer.' : 'Select a customer with PAN.'}</Alert>}
-                  {cashOver && <Alert severity={compliance.cashLimitAction === 'block' ? 'error' : 'warning'}>Cash above {formatINR(compliance.cashLimitPaise, { decimals: 0 })} (Section 269ST).</Alert>}
                   <TextField label="Note on bill (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
-                  <Button variant="contained" size="large" disabled={problems.length > 0 || quoting} loading={saving} onClick={generate} startIcon={<ReceiptLongOutlinedIcon />} sx={{ py: 1.4, fontSize: '1rem' }}>
-                    Generate bill {quote ? `· ${formatINR(payable, { decimals: 0 })}` : ''}
-                  </Button>
-                  {problems.length > 0 && lines.length > 0 && (
-                    <Typography variant="caption" color="textSecondary" sx={{ textAlign: 'center' }}>
-                      {problems[0]}
-                    </Typography>
+                  {/* Everything that stops the bill, each with what to do — right above the button. */}
+                  {problems.length > 0 && lines.length > 0 && quote && (
+                    <Alert severity="warning" sx={{ '& .MuiAlert-message': { width: '100%' } }}>
+                      <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>
+                        To generate this bill
+                      </Typography>
+                      <Box component="ul" sx={{ m: 0, pl: 2.25, '& li': { fontSize: '0.8125rem', lineHeight: 1.5 } }}>
+                        {problems.map((p) => (
+                          <li key={p}>{p}</li>
+                        ))}
+                      </Box>
+                    </Alert>
                   )}
+                  {cashOver && compliance.cashLimitAction !== 'block' && <Alert severity="info">Cash above {formatINR(compliance.cashLimitPaise, { decimals: 0 })} (Section 269ST) — allowed by your settings.</Alert>}
+                  <Button variant="contained" size="large" disabled={problems.length > 0 || quoting} loading={saving} onClick={generate} startIcon={<ReceiptLongOutlinedIcon />} sx={{ py: 1.4, fontSize: '1rem' }}>
+                    Generate bill {quote ? (remaining > 0 && paid > 0 ? `· ${formatINR(remaining, { decimals: 0 })} due` : `· ${formatINR(payable, { decimals: 0 })}`) : ''}
+                  </Button>
                 </Stack>
               </CardContent>
             </Card>

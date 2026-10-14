@@ -340,10 +340,10 @@ function WorkspaceCard({ name, caption, collapsed }) {
 }
 
 /**
- * `groups` overrides the store navigation (used by the Super Admin panel); `fixedGroups` shows every group open, without folding;
+ * `groups` overrides the store navigation (used by the Super Admin panel); `fixedGroups` shows every group open, without folding; `searchable` forces the Find-a-page box on or off (default: shown past 8 pages);
  * `panelName` sits under the logo; `organisationName` and `caption` fill the footer card.
  */
-export default function Sidebar({ collapsed = false, onToggleCollapse, onNavigate, organisationName, caption = 'Organisation', panelName = 'Organisation Panel', logoUrl = null, groups: groupsProp, fixedGroups = false }) {
+export default function Sidebar({ collapsed = false, onToggleCollapse, onClose, onNavigate, organisationName, caption = 'Organisation', panelName = 'Organisation Panel', logoUrl = null, groups: groupsProp, fixedGroups = false, searchable }) {
   const { data: session } = useSession();
   const storeGroups = visibleNav(usePermissions(), { branchLogin: session?.user?.branchLogin });
   const groups = groupsProp ?? storeGroups;
@@ -407,13 +407,14 @@ export default function Sidebar({ collapsed = false, onToggleCollapse, onNavigat
         }}
       >
         <Brand collapsed={collapsed} panelName={panelName} logoUrl={logoUrl} brandName={organisationName} />
-        {onToggleCollapse && (
-          <Tooltip title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'} placement="right">
+        {/* Desktop: fold the sidebar. Phone / tablet menu: the same button closes it. */}
+        {(onToggleCollapse || onClose) && (
+          <Tooltip title={onClose ? 'Close menu' : collapsed ? 'Expand sidebar' : 'Collapse sidebar'} placement="right">
             <IconButton
               size="small"
-              onClick={onToggleCollapse}
-              aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-              sx={{ width: 28, height: 28, borderRadius: '50%', color: s.muted, border: `1px solid ${s.divider}`, bgcolor: s.tile, '&:hover': { color: s.active, borderColor: 'rgba(var(--brand-rgb), 0.4)', bgcolor: 'rgba(var(--brand-rgb), 0.08)' } }}
+              onClick={onClose ?? onToggleCollapse}
+              aria-label={onClose ? 'Close menu' : collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              sx={{ width: onClose ? 34 : 28, height: onClose ? 34 : 28, flexShrink: 0, borderRadius: '50%', color: s.muted, border: `1px solid ${s.divider}`, bgcolor: s.tile, '&:hover': { color: s.active, borderColor: 'rgba(var(--brand-rgb), 0.4)', bgcolor: 'rgba(var(--brand-rgb), 0.08)' } }}
             >
               {collapsed ? <ChevronRightRoundedIcon sx={{ fontSize: 18 }} /> : <ChevronLeftRoundedIcon sx={{ fontSize: 18 }} />}
             </IconButton>
@@ -421,7 +422,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse, onNavigat
         )}
       </Box>
 
-      {!collapsed && totalPages > 8 && <NavSearch value={query} onChange={setQuery} />}
+      {!collapsed && (searchable ?? totalPages > 8) && <NavSearch value={query} onChange={setQuery} />}
       <Box sx={{ height: '1px', mx: 2, background: 'linear-gradient(90deg, rgba(var(--brand-rgb), 0.35), rgba(255, 255, 255, 0.04))' }} />
 
       <Box

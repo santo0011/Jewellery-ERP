@@ -8,7 +8,7 @@ import { nextDocumentNo } from '../../core/numbering/numbering.service.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { todayContext } from '../../utils/businessDate.js';
 import { nameMaps, pick, requireBranch } from '../inventory/inventory.helpers.js';
-import { Sale } from '../sales/sale.model.js';
+import { Sale, billDue } from '../sales/sale.model.js';
 import { Customer } from './customer.model.js';
 import { CustomerReceipt } from './customerReceipt.model.js';
 
@@ -18,8 +18,7 @@ import { CustomerReceipt } from './customerReceipt.model.js';
  * `duePaidPaise` and the customer's `openingDuePaidPaise` keep what is still owed exact everywhere.
  */
 
-/** Still owed on one bill: what was left on credit, less what was collected later. */
-export const billDue = (s) => Math.max(0, s.payments.filter((p) => p.mode === 'credit').reduce((sum, p) => sum + p.amountPaise, 0) - (s.duePaidPaise ?? 0));
+export { billDue };
 
 /** Old due still owed (a plus opening balance, less what was collected against it). */
 export const openingDueLeft = (c) => Math.max(0, (c.openingBalancePaise ?? 0) - (c.openingDuePaidPaise ?? 0));
@@ -29,7 +28,7 @@ export async function customerDues(customerId, { session } = {}) {
   const customer = await Customer.findOne({ _id: customerId, isDeleted: false }).session(session ?? null).lean();
   if (!customer) throw ApiError.notFound('Customer');
   const sales = await Sale.find({ customerId, status: SALE_STATUS.COMPLETED, 'payments.mode': 'credit' })
-    .select('invoiceNo businessDate createdAt branchId totals payments duePaidPaise')
+    .select('invoiceNo businessDate createdAt branchId totals payments duePaidPaise returnCreditPaise')
     .sort({ createdAt: 1 })
     .session(session ?? null)
     .lean();

@@ -5,7 +5,7 @@ import { Category } from '../categories/category.model.js';
 import { oid, requireBranch } from '../inventory/inventory.helpers.js';
 import { Order } from '../orders/order.model.js';
 import { Product } from '../products/product.model.js';
-import { Sale } from '../sales/sale.model.js';
+import { Sale, billDue } from '../sales/sale.model.js';
 
 const sum = (list, fn) => list.reduce((s, x) => s + fn(x), 0);
 /** YYYY-MM-DD arithmetic on business dates (no timezone drift: the strings are already local). */
@@ -97,7 +97,7 @@ export async function branchDashboard({ branchId, days }) {
         grossWeightMg: sum(items, (i) => i.grossWeightMg ?? 0),
         discountPaise: sum(sales, (s) => s.totals.discountPaise ?? 0),
         gstPaise: sum(sales, (s) => s.totals.gstPaise ?? 0),
-        creditDuePaise: sum(sales, (s) => Math.max(0, sum(s.payments.filter((p) => p.mode === 'credit'), (p) => p.amountPaise) - (s.duePaidPaise ?? 0))),
+        creditDuePaise: sum(sales, billDue),
       },
       daily: [...byDay.values()],
       byCategory: top([...byCategory.values()], 6),

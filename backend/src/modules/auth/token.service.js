@@ -41,14 +41,14 @@ export function setRefreshCookie(res, value, rememberMe) {
   res.cookie(REFRESH_COOKIE, value, {
     httpOnly: true,
     secure: env.COOKIE_SECURE,
-    sameSite: 'strict',
+    sameSite: env.COOKIE_SAMESITE,
     path: REFRESH_COOKIE_PATH,
     maxAge: refreshTtlDays(rememberMe) * 24 * 60 * 60 * 1000,
   });
 }
 
 export function clearRefreshCookie(res) {
-  res.clearCookie(REFRESH_COOKIE, { httpOnly: true, secure: env.COOKIE_SECURE, sameSite: 'strict', path: REFRESH_COOKIE_PATH });
+  res.clearCookie(REFRESH_COOKIE, { httpOnly: true, secure: env.COOKIE_SECURE, sameSite: env.COOKIE_SAMESITE, path: REFRESH_COOKIE_PATH });
 }
 
 const PLATFORM_AUDIENCE = 'platform';
@@ -72,12 +72,12 @@ export function setPlatformRefreshCookie(res, value) {
   res.cookie(PLATFORM_REFRESH_COOKIE, value, {
     httpOnly: true,
     secure: env.COOKIE_SECURE,
-    sameSite: 'strict',
+    sameSite: env.COOKIE_SAMESITE,
     path: PLATFORM_REFRESH_COOKIE_PATH,
     maxAge: env.REFRESH_TOKEN_DAYS * 24 * 60 * 60 * 1000,
   });
 }
 
 export function clearPlatformRefreshCookie(res) {
-  res.clearCookie(PLATFORM_REFRESH_COOKIE, { httpOnly: true, secure: env.COOKIE_SECURE, sameSite: 'strict', path: PLATFORM_REFRESH_COOKIE_PATH });
+  res.clearCookie(PLATFORM_REFRESH_COOKIE, { httpOnly: true, secure: env.COOKIE_SECURE, sameSite: env.COOKIE_SAMESITE, path: PLATFORM_REFRESH_COOKIE_PATH });
 }

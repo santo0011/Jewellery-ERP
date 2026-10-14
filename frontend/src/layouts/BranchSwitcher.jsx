@@ -44,7 +44,7 @@ export default function BranchSwitcher({ branches, allowAll = true }) {
         startIcon={showingAll ? <HubOutlinedIcon fontSize="small" /> : <AccountTreeOutlinedIcon fontSize="small" />}
         endIcon={branches.length > 1 ? <ExpandMoreRoundedIcon /> : null}
         disabled={branches.length < 2}
-        sx={{ borderColor: 'divider', maxWidth: { xs: 160, sm: 240 }, minHeight: 36, '& .MuiButton-startIcon': { color: 'primary.dark' } }}
+        sx={{ borderColor: 'divider', borderRadius: 999, bgcolor: 'background.paper', px: 1.5, maxWidth: { xs: 150, sm: 240 }, minHeight: 36, fontWeight: 600, '& .MuiButton-startIcon': { color: 'var(--brand-strong)' }, '&:hover': { borderColor: 'rgba(var(--brand-rgb), 0.5)', bgcolor: 'rgba(var(--brand-rgb), 0.05)' } }}
         aria-label="Branch filter"
       >
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>

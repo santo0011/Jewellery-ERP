@@ -115,7 +115,7 @@ describe('GST reports', () => {
     const outside = await sell(await buyer({ name: 'Mumbai Buyer', address: { stateCode: '27' } }), 20000);
     const cancelled = await sell(null, 5000);
     await api().post(`/api/v1/sales/${cancelled.id}/cancel`).set(bearer(ctx.t)).send({ reason: 'Wrong item' });
-    expect((await api().post(`/api/v1/sales/${trade.id}/returns`).set(bearer(ctx.t)).send({ productIds: [trade.items[0].productId], refundMode: 'credit', reason: 'Exchange later' })).status).toBe(201);
+    expect((await api().post(`/api/v1/sales/${trade.id}/returns`).set(bearer(ctx.t)).send({ productIds: [trade.items[0].productId], refundMode: 'bank', reason: 'Exchange later' })).status).toBe(201);
 
     const gstKeys = (await api().get('/api/v1/reports').set(bearer(ctx.t))).body.data.filter((r) => r.group === 'GST').map((r) => r.key);
     expect(gstKeys).toEqual(['gst-summary', 'gst-cgst', 'gst-sgst', 'gst-igst']);
