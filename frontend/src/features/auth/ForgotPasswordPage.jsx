@@ -2,32 +2,40 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import KeyRoundedIcon from '@mui/icons-material/KeyRounded';
+import LockResetRoundedIcon from '@mui/icons-material/LockResetRounded';
 import MailOutlineRoundedIcon from '@mui/icons-material/MailOutlineRounded';
 import MarkEmailReadOutlinedIcon from '@mui/icons-material/MarkEmailReadOutlined';
 import ShieldOutlinedIcon from '@mui/icons-material/ShieldOutlined';
 import { Alert, Box, Button, Chip, InputAdornment, Link, Stack, Typography } from '@mui/material';
-import { forgotPasswordSchema } from '@jerp/shared/schemas';
+import { forgotPasswordSchema, passwordSchema } from '@jerp/shared/schemas';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { useDispatch } from 'react-redux';
 import { Link as RouterLink } from 'react-router';
+import { z } from 'zod';
 import OtpInput from '../../components/form/OtpInput.jsx';
+import PasswordField from '../../components/form/PasswordField.jsx';
 import RHFTextField from '../../components/form/RHFTextField.jsx';
 import { branchSelected, signedIn } from '../../store/authSlice.js';
-import { getErrorMessage } from '../../utils/errors.js';
+import { applyServerErrors, getErrorCode, getErrorMessage } from '../../utils/errors.js';
 import { platformSignedIn } from '../platform/platformSlice.js';
-import { useCodeLoginMutation, useForgotPasswordMutation } from './authApi.js';
+import { useForgotPasswordMutation, useLoginMutation, useResetPasswordMutation, useVerifyResetCodeMutation } from './authApi.js';
 import AuthCard from './AuthCard.jsx';
 
 const RESEND_SECONDS = 60;
 const CODE_MINUTES = 5;
-const STEPS = ['Your email', 'Enter code'];
+const STEPS = ['Your email', 'Enter code', 'New password'];
+const CODE_ERRORS = ['RESET_EXPIRED', 'RESET_LOCKED', 'RESET_INVALID'];
 
-/** Two-part progress bar with the step names under it. */
+const newPasswordSchema = z
+  .object({ password: passwordSchema, confirmPassword: z.string() })
+  .refine((v) => v.password === v.confirmPassword, { path: ['confirmPassword'], message: 'Passwords do not match' });
+
+/** Progress bar with the step names under it. */
 function Progress({ step }) {
   return (
-    <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, mb: 3 }}>
+    <Box sx={{ display: 'grid', gridTemplateColumns: `repeat(${STEPS.length}, 1fr)`, gap: 1, mb: 3 }}>
       {STEPS.map((label, i) => (
         <Box key={label}>
           <Box sx={{ height: 4, borderRadius: 2, bgcolor: i <= step ? 'primary.main' : 'action.hover', transition: 'background-color 300ms ease' }} />
@@ -52,9 +60,9 @@ function Note({ icon: Icon, children }) {
 }
 
 /**
- * Forgot password: enter the email, then the 6-digit code emailed to it — the code signs you straight in
- * (organisation users to their dashboard, the Super Admin to the admin panel). No new password is needed now;
- * it can be set any time later from Profile → Password.
+ * Forgot password: enter the email, then the 6-digit code emailed to it, then a new password. Nothing is signed in
+ * until the new password is saved; then it signs in with it (organisation users to their dashboard, the Super Admin
+ * to the admin panel).
  */
 export default function ForgotPasswordPage() {
   const dispatch = useDispatch();
@@ -64,9 +72,12 @@ export default function ForgotPasswordPage() {
   const [codeError, setCodeError] = useState(null);
   const [cooldown, setCooldown] = useState(0);
   const [forgotPassword, forgotState] = useForgotPasswordMutation();
-  const [codeLogin, loginState] = useCodeLoginMutation();
+  const [verifyResetCode, verifyState] = useVerifyResetCodeMutation();
+  const [resetPassword, resetState] = useResetPasswordMutation();
+  const [login, loginState] = useLoginMutation();
 
   const emailForm = useForm({ resolver: zodResolver(forgotPasswordSchema), defaultValues: { email: '' } });
+  const passwordForm = useForm({ resolver: zodResolver(newPasswordSchema), defaultValues: { password: '', confirmPassword: '' } });
 
   useEffect(() => {
     if (!cooldown) return undefined;
@@ -95,8 +106,35 @@ export default function ForgotPasswordPage() {
     if (code.length !== 6) return setCodeError('Enter all 6 digits');
     setCodeError(null);
     try {
-      const { accessToken, realm } = await codeLogin({ email, otp: code }).unwrap();
-      toast.success('Signed in. You can set a new password any time from your profile.', { duration: 5000 });
+      // Only checks the code; it stays valid for the new-password step.
+      await verifyResetCode({ email, otp: code }).unwrap();
+      setOtp(code);
+      passwordForm.reset();
+      setStep(2);
+    } catch (err) {
+      setCodeError(getErrorMessage(err));
+      setOtp('');
+    }
+    return undefined;
+  };
+
+  const onNewPassword = passwordForm.handleSubmit(async ({ password }) => {
+    try {
+      await resetPassword({ email, otp, password }).unwrap();
+    } catch (err) {
+      if (CODE_ERRORS.includes(getErrorCode(err))) {
+        // The code expired meanwhile: back to the code step for a new one.
+        setOtp('');
+        setCodeError(getErrorMessage(err));
+        setStep(1);
+      } else if (!applyServerErrors(err, passwordForm.setError)) {
+        toast.error(getErrorMessage(err));
+      }
+      return;
+    }
+    try {
+      const { accessToken, realm } = await login({ email, password, rememberMe: false }).unwrap();
+      toast.success('Password updated. You are signed in.');
       // GuestOnly then opens the dashboard (or the admin panel for a Super Admin).
       if (realm === 'platform') {
         dispatch(platformSignedIn(accessToken));
@@ -105,11 +143,9 @@ export default function ForgotPasswordPage() {
         dispatch(signedIn(accessToken));
       }
     } catch (err) {
-      setCodeError(getErrorMessage(err));
-      setOtp('');
+      toast.error(`Password updated, but signing in failed: ${getErrorMessage(err)}`);
     }
-    return undefined;
-  };
+  });
 
   const resend = async () => {
     try {
@@ -130,7 +166,7 @@ export default function ForgotPasswordPage() {
 
   if (step === 0) {
     return (
-      <AuthCard icon={KeyRoundedIcon} title="Forgot your password?" subtitle="No problem. Enter the email you sign in with and we will send you a 6-digit code to sign in." footer={backToSignIn}>
+      <AuthCard icon={KeyRoundedIcon} title="Forgot your password?" subtitle="No problem. Enter the email you sign in with and we will send you a 6-digit code to reset your password." footer={backToSignIn}>
         <Progress step={0} />
         <Stack component="form" spacing={2.5} noValidate onSubmit={onEmail}>
           <RHFTextField
@@ -146,7 +182,23 @@ export default function ForgotPasswordPage() {
           <Button type="submit" variant="contained" size="large" loading={forgotState.isLoading} fullWidth sx={{ minHeight: 48 }}>
             Send code
           </Button>
-          <Note icon={ShieldOutlinedIcon}>The code works for {CODE_MINUTES} minutes and only once. It signs you in directly — you can set a new password later from your profile.</Note>
+          <Note icon={ShieldOutlinedIcon}>The code works for {CODE_MINUTES} minutes and only once. After it, you choose a new password.</Note>
+        </Stack>
+      </AuthCard>
+    );
+  }
+
+  if (step === 2) {
+    return (
+      <AuthCard icon={LockResetRoundedIcon} title="Set a new password" subtitle={<>Choose a new password for <strong>{email}</strong>.</>} footer={backToSignIn}>
+        <Progress step={2} />
+        <Stack component="form" spacing={2.5} noValidate onSubmit={onNewPassword}>
+          <PasswordField control={passwordForm.control} name="password" label="New password" autoComplete="new-password" autoFocus helperText="At least 6 characters" />
+          <PasswordField control={passwordForm.control} name="confirmPassword" label="Confirm new password" autoComplete="new-password" />
+          <Button type="submit" variant="contained" size="large" loading={resetState.isLoading || loginState.isLoading} fullWidth sx={{ minHeight: 48 }}>
+            Save password &amp; sign in
+          </Button>
+          <Note icon={ShieldOutlinedIcon}>Saving the new password signs you out on every other device.</Note>
         </Stack>
       </AuthCard>
     );
@@ -181,15 +233,15 @@ export default function ForgotPasswordPage() {
         }}
       >
         <Box>
-          <OtpInput value={otp} onChange={setOtp} error={Boolean(codeError)} disabled={loginState.isLoading} autoFocus onComplete={(code) => onVerify(code)} />
+          <OtpInput value={otp} onChange={setOtp} error={Boolean(codeError)} disabled={verifyState.isLoading} autoFocus onComplete={(code) => onVerify(code)} />
           {codeError && (
             <Alert severity="error" sx={{ mt: 2 }}>
               {codeError}
             </Alert>
           )}
         </Box>
-        <Button type="submit" variant="contained" size="large" loading={loginState.isLoading} disabled={otp.length !== 6} fullWidth sx={{ minHeight: 48 }}>
-          Verify &amp; sign in
+        <Button type="submit" variant="contained" size="large" loading={verifyState.isLoading} disabled={otp.length !== 6} fullWidth sx={{ minHeight: 48 }}>
+          Verify code
         </Button>
         <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'center', gap: 0.75, flexWrap: 'wrap' }}>
           <Typography variant="body2" color="textSecondary">
