@@ -1,18 +1,18 @@
 import { lazy, Suspense } from 'react';
-import { LoadingState } from '../components/StateViews.jsx';
+import { PageLoading } from '../components/TopProgress.jsx';
 
 const loaders = [];
 
 /**
  * A page loaded only when it is first opened: the first screen downloads far less, so the app starts faster
- * (on a phone over Wi-Fi most of all). Shows a spinner while the page's code arrives.
+ * (on a phone over Wi-Fi most of all). The top progress bar runs while the page's code arrives.
  */
 export function lazyPage(load) {
   loaders.push(load);
   const Page = lazy(load);
   function LazyPage(props) {
     return (
-      <Suspense fallback={<LoadingState />}>
+      <Suspense fallback={<PageLoading />}>
         <Page {...props} />
       </Suspense>
     );

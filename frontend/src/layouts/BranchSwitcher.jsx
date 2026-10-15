@@ -11,7 +11,8 @@ import { allBranchesSelected, branchSelected } from '../store/authSlice.js';
  * The navbar branch filter. Options: Head Office (the default), All branches, then each branch.
  * Choosing a branch shows its data on list pages and makes it the working branch; "All branches" shows every
  * branch on list pages while the head office stays the working branch. `allowAll={false}` (dashboard, new bill)
- * offers single branches only, since those pages work on one branch.
+ * offers single branches only, since those pages work on one branch. Hidden when there is only one branch to
+ * work in (a branch login, or an organisation with just its head office): there is nothing to switch.
  */
 export default function BranchSwitcher({ branches, allowAll = true }) {
   const dispatch = useDispatch();
@@ -19,7 +20,7 @@ export default function BranchSwitcher({ branches, allowAll = true }) {
   const view = useSelector((s) => s.auth.branchView);
   const [anchor, setAnchor] = useState(null);
 
-  if (!branches.length) return null;
+  if (branches.length < 2) return null;
 
   const headOffice = branches.find((b) => b.isHeadOffice);
   const others = branches.filter((b) => b !== headOffice);
@@ -42,8 +43,7 @@ export default function BranchSwitcher({ branches, allowAll = true }) {
         size="small"
         onClick={(e) => setAnchor(e.currentTarget)}
         startIcon={showingAll ? <HubOutlinedIcon fontSize="small" /> : <AccountTreeOutlinedIcon fontSize="small" />}
-        endIcon={branches.length > 1 ? <ExpandMoreRoundedIcon /> : null}
-        disabled={branches.length < 2}
+        endIcon={<ExpandMoreRoundedIcon />}
         sx={{ borderColor: 'divider', borderRadius: 999, bgcolor: 'background.paper', px: 1.5, maxWidth: { xs: 150, sm: 240 }, minHeight: 36, fontWeight: 600, '& .MuiButton-startIcon': { color: 'var(--brand-strong)' }, '&:hover': { borderColor: 'rgba(var(--brand-rgb), 0.5)', bgcolor: 'rgba(var(--brand-rgb), 0.05)' } }}
         aria-label="Branch filter"
       >

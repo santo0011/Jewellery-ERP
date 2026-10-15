@@ -6,6 +6,7 @@ import VerifiedOutlinedIcon from '@mui/icons-material/VerifiedOutlined';
 import { Box, Button, Card, CardContent, Divider, Grid, Link, Stack, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import { useState } from 'react';
 import { Link as RouterLink, useNavigate } from 'react-router';
+import ClampText from '../../components/ClampText.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
 import { ErrorState, LoadingState } from '../../components/StateViews.jsx';
 import SummaryCards, { SummaryCard } from '../../components/SummaryCards.jsx';
@@ -18,11 +19,10 @@ import { useBillingDashboardQuery, usePlatformDashboardQuery } from './platformA
 const monthName = (key) => new Date(`${key}-01T00:00:00`).toLocaleString('en-IN', { month: 'short' });
 const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
-/** Dashboard periods: the label on the filter, and how it reads inside a sentence. */
+/** Dashboard periods (the same three on every dashboard): the label on the filter, and how it reads in a sentence. */
 const PERIODS = [
   { value: 'today', label: 'Today', phrase: 'today' },
   { value: 'month', label: 'This month', phrase: 'this month' },
-  { value: 'year', label: 'This year', phrase: 'this year' },
   { value: 'all', label: 'All time', phrase: 'so far' },
 ];
 const PERIOD_KEY = 'jerp.admin.dashboardPeriod.v2';
@@ -46,9 +46,8 @@ function PeriodFilter({ value, onChange }) {
       sx={{
         bgcolor: 'background.paper',
         width: { xs: '100%', sm: 'auto' },
-        // Phones: five equal buttons across the full width, nothing cut off.
+        // Phones: equal buttons across the full width, nothing cut off. The chosen one is filled gold (theme).
         '& .MuiToggleButton-root': { flex: { xs: '1 1 0', sm: 'none' }, minWidth: 0, px: { xs: 0.5, sm: 1.75 }, py: 0.625, fontSize: { xs: '0.75rem', sm: '0.8125rem' }, fontWeight: 600, textTransform: 'none', whiteSpace: 'nowrap', border: 1, borderColor: 'divider' },
-        '& .Mui-selected': { bgcolor: 'rgba(var(--brand-rgb), 0.14) !important', color: 'var(--brand-strong) !important', borderColor: 'rgba(var(--brand-rgb), 0.45) !important' },
       }}
     >
       {PERIODS.map((p) => (
@@ -68,9 +67,9 @@ function Panel({ title, subtitle, action, children }) {
           <Box sx={{ minWidth: 0 }}>
             <Typography variant="h5">{title}</Typography>
             {subtitle && (
-              <Typography variant="caption" color="textSecondary">
+              <ClampText lines={2} lineHeight={1.4} variant="caption" color="textSecondary" sx={{ mt: 0.25 }}>
                 {subtitle}
-              </Typography>
+              </ClampText>
             )}
           </Box>
           {action}

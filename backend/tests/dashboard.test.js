@@ -37,19 +37,30 @@ describe('branch dashboard', () => {
     const customer = (await api().post('/api/v1/customers').set(bearer(ctx.t)).send({ name: 'Dash Buyer', mobile: '9830098300', address: { stateCode: '19' } })).body.data;
     await api().post('/api/v1/orders').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: customer.id, priority: 'urgent', items: [{ description: 'Chain', metal: 'gold', purity: 916 }], advance: { mode: 'cash', amountPaise: 500000 } });
 
-    const res = await api().get(`/api/v1/dashboard?branchId=${ctx.ho}&days=7`).set(bearer(ctx.t));
+    const res = await api().get(`/api/v1/dashboard?branchId=${ctx.ho}&period=month`).set(bearer(ctx.t));
     expect(res.status).toBe(200);
     const d = res.body.data;
-    expect(d.range.days).toBe(7);
+    expect(d.range).toMatchObject({ period: 'month', from: `${d.range.to.slice(0, 7)}-01` });
     expect(d.sales.today).toMatchObject({ bills: 1, revenuePaise: quote.totals.grandTotalPaise, collectedPaise: quote.totals.grandTotalPaise });
-    expect(d.sales.daily).toHaveLength(7);
+    expect(d.sales.daily).toHaveLength(d.range.span);
     expect(d.sales.daily.at(-1)).toMatchObject({ bills: 1, totalPaise: quote.totals.grandTotalPaise });
     expect(d.sales.byPaymentMode.map((m) => m.key).sort()).toEqual(['cash', 'upi']);
     expect(d.sales.byCategory[0]).toMatchObject({ label: 'Ring', extra: 1 });
     expect(d.orders).toMatchObject({ open: 1, urgent: 1, advanceHeldPaise: 500000, bookedInPeriod: 1 });
     expect(d.stock).toMatchObject({ items: 1, grossWeightMg: 4000 });
 
-    expect((await api().get(`/api/v1/dashboard?branchId=${ctx.ho}&days=12`).set(bearer(ctx.t))).status).toBe(400);
+    expect((await api().get(`/api/v1/dashboard?branchId=${ctx.ho}&period=year`).set(bearer(ctx.t))).status).toBe(400);
+
+    const today = (await api().get(`/api/v1/dashboard?branchId=${ctx.ho}&period=today`).set(bearer(ctx.t))).body.data;
+    expect(today.range).toMatchObject({ period: 'today', span: 1 });
+    expect(today.sales.period.bills).toBe(1);
+    expect(today.sales.period.collectedPaise).toBe(quote.totals.grandTotalPaise);
+    expect(today.sales.period).toMatchObject({ creditDuePaise: 0, dueBills: 0 });
+
+    // All time (the default): from the branch's first bill — here today — to today.
+    const all = (await api().get(`/api/v1/dashboard?branchId=${ctx.ho}`).set(bearer(ctx.t))).body.data;
+    expect(all.range).toMatchObject({ period: 'all', span: 1, bucket: 'day', from: all.range.to });
+    expect(all.sales.period.bills).toBe(1);
   });
 
   it('hides the sections a user may not see', async () => {

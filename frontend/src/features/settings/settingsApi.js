@@ -6,7 +6,17 @@ export const settingsApi = baseApi.injectEndpoints({
     updateSettings: build.mutation({
       query: ({ section, values }) => ({ url: `/settings/${section}`, method: 'put', data: values }),
       transformResponse: unwrapData,
-      invalidatesTags: ['Audit', 'Me'],
+      // Print settings change how every bill prints: open invoices load their layout again.
+      invalidatesTags: (r, e, { section }) => (section === 'print' ? ['Audit', 'Me', 'Sale'] : ['Audit', 'Me']),
+      async onQueryStarted(arg, { dispatch, queryFulfilled }) {
+        const { data } = await queryFulfilled.catch(() => ({}));
+        if (data) dispatch(settingsApi.util.upsertQueryData('settings', undefined, data));
+      },
+    }),
+    updateBranchPrint: build.mutation({
+      query: ({ branchId, choice }) => ({ url: `/settings/print/branches/${branchId}`, method: 'put', data: { choice } }),
+      transformResponse: unwrapData,
+      invalidatesTags: ['Audit', 'Sale'],
       async onQueryStarted(arg, { dispatch, queryFulfilled }) {
         const { data } = await queryFulfilled.catch(() => ({}));
         if (data) dispatch(settingsApi.util.upsertQueryData('settings', undefined, data));
@@ -15,4 +25,4 @@ export const settingsApi = baseApi.injectEndpoints({
   }),
 });
 
-export const { useSettingsQuery, useUpdateSettingsMutation } = settingsApi;
+export const { useSettingsQuery, useUpdateSettingsMutation, useUpdateBranchPrintMutation } = settingsApi;

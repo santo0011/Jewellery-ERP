@@ -3,6 +3,7 @@ import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
 import { Alert, Box, Button, Card, GlobalStyles, Link, MenuItem, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import { formatINR, formatWeight } from '@jerp/shared';
 import { Link as RouterLink, useParams, useSearchParams } from 'react-router';
+import StatTile from '../../components/StatTile.jsx';
 import { MONEY_TONE } from '../../components/Amount.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
 import { EmptyState, ErrorState, LoadingState } from '../../components/StateViews.jsx';
@@ -120,14 +121,7 @@ export function ReportSheet({ report, isFetching, period, scope, printTitle, emp
       {report.summary?.length > 0 && (
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: `repeat(${Math.min(report.summary.length, 4)}, minmax(0, 1fr))` }, gap: 1.5, mb: 2 }}>
           {report.summary.map((s) => (
-            <Card key={s.label} sx={{ p: 2 }}>
-              <Typography variant="caption" color="textSecondary">
-                {s.label}
-              </Typography>
-              <Typography variant="h3" sx={{ color: s.tone && s.value ? MONEY_TONE[s.tone] : 'text.primary', fontVariantNumeric: 'tabular-nums' }}>
-                {formatValue(s.type, s.value ?? 0)}
-              </Typography>
-            </Card>
+            <StatTile key={s.label} label={s.label} value={formatValue(s.type, s.value ?? 0)} tone={s.tone && s.value ? MONEY_TONE[s.tone] : undefined} />
           ))}
         </Box>
       )}

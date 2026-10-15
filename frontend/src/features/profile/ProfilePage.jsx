@@ -247,9 +247,11 @@ function ProfileHero({ session }) {
   return (
     <Card sx={{ background: tokens.sidebar.surface, color: tokens.sidebar.text, position: 'relative', overflow: 'hidden', border: 0 }}>
       <Box sx={{ position: 'absolute', inset: 0, background: tokens.sidebar.glow, pointerEvents: 'none' }} />
-      <CardContent sx={{ position: 'relative', p: { xs: 2.5, sm: 3.5 } }}>
-        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 2, sm: 3 }} sx={{ alignItems: { sm: 'center' } }}>
-          <Avatar sx={{ width: 76, height: 76, background: tokens.sidebar.goldGradient, color: 'var(--brand-contrast)', fontSize: '1.625rem', fontWeight: 700, boxShadow: '0 6px 20px rgba(var(--brand-rgb), 0.3)' }}>{initials(user.name)}</Avatar>
+      {/* Phones: a short banner — small avatar beside the name, the organisation and sign out in one row below. */}
+      <CardContent sx={{ position: 'relative', p: { xs: 2, sm: 2.5 }, '&:last-child': { pb: { xs: 2, sm: 2.5 } } }}>
+        <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 1.5, sm: 2.5 }} sx={{ alignItems: { sm: 'center' } }}>
+          <Stack direction="row" spacing={{ xs: 1.5, sm: 2 }} sx={{ alignItems: 'center', flex: 1, minWidth: 0 }}>
+          <Avatar sx={{ width: { xs: 52, sm: 60 }, height: { xs: 52, sm: 60 }, flexShrink: 0, background: tokens.sidebar.goldGradient, color: 'var(--brand-contrast)', fontSize: { xs: '1.125rem', sm: '1.375rem' }, fontWeight: 700, boxShadow: '0 6px 20px rgba(var(--brand-rgb), 0.3)' }}>{initials(user.name)}</Avatar>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography variant="h3" sx={{ color: '#FFFFFF' }} noWrap>
               {user.name}
@@ -258,7 +260,7 @@ function ProfileHero({ session }) {
               {user.email}
               {user.mobile ? ` · ${user.mobile}` : ''}
             </Typography>
-            <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 0.75, mt: 1.5 }}>
+            <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 0.75, mt: 1 }}>
               {user.isOwner && <Chip label="Owner" size="small" sx={{ background: tokens.sidebar.goldGradient, color: 'var(--brand-contrast)', fontWeight: 600 }} />}
               {user.roles.map((r) => (
                 <Chip key={r.id} label={r.name} size="small" variant="outlined" sx={{ color: tokens.sidebar.text, borderColor: 'rgba(var(--brand-rgb), 0.45)' }} />
@@ -266,20 +268,24 @@ function ProfileHero({ session }) {
               {user.branchLogin && <Chip label="Branch login" size="small" variant="outlined" sx={{ color: tokens.sidebar.text, borderColor: tokens.sidebar.divider }} />}
             </Stack>
           </Box>
-          <Stack spacing={1} sx={{ alignItems: { xs: 'stretch', sm: 'flex-end' } }}>
-            <Typography variant="body2" sx={{ color: tokens.sidebar.text, fontWeight: 600 }}>
-              {organisation.name}
-            </Typography>
-            {activeBranch && (
-              <Typography variant="caption" sx={{ color: tokens.sidebar.muted }}>
-                Working in {activeBranch.name}
+          </Stack>
+          <Stack direction={{ xs: 'row', sm: 'column' }} spacing={{ xs: 1, sm: 1 }} sx={{ alignItems: { xs: 'center', sm: 'flex-end' }, justifyContent: 'space-between', pt: { xs: 1.5, sm: 0 }, borderTop: { xs: `1px solid ${tokens.sidebar.divider}`, sm: 0 } }}>
+            <Box sx={{ minWidth: 0, textAlign: { sm: 'right' } }}>
+              <Typography variant="body2" noWrap sx={{ color: tokens.sidebar.text, fontWeight: 600 }}>
+                {organisation.name}
               </Typography>
-            )}
+              {activeBranch && (
+                <Typography variant="caption" noWrap component="div" sx={{ color: tokens.sidebar.muted }}>
+                  Working in {activeBranch.name}
+                </Typography>
+              )}
+            </Box>
             <Button
               variant="outlined"
+              size="small"
               startIcon={<LogoutRoundedIcon />}
               onClick={() => setConfirmSignOut(true)}
-              sx={{ mt: 0.5, color: '#FFFFFF', borderColor: 'rgba(255, 255, 255, 0.25)', '&:hover': { borderColor: tokens.brand.main, bgcolor: 'rgba(var(--brand-rgb), 0.1)' } }}
+              sx={{ mt: { sm: 0.5 }, flexShrink: 0, color: '#FFFFFF', borderColor: 'rgba(255, 255, 255, 0.25)', '&:hover': { borderColor: tokens.brand.main, bgcolor: 'rgba(var(--brand-rgb), 0.1)' } }}
             >
               Sign out
             </Button>

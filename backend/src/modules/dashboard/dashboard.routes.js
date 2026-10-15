@@ -7,7 +7,8 @@ import { sendOk } from '../../utils/response.js';
 import { branchDashboard } from './dashboard.service.js';
 
 const router = Router();
-const querySchema = z.object({ branchId: objectIdSchema, days: z.coerce.number().int().refine((d) => [7, 30, 90].includes(d), 'Use 7, 30 or 90 days').default(30) });
+// period: today, this month, or all (everything since the branch's first bill).
+const querySchema = z.object({ branchId: objectIdSchema, period: z.enum(['today', 'month', 'all']).default('all') });
 
 // Each section checks its own permission (sales / orders / inventory); signing in is enough to ask.
 router.use(authenticate);

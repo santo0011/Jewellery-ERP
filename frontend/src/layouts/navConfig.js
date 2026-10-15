@@ -26,6 +26,7 @@ import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettin
 import GroupOutlinedIcon from '@mui/icons-material/GroupOutlined';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import StorefrontOutlinedIcon from '@mui/icons-material/StorefrontOutlined';
+import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
 import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
 import WorkspacePremiumOutlinedIcon from '@mui/icons-material/WorkspacePremiumOutlined';
 
@@ -118,6 +119,8 @@ export const BRANCH_NAV_GROUPS = [
   { label: 'Sales', items: [item('/billing'), item('/orders'), item('/sales'), item('/customers')] },
   { label: 'Stock', items: [item('/inventory'), item('/products'), item('/inventory/transfers')] },
   { label: 'HR & Payroll', items: [item('/hr/employees'), item('/hr/attendance'), item('/hr/advances'), item('/hr/payroll')] },
+  // The branch's own invoice print design (the organisation sets its own under Business settings → Print).
+  { label: 'Settings', items: [{ label: 'Print settings', path: '/settings/print', icon: PrintOutlinedIcon, permission: ['settings.view'] }] },
 ];
 
 export function visibleNav(permissions, { branchLogin = false } = {}) {

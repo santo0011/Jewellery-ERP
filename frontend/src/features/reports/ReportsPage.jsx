@@ -26,6 +26,7 @@ import StorefrontOutlinedIcon from '@mui/icons-material/StorefrontOutlined';
 import SyncAltRoundedIcon from '@mui/icons-material/SyncAltRounded';
 import { Box, ButtonBase, InputBase, Stack, Typography } from '@mui/material';
 import { Link as RouterLink, useSearchParams } from 'react-router';
+import ClampText from '../../components/ClampText.jsx';
 import { EmptyState, ErrorState, LoadingState } from '../../components/StateViews.jsx';
 import { fonts, tokens } from '../../theme/tokens.js';
 import { useReportListQuery } from './reportApi.js';
@@ -83,16 +84,16 @@ const FILTER_LABELS = { range: 'Date range', month: 'Monthly', asOf: 'As on date
 /** One count in the banner: a big number over a small label. */
 function HeroStat({ value, label }) {
   return (
-    <Box sx={{ minWidth: { sm: 96, md: 104 }, px: { xs: 1.5, md: 2 }, py: { xs: 1, md: 1.25 }, borderRadius: 2.5, bgcolor: 'rgba(var(--brand-rgb), 0.08)', border: '1px solid rgba(var(--brand-rgb), 0.24)' }}>
-      <Typography sx={{ fontFamily: fonts.display, fontWeight: 700, fontSize: { xs: 24, md: 28 }, lineHeight: 1.05, color: s.active }}>{value}</Typography>
+    <Box sx={{ minWidth: { sm: 84, md: 92 }, px: { xs: 1.5, md: 1.75 }, py: 0.75, borderRadius: 2.5, bgcolor: 'rgba(var(--brand-rgb), 0.08)', border: '1px solid rgba(var(--brand-rgb), 0.24)' }}>
+      <Typography sx={{ fontFamily: fonts.display, fontWeight: 700, fontSize: { xs: 22, md: 24 }, lineHeight: 1.05, color: s.active }}>{value}</Typography>
       <Typography sx={{ mt: 0.25, fontSize: '0.625rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: s.muted }}>{label}</Typography>
     </Box>
   );
 }
 
 /**
- * The banner on top of Reports: icon, title and what is inside; the counts as two stat tiles (beside the title on
- * tablets and up, under it on phones); the search on its own full-width row.
+ * The banner on top of Reports: icon, title and what is inside; the counts as two stat tiles beside the title; the
+ * search on its own full-width row. Phones get a short banner: no description, the counts as one line under the title.
  */
 function Hero({ total, groupCount, q, onSearch }) {
   return (
@@ -101,8 +102,8 @@ function Hero({ total, groupCount, q, onSearch }) {
         position: 'relative',
         overflow: 'hidden',
         mb: 2,
-        px: { xs: 2, sm: 3, md: 3.5 },
-        py: { xs: 2.25, sm: 3 },
+        px: { xs: 1.75, sm: 2.5, md: 3 },
+        py: { xs: 1.5, sm: 2 },
         borderRadius: 3,
         color: '#F7F3E8',
         background: `${s.glow}, radial-gradient(80% 120% at 100% 100%, rgba(var(--brand-rgb), 0.10) 0%, rgba(var(--brand-rgb), 0) 60%), ${s.surface}`,
@@ -111,24 +112,27 @@ function Hero({ total, groupCount, q, onSearch }) {
         [theme.getColorSchemeSelector('dark')]: { boxShadow: '0 10px 28px rgba(0, 0, 0, 0.45)' },
       })}
     >
-      <DiamondOutlinedIcon aria-hidden sx={{ position: 'absolute', right: { xs: -36, md: -24 }, top: { xs: -24, md: '50%' }, fontSize: { xs: 150, md: 200 }, color: 'rgba(var(--brand-rgb), 0.07)', transform: { xs: 'rotate(-12deg)', md: 'translateY(-50%) rotate(-12deg)' }, pointerEvents: 'none' }} />
+      <DiamondOutlinedIcon aria-hidden sx={{ position: 'absolute', right: { xs: -28, md: -24 }, top: { xs: -20, md: '50%' }, fontSize: { xs: 110, md: 150 }, color: 'rgba(var(--brand-rgb), 0.07)', transform: { xs: 'rotate(-12deg)', md: 'translateY(-50%) rotate(-12deg)' }, pointerEvents: 'none' }} />
 
-      <Box sx={{ position: 'relative', display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr auto' }, gap: { xs: 2, md: 3 }, alignItems: 'center' }}>
-        <Stack direction="row" spacing={{ xs: 1.5, sm: 2 }} sx={{ alignItems: 'center', minWidth: 0 }}>
-          <Box sx={{ width: { xs: 44, sm: 52 }, height: { xs: 44, sm: 52 }, flexShrink: 0, borderRadius: 2.5, display: 'grid', placeItems: 'center', background: s.goldGradient, color: 'var(--brand-contrast)', boxShadow: '0 8px 20px -6px rgba(var(--brand-rgb), 0.6)' }}>
-            <AssessmentOutlinedIcon sx={{ fontSize: { xs: 24, sm: 28 } }} />
+      <Box sx={{ position: 'relative', display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr auto' }, gap: { xs: 1.25, sm: 1.5, md: 2 }, alignItems: 'center' }}>
+        <Stack direction="row" spacing={{ xs: 1.25, sm: 1.5 }} sx={{ alignItems: 'center', minWidth: 0 }}>
+          <Box sx={{ width: { xs: 38, sm: 44 }, height: { xs: 38, sm: 44 }, flexShrink: 0, borderRadius: 2.5, display: 'grid', placeItems: 'center', background: s.goldGradient, color: 'var(--brand-contrast)', boxShadow: '0 8px 20px -6px rgba(var(--brand-rgb), 0.6)' }}>
+            <AssessmentOutlinedIcon sx={{ fontSize: { xs: 21, sm: 24 } }} />
           </Box>
           <Box sx={{ minWidth: 0 }}>
-            <Typography component="h1" sx={{ fontFamily: fonts.display, fontWeight: 600, fontSize: { xs: 28, sm: 34, md: 38 }, lineHeight: 1.05, letterSpacing: '0.01em' }}>
+            <Typography component="h1" sx={{ fontFamily: fonts.display, fontWeight: 600, fontSize: { xs: 24, sm: 28, md: 30 }, lineHeight: 1.05, letterSpacing: '0.01em' }}>
               Reports
             </Typography>
-            <Typography sx={{ mt: 0.5, color: s.text, fontSize: { xs: '0.8125rem', sm: '0.875rem' }, lineHeight: 1.45 }}>
+            <Typography sx={{ display: { xs: 'block', sm: 'none' }, mt: 0.25, color: s.muted, fontSize: '0.75rem', fontWeight: 600 }}>
+              {total} reports · {groupCount} categories
+            </Typography>
+            <Typography sx={{ display: { xs: 'none', sm: 'block' }, mt: 0.25, color: s.text, fontSize: '0.8125rem', lineHeight: 1.45 }}>
               Sales, purchases, GST, stock, customers and staff — every number your showroom runs on.
             </Typography>
           </Box>
         </Stack>
 
-        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(2, auto)' }, gap: 1 }}>
+        <Box sx={{ display: { xs: 'none', sm: 'grid' }, gridTemplateColumns: 'repeat(2, auto)', gap: 1 }}>
           <HeroStat value={total} label="Reports" />
           <HeroStat value={groupCount} label="Categories" />
         </Box>
@@ -140,7 +144,7 @@ function Hero({ total, groupCount, q, onSearch }) {
             alignItems: 'center',
             gap: 1,
             px: 1.5,
-            height: { xs: 44, sm: 46 },
+            height: 40,
             borderRadius: 2.5,
             bgcolor: 'rgba(255, 255, 255, 0.06)',
             border: '1px solid rgba(255, 255, 255, 0.12)',
@@ -249,17 +253,18 @@ export function ReportCard({ report, accent, to, icon }) {
         '&:hover .report-open, &:focus-visible .report-open': { gap: 1, color: tokens.brand.strong },
       }}
     >
-      <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', flex: 1, minWidth: 0 }}>
-        <Box className="report-icon" sx={{ width: 36, height: 36, borderRadius: 2, flexShrink: 0, display: 'grid', placeItems: 'center', bgcolor: accent.tint, color: accent.color }}>
-          <Icon sx={{ fontSize: 19 }} />
+      {/* Title on one line, description on two (cut with …, full text on hover): every card has the same height. */}
+      <Stack direction="row" spacing={1.25} sx={{ alignItems: 'flex-start', flex: 1, minWidth: 0 }}>
+        <Box className="report-icon" sx={{ width: { xs: 32, sm: 36 }, height: { xs: 32, sm: 36 }, borderRadius: 2, flexShrink: 0, display: 'grid', placeItems: 'center', bgcolor: accent.tint, color: accent.color }}>
+          <Icon sx={{ fontSize: { xs: 17, sm: 19 } }} />
         </Box>
-        <Box sx={{ minWidth: 0 }}>
-          <Typography noWrap sx={{ fontWeight: 650, fontSize: '0.875rem', lineHeight: 1.3, color: 'text.primary' }}>
+        <Box sx={{ minWidth: 0, flex: 1 }}>
+          <ClampText lines={1} lineHeight={1.3} sx={{ fontWeight: 650, fontSize: { xs: '0.8125rem', sm: '0.875rem' }, color: 'text.primary' }}>
             {report.title}
-          </Typography>
-          <Typography noWrap title={report.description} sx={{ fontSize: '0.75rem', lineHeight: 1.4, color: 'text.secondary', mt: 0.125 }}>
+          </ClampText>
+          <ClampText lines={2} reserve lineHeight={1.4} sx={{ fontSize: { xs: '0.71875rem', sm: '0.75rem' }, color: 'text.secondary', mt: 0.25 }}>
             {report.description}
-          </Typography>
+          </ClampText>
         </Box>
       </Stack>
       <Stack direction="row" sx={{ mt: 1.25, pt: 1, borderTop: 1, borderColor: 'divider', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>

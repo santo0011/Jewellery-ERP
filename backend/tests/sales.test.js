@@ -82,6 +82,17 @@ describe('quote', () => {
 });
 
 describe('sale', () => {
+  it('prints with its branch’s paper size and design', async () => {
+    const ctx = await setup();
+    const p = await stockedProduct(ctx);
+    const sale = (await api().post('/api/v1/sales').set(bearer(ctx.t)).send({ branchId: ctx.ho, items: [{ productId: p.id }], payments: [{ mode: 'cash', amountPaise: 8579900 }] })).body.data;
+    expect(sale.print).toMatchObject({ size: 'a4', design: 'classic', copies: 1, showHsn: true });
+
+    await api().put('/api/v1/settings/print').set(bearer(ctx.t)).send({ size: 'a4', design: 'royal', branches: [{ branchId: ctx.ho, size: 'thermal80', design: 'standard' }] });
+    const again = (await api().get(`/api/v1/sales/${sale.id}`).set(bearer(ctx.t))).body.data;
+    expect(again.print).toMatchObject({ size: 'thermal80', design: 'standard' });
+  });
+
   it('creates an invoice with snapshot, sells stock and posts balanced journals', async () => {
     const ctx = await setup();
     const p = await stockedProduct(ctx);

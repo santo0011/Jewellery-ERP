@@ -8,6 +8,7 @@ import { createRoot } from 'react-dom/client';
 import { Toaster } from 'react-hot-toast';
 import { Provider } from 'react-redux';
 import { RouterProvider } from 'react-router';
+import TopProgress from './components/TopProgress.jsx';
 import { router } from './routes/index.jsx';
 import { preloadPages } from './routes/lazyPage.jsx';
 import { setupNativeApp } from './native.js';
@@ -20,6 +21,7 @@ createRoot(document.getElementById('root')).render(
     <Provider store={store}>
       <ThemeProvider theme={theme} defaultMode="light">
         <CssBaseline />
+        <TopProgress />
         <AuthBootstrap>
           <RouterProvider router={router} />
         </AuthBootstrap>

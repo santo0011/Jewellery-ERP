@@ -18,7 +18,7 @@ import { orderForBilling } from '../orders/order.service.js';
 import { Organisation } from '../organisations/organisation.model.js';
 import { Product } from '../products/product.model.js';
 import { getApplicableRate } from '../rates/rate.service.js';
-import { getSettings } from '../settings/settings.service.js';
+import { getSettings, printChoiceFor } from '../settings/settings.service.js';
 import { Sale, SalesReturn, billDue } from './sale.model.js';
 
 const problem = (message, details, code = 'SALE_BLOCKED') => new ApiError(422, code, message, details);
@@ -359,8 +359,14 @@ export async function createSale({ payments: requested, notes, ...input }, idemp
   return serializeSale(sale.toObject());
 }
 
+/** How this bill prints: its branch's paper size and design, and what Invoice settings put on the page. */
+function printLayout(settings, branchId) {
+  const { copies, showHsn, showHuid, showWeightBreakup, showRateTable, signatoryLabel, terms, footerNote } = settings.invoice;
+  return { ...printChoiceFor(settings.print, branchId), copies, showHsn, showHuid, showWeightBreakup, showRateTable, signatoryLabel, terms, footerNote };
+}
+
 async function serializeSale(s, returns) {
-  const maps = await nameMaps({ branchIds: [s.branchId], userIds: [s.createdBy, s.cancelledBy] });
+  const [maps, settings] = await Promise.all([nameMaps({ branchIds: [s.branchId], userIds: [s.createdBy, s.cancelledBy] }), getSettings()]);
   const { permissions } = requireContext();
   const canSeeKyc = hasPermission(permissions, 'customer.viewKyc');
   const canSeeCost = hasPermission(permissions, 'product.viewCost');
@@ -388,6 +394,7 @@ async function serializeSale(s, returns) {
     cancelledAt: s.cancelledAt,
     cancelledBy: pick(maps.users, s.cancelledBy),
     cancelReason: s.cancelReason,
+    print: printLayout(settings, s.branchId),
     returns: (returns ?? []).map((r) => ({ id: r._id, creditNoteNo: r.creditNoteNo, amountPaise: r.amountPaise, refundMode: r.refundMode, reason: r.reason, productIds: r.productIds, createdAt: r.createdAt })),
   };
 }

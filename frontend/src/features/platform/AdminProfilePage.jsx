@@ -158,24 +158,24 @@ function IdentityCard({ profile }) {
   return (
     <Card sx={{ position: 'relative', overflow: 'hidden' }}>
       {/* Soft gold band behind the avatar. */}
-      <Box aria-hidden sx={{ position: 'absolute', inset: '0 0 auto 0', height: 96, background: 'linear-gradient(135deg, rgba(var(--brand-rgb), 0.22) 0%, rgba(var(--brand-rgb), 0.06) 100%)', borderBottom: '1px solid rgba(var(--brand-rgb), 0.18)' }} />
-      <ShieldOutlinedIcon aria-hidden sx={{ position: 'absolute', right: -22, top: -14, fontSize: 130, color: 'rgba(var(--brand-rgb), 0.10)', transform: 'rotate(-10deg)', pointerEvents: 'none' }} />
-      <CardContent sx={{ position: 'relative', p: { xs: 2.5, sm: 3 } }}>
-        <Stack sx={{ alignItems: 'center', textAlign: 'center', pt: 2 }}>
+      <Box aria-hidden sx={{ position: 'absolute', inset: '0 0 auto 0', height: { xs: 64, sm: 76 }, background: 'linear-gradient(135deg, rgba(var(--brand-rgb), 0.22) 0%, rgba(var(--brand-rgb), 0.06) 100%)', borderBottom: '1px solid rgba(var(--brand-rgb), 0.18)' }} />
+      <ShieldOutlinedIcon aria-hidden sx={{ position: 'absolute', right: -22, top: -14, fontSize: { xs: 96, sm: 110 }, color: 'rgba(var(--brand-rgb), 0.10)', transform: 'rotate(-10deg)', pointerEvents: 'none' }} />
+      <CardContent sx={{ position: 'relative', p: { xs: 2, sm: 2.5 }, '&:last-child': { pb: { xs: 2, sm: 2.5 } } }}>
+        <Stack sx={{ alignItems: 'center', textAlign: 'center', pt: { xs: 0.5, sm: 1 } }}>
           <Box sx={{ p: '3px', borderRadius: '50%', background: s.goldGradient, boxShadow: '0 10px 24px -10px rgba(var(--brand-rgb), 0.8)' }}>
-            <Box sx={{ width: { xs: 76, sm: 88 }, height: { xs: 76, sm: 88 }, borderRadius: '50%', display: 'grid', placeItems: 'center', bgcolor: 'background.paper', border: '3px solid', borderColor: 'background.paper', color: 'var(--brand-strong)', fontFamily: fonts.display, fontWeight: 700, fontSize: { xs: 28, sm: 32 } }}>
+            <Box sx={{ width: { xs: 60, sm: 72 }, height: { xs: 60, sm: 72 }, borderRadius: '50%', display: 'grid', placeItems: 'center', bgcolor: 'background.paper', border: '3px solid', borderColor: 'background.paper', color: 'var(--brand-strong)', fontFamily: fonts.display, fontWeight: 700, fontSize: { xs: 22, sm: 26 } }}>
               {initialsOf(profile.name)}
             </Box>
           </Box>
-          <Typography sx={{ mt: 1.75, fontFamily: fonts.display, fontWeight: 600, fontSize: { xs: 24, sm: 28 }, lineHeight: 1.15 }}>{profile.name}</Typography>
+          <Typography sx={{ mt: { xs: 1, sm: 1.25 }, fontFamily: fonts.display, fontWeight: 600, fontSize: { xs: 21, sm: 24 }, lineHeight: 1.15 }}>{profile.name}</Typography>
           <Typography variant="body2" color="textSecondary" sx={{ mt: 0.25, wordBreak: 'break-all' }}>
             {profile.email}
           </Typography>
-          <Box component="span" sx={{ mt: 1.25, display: 'inline-flex', alignItems: 'center', gap: 0.5, px: 1.25, py: 0.375, borderRadius: 999, fontSize: '0.6875rem', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--brand-contrast)', background: s.goldGradient }}>
+          <Box component="span" sx={{ mt: { xs: 0.75, sm: 1 }, display: 'inline-flex', alignItems: 'center', gap: 0.5, px: 1.25, py: 0.375, borderRadius: 999, fontSize: '0.6875rem', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--brand-contrast)', background: s.goldGradient }}>
             <ShieldOutlinedIcon sx={{ fontSize: 14 }} /> Super Admin
           </Box>
         </Stack>
-        <Box sx={{ mt: 2.5, pt: 1, borderTop: 1, borderColor: 'divider' }}>
+        <Box sx={{ mt: { xs: 1.5, sm: 2 }, pt: 1, borderTop: 1, borderColor: 'divider' }}>
           <InfoRow icon={LoginRoundedIcon} label="Last sign-in" value={profile.lastLoginAt ? formatDateTime(profile.lastLoginAt) : 'This session'} />
           <InfoRow icon={KeyRoundedIcon} label="Password changed" value={profile.passwordChangedAt ? formatDateTime(profile.passwordChangedAt) : 'Not changed yet'} />
           <InfoRow icon={EventAvailableOutlinedIcon} label="Account created" value={formatDate(profile.createdAt)} />

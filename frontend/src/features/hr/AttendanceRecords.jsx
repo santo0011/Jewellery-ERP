@@ -5,6 +5,7 @@ import { Alert, Box, Card, IconButton, Link, Stack, Table, TableBody, TableCell,
 import { ATTENDANCE_STATUSES } from '@jerp/shared';
 import { useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router';
+import StatTile from '../../components/StatTile.jsx';
 import { EmptyState, ErrorState, LoadingState } from '../../components/StateViews.jsx';
 import { useAttendanceRegisterQuery } from './hrApi.js';
 import { formatDays, monthLabel, thisMonth } from './hrUi.jsx';
@@ -26,19 +27,6 @@ const shiftMonth = (month, by) => {
   const [y, m] = month.split('-').map(Number);
   return new Date(Date.UTC(y, m - 1 + by, 1)).toISOString().slice(0, 7);
 };
-
-function Tile({ label, value, tone }) {
-  return (
-    <Card sx={{ p: 1.75 }}>
-      <Typography variant="caption" color="textSecondary">
-        {label}
-      </Typography>
-      <Typography variant="h3" sx={{ color: tone ?? 'text.primary' }}>
-        {value}
-      </Typography>
-    </Card>
-  );
-}
 
 /** Read-only month view: who was present, absent, on leave or off each day, and the totals pay is based on. */
 export default function AttendanceRecords({ branchId, branchPicker }) {
@@ -108,10 +96,10 @@ export default function AttendanceRecords({ branchId, branchPicker }) {
       ) : (
         <Box sx={{ opacity: isFetching ? 0.6 : 1, transition: 'opacity 120ms' }}>
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 1.5, mb: 2 }}>
-            <Tile label="Staff" value={rows.length} />
-            <Tile label="Absent days" value={totals.absent} tone={totals.absent ? 'error.main' : undefined} />
-            <Tile label="Half days" value={totals.half} tone={totals.half ? 'warning.main' : undefined} />
-            <Tile label="Paid leave days" value={totals.leave} />
+            <StatTile label="Staff" value={rows.length} />
+            <StatTile label="Absent days" value={totals.absent} tone={totals.absent ? 'error.main' : undefined} />
+            <StatTile label="Half days" value={totals.half} tone={totals.half ? 'warning.main' : undefined} />
+            <StatTile label="Paid leave days" value={totals.leave} />
           </Box>
 
           <Card sx={{ mb: 2 }}>

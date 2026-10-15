@@ -40,7 +40,7 @@ export function InvoiceSettingsForm({ value, readOnly }) {
     <SettingsSectionForm
       section="invoice"
       title="Invoice"
-      description="Numbering, print format and what appears on customer invoices."
+      description="Numbering and what appears on customer invoices. The paper size and design are chosen under Print."
       value={value}
       readOnly={readOnly}
       toForm={(v) => ({ ...v, terms: v.terms ?? '', footerNote: v.footerNote ?? '', copies: String(v.copies) })}
@@ -63,19 +63,7 @@ export function InvoiceSettingsForm({ value, readOnly }) {
               disabled={readOnly}
             />
           </Grid>
-          <Grid size={{ xs: 12, sm: 6 }}>
-            <RHFSelect
-              control={control}
-              name="defaultFormat"
-              label="Default print format"
-              options={[
-                { value: 'a4', label: 'A4 tax invoice' },
-                { value: 'thermal80', label: '80 mm thermal receipt' },
-              ]}
-              disabled={readOnly}
-            />
-          </Grid>
-          <Grid size={{ xs: 12, sm: 6 }}>
+          <Grid size={12}>
             <RHFTextField control={control} name="signatoryLabel" label="Signatory label" disabled={readOnly} />
           </Grid>
           <SwitchRow control={control} name="showHsn" label="Show HSN codes" disabled={readOnly} />

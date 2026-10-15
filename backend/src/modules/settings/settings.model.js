@@ -11,6 +11,7 @@ const settingsSchema = new mongoose.Schema(
     jewellery: section,
     barcode: section,
     approvals: { type: mongoose.Schema.Types.Mixed, default: undefined },
+    print: { type: mongoose.Schema.Types.Mixed, default: undefined },
     updatedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
   },
   { timestamps: true, minimize: false },

@@ -1,4 +1,3 @@
-import CalendarTodayRoundedIcon from '@mui/icons-material/CalendarTodayRounded';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import MoreHorizRoundedIcon from '@mui/icons-material/MoreHorizRounded';
 import { AppBar, Box, ButtonBase, Drawer, IconButton, Toolbar, Typography, useMediaQuery, useScrollTrigger } from '@mui/material';
@@ -7,12 +6,11 @@ import { useEffect, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { matchPath, Outlet, useLocation, useNavigate } from 'react-router';
 import { ErrorState, FullScreenLoader } from '../components/StateViews.jsx';
-import { DiamondMark } from '../components/Wordmark.jsx';
 import { useBrandTheme } from '../hooks/useBrandTheme.js';
 import { useOrganisationLogo } from '../hooks/useOrganisationLogo.js';
 import { usePermissions, useSession } from '../hooks/usePermission.js';
 import { branchSelected } from '../store/authSlice.js';
-import { fonts, tokens } from '../theme/tokens.js';
+import { tokens } from '../theme/tokens.js';
 import BranchSwitcher from './BranchSwitcher.jsx';
 import { branchControlFor, PROFILE_ITEM, visibleNav } from './navConfig.js';
 import Sidebar from './Sidebar.jsx';
@@ -112,58 +110,6 @@ function MobileBottomNav({ onMore }) {
   );
 }
 
-/** The menu entry (and its group) that the current address belongs to — detail pages count under their list. */
-function usePageContext() {
-  const { pathname } = useLocation();
-  const { data: session } = useSession();
-  const groups = visibleNav(usePermissions(), { branchLogin: session?.user?.branchLogin });
-  const entries = [...groups.flatMap((g) => g.items.map((item) => ({ item, group: g.pinned ? null : g.label }))), { item: PROFILE_ITEM, group: 'Account' }];
-  const matches = entries.filter(({ item }) => (item.path === '/' ? pathname === '/' : pathname === item.path || pathname.startsWith(`${item.path}/`)));
-  return matches.sort((a, b) => b.item.path.length - a.item.path.length)[0] ?? null;
-}
-
-/** Top bar, left: where you are — the page's icon, its group and name (logo first on phones and tablets). */
-function PageContext({ logoUrl, organisationName, compact, logoOnly = false }) {
-  const current = usePageContext();
-  const Icon = current?.item.icon;
-  const title = current?.item.label ?? organisationName;
-  const over = current ? (current.group ?? organisationName) : 'Welcome';
-  return (
-    <Box sx={{ display: 'flex', alignItems: 'center', gap: { xs: 1, md: 1.5 }, minWidth: 0 }}>
-      {compact ? (
-        <Box sx={{ width: 36, height: 36, flexShrink: 0, borderRadius: 2.25, display: 'grid', placeItems: 'center', overflow: 'hidden', bgcolor: logoUrl ? '#fff' : 'rgba(var(--brand-rgb), 0.10)', border: '1px solid rgba(var(--brand-rgb), 0.3)', boxShadow: '0 4px 12px -6px rgba(var(--brand-rgb), 0.5)' }}>
-          {logoUrl ? <Box component="img" src={logoUrl} alt="" sx={{ width: '100%', height: '100%', objectFit: 'contain', p: 0.25 }} /> : <DiamondMark size={22} />}
-        </Box>
-      ) : (
-        Icon && (
-          <Box sx={{ width: 40, height: 40, flexShrink: 0, borderRadius: 2.5, display: 'grid', placeItems: 'center', color: 'var(--brand-strong)', background: 'linear-gradient(145deg, rgba(var(--brand-rgb), 0.16), rgba(var(--brand-rgb), 0.04))', border: '1px solid rgba(var(--brand-rgb), 0.28)' }}>
-            <Icon sx={{ fontSize: 21 }} />
-          </Box>
-        )
-      )}
-      <Box sx={{ minWidth: 0, display: logoOnly ? 'none' : 'block' }}>
-        <Typography noWrap sx={{ fontSize: '0.625rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'var(--brand-strong)', lineHeight: 1.4 }}>
-          {compact ? organisationName : over}
-        </Typography>
-        <Typography noWrap sx={{ fontFamily: fonts.display, fontWeight: 600, fontSize: { xs: 18, md: 22 }, lineHeight: 1.1, letterSpacing: '0.01em' }}>
-          {title}
-        </Typography>
-      </Box>
-    </Box>
-  );
-}
-
-/** Today's date as a quiet chip (large screens). */
-function TodayChip() {
-  const today = new Date().toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
-  return (
-    <Box sx={{ display: { xs: 'none', lg: 'flex' }, alignItems: 'center', gap: 0.75, px: 1.5, height: 36, borderRadius: 999, border: 1, borderColor: 'divider', bgcolor: 'background.paper', color: 'text.secondary', flexShrink: 0 }}>
-      <CalendarTodayRoundedIcon sx={{ fontSize: 15, color: 'var(--brand-strong)' }} />
-      <Typography sx={{ fontSize: '0.8125rem', fontWeight: 600, whiteSpace: 'nowrap' }}>{today}</Typography>
-    </Box>
-  );
-}
-
 export default function AppLayout() {
   const desktop = useMediaQuery((theme) => theme.breakpoints.up('md'));
   const phone = useMediaQuery((theme) => theme.breakpoints.down('sm'));
@@ -209,7 +155,8 @@ export default function AppLayout() {
   if (error || !session) return <ErrorState error={error} onRetry={refetch} title="Could not load your account" />;
 
   const width = collapsed ? SIDEBAR_COLLAPSED : SIDEBAR_WIDTH;
-  const branchControl = branchControlFor(pathname, session.branchModules);
+  // The branch picker shows only when there is more than one branch to choose from.
+  const branchControl = session.branches.length > 1 ? branchControlFor(pathname, session.branchModules) : null;
   const panelName = panelNameFor(session.user);
 
   return (
@@ -249,11 +196,7 @@ export default function AppLayout() {
                 <MenuRoundedIcon sx={{ fontSize: 21 }} />
               </IconButton>
             )}
-            <Box sx={{ flex: 1, minWidth: 0 }}>
-              {/* On a narrow phone the branch picker needs the room, so only the logo shows there. */}
-              <PageContext logoUrl={logoUrl} organisationName={session.organisation.name} compact={!desktop} logoOnly={phone && Boolean(branchControl)} />
-            </Box>
-            <TodayChip />
+            <Box sx={{ flex: 1, minWidth: 0 }} />
             {!(phone && branchControl) && <RateTicker />}
             {/* Branch filter on list pages of modules shared with a branch; one-branch picker on dashboard and billing. */}
             {branchControl && <BranchSwitcher branches={session.branches} allowAll={branchControl === 'filter'} />}

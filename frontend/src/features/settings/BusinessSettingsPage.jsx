@@ -4,11 +4,13 @@ import PageHeader from '../../components/PageHeader.jsx';
 import { ErrorState, LoadingState } from '../../components/StateViews.jsx';
 import { usePermission } from '../../hooks/usePermission.js';
 import { formatDateTime } from '../../utils/format.js';
+import { PrintSettingsForm } from './PrintSettingsForm.jsx';
 import { ApprovalSettingsForm, BarcodeSettingsForm, InvoiceSettingsForm, JewellerySettingsForm, TaxSettingsForm } from './settingsForms.jsx';
 import { useSettingsQuery } from './settingsApi.js';
 
 const TABS = [
   { key: 'invoice', label: 'Invoice', Form: InvoiceSettingsForm },
+  { key: 'print', label: 'Print', Form: PrintSettingsForm, wide: true },
   { key: 'tax', label: 'Tax & GST', Form: TaxSettingsForm },
   { key: 'jewellery', label: 'Jewellery', Form: JewellerySettingsForm },
   { key: 'barcode', label: 'Barcode labels', Form: BarcodeSettingsForm },
@@ -40,7 +42,7 @@ export default function BusinessSettingsPage() {
       ) : error ? (
         <ErrorState error={error} onRetry={refetch} />
       ) : (
-        <Box sx={{ maxWidth: 880 }}>
+        <Box sx={{ maxWidth: current.wide ? 1280 : 880 }}>
           <current.Form key={current.key} value={data[current.key]} readOnly={!canEdit} />
         </Box>
       )}

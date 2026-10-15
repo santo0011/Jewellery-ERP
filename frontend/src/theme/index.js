@@ -55,7 +55,8 @@ export const theme = createTheme({
     },
     MuiButton: {
       defaultProps: { disableElevation: true },
-      styleOverrides: { root: { borderRadius: 6, paddingInline: 16, minHeight: 40, [TOUCH]: { minHeight: 44 } }, sizeSmall: { [TOUCH]: { minHeight: 36 } } },
+      // Compact everywhere; touch screens keep a little more height so buttons stay easy to tap.
+      styleOverrides: { root: { borderRadius: 6, paddingInline: 14, paddingBlock: 4, minHeight: 34, [TOUCH]: { minHeight: 40 } }, sizeSmall: { minHeight: 30, [TOUCH]: { minHeight: 34 } } },
     },
     MuiPaper: {
       defaultProps: { elevation: 0 },
@@ -134,7 +135,17 @@ export const theme = createTheme({
       },
     },
     MuiChip: { styleOverrides: { root: { borderRadius: 6, fontWeight: 500 } } },
-    MuiToggleButton: { styleOverrides: { root: { textTransform: 'none', whiteSpace: 'nowrap' } } },
+    // The chosen option is filled like a primary button (e.g. New bill), so it stands out clearly.
+    MuiToggleButton: {
+      styleOverrides: {
+        root: ({ theme }) => ({
+          textTransform: 'none',
+          whiteSpace: 'nowrap',
+          '&.Mui-selected, &.Mui-selected:hover': { backgroundColor: theme.vars.palette.primary.main, color: theme.vars.palette.primary.contrastText, fontWeight: 600 },
+          '&.Mui-selected:hover': { backgroundColor: theme.vars.palette.primary.dark },
+        }),
+      },
+    },
     MuiTooltip: { defaultProps: { arrow: true } },
   },
 });
