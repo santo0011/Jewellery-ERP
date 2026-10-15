@@ -48,8 +48,8 @@ describe('permission enforcement', () => {
     const second = await api().post('/api/v1/branches').set(bearer(owner.token)).send({ code: 'B2', name: 'Second', address: {} });
     const { token } = await createStaffUser(owner.token, ['branch.view'], { all: false, branchIds: [second.body.data._id] });
 
-    const list = await api().get('/api/v1/branches').set(bearer(token));
-    expect(list.body.data.map((b) => b.code)).toEqual(['B2']);
+    // Managing branches is organisation-level: a branch-limited user has no Branches page at all.
+    expect((await api().get('/api/v1/branches').set(bearer(token))).status).toBe(403);
     const me = await api().get('/api/v1/auth/me').set(bearer(token));
     expect(me.body.data.branches.map((b) => b.code)).toEqual(['B2']);
   });

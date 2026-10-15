@@ -10,7 +10,7 @@ import PointOfSaleOutlinedIcon from '@mui/icons-material/PointOfSaleOutlined';
 import PublicOutlinedIcon from '@mui/icons-material/PublicOutlined';
 import ShoppingBagOutlinedIcon from '@mui/icons-material/ShoppingBagOutlined';
 import { Box, Button, ButtonBase, Card, Checkbox, Stack, Tooltip, Typography } from '@mui/material';
-import { isUpcomingPermission, PERMISSION_MODULES } from '@jerp/shared';
+import { isOrganisationLevel, isUpcomingPermission, PERMISSION_MODULES } from '@jerp/shared';
 import { useMemo } from 'react';
 import { EmptyState } from '../../components/StateViews.jsx';
 
@@ -53,20 +53,29 @@ const MODULE_HINTS = {
 };
 
 /**
- * Actions that change the whole organisation, so they work only for people with access to all branches: a branch
- * login or a branch-limited user can hold them but not use them (the server refuses). Marked with a globe.
+ * Organisation-level permissions (see isOrganisationLevel): running the organisation and changing what all branches
+ * share. They apply only to people with access to all branches; a branch login never gets them, even when turned on.
+ * Marked with a globe (a whole area: "Organisation only").
  */
-export const ALL_BRANCHES_ONLY = new Set(['user.create', 'user.edit', 'user.delete', 'branch.create', 'rate.create']);
-export const ALL_BRANCHES_NOTE = 'Works only for users with access to all branches — not for a branch login.';
+export const ALL_BRANCHES_NOTE = 'Organisation-level — only for users with access to all branches. A branch login never gets these, even when turned on here.';
+
+const OrgOnlyBadge = () => (
+  <Tooltip title={ALL_BRANCHES_NOTE} arrow enterTouchDelay={0}>
+    <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.375, px: 0.75, py: 0.125, borderRadius: 999, fontSize: '0.625rem', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap', color: '#2F5D7C', bgcolor: 'rgba(47, 93, 124, 0.10)', border: '1px solid rgba(47, 93, 124, 0.25)' }}>
+      <PublicOutlinedIcon sx={{ fontSize: 12 }} /> Organisation only
+    </Box>
+  </Tooltip>
+);
 
 /** Areas and their actions, grouped — only what does something in the app today (see isUpcomingPermission). */
-export function permissionGroups(only) {
+export function permissionGroups(only, branchRole = false) {
   const groups = [];
   for (const m of PERMISSION_MODULES) {
     if (only && !only.includes(m.key)) continue;
     const actions = Object.entries(m.actions)
       .map(([action, label]) => ({ key: `${m.key}.${action}`, label }))
-      .filter((a) => !isUpcomingPermission(a.key));
+      // A branch role (Branch Manager) is never offered organisation-level permissions.
+      .filter((a) => !isUpcomingPermission(a.key) && !(branchRole && isOrganisationLevel(a.key)));
     if (!actions.length) continue;
     let group = groups.find((g) => g.name === m.group);
     if (!group) groups.push((group = { name: m.group, modules: [] }));
@@ -142,9 +151,9 @@ const CountChip = ({ on, total }) => (
  * to the areas or actions that match; `compact` keeps one column (narrow drawers). Permissions not offered (upcoming
  * features) are kept as they are in `value`.
  */
-export default function PermissionMatrix({ value, onChange, disabled = false, modules: only, search = '', compact = false }) {
+export default function PermissionMatrix({ value, onChange, disabled = false, modules: only, search = '', compact = false, branchRole = false }) {
   const selected = useMemo(() => new Set(value), [value]);
-  const groups = useMemo(() => permissionGroups(only), [only]);
+  const groups = useMemo(() => permissionGroups(only, branchRole), [only, branchRole]);
 
   const q = search.trim().toLowerCase();
   const shown = q
@@ -216,9 +225,10 @@ export default function PermissionMatrix({ value, onChange, disabled = false, mo
                       sx={{ p: 0.5, mt: -0.25, ml: -0.5 }}
                     />
                     <Box sx={{ minWidth: 0, flex: 1 }}>
-                      <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
+                      <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', flexWrap: 'wrap', rowGap: 0.5 }}>
                         <Typography sx={{ fontWeight: 600, fontSize: '0.875rem' }}>{m.label}</Typography>
                         <CountChip on={count} total={mk.length} />
+                        {mk.every(isOrganisationLevel) && <OrgOnlyBadge />}
                       </Stack>
                       {m.hint && (
                         <Typography variant="caption" color="textSecondary" sx={{ display: 'block', lineHeight: 1.35, mt: 0.125 }}>
@@ -229,7 +239,7 @@ export default function PermissionMatrix({ value, onChange, disabled = false, mo
                   </Stack>
                   <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, pl: compact ? 3.5 : { xs: 3.5, md: 0 } }}>
                     {m.actions.map((a) => (
-                      <ActionPill key={a.key} label={a.label} on={selected.has(a.key)} disabled={disabled} allBranchesOnly={ALL_BRANCHES_ONLY.has(a.key)} onToggle={() => toggle([a.key], !selected.has(a.key))} />
+                      <ActionPill key={a.key} label={a.label} on={selected.has(a.key)} disabled={disabled} allBranchesOnly={isOrganisationLevel(a.key) && !mk.every(isOrganisationLevel)} onToggle={() => toggle([a.key], !selected.has(a.key))} />
                     ))}
                   </Box>
                 </Box>

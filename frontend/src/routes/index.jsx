@@ -134,7 +134,7 @@ export const router = createBrowserRouter([
           { path: 'settings/organisation', element: guard('organisation.view', <OrganisationPage />) },
           { path: 'settings/branches', element: guard('branch.view', <BranchesPage />) },
           { path: 'settings/business', element: guard('settings.view', <BusinessSettingsPage />) },
-          { path: 'settings/print', element: guard('settings.view', <PrintSettingsPage />) },
+          { path: 'settings/print', element: guard('sales.print', <PrintSettingsPage />) },
           { path: 'settings/categories', element: guard('category.view', <CategoriesPage />) },
           { path: 'settings/subscription', element: guard('subscription.view', <SubscriptionPage />) },
           { path: 'settings/users', element: guard('user.view', <UsersPage />) },

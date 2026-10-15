@@ -94,7 +94,7 @@ export const NAV_GROUPS = [
       { label: 'Branches', path: '/settings/branches', icon: AccountTreeOutlinedIcon, permission: 'branch.view' },
       { label: 'Business settings', path: '/settings/business', icon: TuneRoundedIcon, permission: 'settings.view' },
       // A branch's own invoice print design — for people who work in particular branches (the organisation sets its own under Business settings → Print).
-      { label: 'Print settings', path: '/settings/print', icon: PrintOutlinedIcon, permission: 'settings.view', ownBranchesOnly: true },
+      { label: 'Print settings', path: '/settings/print', icon: PrintOutlinedIcon, permission: 'sales.print', ownBranchesOnly: true },
       { label: 'Product categories', path: '/settings/categories', icon: CategoryOutlinedIcon, permission: 'category.view' },
       { label: 'Subscription', path: '/settings/subscription', icon: WorkspacePremiumOutlinedIcon, permission: 'subscription.view' },
     ],

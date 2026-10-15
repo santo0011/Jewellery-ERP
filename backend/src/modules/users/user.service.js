@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
 import mongoose from 'mongoose';
-import { BRANCH_STATUS, hasPermission, PLAN_LIMITS, USER_STATUS } from '@jerp/shared';
+import { BRANCH_STATUS, hasPermission, isBranchRole, PLAN_LIMITS, USER_STATUS } from '@jerp/shared';
 import { env } from '../../config/env.js';
 import { withTransaction } from '../../config/db.js';
 import { AUDIT_ACTIONS, recordAudit } from '../../core/audit/audit.service.js';
@@ -15,11 +15,13 @@ import { User } from './user.model.js';
 import { limitsOf } from '../billing/limits.js';
 import { assertEmailAvailable } from './emailAvailability.js';
 
-const PUBLIC_FIELDS = 'name email mobile roleIds branchAccess defaultBranchId isOwner status lastLoginAt mustChangePassword createdAt';
+const PUBLIC_FIELDS = 'name email mobile roleIds branchAccess defaultBranchId isOwner status lastLoginAt mustChangePassword createdAt branchLoginFor';
 
 const toObjectIds = (ids) => ids.map((id) => new mongoose.Types.ObjectId(String(id)));
 
 function serialize(user, rolesById, branchesById) {
+  // A branch login always works in its own branch only (whatever is stored), so that is what it shows.
+  const access = user.branchLoginFor ? { all: false, branchIds: [user.branchLoginFor] } : (user.branchAccess ?? {});
   return {
     id: user._id,
     name: user.name,
@@ -31,9 +33,10 @@ function serialize(user, rolesById, branchesById) {
     lastLoginAt: user.lastLoginAt,
     createdAt: user.createdAt,
     roles: (user.roleIds ?? []).map((id) => rolesById.get(String(id))).filter(Boolean),
+    branchLogin: Boolean(user.branchLoginFor),
     branchAccess: {
-      all: Boolean(user.branchAccess?.all),
-      branches: (user.branchAccess?.branchIds ?? []).map((id) => branchesById.get(String(id))).filter(Boolean),
+      all: Boolean(access.all),
+      branches: (access.branchIds ?? []).map((id) => branchesById.get(String(id))).filter(Boolean),
     },
     defaultBranch: user.defaultBranchId ? (branchesById.get(String(user.defaultBranchId)) ?? null) : null,
   };
@@ -60,11 +63,23 @@ async function findUser(id) {
 }
 
 async function resolveRoles(roleIds) {
-  const roles = await Role.find({ _id: { $in: roleIds } }).select('permissions name').lean();
+  const roles = await Role.find({ _id: { $in: roleIds } }).select('permissions name key').lean();
   if (roles.length !== new Set(roleIds.map(String)).size) {
     throw ApiError.badRequest('One or more roles are invalid', [{ path: 'roleIds', message: 'Select valid roles' }], 'VALIDATION_ERROR');
   }
   return roles;
+}
+
+/** Branch Manager (a branch role) works in particular branches: it cannot be given "all branches". */
+function assertBranchRoleAccess(roles, branchAccess) {
+  const branchRole = roles.find((r) => isBranchRole(r.key));
+  if (branchRole && branchAccess.all) {
+    throw ApiError.badRequest(
+      `${branchRole.name} runs particular branches: choose the branches instead of “All branches”.`,
+      [{ path: 'branchAccess.all', message: `${branchRole.name} cannot have access to all branches` }],
+      'BRANCH_ROLE_ALL_BRANCHES',
+    );
+  }
 }
 
 function assertCanAssign(roles) {
@@ -127,6 +142,7 @@ export async function createUser(input) {
   const { userId } = requireContext();
   const roles = await resolveRoles(input.roleIds);
   assertCanAssign(roles);
+  assertBranchRoleAccess(roles, input.branchAccess);
   await assertBranches(input);
   await assertUserLimit();
 
@@ -163,18 +179,22 @@ export async function updateUser(id, input) {
 
   const rolesChanged = JSON.stringify(user.roleIds.map(String).sort()) !== JSON.stringify([...input.roleIds].sort());
   const branchAccess = { all: input.branchAccess.all, branchIds: input.branchAccess.all ? [] : input.branchAccess.branchIds };
-  const accessChanged =
-    Boolean(user.branchAccess?.all) !== branchAccess.all ||
-    JSON.stringify((user.branchAccess?.branchIds ?? []).map(String).sort()) !== JSON.stringify([...branchAccess.branchIds].sort());
+  // Compared with the access that applies: a branch login's is always its own branch (whatever is stored), so saving it
+  // also puts the stored value right.
+  const current = user.branchLoginFor ? { all: false, branchIds: [String(user.branchLoginFor)] } : { all: Boolean(user.branchAccess?.all), branchIds: (user.branchAccess?.branchIds ?? []).map(String) };
+  const accessChanged = current.all !== branchAccess.all || JSON.stringify([...current.branchIds].sort()) !== JSON.stringify([...branchAccess.branchIds].sort());
 
   if ((rolesChanged || accessChanged) && user.isOwner) throw ApiError.forbidden('The owner’s roles and branch access cannot be changed', 'OWNER_PROTECTED');
+  // A branch login always works in its own branch only (its role and access are set from the branch's page).
+  if ((rolesChanged || accessChanged) && user.branchLoginFor) throw ApiError.forbidden('This is a branch login: it always works in its own branch only.', 'BRANCH_LOGIN_PROTECTED');
   if ((rolesChanged || accessChanged) && isSelf) throw ApiError.forbidden('You cannot change your own roles or branch access', 'SELF_PROTECTED');
 
+  const roles = await resolveRoles(input.roleIds);
   if (rolesChanged) {
     const current = new Set(user.roleIds.map(String));
-    const roles = await resolveRoles(input.roleIds);
     assertCanAssign(roles.filter((r) => !current.has(String(r._id))));
   }
+  if (rolesChanged || accessChanged) assertBranchRoleAccess(roles, branchAccess);
   await assertBranches({ branchAccess, defaultBranchId: input.defaultBranchId });
 
   const changes = [];

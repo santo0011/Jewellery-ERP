@@ -5,7 +5,7 @@ import PublicOutlinedIcon from '@mui/icons-material/PublicOutlined';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import ShieldOutlinedIcon from '@mui/icons-material/ShieldOutlined';
 import { Alert, Box, Button, Card, CardContent, Divider, Grid, InputAdornment, LinearProgress, Paper, Stack, TextField, Typography } from '@mui/material';
-import { AVAILABLE_PERMISSIONS, isUpcomingPermission } from '@jerp/shared';
+import { AVAILABLE_PERMISSIONS, isBranchRole, isOrganisationLevel, isUpcomingPermission } from '@jerp/shared';
 import { roleSchema } from '@jerp/shared/schemas';
 import { useEffect, useMemo, useState } from 'react';
 import { Controller, useForm, useWatch } from 'react-hook-form';
@@ -21,7 +21,7 @@ import PermissionMatrix, { ALL_BRANCHES_NOTE, permissionGroups } from './Permiss
 import { useCreateRoleMutation, useDuplicateRoleMutation, useRoleQuery, useUpdateRoleMutation } from './roleApi.js';
 
 const EMPTY = { name: '', description: '', permissions: [] };
-const GROUPS = permissionGroups();
+const BRANCH_AVAILABLE = AVAILABLE_PERMISSIONS.filter((p) => !isOrganisationLevel(p));
 
 const Bar = ({ value, height = 6 }) => (
   <LinearProgress
@@ -32,10 +32,12 @@ const Bar = ({ value, height = 6 }) => (
 );
 
 /** How much of the app the role opens: the total, then each area group as a small bar. */
-function Coverage({ permissions }) {
+function Coverage({ permissions, branchRole }) {
+  const GROUPS = useMemo(() => permissionGroups(undefined, branchRole), [branchRole]);
+  const AVAILABLE = branchRole ? BRANCH_AVAILABLE : AVAILABLE_PERMISSIONS;
   const selected = useMemo(() => new Set(permissions), [permissions]);
-  const on = AVAILABLE_PERMISSIONS.filter((p) => selected.has(p)).length;
-  const total = AVAILABLE_PERMISSIONS.length;
+  const on = AVAILABLE.filter((p) => selected.has(p)).length;
+  const total = AVAILABLE.length;
   return (
     <Box>
       <Stack direction="row" sx={{ alignItems: 'baseline', justifyContent: 'space-between', mb: 0.75 }}>
@@ -88,6 +90,7 @@ export default function RoleEditorPage() {
 
   // Default roles can be edited; only Organisation Admin (full access) is fixed.
   const readOnly = isNew ? !canCreate : role?.fullAccess || !canEdit;
+  const branchRole = isBranchRole(role?.key);
   const { control, handleSubmit, reset, setError, setValue, formState } = useForm({ resolver: zodResolver(roleSchema), defaultValues: EMPTY });
   const permissions = useWatch({ control, name: 'permissions' }) ?? [];
 
@@ -126,7 +129,7 @@ export default function RoleEditorPage() {
 
   // Everything / nothing the app offers today; permissions for upcoming features are left as they are.
   const setAll = (on) =>
-    setValue('permissions', on ? [...new Set([...permissions, ...AVAILABLE_PERMISSIONS])] : permissions.filter(isUpcomingPermission), { shouldDirty: true, shouldValidate: true });
+    setValue('permissions', on ? [...new Set([...permissions, ...(branchRole ? BRANCH_AVAILABLE : AVAILABLE_PERMISSIONS)])] : permissions.filter(isUpcomingPermission), { shouldDirty: true, shouldValidate: true });
 
   const saving = createState.isLoading || updateState.isLoading;
 
@@ -146,6 +149,12 @@ export default function RoleEditorPage() {
           )
         }
       />
+
+      {branchRole && (
+        <Alert severity="info" icon={<PublicOutlinedIcon />} sx={{ mb: 2.5 }}>
+          {role.name} is a branch role: it runs particular branches and never the organisation, so organisation-level permissions (branches, users, roles, settings, audit log, subscription…) are not offered. People with this role always work in chosen branches.
+        </Alert>
+      )}
 
       {!isNew && role.isSystem && (
         <Alert severity="info" sx={{ mb: 2.5 }}>
@@ -179,7 +188,7 @@ export default function RoleEditorPage() {
                 <RHFTextField control={control} name="name" label="Role name" disabled={readOnly} />
                 <RHFTextField control={control} name="description" label="Description" multiline minRows={2} disabled={readOnly} />
                 <Divider />
-                <Coverage permissions={permissions} />
+                <Coverage permissions={permissions} branchRole={branchRole} />
                 {!readOnly && (
                   <Stack direction="row" spacing={1}>
                     <Button size="small" variant="outlined" color="secondary" fullWidth onClick={() => setAll(true)}>
@@ -209,7 +218,7 @@ export default function RoleEditorPage() {
             <PublicOutlinedIcon sx={{ fontSize: 15 }} />
             <Typography variant="caption">{ALL_BRANCHES_NOTE}</Typography>
           </Stack>
-          <Controller name="permissions" control={control} render={({ field }) => <PermissionMatrix value={field.value} onChange={field.onChange} disabled={readOnly} search={search} />} />
+          <Controller name="permissions" control={control} render={({ field }) => <PermissionMatrix value={field.value} onChange={field.onChange} disabled={readOnly} search={search} branchRole={branchRole} />} />
         </Grid>
       </Grid>
 

@@ -358,7 +358,7 @@ export async function getMe(auth) {
       mobile: user.mobile,
       isOwner: user.isOwner,
       defaultBranchId: user.defaultBranchId,
-      allBranches: Boolean(user.branchAccess?.all),
+      allBranches: Boolean(auth.branchAccess.all), // as enforced (a branch login never has all branches)
       lastLoginAt: user.lastLoginAt,
       mustChangePassword: Boolean(user.mustChangePassword),
       signedInWithCode: currentSession?.signedInWith === 'code', // can set a new password without the old one

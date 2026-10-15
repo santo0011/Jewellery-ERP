@@ -11,7 +11,8 @@ import { PaperPreview } from '../print/PrintSheet.jsx';
 import { DEFAULT_LAYOUT, designsFor, layoutLabel, PRINT_SIZES } from '../print/printLayouts.js';
 import { sampleInvoice } from '../print/sampleInvoice.js';
 import SettingsSectionForm from './SettingsSectionForm.jsx';
-import { useSettingsQuery, useUpdateBranchPrintMutation } from './settingsApi.js';
+import { ErrorState, LoadingState } from '../../components/StateViews.jsx';
+import { useBranchPrintQuery, useSettingsQuery, useUpdateBranchPrintMutation } from './settingsApi.js';
 
 
 /** A selectable card: a gold outline and tick when chosen. */
@@ -88,12 +89,13 @@ function DesignCard({ design, layout, sale, logo, selected, onClick, disabled })
  * Paper size and design cards beside a live preview of a sample bill. Controlled: `choice` is { size, design },
  * `onChange` gets the new one (a new size starts on its first design).
  */
-function PrintChooser({ choice, onChange, disabled, title }) {
+function PrintChooser({ choice, onChange, disabled, title, invoice }) {
   const { data: session } = useSession();
-  const { data: settings } = useSettingsQuery();
+  // The preview follows Invoice settings: passed in for a branch (it cannot read the organisation's settings).
+  const { data: settings } = useSettingsQuery(undefined, { skip: Boolean(invoice) });
   const logo = useOrganisationLogo();
   const sale = useMemo(() => sampleInvoice(session?.organisation), [session?.organisation]);
-  const layout = { ...DEFAULT_LAYOUT, ...settings?.invoice, ...choice, copies: 1 };
+  const layout = { ...DEFAULT_LAYOUT, ...(invoice ?? settings?.invoice), ...choice, copies: 1 };
   const choose = (next) => onChange(PRINT_DESIGNS[next.size].includes(next.design) ? next : { ...next, design: PRINT_DESIGNS[next.size][0] });
 
   return (
@@ -179,7 +181,7 @@ function OrganisationPrintForm({ value, readOnly }) {
   );
 }
 
-function BranchChooser({ control, readOnly, orgChoice, branchName }) {
+function BranchChooser({ control, readOnly, orgChoice, branchName, invoice }) {
   const mode = useController({ control, name: 'mode' }).field;
   const size = useController({ control, name: 'size' }).field;
   const design = useController({ control, name: 'design' }).field;
@@ -202,6 +204,7 @@ function BranchChooser({ control, readOnly, orgChoice, branchName }) {
         choice={{ size: size.value, design: design.value }}
         disabled={readOnly || mode.value === 'default'}
         title={branchName}
+        invoice={invoice}
         onChange={(next) => {
           size.onChange(next.size);
           design.onChange(next.design);
@@ -214,7 +217,7 @@ function BranchChooser({ control, readOnly, orgChoice, branchName }) {
 /**
  * One branch's print design, set by the branch itself: the organisation's, or its own size and design.
  */
-function BranchPrintForm({ branch, value, readOnly }) {
+function BranchPrintForm({ branch, value, readOnly, invoice }) {
   const [saveBranch] = useUpdateBranchPrintMutation();
   const orgChoice = { size: value.size, design: value.design };
   const own = value.branches?.find((b) => b.branchId === branch.id);
@@ -235,7 +238,7 @@ function BranchPrintForm({ branch, value, readOnly }) {
         await saveBranch({ branchId: branch.id, choice: mode === 'own' ? { size, design } : null }).unwrap();
       }}
     >
-      {({ control }) => <BranchChooser control={control} readOnly={readOnly} orgChoice={orgChoice} branchName={branch.name} />}
+      {({ control }) => <BranchChooser control={control} readOnly={readOnly} orgChoice={orgChoice} branchName={branch.name} invoice={invoice} />}
     </SettingsSectionForm>
   );
 }
@@ -245,12 +248,27 @@ function BranchPrintForm({ branch, value, readOnly }) {
  * signed in to that branch, sets its own — nobody sets another branch's.
  */
 export function PrintSettingsForm({ value }) {
-  const { data: session } = useSession();
   const canEditAll = usePermission('settings.edit');
+  return <OrganisationPrintForm value={value} readOnly={!canEditAll} />;
+}
+
+/**
+ * A branch's own Print settings page (Settings → Print settings, for people who work in particular branches): reads
+ * only that branch's print setup from the server, never the organisation's settings.
+ */
+export function BranchPrintSettings() {
+  const { data: session } = useSession();
   const canPrint = usePermission('sales.print');
   const branches = session?.branches ?? [];
-  const myBranch = branches.find((b) => b.id === session?.activeBranchId) ?? branches[0];
+  const branch = branches.find((b) => b.id === session?.activeBranchId) ?? branches[0];
+  const { data, isLoading, error, refetch } = useBranchPrintQuery(branch?.id, { skip: !branch });
+  const value = useMemo(
+    () => data && { ...data.organisation, branches: data.choice ? [{ branchId: data.branch.id, ...data.choice }] : [] },
+    [data],
+  );
 
-  if (!session?.user?.allBranches && myBranch) return <BranchPrintForm branch={myBranch} value={value} readOnly={!canPrint} />;
-  return <OrganisationPrintForm value={value} readOnly={!canEditAll} />;
+  if (!branch) return null;
+  if (isLoading) return <LoadingState label="Loading print settings" />;
+  if (error) return <ErrorState error={error} onRetry={refetch} />;
+  return <BranchPrintForm branch={{ id: data.branch.id, name: data.branch.name }} value={value} invoice={data.invoice} readOnly={!canPrint} />;
 }

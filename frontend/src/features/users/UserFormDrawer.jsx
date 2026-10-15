@@ -1,5 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Alert, Grid, Typography } from '@mui/material';
+import { isBranchRole } from '@jerp/shared';
 import { createUserSchema, updateUserSchema } from '@jerp/shared/schemas';
 import { useEffect, useMemo } from 'react';
 import { useForm, useWatch } from 'react-hook-form';
@@ -36,7 +37,7 @@ export default function UserFormDrawer({ open, user, onClose }) {
   const [updateUser, updateState] = useUpdateUserMutation();
 
   const isSelf = editing && String(user.id) === String(session.user.id);
-  const accessLocked = editing && (user.isOwner || isSelf);
+  const accessLocked = editing && (user.isOwner || isSelf || user.branchLogin);
 
   const { control, handleSubmit, reset, setError, setValue } = useForm({
     resolver: zodResolver(editing ? updateUserSchema : createUserSchema),
@@ -53,6 +54,12 @@ export default function UserFormDrawer({ open, user, onClose }) {
   }, [open, user, reset]);
 
   const allBranches = useWatch({ control, name: 'branchAccess.all' });
+  const roleIds = useWatch({ control, name: 'roleIds' });
+  // A branch role (Branch Manager) runs particular branches: never "all branches".
+  const branchRole = roles.find((r) => (roleIds ?? []).includes(String(r.id)) && isBranchRole(r.key));
+  useEffect(() => {
+    if (branchRole && allBranches && !accessLocked) setValue('branchAccess.all', false, { shouldDirty: true });
+  }, [branchRole, allBranches, accessLocked, setValue]);
   const branchIds = useWatch({ control, name: 'branchAccess.branchIds' });
   const defaultBranchId = useWatch({ control, name: 'defaultBranchId' });
 
@@ -126,14 +133,22 @@ export default function UserFormDrawer({ open, user, onClose }) {
         </Grid>
         {accessLocked && (
           <Grid size={12}>
-            <Alert severity="info">{user.isOwner ? 'The owner always keeps full access.' : 'You cannot change your own roles or branch access.'}</Alert>
+            <Alert severity="info">
+              {user.isOwner ? 'The owner always keeps full access.' : user.branchLogin ? 'A branch login always works in its own branch only. Its password is set from the branch’s page.' : 'You cannot change your own roles or branch access.'}
+            </Alert>
           </Grid>
         )}
         <Grid size={12}>
           <RHFMultiSelect control={control} name="roleIds" label="Roles" options={roleOptions} disabled={accessLocked} helperText="Permissions from all selected roles are combined" />
         </Grid>
         <Grid size={12}>
-          <RHFSwitch control={control} name="branchAccess.all" label="All branches" description="Includes branches added in future" disabled={accessLocked} />
+          <RHFSwitch
+            control={control}
+            name="branchAccess.all"
+            label="All branches"
+            description={branchRole ? `${branchRole.name} runs particular branches — choose them below.` : 'Includes branches added in future'}
+            disabled={accessLocked || Boolean(branchRole)}
+          />
         </Grid>
         {!allBranches && (
           <Grid size={12}>

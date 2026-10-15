@@ -11,6 +11,7 @@ import { paginate, searchFilter } from '../../utils/pagination.js';
 import { Product } from '../products/product.model.js';
 import { todayContext } from '../../utils/businessDate.js';
 import { Purchase, PurchaseOrder } from '../purchases/purchase.model.js';
+import { accessibleBranchFilter } from '../inventory/inventory.helpers.js';
 import { Supplier } from './supplier.model.js';
 
 const TRACKED = [
@@ -73,7 +74,9 @@ async function supplierSummary() {
   const month = today.businessDate.slice(0, 7);
   const [active, [bills]] = await Promise.all([
     Supplier.countDocuments({ isDeleted: false, status: 'active' }),
+    // Purchase figures: only the branches this user works in.
     Purchase.aggregate([
+      { $match: accessibleBranchFilter() },
       {
         $group: {
           _id: null,
@@ -96,7 +99,7 @@ export async function getSupplier(id) {
 async function supplierStats(supplier) {
   const [[bills], openOrders] = await Promise.all([
     Purchase.aggregate([
-      { $match: { supplierId: supplier._id } },
+      { $match: { supplierId: supplier._id, ...accessibleBranchFilter() } },
       {
         $group: {
           _id: null,
@@ -108,7 +111,7 @@ async function supplierStats(supplier) {
         },
       },
     ]),
-    PurchaseOrder.countDocuments({ supplierId: supplier._id, status: 'open' }),
+    PurchaseOrder.countDocuments({ supplierId: supplier._id, status: 'open', ...accessibleBranchFilter() }),
   ]);
   const purchased = bills?.purchasedPaise ?? 0;
   const paid = bills?.paidPaise ?? 0;

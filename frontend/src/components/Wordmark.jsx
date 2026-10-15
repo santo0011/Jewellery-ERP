@@ -5,8 +5,8 @@ import { fonts } from '../theme/tokens.js';
 export function DiamondMark({ size = 28 }) {
   return (
     <Box component="svg" viewBox="0 0 64 64" sx={{ width: size, height: size, flexShrink: 0 }} aria-hidden>
-      <path d="M32 10 48 26 32 54 16 26Z" fill="none" stroke="#C9A227" strokeWidth="3.5" strokeLinejoin="round" />
-      <path d="M16 26h32M25 26l7-16 7 16M25 26l7 28 7-28" fill="none" stroke="#C9A227" strokeWidth="2" strokeLinejoin="round" />
+      <path d="M32 10 48 26 32 54 16 26Z" fill="none" stroke="var(--brand)" strokeWidth="3.5" strokeLinejoin="round" />
+      <path d="M16 26h32M25 26l7-16 7 16M25 26l7 28 7-28" fill="none" stroke="var(--brand)" strokeWidth="2" strokeLinejoin="round" />
     </Box>
   );
 }

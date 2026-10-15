@@ -86,6 +86,21 @@ const BRANCH_SCOPED = new Set(BRANCH_SCOPED_MODULES);
 
 export const isBranchScoped = (permission) => BRANCH_SCOPED.has(permission.split('.')[0]);
 
+/**
+ * Organisation-level permissions: running the organisation itself (its details, branches, users, roles, settings,
+ * audit log, subscription) and changing what every branch shares (categories, metal rates). Only people with access
+ * to all branches get them — someone who works in particular branches (a branch login included) never does, whatever
+ * their role says. The server drops them from such a user's permissions, so menus, pages and APIs all follow.
+ */
+export const ORGANISATION_MODULES = Object.freeze(['organisation', 'branch', 'user', 'role', 'settings', 'audit', 'subscription']);
+const ORG_ONLY_ACTIONS = new Set(['category.create', 'category.edit', 'category.delete', 'rate.create']);
+const ORG_MODULE_SET = new Set(ORGANISATION_MODULES);
+
+export const isOrganisationLevel = (permission) => ORG_MODULE_SET.has(permission.split('.')[0]) || ORG_ONLY_ACTIONS.has(permission);
+
+/** A user's permissions as they apply: branch-limited users lose the organisation-level ones. */
+export const withinBranchAccess = (permissions, allBranches) => (allBranches ? permissions : permissions.filter((p) => !isOrganisationLevel(p)));
+
 export const BRANCH_PERMISSIONS = Object.freeze(ALL_PERMISSIONS.filter(isBranchScoped));
 
 /**

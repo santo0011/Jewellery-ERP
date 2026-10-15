@@ -1,5 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import AccessTimeRoundedIcon from '@mui/icons-material/AccessTimeRounded';
+import ComputerOutlinedIcon from '@mui/icons-material/ComputerOutlined';
+import SmartphoneOutlinedIcon from '@mui/icons-material/SmartphoneOutlined';
 import DevicesRoundedIcon from '@mui/icons-material/DevicesRounded';
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import StorefrontOutlinedIcon from '@mui/icons-material/StorefrontOutlined';
@@ -27,10 +29,9 @@ import {
   Divider,
   Grid,
   IconButton,
-  List,
-  ListItem,
-  ListItemText,
   Stack,
+  Tab,
+  Tabs,
   TextField,
   Tooltip,
   Typography,
@@ -48,6 +49,7 @@ import RHFTextField from '../../components/form/RHFTextField.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
 import SummaryCards, { SummaryCard } from '../../components/SummaryCards.jsx';
 import { ErrorState, LoadingState } from '../../components/StateViews.jsx';
+import { useTabParam } from '../../hooks/useListParams.js';
 import { usePermission, useSession } from '../../hooks/usePermission.js';
 import { sessionEnded } from '../../store/authSlice.js';
 import { applyServerErrors, getErrorMessage } from '../../utils/errors.js';
@@ -66,15 +68,15 @@ const passwordFormSchema = changePasswordSchema
 
 function Section({ title, description, children }) {
   return (
-    <Card>
-      <CardContent sx={{ p: { xs: 2.5, sm: 3 } }}>
+    <Card sx={{ height: '100%' }}>
+      <CardContent sx={{ p: { xs: 2, sm: 3 }, '&:last-child': { pb: { xs: 2, sm: 3 } } }}>
         <Typography variant="h4">{title}</Typography>
         {description && (
           <Typography variant="body2" color="textSecondary" sx={{ mt: 0.5 }}>
             {description}
           </Typography>
         )}
-        <Divider sx={{ my: 2.5 }} />
+        <Divider sx={{ my: { xs: 2, sm: 2.5 } }} />
         {children}
       </CardContent>
     </Card>
@@ -184,32 +186,36 @@ function SessionsList() {
 
   return (
     <>
-      <List disablePadding>
-        {data.map((s) => (
-          <ListItem
-            key={s.id}
-            disableGutters
-            divider
-            secondaryAction={
-              s.current ? (
-                <Chip label="This device" size="small" color="primary" />
-              ) : (
-                <Button size="small" color="error" onClick={() => revoke(s.id)} loading={revoking && originalArgs === s.id}>
+      {/* Each device: a phone or computer icon, what it is, where and when it was last used, and sign out. */}
+      <Stack divider={<Divider flexItem />}>
+        {data.map((s) => {
+          const DeviceIcon = /mobile|android|iphone|ipad/i.test(s.userAgent ?? '') ? SmartphoneOutlinedIcon : ComputerOutlinedIcon;
+          return (
+            <Stack key={s.id} direction="row" spacing={1.5} sx={{ py: 1.5, alignItems: 'center' }}>
+              <Box sx={{ width: 40, height: 40, flexShrink: 0, borderRadius: 2, display: 'grid', placeItems: 'center', bgcolor: s.current ? 'rgba(var(--brand-rgb), 0.14)' : 'action.hover', color: s.current ? 'var(--brand-strong)' : 'text.secondary' }}>
+                <DeviceIcon sx={{ fontSize: 21 }} />
+              </Box>
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap', rowGap: 0.5 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    {describeDevice(s.userAgent)}
+                  </Typography>
+                  {s.current && <Chip label="This device" size="small" color="primary" sx={{ height: 20, fontSize: '0.6875rem', fontWeight: 600 }} />}
+                </Stack>
+                <Typography variant="caption" color="textSecondary" sx={{ display: 'block', lineHeight: 1.4, mt: 0.25 }}>
+                  {s.ip ?? 'Unknown IP'} · Last active {formatDateTime(s.lastUsedAt)}
+                </Typography>
+              </Box>
+              {!s.current && (
+                <Button size="small" color="error" onClick={() => revoke(s.id)} loading={revoking && originalArgs === s.id} sx={{ flexShrink: 0 }}>
                   Sign out
                 </Button>
-              )
-            }
-          >
-            <ListItemText
-              primary={describeDevice(s.userAgent)}
-              secondary={`${s.ip ?? 'Unknown IP'} · Last active ${formatDateTime(s.lastUsedAt)}`}
-              slotProps={{ primary: { sx: { fontWeight: 500 } } }}
-              sx={{ pr: 12 }}
-            />
-          </ListItem>
-        ))}
-      </List>
-      <Stack direction="row" sx={{ justifyContent: 'flex-end', mt: 2 }}>
+              )}
+            </Stack>
+          );
+        })}
+      </Stack>
+      <Stack direction="row" sx={{ justifyContent: 'flex-end', mt: 1.5 }}>
         <Button color="error" variant="outlined" onClick={() => setConfirmAll(true)}>
           Sign out of all devices
         </Button>
@@ -328,7 +334,8 @@ function ProfileStats({ session }) {
       hint: branches.map((b) => b.name).join(', '),
       tone: 'amber',
     },
-    subscription && { icon: WorkspacePremiumOutlinedIcon, label: 'Plan', value: subscription.planName, hint: planHint, tone: subscription.expired ? 'red' : 'gold' },
+    // The plan is the organisation's: only people with access to all branches see it.
+    subscription && user.allBranches && { icon: WorkspacePremiumOutlinedIcon, label: 'Plan', value: subscription.planName, hint: planHint, tone: subscription.expired ? 'red' : 'gold' },
   ].filter(Boolean);
 
   return (
@@ -542,39 +549,65 @@ function OrganisationCard({ session }) {
 export default function ProfilePage() {
   const { data: session } = useSession();
   const canEditOrganisation = usePermission('organisation.edit');
+  // The Organisation tab is the organisation's own details: not for people who work in particular branches.
+  const showOrganisation = Boolean(session.user.allBranches);
+  const [chosenTab, setTab] = useTabParam('account');
+  const tab = chosenTab === 'organisation' && !showOrganisation ? 'account' : chosenTab;
 
   return (
     <>
       <PageHeader title="Profile & security" subtitle="Manage your personal details, password and signed-in devices." />
-      <Stack spacing={3}>
+      <Stack spacing={{ xs: 2, sm: 3 }}>
         <ProfileHero session={session} />
         {session.user.mustChangePassword && <Alert severity="warning">Your administrator has asked you to change your password. Please set a new one below.</Alert>}
         <ProfileStats session={session} />
-        <Grid container spacing={3}>
-          <Grid size={{ xs: 12, lg: 6 }}>
-            <Stack spacing={3}>
-              <Section title="Personal details">
-                <ProfileForm user={session.user} />
-              </Section>
-              <Section title="Password" description="Changing your password signs you out on other devices.">
-                <ChangePasswordForm />
-              </Section>
-              <OrganisationCard session={session} />
-            </Stack>
-          </Grid>
-          <Grid size={{ xs: 12, lg: 6 }}>
-            <Stack spacing={3}>
-              <LogoCard
-                canEdit={canEditOrganisation}
-                title="Organisation logo"
-                caption={canEditOrganisation ? 'Shown at the top of the sidebar and printed on invoices. PNG, JPEG or WebP up to 1 MB; a square logo looks best.' : 'Shown at the top of the sidebar and printed on invoices. Ask an administrator to change it.'}
-              />
+
+        {/* The rest in three tabs, so the page stays short (the open one is kept in the address). */}
+        <Box>
+          <Tabs value={tab} onChange={(e, v) => setTab(v)} variant="fullWidth" sx={{ mb: { xs: 2, sm: 2.5 }, borderBottom: 1, borderColor: 'divider', maxWidth: { sm: 520 }, '& .MuiTab-root': { minHeight: 44 } }}>
+            <Tab value="account" label="Account" />
+            <Tab value="devices" label="Devices" />
+            {showOrganisation && <Tab value="organisation" label="Organisation" />}
+          </Tabs>
+
+          {tab === 'account' && (
+            <Grid container spacing={{ xs: 2, sm: 3 }}>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <Section title="Personal details">
+                  <ProfileForm user={session.user} />
+                </Section>
+              </Grid>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <Section title="Password" description="Changing your password signs you out on other devices.">
+                  <ChangePasswordForm />
+                </Section>
+              </Grid>
+            </Grid>
+          )}
+
+          {tab === 'devices' && (
+            <Box sx={{ maxWidth: 820 }}>
               <Section title="Signed-in devices" description="Sign out of any device you do not recognise.">
                 <SessionsList />
               </Section>
-            </Stack>
-          </Grid>
-        </Grid>
+            </Box>
+          )}
+
+          {tab === 'organisation' && (
+            <Grid container spacing={{ xs: 2, sm: 3 }}>
+              <Grid size={{ xs: 12, lg: 7 }}>
+                <OrganisationCard session={session} />
+              </Grid>
+              <Grid size={{ xs: 12, lg: 5 }}>
+                <LogoCard
+                  canEdit={canEditOrganisation}
+                  title="Organisation logo"
+                  caption={canEditOrganisation ? 'Shown at the top of the sidebar and printed on invoices. PNG, JPEG or WebP up to 1 MB; a square logo looks best.' : 'Shown at the top of the sidebar and printed on invoices. Ask an administrator to change it.'}
+                />
+              </Grid>
+            </Grid>
+          )}
+        </Box>
       </Stack>
     </>
   );

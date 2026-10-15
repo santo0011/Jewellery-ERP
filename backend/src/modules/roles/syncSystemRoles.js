@@ -1,4 +1,4 @@
-import { SYSTEM_ROLE_TEMPLATES } from '@jerp/shared';
+import { BRANCH_ROLE_KEYS, ORGANISATION_LEVEL_PERMISSIONS, SYSTEM_ROLE_TEMPLATES, WILDCARD_PERMISSION } from '@jerp/shared';
 import { logger } from '../../config/logger.js';
 import { Role } from './role.model.js';
 
@@ -14,6 +14,12 @@ export async function syncSystemRoles() {
     const res = await Role.updateMany({ isSystem: true, key: t.key, customised: { $ne: true } }, { $set: { name: t.name, description: t.description, permissions: t.permissions } }).setOptions({ skipTenant: true });
     changed += res.modifiedCount ?? 0;
   }
+  // Branch roles (Branch Manager) never keep organisation-level permissions — also where an organisation edited them.
+  const cleaned = await Role.updateMany(
+    { key: { $in: BRANCH_ROLE_KEYS }, permissions: { $in: [...ORGANISATION_LEVEL_PERMISSIONS, WILDCARD_PERMISSION] } },
+    { $pull: { permissions: { $in: [...ORGANISATION_LEVEL_PERMISSIONS, WILDCARD_PERMISSION] } } },
+  ).setOptions({ skipTenant: true });
+  if (cleaned.modifiedCount) logger.info({ cleaned: cleaned.modifiedCount }, 'Organisation-level permissions removed from branch roles');
   const retired = await Role.updateMany({ isSystem: true, key: { $nin: SYSTEM_ROLE_TEMPLATES.map((t) => t.key) } }, { $set: { isSystem: false } }).setOptions({ skipTenant: true });
   if (changed) logger.info({ changed }, 'Default roles updated to the latest templates');
   if (retired.modifiedCount) logger.info({ retired: retired.modifiedCount }, 'Former default roles turned into ordinary roles');

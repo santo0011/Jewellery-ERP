@@ -40,7 +40,9 @@ describe('branch login', () => {
 
     const own = await api().put(`/api/v1/settings/print/branches/${branchId}`).set(bearer(t)).send({ choice: { size: 'thermal80', design: 'detailed' } });
     expect(own.status).toBe(200);
-    expect(own.body.data.print).toMatchObject({ size: 'a4', design: 'classic', branches: [{ branchId, size: 'thermal80', design: 'detailed' }] });
+    // Only this branch's print setup comes back — never the organisation's settings.
+    expect(own.body.data).toMatchObject({ branch: { id: branchId }, choice: { size: 'thermal80', design: 'detailed' }, organisation: { size: 'a4', design: 'classic' } });
+    expect(own.body.data.print).toBeUndefined();
 
     expect((await api().put(`/api/v1/settings/print/branches/${ho}`).set(bearer(t)).send({ choice: { size: 'a4', design: 'royal' } })).status).toBe(403);
     expect((await api().put('/api/v1/settings/print').set(bearer(t)).send({ size: 'a4', design: 'royal', branches: [] })).status).toBe(403);
@@ -53,10 +55,10 @@ describe('branch login', () => {
     expect((await api().put(`/api/v1/settings/print/branches/${branchId}`).set(bearer(owner.token)).send({ choice: null })).status).toBe(403);
 
     const back = await api().put(`/api/v1/settings/print/branches/${branchId}`).set(bearer(t)).send({ choice: null });
-    expect(back.body.data.print.branches).toEqual([]);
+    expect(back.body.data.choice).toBeNull();
   });
 
-  it('gets every permission its role is given — e.g. the audit log once Branch Manager may view it', async () => {
+  it('never gets organisation-level permissions — e.g. not the audit log, even when Branch Manager may view it', async () => {
     const { owner, email, url } = await setup();
     await api().put(url).set(bearer(owner.token)).send({ password: '123456' });
     const signIn = async () => (await login(email, '123456')).body.data.accessToken;
@@ -66,12 +68,17 @@ describe('branch login', () => {
     const roles = (await api().get('/api/v1/roles').set(bearer(owner.token))).body.data;
     const manager = roles.find((r) => r.key === 'branch_manager');
     const full = (await api().get(`/api/v1/roles/${manager.id}`).set(bearer(owner.token))).body.data;
+    // Branch Manager is a branch role: the server refuses organisation-level permissions for it.
     const saved = await api().put(`/api/v1/roles/${manager.id}`).set(bearer(owner.token)).send({ name: full.name, description: full.description ?? '', permissions: [...full.permissions, 'audit.view'] });
-    expect(saved.status).toBe(200);
+    expect(saved.status).toBe(400);
+    expect(saved.body.error.code).toBe('BRANCH_ROLE_ORG_PERMISSION');
 
+    // The organisation's audit log is organisation-level: a branch login never sees it.
     const t = await signIn();
-    expect((await api().get('/api/v1/auth/me').set(bearer(t))).body.data.permissions).toContain('audit.view');
-    expect((await api().get('/api/v1/audit-logs').set(bearer(t))).status).toBe(200);
+    expect((await api().get('/api/v1/auth/me').set(bearer(t))).body.data.permissions).not.toContain('audit.view');
+    expect((await api().get('/api/v1/audit-logs').set(bearer(t))).status).toBe(403);
+    // A user with access to all branches holding the same role does see it.
+    expect((await api().get('/api/v1/audit-logs').set(bearer(owner.token))).status).toBe(200);
   });
 
   it('needs a branch email first', async () => {
