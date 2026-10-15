@@ -31,29 +31,31 @@ export default function HomePage() {
   const permissions = usePermissions();
   const activeBranchId = useSelector((s) => s.auth.activeBranchId);
   const { user, organisation, branches } = session;
-  const showDashboard = ["sales.view", "order.view", "inventory.view"].some((p) => permissions.has(p));
+  // Dashboard → View, and something to show on it (sales figures also need View financial figures).
+  const showDashboard = permissions.has("dashboard.view") && ["sales.view", "order.view", "inventory.view"].some((p) => permissions.has(p));
   const actions = QUICK_ACTIONS.filter((a) => permissions.has(a.perm));
 
   return (
     <>
-      <Stack direction={{ xs: "column", md: "row" }} spacing={2} sx={{ mb: 3, justifyContent: "space-between", alignItems: { md: "flex-end" } }}>
-        <Box>
-          <Typography variant="body2" color="textSecondary">
+      <Stack direction={{ xs: "column", md: "row" }} spacing={2} sx={{ mb: { xs: 2, sm: 3 }, justifyContent: "space-between", alignItems: { md: "flex-end" } }}>
+        <Box sx={{ minWidth: 0 }}>
+          <Typography variant="body2" color="textSecondary" noWrap sx={{ fontSize: { xs: "0.75rem", sm: "0.875rem" } }}>
             {organisation.name}
             {organisation.stateCode && ` · ${stateName(organisation.stateCode)}`}
           </Typography>
-          <Typography sx={{ fontFamily: fonts.display, fontSize: { xs: 30, md: 36 }, fontWeight: 600, lineHeight: 1.15, mt: 0.5 }}>
+          <Typography sx={{ fontFamily: fonts.display, fontSize: { xs: 24, sm: 30, md: 36 }, fontWeight: 600, lineHeight: 1.15, mt: { xs: 0.25, sm: 0.5 } }}>
             {greeting()}, {user.name.split(" ")[0]}
           </Typography>
         </Box>
         {actions.length > 0 && (
-          <Stack direction="row" sx={{ flexWrap: "wrap", gap: 1 }}>
+          // The same buttons everywhere: two per row on phones, one row from tablets up.
+          <Box sx={{ display: "grid", gridTemplateColumns: { xs: "repeat(2, minmax(0, 1fr))", sm: "repeat(4, auto)" }, gap: 1 }}>
             {actions.map(({ to, label, icon: Icon, primary }) => (
-              <Button key={to} component={RouterLink} to={to} variant={primary ? "contained" : "outlined"} color={primary ? "primary" : "secondary"} startIcon={primary ? <Icon /> : to.endsWith("/new") ? <AddRoundedIcon /> : <Icon />}>
+              <Button key={to} component={RouterLink} to={to} variant={primary ? "contained" : "outlined"} color={primary ? "primary" : "secondary"} startIcon={primary ? <Icon /> : to.endsWith("/new") ? <AddRoundedIcon /> : <Icon />} sx={{ whiteSpace: "nowrap" }}>
                 {label}
               </Button>
             ))}
-          </Stack>
+          </Box>
         )}
       </Stack>
 

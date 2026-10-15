@@ -13,7 +13,7 @@ import { ApiError } from '../../utils/ApiError.js';
 import { financialYearLabel, todayContext } from '../../utils/businessDate.js';
 import { randomToken } from '../../utils/crypto.js';
 import { paginate, searchFilter } from '../../utils/pagination.js';
-import { accessibleBranchFilter, nameMaps, oid, pick, requireBranch } from '../inventory/inventory.helpers.js';
+import { accessibleBranchFilter, nameMaps, oid, pick, requireBranch, viewBranchFor } from '../inventory/inventory.helpers.js';
 import { Item } from '../items/item.model.js';
 import { itemsForOrderLines, itemsForPieces } from '../items/item.service.js';
 import { Product } from '../products/product.model.js';
@@ -63,7 +63,8 @@ async function mapsFor(list) {
   return nameMaps({ branchIds: list.map((p) => p.branchId), userIds: list.flatMap((p) => [p.createdBy, ...(p.payments ?? []).map((x) => x.by)]) });
 }
 
-export async function listPurchases({ page, limit, q, supplierId, branchId, payment }) {
+export async function listPurchases({ page, limit, q, supplierId, branchId: chosen, payment }) {
+  const branchId = chosen ?? (supplierId ? null : await viewBranchFor('purchase')); // navbar filter (a supplier's bills: all)
   const filter = { ...accessibleBranchFilter(), ...searchFilter(q, ['purchaseNo', 'billNo', 'supplier.name', 'orderNo']) };
   if (supplierId) filter.supplierId = oid(supplierId);
   if (branchId) filter.branchId = oid(branchId);
@@ -330,7 +331,8 @@ async function orderMaps(list) {
   return nameMaps({ branchIds: list.map((o) => o.branchId), userIds: list.flatMap((o) => (o.timeline ?? []).map((t) => t.by)) });
 }
 
-export async function listPurchaseOrders({ page, limit, q, supplierId, branchId, status }) {
+export async function listPurchaseOrders({ page, limit, q, supplierId, branchId: chosen, status }) {
+  const branchId = chosen ?? (supplierId ? null : await viewBranchFor('purchase')); // navbar filter (a supplier's orders: all)
   const filter = { ...accessibleBranchFilter(), ...searchFilter(q, ['orderNo', 'supplier.name', 'lines.description']) };
   if (supplierId) filter.supplierId = oid(supplierId);
   if (branchId) filter.branchId = oid(branchId);

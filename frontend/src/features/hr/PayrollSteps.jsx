@@ -21,7 +21,7 @@ const gold = tokens.sidebar.goldGradient;
 /** Horizontal progress: done steps get a gold tick, the current one a gold ring, later ones stay grey. current = -1 shows a neutral guide. */
 export default function PayrollSteps({ current = 0, compact = false }) {
   return (
-    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, 1fr)' }, rowGap: 2 }}>
+    <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(4, minmax(0, 1fr))' }, rowGap: 2 }}>
       {PAYROLL_STEPS.map((step, i) => {
         const done = i < current;
         const guide = current < 0;
@@ -60,7 +60,7 @@ export default function PayrollSteps({ current = 0, compact = false }) {
                 {i + 1}. {step.label}
               </Typography>
               {!compact && (
-                <Typography noWrap sx={{ fontSize: '0.75rem', color: 'text.secondary' }}>
+                <Typography sx={{ fontSize: '0.75rem', color: 'text.secondary', lineHeight: 1.35, whiteSpace: { xs: 'normal', sm: 'nowrap' }, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                   {step.hint}
                 </Typography>
               )}

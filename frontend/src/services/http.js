@@ -1,7 +1,8 @@
 import axios from 'axios';
+import { API_ORIGIN } from '../config.js';
 import { branchSelected, sessionEnded, signedIn } from '../store/authSlice.js';
 
-const BASE_URL = '/api/v1';
+const BASE_URL = `${API_ORIGIN}/api/v1`;
 
 export const http = axios.create({ baseURL: BASE_URL, withCredentials: true, timeout: 30000 });
 
@@ -64,9 +65,11 @@ export function refreshAccessToken() {
 }
 
 http.interceptors.request.use((config) => {
-  const { accessToken, activeBranchId } = store.getState().auth;
+  const { accessToken, activeBranchId, branchView } = store.getState().auth;
   if (accessToken) config.headers.Authorization = `Bearer ${accessToken}`;
   if (accessToken && activeBranchId) config.headers['X-Branch-Id'] = activeBranchId;
+  // Navbar filter on "All branches": list pages show every branch (the server limits it to the user's own).
+  if (accessToken && branchView === 'all') config.headers['X-Branch-View'] = 'all';
   return config;
 });
 

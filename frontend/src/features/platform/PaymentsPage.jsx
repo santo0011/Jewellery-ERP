@@ -1,7 +1,7 @@
 import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined';
 import CreditCardOutlinedIcon from '@mui/icons-material/CreditCardOutlined';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
-import { Box, Link, Stack, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
+import { Box, Chip, Link, Stack, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import { Link as RouterLink } from 'react-router';
 import DataTable from '../../components/DataTable.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
@@ -11,6 +11,24 @@ import { useListParams } from '../../hooks/useListParams.js';
 import { formatDate, formatDateTime } from '../../utils/format.js';
 import { inr, methodLabel, PaymentStatusChip } from '../billing/billingUi.jsx';
 import { usePaymentsQuery } from './platformApi.js';
+
+/** How a plan was activated, as a short label and its colour. */
+const ACTIVATION = {
+  online: { label: 'Paid online', color: 'info' },
+  checkout: { label: 'Online checkout', color: 'default' }, // started on Cashfree, not (yet) paid
+  payment: { label: 'Payment received', color: 'success' },
+  complimentary: { label: 'Complimentary', color: 'secondary' },
+  trial: { label: 'Free trial', color: 'warning' },
+  extension: { label: 'Extended', color: 'default' },
+};
+
+/** "Bank transfer · Ref UTR123", "14 days", … — the details under the activation label. */
+function activationDetail(p) {
+  if (p.activation === 'trial' || p.activation === 'extension') return p.days ? `${p.days} day${p.days === 1 ? '' : 's'}` : null;
+  if (p.activation === 'complimentary') return 'Free of charge';
+  if (p.activation === 'online') return `Cashfree${p.paymentMethod ? ` · ${methodLabel(p.paymentMethod)}` : ''}`;
+  return methodLabel(p.paymentMethod);
+}
 
 export const paymentColumns = ({ showOrg = true } = {}) => [
   {
@@ -30,7 +48,7 @@ export const paymentColumns = ({ showOrg = true } = {}) => [
   ...(showOrg
     ? [{ key: 'org', label: 'Organisation', render: (p) => <Link component={RouterLink} to={`/admin/organisations/${p.organisation.id}`} underline="hover" sx={{ fontWeight: 600 }}>{p.organisation.name}</Link> }]
     : []),
-  { key: 'plan', label: 'Plan', render: (p) => `${p.plan.name} · ${p.months} mo` },
+  { key: 'plan', label: 'Plan', render: (p) => (p.months ? `${p.plan.name} · ${p.months} mo` : p.plan.name) },
   {
     key: 'period',
     label: 'Period',
@@ -38,20 +56,32 @@ export const paymentColumns = ({ showOrg = true } = {}) => [
   },
   {
     key: 'method',
-    label: 'Paid by',
-    render: (p) => (
-      <Box>
-        <Typography variant="body2">{p.source === 'manual' ? `Manual · ${methodLabel(p.paymentMethod)}` : `Cashfree${p.paymentMethod ? ` · ${methodLabel(p.paymentMethod)}` : ''}`}</Typography>
-        {p.reference && (
-          <Typography variant="caption" color="textSecondary">
-            Ref {p.reference}
-          </Typography>
-        )}
-      </Box>
-    ),
+    label: 'How activated',
+    // What happened and who did it: "Payment received · Bank transfer · Ref UTR123 · by Asha (Super Admin)".
+    render: (p) => {
+      // An online checkout that was never completed is not "paid": the Status column says pending / failed.
+      const a = p.activation === 'online' && p.status !== 'paid' ? ACTIVATION.checkout : (ACTIVATION[p.activation] ?? ACTIVATION.payment);
+      const detail = [activationDetail(p), p.reference && `Ref ${p.reference}`].filter(Boolean).join(' · ');
+      return (
+        <Box sx={{ minWidth: 0 }}>
+          <Chip size="small" label={a.label} color={a.color} variant={p.activation === 'extension' ? 'outlined' : 'filled'} sx={{ height: 22, fontWeight: 600 }} />
+          {detail && (
+            <Typography variant="body2" sx={{ mt: 0.5 }}>
+              {detail}
+            </Typography>
+          )}
+          {(p.activatedBy?.kind === 'admin' || p.note) && (
+            <Typography variant="caption" color="textSecondary" sx={{ display: 'block' }}>
+              {[p.activatedBy?.kind === 'admin' && `by ${p.activatedBy.name} (Super Admin)`, p.note].filter(Boolean).join(' · ')}
+            </Typography>
+          )}
+        </Box>
+      );
+    },
   },
-  { key: 'amount', label: 'Amount', align: 'right', render: (p) => <Typography variant="body2" sx={{ fontWeight: 700 }}>{inr(p.amountPaise)}</Typography> },
-  { key: 'status', label: 'Status', render: (p) => <PaymentStatusChip status={p.status} /> },
+  { key: 'amount', label: 'Amount', align: 'right', render: (p) => <Typography variant="body2" sx={{ fontWeight: 700, color: p.amountPaise ? 'text.primary' : 'text.secondary' }}>{p.amountPaise ? inr(p.amountPaise) : '—'}</Typography> },
+  // A trial, extension or complimentary activation took no money: it is recorded, not paid.
+  { key: 'status', label: 'Status', render: (p) => (p.status === 'paid' && !p.amountPaise ? <Chip size="small" label="Recorded" variant="outlined" sx={{ height: 22, fontWeight: 600 }} /> : <PaymentStatusChip status={p.status} />) },
 ];
 
 export default function PaymentsPage() {

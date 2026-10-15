@@ -26,6 +26,8 @@ const customerSchema = new mongoose.Schema(
     preferredMetals: { type: [String], default: [] },
     tags: { type: [String], default: [] },
     openingBalancePaise: { type: Number, default: 0 },
+    // Collected later against the old due (a plus opening balance).
+    openingDuePaidPaise: { type: Number, default: 0 },
     notes: { type: String, default: null },
     status: { type: String, enum: Object.values(RECORD_STATUS), default: RECORD_STATUS.ACTIVE },
     isDeleted: { type: Boolean, default: false },

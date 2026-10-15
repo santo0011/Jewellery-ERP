@@ -45,6 +45,13 @@ export const PURITIES = Object.freeze({
   platinum: [{ fineness: 950, label: 'Platinum (950)' }],
 });
 
+/**
+ * The parts of an address, in display order (the state is `stateCode`, kept with the GST state). Create, edit and
+ * display forms, the API and the change history all use this one list, so they always map the same fields.
+ *   line1 house / shop no. & building · line2 area / street · landmark · postOffice · city · district · pincode
+ */
+export const ADDRESS_FIELDS = Object.freeze(['line1', 'line2', 'landmark', 'postOffice', 'city', 'district', 'pincode']);
+
 export const INDIAN_STATES = Object.freeze([
   { code: '01', name: 'Jammu and Kashmir' },
   { code: '02', name: 'Himachal Pradesh' },
@@ -93,7 +100,14 @@ export const TIMEZONES = Object.freeze(['Asia/Kolkata', 'Asia/Dubai', 'Asia/Sing
 
 export const CURRENCIES = Object.freeze(['INR']);
 
-export const INVOICE_FORMATS = Object.freeze({ A4: 'a4', THERMAL_80: 'thermal80' });
+export const INVOICE_FORMATS = Object.freeze({ A4: 'a4', THERMAL_80: 'thermal80', THERMAL_58: 'thermal58' });
+
+/** Invoice print designs available for each paper size (Business settings → Print). The first is the default. */
+export const PRINT_DESIGNS = Object.freeze({
+  a4: Object.freeze(['classic', 'royal', 'modern']),
+  thermal80: Object.freeze(['standard', 'detailed']),
+  thermal58: Object.freeze(['standard', 'compact']),
+});
 
 export const ROUND_OFF_MODES = Object.freeze({ NONE: 'none', NEAREST_RUPEE: 'nearest_rupee', NEAREST_TEN: 'nearest_ten' });
 
@@ -105,7 +119,7 @@ export const CASH_LIMIT_ACTIONS = Object.freeze({ WARN: 'warn', BLOCK: 'block' }
 
 export const BARCODE_SYMBOLOGIES = Object.freeze({ CODE128: 'code128', QR: 'qr' });
 
-export const SETTINGS_SECTIONS = Object.freeze(['invoice', 'tax', 'jewellery', 'barcode', 'approvals']);
+export const SETTINGS_SECTIONS = Object.freeze(['invoice', 'tax', 'jewellery', 'barcode', 'approvals', 'print']);
 
 export const AUDIT_MODULES = Object.freeze([
   'auth', 'organisation', 'branch', 'role', 'user', 'settings', 'customer', 'supplier', 'category', 'product', 'rate', 'inventory', 'approval', 'sales', 'order',

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { idParamsSchema, itemListQuerySchema, itemSchema, itemStatusSchema } from '@jerp/shared/schemas';
 import { authenticate } from '../../middleware/authenticate.js';
-import { authorizeAny } from '../../middleware/authorize.js';
+import { authorize } from '../../middleware/authorize.js';
 import { validate } from '../../middleware/validate.js';
 import { sendCreated, sendOk } from '../../utils/response.js';
 import * as items from './item.service.js';
@@ -9,8 +9,9 @@ import * as items from './item.service.js';
 const router = Router();
 const byId = validate({ params: idParamsSchema });
 // Whoever buys or catalogues stock uses items.
-const canView = authorizeAny(['purchase.view', 'product.view']);
-const canEdit = authorizeAny(['purchase.create', 'product.create']);
+// The item list is a purchase catalogue (picked on purchase bills and purchase orders): Purchases permissions.
+const canView = authorize('purchase.view');
+const canEdit = authorize('purchase.create');
 router.use(authenticate);
 
 router.get('/', canView, validate({ query: itemListQuerySchema }), async (req, res) => {

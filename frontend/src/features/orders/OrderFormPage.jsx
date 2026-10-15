@@ -10,7 +10,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { useSelector } from 'react-redux';
-import { useNavigate } from 'react-router';
+import { useNavigate, useParams } from 'react-router';
 import { z } from 'zod';
 import { MONEY_TONE } from '../../components/Amount.jsx';
 import CustomerPicker from '../../components/CustomerPicker.jsx';
@@ -21,7 +21,8 @@ import { useSession } from '../../hooks/usePermission.js';
 import { tokens } from '../../theme/tokens.js';
 import { applyServerErrors, getErrorMessage } from '../../utils/errors.js';
 import { useCategoriesQuery } from '../categories/categoryApi.js';
-import { useAddOrderImageMutation, useCreateOrderMutation, useEstimateOrderMutation } from './orderApi.js';
+import { ErrorState, LoadingState } from '../../components/StateViews.jsx';
+import { useAddOrderImageMutation, useCreateOrderMutation, useEstimateOrderMutation, useOrderQuery, useUpdateOrderMutation } from './orderApi.js';
 import { ADVANCE_MODE_OPTIONS } from './orderUi.jsx';
 
 const number = (label, places) =>
@@ -135,6 +136,29 @@ const toApiItem = (i) => ({
     making: { type: i.makingType, value: i.making ? (i.makingType === 'percent' ? toBps(i.making) : toPaise(i.making)) : 0 },
   }),
   otherChargePaise: paiseOf(i.otherCharges),
+});
+
+/** API item (a saved order line) -> form item, for editing an order. */
+const text = (v) => (v == null ? '' : String(v));
+const fromApiItem = (i) => ({
+  description: i.description ?? '',
+  categoryId: text(i.categoryId),
+  jewelleryType: i.jewelleryType ?? 'plain_gold',
+  metal: i.metal,
+  purity: text(i.purity),
+  weight: i.approxWeightMg ? String(i.approxWeightMg / 1000) : '',
+  size: i.size ?? '',
+  quantity: String(i.quantity ?? 1),
+  stones: (i.stones ?? []).map((s) => ({ type: s.type, name: s.name ?? '', count: String(s.count ?? 1), weight: String((s.weight ?? 0) / 1000), weightUnit: s.weightUnit ?? 'ct', rate: s.ratePaise ? String(s.ratePaise / 100) : '' })),
+  pricingMode: i.pricingMode ?? 'rate_based',
+  fixedPrice: i.fixedPricePaise ? String(i.fixedPricePaise / 100) : '',
+  wastage: i.wastage?.mode === 'percent' && i.wastage.value ? String(i.wastage.value / 100) : '',
+  makingType: i.making?.type ?? 'per_gram',
+  making: i.making?.value ? String(i.making.value / 100) : '',
+  otherCharges: i.otherChargePaise ? String(i.otherChargePaise / 100) : '',
+  estimate: i.estimatedPaise ? String(i.estimatedPaise / 100) : '',
+  huid: i.huid ?? '',
+  notes: i.notes ?? '',
 });
 
 function Section({ title, children, action }) {
@@ -309,12 +333,13 @@ function ItemCard({ index, control, setValue, categories, onRemove, canRemove, e
               <RHFTextField control={control} name={`${p}.wastage`} label="Wastage" placeholder="0" slotProps={{ input: { endAdornment: <InputAdornment position="end">%</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }} />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <Stack direction="row" spacing={1}>
+              {/* Phones: the making type as a full-width switch above its amount. */}
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
                 <Controller
                   control={control}
                   name={`${p}.makingType`}
                   render={({ field }) => (
-                    <ToggleButtonGroup exclusive size="small" value={field.value} onChange={(e, v) => v && field.onChange(v)} sx={{ height: 41, flexShrink: 0 }}>
+                    <ToggleButtonGroup exclusive size="small" value={field.value} onChange={(e, v) => v && field.onChange(v)} aria-label="Making charge type" sx={{ height: 41, flexShrink: 0, width: { xs: '100%', sm: 'auto' }, '& .MuiToggleButton-root': { flex: { xs: 1, sm: 'none' }, minWidth: 44, fontWeight: 700 } }}>
                       <ToggleButton value="per_gram">₹/g</ToggleButton>
                       <ToggleButton value="percent">%</ToggleButton>
                       <ToggleButton value="fixed">₹</ToggleButton>
@@ -382,6 +407,11 @@ function PhotoPicker({ files, onChange }) {
 
 export default function OrderFormPage() {
   const navigate = useNavigate();
+  // /orders/:id/edit edits an order that is not ready yet; /orders/new books one.
+  const { id: editId } = useParams();
+  const editing = Boolean(editId);
+  const { data: editOrder, isLoading: loadingOrder, error: loadError, refetch } = useOrderQuery(editId, { skip: !editing });
+  const [updateOrder, { isLoading: updating }] = useUpdateOrderMutation();
   const { data: session } = useSession();
   const activeBranchId = useSelector((s) => s.auth.activeBranchId);
   const { data: categoryList = [] } = useCategoriesQuery();
@@ -393,19 +423,47 @@ export default function OrderFormPage() {
   const [photos, setPhotos] = useState([]);
   const [saving, setSaving] = useState(false);
 
-  const { control, handleSubmit, setError, setValue, getValues } = useForm({
+  const { control, handleSubmit, setError, setValue, getValues, trigger, reset } = useForm({
     resolver: zodResolver(formSchema),
     defaultValues: { customer: null, branchId: activeBranchId ?? session.branches[0]?.id ?? '', expectedDate: '', priority: 'normal', items: [emptyItem(session.catalog)], advanceAmount: '', advanceMode: 'cash', advanceReference: '', notes: '' },
   });
   const { fields, append, remove } = useFieldArray({ control, name: 'items' });
+  useEffect(() => {
+    if (!editOrder) return;
+    reset({
+      customer: editOrder.customer,
+      branchId: String(editOrder.branch?.id ?? ''),
+      expectedDate: editOrder.expectedDate ?? '',
+      priority: editOrder.priority ?? 'normal',
+      items: editOrder.items.map(fromApiItem),
+      advanceAmount: '',
+      advanceMode: 'cash',
+      advanceReference: '',
+      notes: editOrder.notes ?? '',
+    });
+  }, [editOrder, reset]);
   const items = useWatch({ control, name: 'items' });
   const advanceAmount = useWatch({ control, name: 'advanceAmount' });
 
   const estimate = items.reduce((s, i) => s + safe(() => paiseOf(i.estimate), 0) * (Number(i.quantity) || 0), 0);
-  const advance = safe(() => paiseOf(advanceAmount), 0);
+  const advance = editing ? (editOrder?.advancePaise ?? 0) : safe(() => paiseOf(advanceAmount), 0);
 
   const calculate = async () => {
+    // Show what is missing on the form (same messages as booking) before asking for prices.
+    const valid = await trigger('items');
     const v = getValues();
+    let missing = false;
+    v.items.forEach((i, n) => {
+      if (i.pricingMode === 'rate_based' && !(Number(i.weight) > 0)) {
+        setError(`items.${n}.weight`, { type: 'estimate', message: 'Enter the weight to estimate' });
+        missing = true;
+      }
+      if (i.pricingMode === 'rate_based' && !i.purity) {
+        setError(`items.${n}.purity`, { type: 'estimate', message: 'Select the purity' });
+        missing = true;
+      }
+    });
+    if (!valid || missing) return toast.error('Fill in the highlighted fields first');
     const apiItems = safe(() => v.items.map(toApiItem));
     if (!apiItems) return toast.error('Fix the highlighted numbers first');
     try {
@@ -420,6 +478,18 @@ export default function OrderFormPage() {
   };
 
   const onSubmit = handleSubmit(async (v) => {
+    if (editing) {
+      try {
+        const items = v.items.map((i) => ({ ...toApiItem(i), description: i.description, estimatedPaise: paiseOf(i.estimate), huid: i.metal === 'gold' && i.huid ? i.huid : null, notes: i.notes || null }));
+        await updateOrder({ id: editId, items, expectedDate: v.expectedDate || null, priority: v.priority, notes: v.notes || null }).unwrap();
+        toast.success(`Order ${editOrder.orderNo} updated`);
+        navigate(`/orders/${editId}`, { replace: true });
+      } catch (err) {
+        const details = err?.data?.error?.details?.map((d) => ({ ...d, path: d.path.replace(/\.fixedPricePaise$/, '.fixedPrice').replace(/\.approxWeightMg$/, '.weight') }));
+        if (!applyServerErrors({ data: { error: { details } } }, setError)) toast.error(getErrorMessage(err));
+      }
+      return;
+    }
     const payload = {
       branchId: v.branchId,
       customerId: v.customer.id,
@@ -455,11 +525,21 @@ export default function OrderFormPage() {
     }
   });
 
+  if (editing && loadingOrder) return <LoadingState />;
+  if (editing && loadError) return <ErrorState error={loadError} onRetry={refetch} />;
+  if (editing && editOrder && !['booked', 'in_progress'].includes(editOrder.status)) {
+    return <ErrorState error={{ data: { error: { message: `Order ${editOrder.orderNo} is ${editOrder.status.replace('_', ' ')} and can no longer be edited.` } } }} title="This order can't be edited" />;
+  }
+
   return (
     <Box component="form" noValidate onSubmit={onSubmit}>
-      <PageHeader title="New order" subtitle="Book exactly what the customer wants, at the agreed charges, and take an advance." back={{ to: '/orders', label: 'Orders' }} />
+      {editing ? (
+        <PageHeader title={`Edit order ${editOrder?.orderNo ?? ''}`} subtitle="Change the items, charges or delivery until the order is ready." back={{ to: `/orders/${editId}`, label: editOrder?.orderNo ?? 'Order' }} />
+      ) : (
+        <PageHeader title="New order" subtitle="Book exactly what the customer wants, at the agreed charges, and take an advance." back={{ to: '/orders', label: 'Orders' }} />
+      )}
       <Grid container spacing={3}>
-        <Grid size={{ xs: 12, lg: 8 }}>
+        <Grid size={{ xs: 12, lg: 7, xl: 7.5 }}>
           <Stack spacing={3}>
             <Card>
               <CardContent>
@@ -468,9 +548,13 @@ export default function OrderFormPage() {
                 </Typography>
                 <Grid container spacing={2}>
                   <Grid size={12}>
-                    <Controller control={control} name="customer" render={({ field, fieldState }) => <CustomerPicker value={field.value} onChange={field.onChange} error={fieldState.error?.message} autoFocus />} />
+                    {editing ? (
+                      <TextField label="Customer" value={editOrder ? `${editOrder.customer.name} · ${editOrder.customer.mobile ?? ''}` : ''} disabled helperText="The customer and branch of a booked order stay the same" />
+                    ) : (
+                      <Controller control={control} name="customer" render={({ field, fieldState }) => <CustomerPicker value={field.value} onChange={field.onChange} error={fieldState.error?.message} autoFocus />} />
+                    )}
                   </Grid>
-                  {session.branches.length > 1 && (
+                  {session.branches.length > 1 && !editing && (
                     <Grid size={{ xs: 12, sm: 4 }}>
                       <RHFSelect control={control} name="branchId" label="Branch" options={session.branches.map((b) => ({ value: b.id, label: b.name }))} />
                     </Grid>
@@ -512,6 +596,7 @@ export default function OrderFormPage() {
               </CardContent>
             </Card>
 
+            {!editing && (
             <Card>
               <CardContent>
                 <Typography variant="h4" sx={{ mb: 0.5 }}>
@@ -523,19 +608,28 @@ export default function OrderFormPage() {
                 <PhotoPicker files={photos} onChange={setPhotos} />
               </CardContent>
             </Card>
+            )}
           </Stack>
         </Grid>
 
-        <Grid size={{ xs: 12, lg: 4 }}>
+        <Grid size={{ xs: 12, lg: 5, xl: 4.5 }}>
           <Card sx={{ position: { lg: 'sticky' }, top: { lg: 88 } }}>
             <CardContent>
               <Typography variant="h4" sx={{ mb: 2 }}>
-                Advance
+                {editing ? 'Notes & estimate' : 'Advance'}
               </Typography>
               <Stack spacing={2}>
-                <RHFTextField control={control} name="advanceAmount" label="Advance received (₹)" placeholder="0" slotProps={{ htmlInput: { inputMode: 'decimal' } }} />
-                <RHFSelect control={control} name="advanceMode" label="Paid by" options={ADVANCE_MODE_OPTIONS} />
-                <RHFTextField control={control} name="advanceReference" label="Reference" placeholder="UPI / card ref. (optional)" />
+                {editing ? (
+                  <Alert severity="info" variant="outlined">
+                    Advance received: {formatINR(editOrder?.advancePaise ?? 0)}. Add more with “Add advance” on the order; photos are on the order page too.
+                  </Alert>
+                ) : (
+                  <>
+                    <RHFTextField control={control} name="advanceAmount" label="Advance received (₹)" placeholder="0" slotProps={{ htmlInput: { inputMode: 'decimal' } }} />
+                    <RHFSelect control={control} name="advanceMode" label="Paid by" options={ADVANCE_MODE_OPTIONS} />
+                    <RHFTextField control={control} name="advanceReference" label="Reference" placeholder="UPI / card ref. (optional)" />
+                  </>
+                )}
                 <RHFTextField control={control} name="notes" label="Order notes" multiline minRows={2} />
               </Stack>
               <Divider sx={{ my: 2.5 }} />
@@ -557,11 +651,11 @@ export default function OrderFormPage() {
                 </Alert>
               )}
               <Stack direction="row" spacing={1} sx={{ mt: 2.5 }}>
-                <Button color="secondary" onClick={() => navigate('/orders')} disabled={isLoading || saving}>
+                <Button color="secondary" onClick={() => navigate(editing ? `/orders/${editId}` : '/orders')} disabled={isLoading || saving || updating}>
                   Cancel
                 </Button>
-                <Button type="submit" variant="contained" size="large" loading={isLoading || saving} sx={{ flex: 1 }}>
-                  Book order
+                <Button type="submit" variant="contained" size="large" loading={isLoading || saving || updating} sx={{ flex: 1 }}>
+                  {editing ? 'Save changes' : 'Book order'}
                 </Button>
               </Stack>
             </CardContent>

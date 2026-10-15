@@ -253,10 +253,10 @@ export default function PurchaseFormPage() {
                     </TextField>
                   </Grid>
                 )}
-                <Grid size={{ xs: 6, sm: 3 }}>
+                <Grid size={{ xs: 5, sm: 3 }}>
                   <TextField label="Bill no." value={billNo} onChange={(e) => setBillNo(e.target.value)} error={Boolean(errors.billNo)} helperText={errors.billNo ?? ' '} slotProps={{ htmlInput: { maxLength: 40 } }} />
                 </Grid>
-                <Grid size={{ xs: 6, sm: 3 }}>
+                <Grid size={{ xs: 7, sm: 3 }}>
                   <TextField label="Bill date" type="date" value={billDate} onChange={(e) => setBillDate(e.target.value)} slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: todayIso() } }} helperText=" " />
                 </Grid>
                 <Grid size={12}>

@@ -115,10 +115,17 @@ describe('GST reports', () => {
     const outside = await sell(await buyer({ name: 'Mumbai Buyer', address: { stateCode: '27' } }), 20000);
     const cancelled = await sell(null, 5000);
     await api().post(`/api/v1/sales/${cancelled.id}/cancel`).set(bearer(ctx.t)).send({ reason: 'Wrong item' });
-    expect((await api().post(`/api/v1/sales/${trade.id}/returns`).set(bearer(ctx.t)).send({ productIds: [trade.items[0].productId], refundMode: 'credit', reason: 'Exchange later' })).status).toBe(201);
+    expect((await api().post(`/api/v1/sales/${trade.id}/returns`).set(bearer(ctx.t)).send({ productIds: [trade.items[0].productId], refundMode: 'bank', reason: 'Exchange later' })).status).toBe(201);
 
     const gstKeys = (await api().get('/api/v1/reports').set(bearer(ctx.t))).body.data.filter((r) => r.group === 'GST').map((r) => r.key);
-    expect(gstKeys).toEqual(['gst-cgst', 'gst-sgst', 'gst-igst']);
+    expect(gstKeys).toEqual(['gst-summary', 'gst-cgst', 'gst-sgst', 'gst-igst']);
+
+    // All GST types in one table, one row each, agreeing with each type's own report.
+    const all = (await run(ctx, 'gst-summary')).body.data;
+    expect(all.rows.map((r) => r.head)).toEqual(['CGST', 'SGST', 'IGST']);
+    for (const r of all.rows) expect(r.netPaise, r.head).toBe((await run(ctx, `gst-${r.head.toLowerCase()}`)).body.data.totals.taxPaise);
+    expect(all.totals.netPaise).toBe(all.rows.reduce((n, r) => n + r.netPaise, 0));
+    expect(all.rows.find((r) => r.head === 'CGST').reversedPaise).toBeLessThan(0);
 
     for (const kind of ['cgst', 'sgst']) {
       const rep = (await run(ctx, `gst-${kind}`)).body.data;

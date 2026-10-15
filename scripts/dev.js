@@ -4,12 +4,16 @@ import { spawn, spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { copyFileSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { createConnection } from 'node:net';
+import { networkInterfaces } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import { parseEnv } from 'node:util';
-import { MongoClient } from 'mongodb';
+
+// The MongoDB driver is slow to load: import it only when a local database has to be checked.
+let mongoClientClass;
+const MongoClientOf = async () => (mongoClientClass ??= (await import('mongodb')).MongoClient);
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const backendDir = resolve(root, 'backend');
@@ -55,6 +59,7 @@ const portInUse = (port) =>
   });
 
 async function mongoReady(port) {
+  const MongoClient = await MongoClientOf();
   const client = new MongoClient(`mongodb://127.0.0.1:${port}/?directConnection=true`, { serverSelectionTimeoutMS: 1000 });
   try {
     await client.connect();
@@ -72,12 +77,19 @@ async function waitFor(check, timeoutMs, child) {
   while (Date.now() < deadline) {
     if (child && child.exitCode !== null) return false;
     if (await check()) return true;
-    await sleep(500);
+    await sleep(250);
   }
   return false;
 }
 
 const httpOk = (url) => () => fetch(url).then((r) => r.ok, () => false);
+
+// This computer's addresses on the Wi-Fi / LAN: phones on the same network open the app with these.
+const lanAddresses = () =>
+  Object.values(networkInterfaces())
+    .flat()
+    .filter((a) => a && a.family === 'IPv4' && !a.internal && !a.address.startsWith('169.254.'))
+    .map((a) => a.address);
 
 // Pipes a child's output through line by line, prefixed with its tag and
 // with blank / filtered lines dropped.
@@ -117,6 +129,7 @@ async function shutdown(code = 0) {
   }
   if (startedDb) {
     // Ask mongod to shut down cleanly before killing its launcher.
+    const MongoClient = await MongoClientOf();
     const client = new MongoClient(`mongodb://127.0.0.1:${startedDb.port}/?directConnection=true`, { serverSelectionTimeoutMS: 2000 });
     await client.connect().then(() => client.db('admin').command({ shutdown: 1, force: true })).catch(() => {});
     await client.close().catch(() => {});
@@ -132,6 +145,8 @@ process.on('SIGTERM', () => shutdown(0));
 
 // ---------------------------------------------------------------- start
 
+const startedAt = Date.now();
+const elapsed = () => gray(`(${((Date.now() - startedAt) / 1000).toFixed(1)}s)`);
 console.log(`\n${bold('Jewellery ERP')} ${gray('— development')}\n`);
 
 const env = ensureEnvFile();
@@ -144,6 +159,18 @@ for (const [port, what] of [[apiPort, 'API'], [WEB_PORT, 'web']]) {
   }
 }
 
+// The web server needs neither the database nor the API to start (API calls are proxied when they come),
+// so it starts right away, alongside them, instead of waiting at the end.
+say('Starting web...');
+const web = run('web', [resolve(root, 'node_modules/vite/bin/vite.js'), '--host', '--port', String(WEB_PORT), '--strictPort', '--logLevel', 'warn', '--clearScreen', 'false'], frontendDir, {
+  env: { API_PORT: String(apiPort) },
+});
+const webReady = waitFor(httpOk(`http://localhost:${WEB_PORT}/`), 60_000, web).then((up) => {
+  if (up) ok(`Web: http://localhost:${WEB_PORT} ${elapsed()}`);
+  else fail('Web did not become ready — see the [web] messages above.');
+  return up;
+});
+
 // 1. Database
 const mongoUrl = new URL((env.MONGODB_URI || '').replace(/^mongodb(\+srv)?:/, 'http:'));
 const localDb = ['127.0.0.1', 'localhost'].includes(mongoUrl.hostname);
@@ -152,10 +179,10 @@ if (!localDb) {
 } else {
   const dbPort = Number(mongoUrl.port || 27017);
   if (await mongoReady(dbPort)) {
-    ok(`Database: already running on port ${dbPort}, reusing it`);
+    ok(`Database: already running on port ${dbPort}, reusing it ${elapsed()}`);
   } else if (await portInUse(dbPort)) {
     fail(`Port ${dbPort} is in use but is not a ready MongoDB replica set. Stop that process and try again.`);
-    process.exit(1);
+    await shutdown(1);
   } else {
     say('Starting database... (the first run downloads MongoDB and can take a few minutes)');
     const child = run('db', ['scripts/dev-db.js'], backendDir, {
@@ -167,28 +194,32 @@ if (!localDb) {
       fail('Database did not start.');
       await shutdown(1);
     }
-    ok(`Database: running on port ${dbPort}`);
+    ok(`Database: running on port ${dbPort} ${elapsed()}`);
   }
 }
 
 // 2. API (node --watch restarts it when backend files change)
 say('Starting API...');
 const api = run('api', ['--watch', '--env-file-if-exists=.env', 'src/server.js'], backendDir, {
-  skip: (line) => /Completed running|API listening/.test(line),
+  skip: (line) => /Completed running|API listening|API on the network/.test(line),
 });
-if (await waitFor(httpOk(`http://127.0.0.1:${apiPort}/api/v1/health`), 60_000, api)) {
-  ok(`API: http://localhost:${apiPort}/api/v1`);
-} else {
-  fail('API did not become ready — see the [api] messages above. It will restart automatically when you save a fix.');
-}
+const apiReady = waitFor(httpOk(`http://127.0.0.1:${apiPort}/api/v1/health`), 60_000, api).then((up) => {
+  if (up) ok(`API: http://localhost:${apiPort}/api/v1 ${elapsed()}`);
+  else fail('API did not become ready — see the [api] messages above. It will restart automatically when you save a fix.');
+  return up;
+});
+await Promise.all([webReady, apiReady]);
 
-// 3. Web
-say('Starting web...');
-const web = run('web', [resolve(root, 'node_modules/vite/bin/vite.js'), '--port', String(WEB_PORT), '--strictPort', '--logLevel', 'warn', '--clearScreen', 'false'], frontendDir);
-if (await waitFor(httpOk(`http://localhost:${WEB_PORT}/`), 60_000, web)) {
-  ok(`Web: http://localhost:${WEB_PORT}`);
+// Where to open it: this computer, and any phone / tablet on the same Wi-Fi.
+const lan = lanAddresses();
+console.log(`\n${tags.dev} ${bold(green('Ready'))} in ${((Date.now() - startedAt) / 1000).toFixed(1)}s ${gray('(Ctrl+C to stop)')}\n`);
+console.log(`  ${bold('Local:')}    ${cyan(`http://localhost:${WEB_PORT}`)}`);
+if (lan.length) {
+  for (const ip of lan) console.log(`  ${bold('Network:')}  ${cyan(`http://${ip}:${WEB_PORT}`)}   ${gray('← open this on a phone on the same Wi-Fi')}`);
 } else {
-  fail('Web did not become ready — see the [web] messages above.');
+  console.log(`  ${bold('Network:')}  ${gray('not connected to a network')}`);
 }
-
-console.log(`\n${tags.dev} ${bold(green('Ready.'))} Open ${bold(`http://localhost:${WEB_PORT}`)}  ${gray('(Ctrl+C to stop)')}\n`);
+console.log(`  ${gray(`API:       http://localhost:${apiPort}/api/v1`)}\n`);
+if (lan.length && process.platform === 'win32') {
+  console.log(gray('  Phone cannot open it? Allow Node.js through Windows Firewall for Private networks, and keep the Wi-Fi set to Private.\n'));
+}

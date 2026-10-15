@@ -18,6 +18,7 @@ import { getSettings } from '../settings/settings.service.js';
 import { Supplier } from '../suppliers/supplier.model.js';
 import { limitsOf } from '../billing/limits.js';
 import { Product } from './product.model.js';
+import { viewBranchFor } from '../inventory/inventory.helpers.js';
 
 const MAX_IMAGES = 8;
 const stockIdentity = (p) => ({
@@ -155,7 +156,8 @@ async function findProduct(id) {
   return product;
 }
 
-export async function listProducts({ page, limit, q, categoryId, metal, purity, status, branchId, supplierId }) {
+export async function listProducts({ page, limit, q, categoryId, metal, purity, status, branchId: chosen, supplierId }) {
+  const branchId = chosen ?? (await viewBranchFor('product')); // navbar filter
   const filter = { isDeleted: false, ...branchScope(), ...searchFilter(q, ['name', 'sku', 'barcode', 'huid', 'tags']) };
   if (categoryId) filter.$and = [{ $or: [{ categoryId }, { subcategoryId: categoryId }] }];
   if (metal) filter.metal = metal;

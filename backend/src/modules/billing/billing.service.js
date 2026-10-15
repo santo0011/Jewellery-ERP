@@ -9,6 +9,7 @@ import { searchFilter } from '../../utils/pagination.js';
 import { Branch } from '../branches/branch.model.js';
 import { Organisation } from '../organisations/organisation.model.js';
 import { Subscription } from '../organisations/subscription.model.js';
+import { PlatformAdmin } from '../platform/platformAdmin.model.js';
 import { recordPlatformAudit } from '../platform/platformAuth.service.js';
 import { Product } from '../products/product.model.js';
 import { User } from '../users/user.model.js';
@@ -168,6 +169,36 @@ async function settle(payment, gatewayInfo = {}) {
 }
 
 /** Super Admin: start a trial, record a payment made outside the app, or add days to the current period. */
+/** A trial or extension on record: no money, but who did it, which plan and which dates. */
+async function logActivation({ org, plan, activation, days, start, end, note, admin }) {
+  await SubscriptionPayment.create({
+    orderId: `ACT_${Date.now().toString(36)}${randomBytes(3).toString('hex')}`.toUpperCase(),
+    organisationId: org._id,
+    organisationName: org.name,
+    planId: plan._id,
+    planName: plan.name,
+    months: 0,
+    amountPaise: 0,
+    status: 'paid',
+    source: 'manual',
+    paymentMethod: activation,
+    activation,
+    days,
+    periodStart: start,
+    periodEnd: end,
+    paidAt: new Date(),
+    note: note ?? null,
+    createdByAdminId: admin.adminId,
+  });
+}
+
+/**
+ * Super Admin activates a plan for an organisation, and the activation is recorded with how it happened:
+ *   manual        payment received outside the app (cash / bank / UPI …) — starts or extends a paid period
+ *   complimentary the same, free of charge
+ *   trial         a free trial of `days`
+ *   extend        `days` more on the current period (or trial)
+ */
 export async function assignPlan(orgId, { planId, mode, days, months, amountPaise, paymentMode, reference, note }, admin, meta) {
   const org = await Organisation.findById(orgId).lean();
   if (!org) throw ApiError.notFound('Organisation');
@@ -178,7 +209,9 @@ export async function assignPlan(orgId, { planId, mode, days, months, amountPais
   if (mode === 'trial') {
     const length = days ?? env.TRIAL_DAYS;
     const fields = await planFields(org._id, plan);
-    await Subscription.updateOne({ organisationId: org._id }, { $set: { ...fields, status: SUBSCRIPTION_STATUS.TRIAL, trialEndsAt: new Date(now.getTime() + length * DAY), currentPeriodStart: null, currentPeriodEnd: null } }, { upsert: true }).setOptions(SKIP);
+    const end = new Date(now.getTime() + length * DAY);
+    await Subscription.updateOne({ organisationId: org._id }, { $set: { ...fields, status: SUBSCRIPTION_STATUS.TRIAL, trialEndsAt: end, currentPeriodStart: null, currentPeriodEnd: null } }, { upsert: true }).setOptions(SKIP);
+    await logActivation({ org, plan, activation: 'trial', days: length, start: now, end, note, admin });
   } else if (mode === 'extend') {
     const eff = effectiveSubscription(sub, now);
     const from = eff.endsAt && !eff.expired ? new Date(eff.endsAt) : now;
@@ -189,7 +222,9 @@ export async function assignPlan(orgId, { planId, mode, days, months, amountPais
       { organisationId: org._id },
       { $set: { ...fields, ...(onTrial ? { trialEndsAt: until } : { status: SUBSCRIPTION_STATUS.ACTIVE, currentPeriodStart: sub?.currentPeriodStart ?? now, currentPeriodEnd: until, trialEndsAt: null }) } },
     ).setOptions(SKIP);
+    await logActivation({ org, plan, activation: 'extension', days, start: from, end: until, note, admin });
   } else {
+    const free = mode === 'complimentary';
     const payment = await SubscriptionPayment.create({
       orderId: `MAN_${Date.now().toString(36)}${randomBytes(3).toString('hex')}`.toUpperCase(),
       organisationId: org._id,
@@ -197,9 +232,10 @@ export async function assignPlan(orgId, { planId, mode, days, months, amountPais
       planId: plan._id,
       planName: plan.name,
       months: months ?? plan.durationMonths,
-      amountPaise: amountPaise ?? Math.round((plan.pricePaise / plan.durationMonths) * (months ?? plan.durationMonths)),
+      amountPaise: free ? 0 : (amountPaise ?? Math.round((plan.pricePaise / plan.durationMonths) * (months ?? plan.durationMonths))),
       source: 'manual',
-      paymentMethod: paymentMode ?? 'cash',
+      paymentMethod: free ? 'complimentary' : (paymentMode ?? 'cash'),
+      activation: free ? 'complimentary' : 'payment',
       reference: reference ?? null,
       note: note ?? null,
       createdByAdminId: admin.adminId,
@@ -212,7 +248,15 @@ export async function assignPlan(orgId, { planId, mode, days, months, amountPais
 
 // ---------------------------------------------------------------- views
 
-function serializePayment(p) {
+/** Super Admin names for the payments' "activated by". */
+async function adminNames(rows) {
+  const ids = [...new Set(rows.map((p) => p.createdByAdminId).filter(Boolean).map(String))];
+  if (!ids.length) return new Map();
+  const admins = await PlatformAdmin.find({ _id: { $in: ids } }).select('name').lean();
+  return new Map(admins.map((a) => [String(a._id), a.name]));
+}
+
+function serializePayment(p, admins = new Map()) {
   return {
     id: p._id,
     orderId: p.orderId,
@@ -229,6 +273,10 @@ function serializePayment(p) {
     periodEnd: p.periodEnd,
     paidAt: p.paidAt,
     note: p.note,
+    // How it was activated (older records: online for Cashfree, else a recorded payment) and by whom.
+    activation: p.activation ?? (p.source === 'cashfree' ? 'online' : p.amountPaise ? 'payment' : 'complimentary'),
+    days: p.days ?? null,
+    activatedBy: p.createdByAdminId ? { kind: 'admin', name: admins.get(String(p.createdByAdminId)) ?? 'Super Admin' } : p.source === 'cashfree' ? { kind: 'organisation', name: p.organisationName } : null,
     createdAt: p.createdAt,
   };
 }
@@ -263,7 +311,8 @@ async function usageOf(orgId) {
 /** Subscription, usage and payments of one organisation (Super Admin's organisation page). */
 export async function organisationBilling(orgId) {
   const [sub, usage, payments] = await Promise.all([subscriptionOf(orgId), usageOf(orgId), SubscriptionPayment.find({ organisationId: orgId }).sort({ createdAt: -1 }).limit(50).lean()]);
-  return { subscription: serializeSubscription(sub), usage, payments: payments.map(serializePayment) };
+  const admins = await adminNames(payments);
+  return { subscription: serializeSubscription(sub), usage, payments: payments.map((p) => serializePayment(p, admins)) };
 }
 
 /** The organisation's own billing page: where they stand, what they use, what they can buy, what they paid. */
@@ -281,30 +330,55 @@ export async function listPayments({ page, limit, q, status, organisationId, sou
   const [rows, total, sums] = await Promise.all([
     SubscriptionPayment.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
     SubscriptionPayment.countDocuments(filter),
-    SubscriptionPayment.aggregate([{ $match: { status: 'paid' } }, { $group: { _id: null, total: { $sum: '$amountPaise' }, count: { $sum: 1 }, online: { $sum: { $cond: [{ $eq: ['$source', 'cashfree'] }, '$amountPaise', 0] } } } }]),
+    // Revenue and "paid payments" count real money only (not trials, extensions or complimentary activations).
+    SubscriptionPayment.aggregate([{ $match: { status: 'paid', amountPaise: { $gt: 0 } } }, { $group: { _id: null, total: { $sum: '$amountPaise' }, count: { $sum: 1 }, online: { $sum: { $cond: [{ $eq: ['$source', 'cashfree'] }, '$amountPaise', 0] } } } }]),
   ]);
-  return { items: rows.map(serializePayment), meta: { page, limit, total, pages: Math.max(1, Math.ceil(total / limit)), summary: { revenuePaise: sums[0]?.total ?? 0, paidCount: sums[0]?.count ?? 0, onlinePaise: sums[0]?.online ?? 0 } } };
+  const admins = await adminNames(rows);
+  return { items: rows.map((p) => serializePayment(p, admins)), meta: { page, limit, total, pages: Math.max(1, Math.ceil(total / limit)), summary: { revenuePaise: sums[0]?.total ?? 0, paidCount: sums[0]?.count ?? 0, onlinePaise: sums[0]?.online ?? 0 } } };
 }
 
 /** Super Admin dashboard: revenue, how subscriptions stand, who expires soon, latest payments. */
-export async function billingDashboard() {
+export const DASHBOARD_PERIODS = ['today', 'week', 'month', 'year', 'all'];
+
+/** Start of the dashboard period: today, this week (from Monday), this month, this year (from January) or all time (null). */
+export function periodStart(period, now = new Date()) {
+  const day = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  if (period === 'today') return day;
+  if (period === 'week') return new Date(day.getFullYear(), day.getMonth(), day.getDate() - ((day.getDay() + 6) % 7));
+  if (period === 'month') return new Date(now.getFullYear(), now.getMonth(), 1);
+  if (period === 'year') return new Date(now.getFullYear(), 0, 1);
+  return null;
+}
+
+export async function billingDashboard({ period = 'month' } = {}) {
   const now = new Date();
+  const from = periodStart(period, now);
+  const inPeriod = from ? { paidAt: { $gte: from } } : {};
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
   const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+  const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
   const [subs, orgs, paidRows, recent] = await Promise.all([
     Subscription.find({}).setOptions(SKIP).lean(),
     Organisation.find({}).select('name status').lean(),
     SubscriptionPayment.find({ status: 'paid', paidAt: { $gte: sixMonthsAgo } }).select('amountPaise paidAt').lean(),
-    SubscriptionPayment.find({}).sort({ createdAt: -1 }).limit(6).lean(),
+    SubscriptionPayment.find({ amountPaise: { $gt: 0 }, ...(from && { createdAt: { $gte: from } }) }).sort({ createdAt: -1 }).limit(6).lean(),
   ]);
+  // Money in during the chosen period: total, number of payments and how many organisations paid.
+  const periodPaid = await SubscriptionPayment.find({ status: 'paid', amountPaise: { $gt: 0 }, ...inPeriod }).select('amountPaise organisationId').lean();
   const orgName = new Map(orgs.map((o) => [String(o._id), o.name]));
   const counts = { active: 0, trial: 0, expired: 0 };
   const expiring = [];
+  // Paying organisations on each plan (trials and lapsed ones are not counted).
+  const byPlan = new Map();
   for (const sub of subs) {
     const eff = effectiveSubscription(sub, now);
     if (eff.expired) counts.expired += 1;
     else if (eff.status === SUBSCRIPTION_STATUS.TRIAL) counts.trial += 1;
-    else counts.active += 1;
+    else {
+      counts.active += 1;
+      const name = sub.planName ?? sub.plan ?? 'Plan';
+      byPlan.set(name, (byPlan.get(name) ?? 0) + 1);
+    }
     if (!eff.expired && eff.daysLeft <= 7) expiring.push({ organisationId: sub.organisationId, name: orgName.get(String(sub.organisationId)) ?? '—', planName: sub.planName ?? sub.plan, status: eff.status, endsAt: eff.endsAt, daysLeft: eff.daysLeft });
   }
   const months = Array.from({ length: 6 }, (_, i) => {
@@ -322,10 +396,23 @@ export async function billingDashboard() {
   }
   const [all] = await SubscriptionPayment.aggregate([{ $match: { status: 'paid' } }, { $group: { _id: null, total: { $sum: '$amountPaise' } } }]);
   return {
-    revenue: { totalPaise: all?.total ?? 0, monthPaise: paidRows.filter((p) => new Date(p.paidAt) >= monthStart).reduce((s, p) => s + p.amountPaise, 0), months },
+    revenue: {
+      totalPaise: all?.total ?? 0,
+      monthPaise: paidRows.filter((p) => new Date(p.paidAt) >= monthStart).reduce((s, p) => s + p.amountPaise, 0),
+      lastMonthPaise: paidRows.filter((p) => new Date(p.paidAt) >= lastMonthStart && new Date(p.paidAt) < monthStart).reduce((s, p) => s + p.amountPaise, 0),
+      months,
+    },
+    period: {
+      key: period,
+      from,
+      revenuePaise: periodPaid.reduce((s, p) => s + p.amountPaise, 0),
+      payments: periodPaid.length,
+      payingOrganisations: new Set(periodPaid.map((p) => String(p.organisationId))).size,
+    },
     subscriptions: counts,
+    plans: [...byPlan].map(([label, value]) => ({ key: label, label, value })).sort((a, b) => b.value - a.value),
     expiring: expiring.sort((a, b) => a.daysLeft - b.daysLeft).slice(0, 8),
-    recentPayments: recent.map(serializePayment),
+    recentPayments: recent.map((p) => serializePayment(p)),
   };
 }
 

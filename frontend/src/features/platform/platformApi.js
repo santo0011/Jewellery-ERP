@@ -1,9 +1,10 @@
 import { createApi } from '@reduxjs/toolkit/query/react';
 import axios from 'axios';
+import { API_ORIGIN } from '../../config.js';
 import { toQueryError } from '../../services/queryError.js';
 import { platformSessionEnded, platformSignedIn } from './platformSlice.js';
 
-const BASE_URL = '/api/v1/platform';
+const BASE_URL = `${API_ORIGIN}/api/v1/platform`;
 export const platformHttp = axios.create({ baseURL: BASE_URL, withCredentials: true, timeout: 30000 });
 
 let store;
@@ -72,7 +73,13 @@ export const platformApi = createApi({
   endpoints: (build) => ({
     platformLogout: build.mutation({ query: () => ({ url: '/auth/logout', method: 'post' }) }),
     platformMe: build.query({ query: () => ({ url: '/auth/me' }), transformResponse: data, providesTags: ['Admin'] }),
-    platformDashboard: build.query({ query: () => ({ url: '/dashboard' }), transformResponse: data, providesTags: ['Dashboard'] }),
+    // Reports read payments, subscriptions and organisations, so they refresh when billing or organisations change.
+    platformProfile: build.query({ query: () => ({ url: '/profile' }), transformResponse: data, providesTags: ['Admin'] }),
+    updatePlatformProfile: build.mutation({ query: (body) => ({ url: '/profile', method: 'patch', data: body }), transformResponse: data, invalidatesTags: ['Admin'] }),
+    changePlatformPassword: build.mutation({ query: (body) => ({ url: '/profile/password', method: 'post', data: body }), transformResponse: data }),
+    platformReports: build.query({ query: () => ({ url: '/reports' }), transformResponse: data }),
+    platformReport: build.query({ query: ({ key, ...params }) => ({ url: `/reports/${key}`, params }), transformResponse: data, providesTags: ['Billing', 'Org'] }),
+    platformDashboard: build.query({ query: (period = 'month') => ({ url: '/dashboard', params: { period } }), transformResponse: data, providesTags: ['Dashboard'] }),
     organisations: build.query({ query: (params) => ({ url: '/organisations', params }), transformResponse: list, providesTags: ['Org'] }),
     organisation: build.query({ query: (id) => ({ url: `/organisations/${id}` }), transformResponse: data, providesTags: (r, e, id) => [{ type: 'Org', id }] }),
     organisationHistory: build.query({ query: (id) => ({ url: `/organisations/${id}/history` }), transformResponse: data, providesTags: ['Org', 'Billing'] }),
@@ -82,6 +89,8 @@ export const platformApi = createApi({
       transformResponse: data,
       invalidatesTags: ['Org', 'Dashboard'],
     }),
+    // PIN code -> post offices, city, district, state (India Post), cached for the session.
+    pincode: build.query({ query: (pin) => ({ url: `/pincode/${pin}` }), transformResponse: data, keepUnusedDataFor: 3600 }),
     sendLoginCode: build.mutation({ query: (id) => ({ url: `/organisations/${id}/send-login`, method: 'post' }), transformResponse: data, invalidatesTags: ['Org'] }),
     // Email (SMTP) settings
     emailSettings: build.query({ query: () => ({ url: '/email-settings' }), transformResponse: data, providesTags: ['Email'] }),
@@ -90,7 +99,7 @@ export const platformApi = createApi({
     testEmailSettings: build.mutation({ query: (body) => ({ url: '/email-settings/test', method: 'post', data: body }), transformResponse: data, invalidatesTags: ['Email'] }),
     deleteOrganisation: build.mutation({ query: (id) => ({ url: `/organisations/${id}`, method: 'delete' }), transformResponse: data, invalidatesTags: ['Org', 'Dashboard', 'Billing'] }),
     // Subscriptions & billing
-    billingDashboard: build.query({ query: () => ({ url: '/billing/dashboard' }), transformResponse: data, providesTags: ['Billing'] }),
+    billingDashboard: build.query({ query: (period = 'month') => ({ url: '/billing/dashboard', params: { period } }), transformResponse: data, providesTags: ['Billing'] }),
     plans: build.query({ query: () => ({ url: '/plans' }), transformResponse: data, providesTags: ['Billing'] }),
     createPlan: build.mutation({ query: (body) => ({ url: '/plans', method: 'post', data: body }), transformResponse: data, invalidatesTags: ['Billing'] }),
     updatePlan: build.mutation({ query: ({ id, ...body }) => ({ url: `/plans/${id}`, method: 'put', data: body }), transformResponse: data, invalidatesTags: ['Billing'] }),
@@ -110,6 +119,11 @@ export const {
   usePlatformLogoutMutation,
   usePlatformMeQuery,
   usePlatformDashboardQuery,
+  usePlatformReportsQuery,
+  usePlatformProfileQuery,
+  useUpdatePlatformProfileMutation,
+  useChangePlatformPasswordMutation,
+  usePlatformReportQuery,
   useOrganisationsQuery,
   useOrganisationQuery,
   useOrganisationHistoryQuery,
@@ -117,6 +131,7 @@ export const {
   useUpdateOrganisationMutation,
   useDeleteOrganisationMutation,
   useSendLoginCodeMutation,
+  useLazyPincodeQuery,
   useEmailSettingsQuery,
   useSaveEmailSettingsMutation,
   useTestEmailSettingsMutation,

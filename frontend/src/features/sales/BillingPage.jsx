@@ -247,27 +247,27 @@ function LineCard({ product: p, discount, discountType, breakdown: b, quoting, c
     <Box sx={{ p: 2, borderRadius: 2.5, border: 1, borderColor: 'divider', bgcolor: 'background.paper', transition: 'border-color 160ms ease, box-shadow 160ms ease', '&:hover': { borderColor: 'rgba(var(--brand-rgb), 0.45)', boxShadow: '0 4px 18px rgba(120, 104, 60, 0.10)' } }}>
       <Stack direction="row" spacing={2} sx={{ alignItems: 'flex-start' }}>
         <Box sx={{ position: 'relative' }}>
-          <AuthImage fileId={p.images?.[0]} alt={p.name} size={64} sx={{ borderRadius: 2 }} />
+          <AuthImage fileId={p.images?.[0]} alt={p.name} size={56} sx={{ borderRadius: 2 }} />
           <Box sx={{ position: 'absolute', top: -8, left: -8, width: 22, height: 22, borderRadius: '50%', display: 'grid', placeItems: 'center', background: tokens.sidebar.goldGradient, color: 'var(--brand-contrast)', fontSize: 11, fontWeight: 800 }}>{index + 1}</Box>
         </Box>
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start', justifyContent: 'space-between' }}>
             <Box sx={{ minWidth: 0 }}>
-              <Typography variant="subtitle1" sx={{ fontWeight: 600, lineHeight: 1.3 }}>
+              <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, lineHeight: 1.3 }}>
                 {p.name}
               </Typography>
-              <Typography variant="caption" color="textSecondary">
+              <Typography color="textSecondary" sx={{ fontSize: '0.6875rem' }}>
                 {p.sku} · {purityLabel(p.metal, p.purity)}
                 {p.huid ? ` · HUID ${p.huid}` : ''}
               </Typography>
             </Box>
             <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', flexShrink: 0 }}>
               <Box sx={{ textAlign: 'right' }}>
-                <Typography variant="h4" component="p" sx={{ fontWeight: 700 }}>
+                <Typography component="p" sx={{ fontSize: '0.96875rem', fontWeight: 700, lineHeight: 1.3, fontVariantNumeric: 'tabular-nums' }}>
                   {b ? formatINR(b.totalPaise) : quoting ? '…' : '—'}
                 </Typography>
                 {b?.discountPaise > 0 && (
-                  <Typography variant="caption" color="success.main" sx={{ fontWeight: 600 }}>
+                  <Typography color="success.main" sx={{ fontSize: '0.6875rem', fontWeight: 600 }}>
                     {formatINR(b.discountPaise)} off
                   </Typography>
                 )}
@@ -280,7 +280,7 @@ function LineCard({ product: p, discount, discountType, breakdown: b, quoting, c
             </Stack>
           </Stack>
 
-          <Stack direction="row" sx={{ mt: 1.25, flexWrap: 'wrap', gap: 2 }}>
+          <Stack direction="row" sx={{ mt: 1, flexWrap: 'wrap', columnGap: 1.75, rowGap: 1 }}>
             <Fact label="Gross" value={formatWeight(p.grossWeightMg)} />
             <Fact label="Net" value={formatWeight(p.netWeightMg)} />
             {b?.ratePerGramPaise != null && <Fact label="Rate" value={`${formatINR(b.ratePerGramPaise, { decimals: 0 })}/g`} />}
@@ -296,7 +296,7 @@ function LineCard({ product: p, discount, discountType, breakdown: b, quoting, c
                   value={discountType}
                   onChange={(e, v) => v && onDiscountType(v)}
                   aria-label="Discount type"
-                  sx={{ height: 40, '& .MuiToggleButton-root': { px: 1.25, fontWeight: 700, fontSize: '0.875rem' }, '& .Mui-selected': { bgcolor: 'rgba(var(--brand-rgb), 0.16) !important', color: tokens.brand.strong } }}
+                  sx={{ height: 36, '& .MuiToggleButton-root': { px: 1, fontWeight: 700, fontSize: '0.8125rem' }, '& .Mui-selected': { bgcolor: 'rgba(var(--brand-rgb), 0.16) !important', color: tokens.brand.strong } }}
                 >
                   <ToggleButton value="percent" aria-label="Discount in percent">
                     %
@@ -312,7 +312,7 @@ function LineCard({ product: p, discount, discountType, breakdown: b, quoting, c
                   onChange={(e) => onDiscount(e.target.value.replace(/[^\d.]/g, ''))}
                   error={discountType === 'percent' && Number(discount) > 100}
                   helperText={discountType === 'percent' && discount && b ? (Number(discount) > 100 ? 'Up to 100%' : `= ${formatINR(b.discountPaise, { decimals: 0 })}`) : ' '}
-                  sx={{ width: 120 }}
+                  sx={{ width: 110 }}
                   slotProps={{
                     input: discountType === 'percent' ? { endAdornment: <InputAdornment position="end">%</InputAdornment> } : { startAdornment: <InputAdornment position="start">₹</InputAdornment> },
                     htmlInput: { inputMode: 'decimal' },
@@ -371,16 +371,18 @@ function MissingHuid({ product, onSaved }) {
 
 const Fact = ({ label, value }) => (
   <Box>
-    <Typography variant="caption" color="textSecondary" sx={{ display: 'block', lineHeight: 1.2 }}>
+    <Typography color="textSecondary" sx={{ display: 'block', fontSize: '0.65625rem', lineHeight: 1.2 }}>
       {label}
     </Typography>
-    <Typography variant="body2" sx={{ fontWeight: 600 }}>
+    <Typography sx={{ fontSize: '0.75rem', fontWeight: 600, fontVariantNumeric: 'tabular-nums' }}>
       {value}
     </Typography>
   </Box>
 );
 
 const QUICK_MODES = PAYMENT_MODES.filter((m) => m.value !== 'credit');
+// Shorter names for the payment chips, so every mode fits on one line.
+const SHORT_MODE_LABEL = { bank: 'Bank' };
 
 /** The order being delivered: each line shows its finished piece (on the bill, or ready to add), or how to finish it. */
 function OrderPanel({ order, onBill, canFinish, onFinish, onAdd }) {
@@ -454,7 +456,6 @@ export default function BillingPage() {
   const [customer, setCustomer] = useState(null);
   const [orderId, setOrderId] = useState(params.get('orderId'));
   const [payments, setPayments] = useState([{ mode: 'cash', amount: '', reference: '' }]);
-  const [tendered, setTendered] = useState('');
   const [notes, setNotes] = useState('');
   const idempotencyKey = useRef(newKey());
 
@@ -547,7 +548,6 @@ export default function BillingPage() {
   const clearBill = () => {
     setLines([]);
     setPayments([{ mode: 'cash', amount: '', reference: '' }]);
-    setTendered('');
     setNotes('');
   };
 
@@ -561,18 +561,24 @@ export default function BillingPage() {
     setCustomer(c);
     if (orderId && linkedOrder && c?.id !== linkedOrder.customer.id) pickOrder(null);
   };
+  // A piece made for this customer's order was added: the server bills it against that order, so show it here too
+  // (its advance is deducted and the order is delivered with this bill).
+  useEffect(() => {
+    if (quote?.order?.id && !orderId) pickOrder(String(quote.order.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quote?.order?.id]);
 
   const compliance = quote?.compliance;
   const cashPaid = payments.filter((p) => p.mode === 'cash').reduce((s, p) => s + safePaise(p.amount), 0);
   const cashOver = compliance && cashPaid > compliance.cashLimitPaise;
-  const change = cashPaid > 0 && tendered ? safePaise(tendered) - cashPaid : null;
   const problems = [];
   if (!lines.length) problems.push('Add at least one item');
   if (quoteError) problems.push(getErrorMessage(quoteError));
-  if (quote && remaining !== 0) problems.push(remaining > 0 ? `${formatINR(remaining)} still to collect` : `${formatINR(-remaining)} more than due`);
-  if (payments.some((p) => p.mode === 'credit') && !customer) problems.push('Select a customer for credit');
-  if (compliance?.panMissing) problems.push('PAN required for this bill value');
-  if (cashOver && compliance.cashLimitAction === 'block') problems.push('Cash above the legal limit');
+  // A customer may pay part now: the rest stays due on their account. A walk-in pays in full.
+  if (quote && remaining < 0) problems.push(`Payment is ${formatINR(-remaining)} more than the bill — lower the amount.`);
+  if (quote && remaining > 0 && !customer) problems.push(`${formatINR(remaining)} is unpaid — select the customer to keep it as due (a walk-in pays in full).`);
+  if (compliance?.panMissing) problems.push(customer ? `Bills above ₹2 lakh need the customer's PAN — add PAN to ${customer.name}.` : 'Bills above ₹2 lakh need a customer with PAN — select the customer.');
+  if (cashOver && compliance.cashLimitAction === 'block') problems.push(`Cash cannot be more than ${formatINR(compliance.cashLimitPaise, { decimals: 0 })} (Section 269ST) — take the rest by card, UPI or bank (use Split).`);
 
   const generate = async () => {
     try {
@@ -609,8 +615,21 @@ export default function BillingPage() {
       <RateStrip enabled={session.catalog?.enabledPurities} />
 
       <Grid container spacing={3}>
-        <Grid size={{ xs: 12, lg: 8 }}>
-          <Card>
+        <Grid size={{ xs: 12, md: 7, xl: 7.5 }}>
+          {/* The item side reads one step smaller, so the bill and payment side stands out. */}
+          <Card
+            sx={{
+              '& .MuiTypography-body2': { fontSize: '0.75rem' },
+              '& .MuiTypography-caption': { fontSize: '0.65625rem' },
+              '& .MuiTypography-subtitle1': { fontSize: '0.875rem' },
+              '& .MuiTypography-overline': { fontSize: '0.65625rem' },
+              '& .MuiInputBase-input': { fontSize: '0.8125rem' },
+              '& .MuiInputLabel-root': { fontSize: '0.8125rem' },
+              '& .MuiFormHelperText-root': { fontSize: '0.65625rem' },
+              '& .MuiChip-label': { fontSize: '0.6875rem' },
+              '& .MuiButton-root': { fontSize: '0.75rem' },
+            }}
+          >
             <CardContent>
               {linkedOrder && (
                 <OrderPanel order={linkedOrder} onBill={exclude} canFinish={canFinish} onFinish={setFinishing} onAdd={addFinished} />
@@ -674,8 +693,8 @@ export default function BillingPage() {
           </Card>
         </Grid>
 
-        <Grid size={{ xs: 12, lg: 4 }}>
-          <Stack spacing={2.5} sx={{ position: { lg: 'sticky' }, top: { lg: 88 } }}>
+        <Grid size={{ xs: 12, md: 5, xl: 4.5 }} id="bill-payment" sx={{ scrollMarginTop: 72 }}>
+          <Stack spacing={2.5} sx={{ position: { md: 'sticky' }, top: { md: 88 } }}>
             <Card>
               <CardContent>
                 <Typography variant="overline" color="textSecondary" sx={{ display: 'block', mb: 1 }}>
@@ -711,10 +730,11 @@ export default function BillingPage() {
                     </>
                   ))}
                 {totals?.roundOffPaise ? <Money light label="Round off" value={formatINR(totals.roundOffPaise)} /> : null}
-                {quote?.advancePaise > 0 && (
+                {(quote?.advancePaise > 0 || quote?.customerAdvancePaise > 0) && (
                   <>
                     <Money light label="Bill total" value={formatINR(totals.grandTotalPaise)} strong />
-                    <Money light label={`Advance ${quote.order.orderNo}`} value={formatINR(quote.advancePaise)} negative />
+                    {quote.advancePaise > 0 && <Money light label={`Advance ${quote.order.orderNo}`} value={formatINR(quote.advancePaise)} negative />}
+                    {quote.customerAdvancePaise > 0 && <Money light label="Advance paid earlier" value={formatINR(quote.customerAdvancePaise)} negative />}
                   </>
                 )}
                 <Divider sx={{ my: 1.5, borderColor: 'rgba(var(--brand-rgb), 0.3)' }} />
@@ -736,12 +756,21 @@ export default function BillingPage() {
                 <Stack spacing={2}>
                   {payments.map((p, n) => (
                     <Box key={n}>
-                      <Stack direction="row" spacing={0.75} sx={{ mb: 1, flexWrap: 'wrap', gap: 0.75 }}>
-                        {(customer ? PAYMENT_MODES : QUICK_MODES).map((m) => (
-                          <Chip key={m.value} label={m.label} onClick={() => setPayment(n, { mode: m.value })} color={p.mode === m.value ? 'primary' : 'default'} variant={p.mode === m.value ? 'filled' : 'outlined'} sx={{ fontWeight: 600 }} />
+                      {/* All modes on one line: they share the width equally (short labels so even five fit). */}
+                      <Stack direction="row" sx={{ mb: 1, flexWrap: 'nowrap', gap: 0.5, alignItems: 'center' }}>
+                        {QUICK_MODES.map((m) => (
+                          <Chip
+                            key={m.value}
+                            label={SHORT_MODE_LABEL[m.value] ?? m.label}
+                            title={m.label}
+                            onClick={() => setPayment(n, { mode: m.value })}
+                            color={p.mode === m.value ? 'primary' : 'default'}
+                            variant={p.mode === m.value ? 'filled' : 'outlined'}
+                            sx={{ flex: '1 1 0', minWidth: 0, height: 30, fontWeight: 600, fontSize: '0.8125rem', '& .MuiChip-label': { px: 0.5, overflow: 'hidden', textOverflow: 'ellipsis' } }}
+                          />
                         ))}
                         {payments.length > 1 && (
-                          <IconButton size="small" onClick={() => setPayments((rows) => rows.filter((_, i) => i !== n))} aria-label="Remove payment" sx={{ ml: 'auto' }}>
+                          <IconButton size="small" onClick={() => setPayments((rows) => rows.filter((_, i) => i !== n))} aria-label="Remove payment" sx={{ ml: 'auto', flexShrink: 0 }}>
                             <CloseRoundedIcon fontSize="small" />
                           </IconButton>
                         )}
@@ -770,54 +799,44 @@ export default function BillingPage() {
                   <Stack direction="row" sx={{ mt: 2, p: 1.25, borderRadius: 1.5, bgcolor: 'action.hover', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
                     <Box>
                       <Typography variant="caption" color="textSecondary" sx={{ display: 'block' }}>
-                        Paid
+                        Paid now
                       </Typography>
                       <Amount paise={paid} tone="paid" sx={{ fontSize: '1rem', fontWeight: 700 }} />
                     </Box>
+                    <Chip size="small" color={remaining === 0 ? 'success' : remaining < 0 ? 'error' : 'warning'} label={remaining === 0 ? 'Fully paid' : remaining < 0 ? 'Too much' : paid > 0 ? 'Partly paid' : 'Unpaid'} sx={{ fontWeight: 700 }} />
                     <Box sx={{ textAlign: 'right' }}>
                       <Typography variant="caption" color="textSecondary" sx={{ display: 'block' }}>
-                        {remaining > 0 ? 'Remaining due' : remaining < 0 ? 'Paid more than due' : 'Balance'}
+                        {remaining < 0 ? 'Paid more than due' : 'Due'}
                       </Typography>
-                      {remaining === 0 ? (
-                        <Chip size="small" color="success" label="Fully paid" sx={{ fontWeight: 700 }} />
-                      ) : (
-                        <Amount paise={Math.abs(remaining)} tone="due" sx={{ fontSize: '1rem', fontWeight: 700 }} />
-                      )}
+                      <Amount paise={Math.abs(remaining)} tone={remaining === 0 ? 'paid' : 'due'} sx={{ fontSize: '1rem', fontWeight: 700 }} />
                     </Box>
                   </Stack>
                 )}
-
-                {cashPaid > 0 && (
-                  <Stack direction="row" spacing={1} sx={{ mt: 2, alignItems: 'center' }}>
-                    <TextField
-                      label="Cash received"
-                      value={tendered}
-                      onChange={(e) => setTendered(e.target.value.replace(/[^\d.]/g, ''))}
-                      slotProps={{ input: { startAdornment: <InputAdornment position="start">₹</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }}
-                    />
-                    <Box sx={{ minWidth: 110, textAlign: 'right' }}>
-                      <Typography variant="caption" color="textSecondary">
-                        Change to return
-                      </Typography>
-                      <Typography variant="subtitle1" sx={{ fontWeight: 700, color: change != null && change < 0 ? 'error.main' : 'success.main' }}>
-                        {change == null ? '—' : change < 0 ? `${formatINR(-change)} short` : formatINR(change)}
-                      </Typography>
-                    </Box>
-                  </Stack>
+                {quote && remaining > 0 && customer && (
+                  <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 0.75 }}>
+                    {formatINR(remaining)} stays due on {customer.name}&apos;s account.
+                  </Typography>
                 )}
 
                 <Stack spacing={1.5} sx={{ mt: 2 }}>
-                  {compliance?.panMissing && <Alert severity="warning">This bill needs the customer&apos;s PAN. {customer ? 'Add PAN to the customer.' : 'Select a customer with PAN.'}</Alert>}
-                  {cashOver && <Alert severity={compliance.cashLimitAction === 'block' ? 'error' : 'warning'}>Cash above {formatINR(compliance.cashLimitPaise, { decimals: 0 })} (Section 269ST).</Alert>}
                   <TextField label="Note on bill (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
-                  <Button variant="contained" size="large" disabled={problems.length > 0 || quoting} loading={saving} onClick={generate} startIcon={<ReceiptLongOutlinedIcon />} sx={{ py: 1.4, fontSize: '1rem' }}>
-                    Generate bill {quote ? `· ${formatINR(payable, { decimals: 0 })}` : ''}
-                  </Button>
-                  {problems.length > 0 && lines.length > 0 && (
-                    <Typography variant="caption" color="textSecondary" sx={{ textAlign: 'center' }}>
-                      {problems[0]}
-                    </Typography>
+                  {/* Everything that stops the bill, each with what to do — right above the button. */}
+                  {problems.length > 0 && lines.length > 0 && quote && (
+                    <Alert severity="warning" sx={{ '& .MuiAlert-message': { width: '100%' } }}>
+                      <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>
+                        To generate this bill
+                      </Typography>
+                      <Box component="ul" sx={{ m: 0, pl: 2.25, '& li': { fontSize: '0.8125rem', lineHeight: 1.5 } }}>
+                        {problems.map((p) => (
+                          <li key={p}>{p}</li>
+                        ))}
+                      </Box>
+                    </Alert>
                   )}
+                  {cashOver && compliance.cashLimitAction !== 'block' && <Alert severity="info">Cash above {formatINR(compliance.cashLimitPaise, { decimals: 0 })} (Section 269ST) — allowed by your settings.</Alert>}
+                  <Button variant="contained" size="large" disabled={problems.length > 0 || quoting} loading={saving} onClick={generate} startIcon={<ReceiptLongOutlinedIcon />} sx={{ py: 1.4, fontSize: '1rem' }}>
+                    Generate bill {quote ? (remaining > 0 && paid > 0 ? `· ${formatINR(remaining, { decimals: 0 })} due` : `· ${formatINR(payable, { decimals: 0 })}`) : ''}
+                  </Button>
                 </Stack>
               </CardContent>
             </Card>
@@ -825,6 +844,23 @@ export default function BillingPage() {
         </Grid>
       </Grid>
       {linkedOrder && <FinishItemDialog order={linkedOrder} index={finishing} onClose={() => setFinishing(null)} onFinished={(piece) => { autoAdded.current.add(String(piece.id)); addFinished(piece); }} />}
+      {/* Phones: the amount to collect stays in view above the bottom bar, one tap from the payment section. */}
+      {lines.length > 0 && quote && <Box sx={{ display: { xs: 'block', md: 'none' }, height: 72 }} />}
+      {lines.length > 0 && quote && (
+        <Box sx={{ display: { xs: 'flex', md: 'none' }, position: 'fixed', left: 12, right: 12, bottom: 'calc(84px + env(safe-area-inset-bottom))', zIndex: (t) => t.zIndex.appBar - 1, alignItems: 'center', gap: 1.5, pl: 2, pr: 1, py: 1, borderRadius: 3, bgcolor: '#171717', color: '#F7F3E8', boxShadow: '0 12px 30px -10px rgba(0, 0, 0, 0.5)' }}>
+          <Box sx={{ flex: 1, minWidth: 0 }}>
+            <Typography sx={{ fontSize: '0.625rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(247, 243, 232, 0.6)' }}>
+              To collect · {lines.length} item{lines.length === 1 ? '' : 's'}
+            </Typography>
+            <Typography noWrap sx={{ fontWeight: 800, fontSize: '1.125rem', color: '#F4A09A' }}>
+              {formatINR(payable)}
+            </Typography>
+          </Box>
+          <Button variant="contained" onClick={() => document.getElementById('bill-payment')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} sx={{ flexShrink: 0 }}>
+            Payment
+          </Button>
+        </Box>
+      )}
     </>
   );
 }

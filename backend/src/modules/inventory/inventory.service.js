@@ -13,7 +13,7 @@ import { dayRange, todayContext } from '../../utils/businessDate.js';
 import { searchFilter } from '../../utils/pagination.js';
 import { Product } from '../products/product.model.js';
 import { getSettings } from '../settings/settings.service.js';
-import { accessibleBranchFilter, canSeeCost, nameMaps, oid, pick, requireBranch } from './inventory.helpers.js';
+import { accessibleBranchFilter, canSeeCost, nameMaps, oid, pick, requireBranch, viewBranchFor } from './inventory.helpers.js';
 import { StockEntry } from './stockEntry.model.js';
 
 const withFine = (lines) => lines.map((l) => ({ ...l, fineWeightMg: fineWeightMg(l.grossWeightMg, l.purity) }));
@@ -173,7 +173,8 @@ export async function createAdjustment({ branchId, reason, productIds, metalLine
   return (await serializeEntries([fresh]))[0];
 }
 
-export async function listStockEntries({ page, limit, q, type, status, branchId }) {
+export async function listStockEntries({ page, limit, q, type, status, branchId: chosen }) {
+  const branchId = chosen ?? (await viewBranchFor('inventory')); // navbar filter
   const filter = { type, ...accessibleBranchFilter(), ...searchFilter(q, ['docNo', 'note']) };
   if (status) filter.status = status;
   if (branchId) filter.branchId = oid(branchId);
@@ -187,7 +188,8 @@ export async function getStockEntry(id) {
   return (await serializeEntries([entry]))[0];
 }
 
-export async function stockSummary({ branchId }) {
+export async function stockSummary({ branchId: chosen }) {
+  const branchId = chosen ?? (await viewBranchFor('inventory')); // navbar filter
   const scope = branchId ? (await requireBranch(branchId, { active: false }), { branchId: oid(branchId) }) : accessibleBranchFilter();
   const cost = canSeeCost();
   const [products, inTransit, pools] = await Promise.all([
@@ -217,7 +219,8 @@ export async function stockSummary({ branchId }) {
   };
 }
 
-export async function listMovements({ page, limit, branchId, productId, type, metal, from, to }) {
+export async function listMovements({ page, limit, branchId: chosen, productId, type, metal, from, to }) {
+  const branchId = chosen ?? (productId ? null : await viewBranchFor('inventory')); // navbar filter (one product's history: all)
   const filter = { ...accessibleBranchFilter() };
   if (branchId) filter.branchId = oid(branchId);
   if (productId) filter.productId = oid(productId);

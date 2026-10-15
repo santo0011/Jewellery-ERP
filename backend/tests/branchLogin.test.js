@@ -32,6 +32,48 @@ describe('branch login', () => {
     expect(me.user.roles.map((r) => r.key)).toEqual(['branch_manager']);
   });
 
+  it('lets the branch choose its own print design, but not the organisation’s or another branch’s', async () => {
+    const { owner, email, branchId, url } = await setup();
+    await api().put(url).set(bearer(owner.token)).send({ password: '123456' });
+    const t = (await login(email, '123456')).body.data.accessToken;
+    const ho = (await api().get('/api/v1/auth/me').set(bearer(owner.token))).body.data.branches.find((b) => b.isHeadOffice).id;
+
+    const own = await api().put(`/api/v1/settings/print/branches/${branchId}`).set(bearer(t)).send({ choice: { size: 'thermal80', design: 'detailed' } });
+    expect(own.status).toBe(200);
+    expect(own.body.data.print).toMatchObject({ size: 'a4', design: 'classic', branches: [{ branchId, size: 'thermal80', design: 'detailed' }] });
+
+    expect((await api().put(`/api/v1/settings/print/branches/${ho}`).set(bearer(t)).send({ choice: { size: 'a4', design: 'royal' } })).status).toBe(403);
+    expect((await api().put('/api/v1/settings/print').set(bearer(t)).send({ size: 'a4', design: 'royal', branches: [] })).status).toBe(403);
+    expect((await api().put(`/api/v1/settings/print/branches/${branchId}`).set(bearer(t)).send({ choice: { size: 'thermal58', design: 'royal' } })).status).toBe(400);
+
+    // The organisation changing its default leaves the branch's own choice alone.
+    const orgSaved = await api().put('/api/v1/settings/print').set(bearer(owner.token)).send({ size: 'a4', design: 'modern' });
+    expect(orgSaved.body.data.print).toMatchObject({ size: 'a4', design: 'modern', branches: [{ branchId, size: 'thermal80', design: 'detailed' }] });
+    // …and cannot choose for a branch: each branch does that itself.
+    expect((await api().put(`/api/v1/settings/print/branches/${branchId}`).set(bearer(owner.token)).send({ choice: null })).status).toBe(403);
+
+    const back = await api().put(`/api/v1/settings/print/branches/${branchId}`).set(bearer(t)).send({ choice: null });
+    expect(back.body.data.print.branches).toEqual([]);
+  });
+
+  it('gets every permission its role is given — e.g. the audit log once Branch Manager may view it', async () => {
+    const { owner, email, url } = await setup();
+    await api().put(url).set(bearer(owner.token)).send({ password: '123456' });
+    const signIn = async () => (await login(email, '123456')).body.data.accessToken;
+
+    expect((await api().get('/api/v1/audit-logs').set(bearer(await signIn()))).status).toBe(403);
+
+    const roles = (await api().get('/api/v1/roles').set(bearer(owner.token))).body.data;
+    const manager = roles.find((r) => r.key === 'branch_manager');
+    const full = (await api().get(`/api/v1/roles/${manager.id}`).set(bearer(owner.token))).body.data;
+    const saved = await api().put(`/api/v1/roles/${manager.id}`).set(bearer(owner.token)).send({ name: full.name, description: full.description ?? '', permissions: [...full.permissions, 'audit.view'] });
+    expect(saved.status).toBe(200);
+
+    const t = await signIn();
+    expect((await api().get('/api/v1/auth/me').set(bearer(t))).body.data.permissions).toContain('audit.view');
+    expect((await api().get('/api/v1/audit-logs').set(bearer(t))).status).toBe(200);
+  });
+
   it('needs a branch email first', async () => {
     const { owner, url } = await setup({ email: '' });
     const res = await api().put(url).set(bearer(owner.token)).send({ password: '123456' });

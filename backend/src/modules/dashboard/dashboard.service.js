@@ -5,7 +5,7 @@ import { Category } from '../categories/category.model.js';
 import { oid, requireBranch } from '../inventory/inventory.helpers.js';
 import { Order } from '../orders/order.model.js';
 import { Product } from '../products/product.model.js';
-import { Sale } from '../sales/sale.model.js';
+import { Sale, billDue } from '../sales/sale.model.js';
 
 const sum = (list, fn) => list.reduce((s, x) => s + fn(x), 0);
 /** YYYY-MM-DD arithmetic on business dates (no timezone drift: the strings are already local). */
@@ -14,6 +14,21 @@ const shiftDate = (ymd, days) => {
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
 };
+const daysBetween = (a, b) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000);
+/** Month starts (YYYY-MM-01) from the month of `from` to the month of `to`. */
+const monthsBetween = (from, to) => {
+  const out = [];
+  for (let m = `${from.slice(0, 7)}-01`; m <= to; ) {
+    out.push(m);
+    const d = new Date(`${m}T00:00:00Z`);
+    d.setUTCMonth(d.getUTCMonth() + 1);
+    m = d.toISOString().slice(0, 10);
+  }
+  return out;
+};
+// Longer than this, the trend is shown per month (a daily line would be hundreds of points).
+const DAILY_UP_TO = 92;
+
 const top = (rows, n) => {
   const sorted = [...rows].sort((a, b) => b.value - a.value);
   if (sorted.length <= n) return sorted;
@@ -21,17 +36,27 @@ const top = (rows, n) => {
   return [...sorted.slice(0, n - 1), { key: 'other', label: 'Other', value: sum(rest, (r) => r.value), extra: sum(rest, (r) => r.extra ?? 0) }];
 };
 
-/** The branch at a glance for the chosen period: sales trend and mix, collections, orders and stock. */
-export async function branchDashboard({ branchId, days }) {
+/**
+ * The branch at a glance for the chosen period — 'today', 'month' (this month so far) or 'all' (since the branch's
+ * first bill): sales trend and mix, collections, orders and stock.
+ */
+export async function branchDashboard({ branchId, period }) {
   const { permissions } = requireContext();
   const branch = await requireBranch(branchId, { active: false });
   const can = (p) => hasPermission(permissions, p);
   const today = await todayContext();
-  const from = shiftDate(today.businessDate, -(days - 1));
   const branchFilter = { branchId: oid(branch._id) };
+  let from = period === 'month' ? `${today.businessDate.slice(0, 7)}-01` : today.businessDate;
+  if (period === 'all') {
+    const first = await Sale.findOne({ ...branchFilter, status: SALE_STATUS.COMPLETED }).sort({ businessDate: 1 }).select('businessDate').lean();
+    if (first && first.businessDate < today.businessDate) from = first.businessDate;
+  }
+  const span = daysBetween(from, today.businessDate) + 1;
+  const monthly = span > DAILY_UP_TO;
 
   const [sales, orders, stock] = await Promise.all([
-    can('sales.view') ? Sale.find({ ...branchFilter, status: SALE_STATUS.COMPLETED, businessDate: { $gte: from } }).sort({ createdAt: -1 }).lean() : null,
+    // Sales figures are money: they also need Dashboard → View financial figures.
+    can('sales.view') && can('dashboard.viewFinancials') ? Sale.find({ ...branchFilter, status: SALE_STATUS.COMPLETED, businessDate: { $gte: from } }).sort({ createdAt: -1 }).lean() : null,
     can('order.view') ? Order.find({ ...branchFilter, $or: [{ status: { $in: OPEN_ORDER_STATUSES } }, { createdAt: { $gte: new Date(`${from}T00:00:00Z`) } }] }).sort({ expectedDate: 1 }).lean() : null,
     can('inventory.view')
       ? Product.aggregate([
@@ -43,10 +68,11 @@ export async function branchDashboard({ branchId, days }) {
 
   let salesBlock = null;
   if (sales) {
-    const dates = Array.from({ length: days }, (_, i) => shiftDate(from, i));
+    // One point per day — or per month (keyed by its first day) over a long range.
+    const dates = monthly ? monthsBetween(from, today.businessDate) : Array.from({ length: span }, (_, i) => shiftDate(from, i));
     const byDay = new Map(dates.map((d) => [d, { date: d, totalPaise: 0, bills: 0 }]));
     for (const s of sales) {
-      const day = byDay.get(s.businessDate);
+      const day = byDay.get(monthly ? `${s.businessDate.slice(0, 7)}-01` : s.businessDate);
       if (day) {
         day.totalPaise += s.totals.grandTotalPaise;
         day.bills += 1;
@@ -93,11 +119,15 @@ export async function branchDashboard({ branchId, days }) {
         revenuePaise: revenue,
         bills: sales.length,
         averageBillPaise: sales.length ? Math.round(revenue / sales.length) : 0,
+        // Paid at the counter on the period's bills (cash, card, UPI, bank — not what was left on credit).
+        collectedPaise: sum(sales, (s) => sum(s.payments.filter((p) => p.mode !== 'credit'), (p) => p.amountPaise)),
         items: items.length,
         grossWeightMg: sum(items, (i) => i.grossWeightMg ?? 0),
         discountPaise: sum(sales, (s) => s.totals.discountPaise ?? 0),
         gstPaise: sum(sales, (s) => s.totals.gstPaise ?? 0),
-        creditDuePaise: sum(sales, (s) => sum(s.payments.filter((p) => p.mode === 'credit'), (p) => p.amountPaise)),
+        // Still owed on the period's bills (credit left at billing, less what was collected or returned since).
+        creditDuePaise: sum(sales, billDue),
+        dueBills: sales.filter((s) => billDue(s) > 0).length,
       },
       daily: [...byDay.values()],
       byCategory: top([...byCategory.values()], 6),
@@ -133,5 +163,5 @@ export async function branchDashboard({ branchId, days }) {
     byPurity: stock.map((s) => ({ key: `${s._id.metal}:${s._id.purity}`, metal: s._id.metal, purity: s._id.purity, items: s.items, value: s.grossMg, fineMg: s.fineMg })).sort((a, b) => b.value - a.value),
   };
 
-  return { branch: { id: branch._id, name: branch.name, code: branch.code }, range: { from, to: today.businessDate, days }, sales: salesBlock, orders: ordersBlock, stock: stockBlock };
+  return { branch: { id: branch._id, name: branch.name, code: branch.code }, range: { from, to: today.businessDate, period, span, bucket: monthly ? 'month' : 'day' }, sales: salesBlock, orders: ordersBlock, stock: stockBlock };
 }

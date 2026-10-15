@@ -1,4 +1,4 @@
-import { hasPermission, ORDER_STATUS, PRODUCT_STATUS, SALE_STATUS } from '@jerp/shared';
+import { hasPermission, OPEN_ORDER_STATUSES, ORDER_STATUS, PRODUCT_STATUS, SALE_STATUS } from '@jerp/shared';
 import { withTransaction } from '../../config/db.js';
 import { AUDIT_ACTIONS, recordAudit } from '../../core/audit/audit.service.js';
 import { requireContext } from '../../core/context/requestContext.js';
@@ -12,14 +12,14 @@ import { dayRange, todayContext } from '../../utils/businessDate.js';
 import { maskTail } from '../../utils/mask.js';
 import { searchFilter } from '../../utils/pagination.js';
 import { Customer } from '../customers/customer.model.js';
-import { accessibleBranchFilter, nameMaps, oid, pick, requireBranch } from '../inventory/inventory.helpers.js';
+import { accessibleBranchFilter, nameMaps, oid, pick, requireBranch, viewBranchFor } from '../inventory/inventory.helpers.js';
 import { Order } from '../orders/order.model.js';
 import { orderForBilling } from '../orders/order.service.js';
 import { Organisation } from '../organisations/organisation.model.js';
 import { Product } from '../products/product.model.js';
 import { getApplicableRate } from '../rates/rate.service.js';
-import { getSettings } from '../settings/settings.service.js';
-import { Sale, SalesReturn } from './sale.model.js';
+import { getSettings, printChoiceFor } from '../settings/settings.service.js';
+import { Sale, SalesReturn, billDue } from './sale.model.js';
 
 const problem = (message, details, code = 'SALE_BLOCKED') => new ApiError(422, code, message, details);
 
@@ -38,12 +38,42 @@ function pricingInputs(p, discountPaise) {
   };
 }
 
-async function buildQuote({ branchId, customerId: requestedCustomerId, orderId, items }) {
+/**
+ * Advance the customer paid before their first bill (entered as a minus "old due" on the customer), less what
+ * earlier bills have already used. Cancelled bills give theirs back.
+ */
+export async function customerAdvanceLeft(customer, { session } = {}) {
+  const held = Math.max(0, -(customer?.openingBalancePaise ?? 0));
+  if (!held) return 0;
+  const used = await Sale.find({ customerId: customer._id, status: SALE_STATUS.COMPLETED, customerAdvancePaise: { $gt: 0 } }).select('customerAdvancePaise').session(session ?? null).lean();
+  return held - used.reduce((s, x) => s + x.customerAdvancePaise, 0);
+}
+
+/** Paid (money received now, plus any advance used) and due (left on the customer's account) for one bill. */
+export function billBalance(s) {
+  const due = billDue(s); // left on credit, less what was collected later and returns adjusted against it
+  const paid = s.totals.grandTotalPaise - due;
+  return { paidPaise: paid, duePaise: due, collectedLaterPaise: s.duePaidPaise ?? 0, paymentStatus: due <= 0 ? 'paid' : paid > 0 ? 'partly_paid' : 'due' };
+}
+
+async function buildQuote({ branchId, customerId: requestedCustomerId, orderId: requestedOrderId, items, useCustomerAdvance = true }) {
   const { permissions } = requireContext();
   if (items.some((i) => i.discountPaise > 0) && !hasPermission(permissions, 'sales.discount')) {
     throw ApiError.forbidden('You are not allowed to give discounts', 'DISCOUNT_FORBIDDEN');
   }
   const branch = await requireBranch(branchId);
+  // A piece made for this customer's open order bills against that order even when the order was not picked,
+  // so its advance is deducted and the order is delivered (otherwise the advance would be left hanging).
+  let orderId = requestedOrderId;
+  if (!orderId && requestedCustomerId) {
+    const own = await Order.find({ customerId: requestedCustomerId, status: { $in: OPEN_ORDER_STATUSES }, 'items.productId': { $in: items.map((i) => i.productId) } })
+      .select('orderNo')
+      .lean();
+    if (own.length > 1) {
+      throw problem(`These pieces belong to different orders (${own.map((o) => o.orderNo).join(', ')}). Bill one order at a time.`, [{ path: 'items', message: 'Pieces from several orders' }]);
+    }
+    orderId = own[0]?._id ?? null;
+  }
   const order = orderId ? await orderForBilling(orderId, { branchId, customerId: requestedCustomerId }) : null;
   const customerId = requestedCustomerId ?? order?.customerId ?? null;
   const [settings, today, org, customer, products] = await Promise.all([
@@ -58,6 +88,19 @@ async function buildQuote({ branchId, customerId: requestedCustomerId, orderId, 
 
   const byId = new Map(products.map((p) => [String(p._id), p]));
   const issues = [];
+
+  // A piece made for a customer's order is theirs: it can be billed only to that customer.
+  const reserved = await Order.find({ status: { $in: OPEN_ORDER_STATUSES }, 'items.productId': { $in: items.map((i) => i.productId) } })
+    .select('orderNo customerId customer items.productId')
+    .lean();
+  for (const o of reserved) {
+    if (customer && String(o.customerId) === String(customer._id)) continue;
+    for (const line of o.items.filter((l) => l.productId && items.some((i) => String(i.productId) === String(l.productId)))) {
+      const sku = byId.get(String(line.productId))?.sku ?? 'This item';
+      const who = o.customer?.name ?? 'that customer';
+      issues.push({ path: 'items', message: `${sku} is made for order ${o.orderNo} of ${who}; it can be billed only to ${who}` });
+    }
+  }
   const lines = [];
   for (const item of items) {
     const p = byId.get(String(item.productId));
@@ -73,7 +116,7 @@ async function buildQuote({ branchId, customerId: requestedCustomerId, orderId, 
     if (p.pricingMode !== 'fixed') {
       rate = await getApplicableRate(p.metal, p.purity, today.now);
       if (!rate) issues.push({ path: 'items', message: `No ${p.metal} ${p.purity} rate entered` });
-      else if (rate.businessDate !== today.businessDate) issues.push({ path: 'items', message: `Today's ${p.metal} ${p.purity} rate is not updated` });
+      else if (rate.businessDate !== today.businessDate) issues.push({ path: 'items', message: `Today's ${p.metal} ${p.purity} rate is not updated (rates are updated once by the organisation for all branches)` });
     }
     if (issues.length) continue;
 
@@ -101,10 +144,17 @@ async function buildQuote({ branchId, customerId: requestedCustomerId, orderId, 
     throw problem(`The advance on ${order.orderNo} (${(advancePaise / 100).toFixed(2)}) is more than this bill (${(totals.grandTotalPaise / 100).toFixed(2)}). Add the remaining items or refund part of the advance.`, [{ path: 'orderId', message: 'Advance exceeds the bill' }], 'ADVANCE_EXCEEDS_BILL');
   }
 
+  // The customer's own advance (from before) is used next, as far as the bill needs it.
+  const customerAdvanceLeftPaise = customer ? Math.max(0, await customerAdvanceLeft(customer)) : 0;
+  const customerAdvancePaise = useCustomerAdvance ? Math.min(customerAdvanceLeftPaise, totals.grandTotalPaise - advancePaise) : 0;
+
   const panRequired = totals.grandTotalPaise > settings.jewellery.panRequiredAbovePaise;
   return {
     order,
     advancePaise,
+    customerAdvancePaise,
+    customerAdvanceLeftPaise,
+    payablePaise: totals.grandTotalPaise - advancePaise - customerAdvancePaise,
     branch,
     org,
     customer,
@@ -146,18 +196,31 @@ export async function quote(input) {
     compliance: q.compliance,
     order: q.order && { id: q.order._id, orderNo: q.order.orderNo, advancePaise: q.order.advancePaise },
     advancePaise: q.advancePaise,
-    payablePaise: q.totals.grandTotalPaise - q.advancePaise,
+    customerAdvancePaise: q.customerAdvancePaise,
+    customerAdvanceLeftPaise: q.customerAdvanceLeftPaise,
+    payablePaise: q.payablePaise,
   };
 }
 
-function checkPayments(q, payments) {
-  const paid = payments.reduce((s, p) => s + p.amountPaise, 0);
-  const payable = q.totals.grandTotalPaise - q.advancePaise;
-  if (paid !== payable) {
-    const due = q.advancePaise ? `the amount due after the order advance (${(payable / 100).toFixed(2)})` : `the invoice total (${(payable / 100).toFixed(2)})`;
-    throw ApiError.badRequest(`Payments (${(paid / 100).toFixed(2)}) must equal ${due}`, [{ path: 'payments', message: 'Payments do not match the total' }], 'PAYMENT_MISMATCH');
+/**
+ * What the customer pays now may be less than the bill: for a known customer the rest stays due on their account
+ * (one "credit" line), so 30,000 paid on a 50,000 bill is 30,000 paid + 20,000 due. Walk-ins pay in full.
+ * Returns the payments to save.
+ */
+function settlePayments(q, input) {
+  if (input.some((p) => p.mode === 'credit') && !q.customer) throw problem('Credit sales need a customer', [{ path: 'payments', message: 'Select a customer for credit' }]);
+  const money = input.filter((p) => p.mode !== 'credit');
+  const asked = input.filter((p) => p.mode === 'credit').reduce((s, p) => s + p.amountPaise, 0);
+  const received = money.reduce((s, p) => s + p.amountPaise, 0);
+  const payable = q.payablePaise;
+  const rupeesOf = (v) => (v / 100).toFixed(2);
+  if (received + asked > payable || (!q.customer && received !== payable)) {
+    const what = q.advancePaise || q.customerAdvancePaise ? `the amount due after the advance (${rupeesOf(payable)})` : `the invoice total (${rupeesOf(payable)})`;
+    const message = received + asked > payable ? `Payments (${rupeesOf(received + asked)}) are more than ${what}` : `Payments (${rupeesOf(received)}) must equal ${what}. Select the customer to keep the rest as due.`;
+    throw ApiError.badRequest(message, [{ path: 'payments', message: 'Payments do not match the total' }], 'PAYMENT_MISMATCH');
   }
-  if (payments.some((p) => p.mode === 'credit') && !q.customer) throw problem('Credit sales need a customer', [{ path: 'payments', message: 'Select a customer for credit' }]);
+  const due = payable - received;
+  const payments = due > 0 ? [...money, { mode: 'credit', amountPaise: due, reference: null }] : money;
   const cash = payments.filter((p) => p.mode === 'cash').reduce((s, p) => s + p.amountPaise, 0);
   if (cash > q.compliance.cashLimitPaise && q.compliance.cashLimitAction === 'block') {
     throw problem(`Cash of ${(cash / 100).toFixed(2)} exceeds the limit of ${(q.compliance.cashLimitPaise / 100).toFixed(2)} (Section 269ST)`, [{ path: 'payments', message: 'Cash limit exceeded' }], 'CASH_LIMIT');
@@ -165,6 +228,7 @@ function checkPayments(q, payments) {
   if (q.compliance.panMissing) {
     throw problem(q.customer ? `PAN is required for ${q.customer.name} on bills of this value` : 'Select a customer with PAN for bills of this value', [{ path: 'customerId', message: 'PAN required' }], 'PAN_REQUIRED');
   }
+  return payments;
 }
 
 const sellerSnapshot = (org, branch) => ({
@@ -184,14 +248,14 @@ const sellerSnapshot = (org, branch) => ({
 const customerSnapshot = (c) =>
   c && { id: c._id, code: c.code, name: c.name, mobile: c.mobile, email: c.email, gstin: c.gstin, pan: c.pan, address: c.address, stateCode: c.gstin?.slice(0, 2) ?? c.address?.stateCode ?? null };
 
-export async function createSale({ payments, notes, ...input }, idempotencyKey) {
+export async function createSale({ payments: requested, notes, ...input }, idempotencyKey) {
   const { userId } = requireContext();
   if (idempotencyKey) {
     const existing = await Sale.findOne({ idempotencyKey }).lean();
     if (existing) return serializeSale(existing);
   }
   const q = await buildQuote(input);
-  checkPayments(q, payments);
+  const payments = settlePayments(q, requested);
   const { today, branch, settings } = q;
 
   const sale = await withTransaction(async (session) => {
@@ -234,6 +298,7 @@ export async function createSale({ payments, notes, ...input }, idempotencyKey) 
           orderId: q.order?._id ?? null,
           orderNo: q.order?.orderNo ?? null,
           advanceAdjustedPaise: q.advancePaise,
+          customerAdvancePaise: q.customerAdvancePaise,
           idempotencyKey: idempotencyKey ?? null,
           createdBy: userId,
         },
@@ -242,6 +307,10 @@ export async function createSale({ payments, notes, ...input }, idempotencyKey) 
     );
 
     const source = { docType: 'sale', docId: doc._id, docNo: invoiceNo };
+    // Two bills at once must not both spend the same advance.
+    if (q.customerAdvancePaise && (await customerAdvanceLeft(q.customer, { session })) < 0) {
+      throw ApiError.conflict(`${q.customer.name}'s advance changed while billing. Try again.`, 'CONCURRENT_UPDATE');
+    }
     if (q.order) {
       const delivered = await Order.findOneAndUpdate(
         { _id: q.order._id, status: { $in: [ORDER_STATUS.BOOKED, ORDER_STATUS.IN_PROGRESS, ORDER_STATUS.READY] }, saleId: null, advancePaise: q.advancePaise },
@@ -258,6 +327,8 @@ export async function createSale({ payments, notes, ...input }, idempotencyKey) 
       payments.reduce((acc, p) => ({ ...acc, [PAYMENT_ACCOUNT[p.mode]]: (acc[PAYMENT_ACCOUNT[p.mode]] ?? 0) + p.amountPaise }), {}),
     ).map(([account, amount]) => ({ account, debit: amount, branchId: branch._id, ...(account === 'sundry_debtors' && { party }) }));
     if (q.advancePaise) debits.push({ account: 'customer_advances', debit: q.advancePaise, branchId: branch._id, party });
+    // The customer's own advance sits as a credit on their account (opening balance): using it debits that account.
+    if (q.customerAdvancePaise) debits.push({ account: 'sundry_debtors', debit: q.customerAdvancePaise, branchId: branch._id, party });
     const { taxablePaise, gstPaise, roundOffPaise } = q.totals;
     await postJournal(
       {
@@ -288,8 +359,14 @@ export async function createSale({ payments, notes, ...input }, idempotencyKey) 
   return serializeSale(sale.toObject());
 }
 
+/** How this bill prints: its branch's paper size and design, and what Invoice settings put on the page. */
+function printLayout(settings, branchId) {
+  const { copies, showHsn, showHuid, showWeightBreakup, showRateTable, signatoryLabel, terms, footerNote } = settings.invoice;
+  return { ...printChoiceFor(settings.print, branchId), copies, showHsn, showHuid, showWeightBreakup, showRateTable, signatoryLabel, terms, footerNote };
+}
+
 async function serializeSale(s, returns) {
-  const maps = await nameMaps({ branchIds: [s.branchId], userIds: [s.createdBy, s.cancelledBy] });
+  const [maps, settings] = await Promise.all([nameMaps({ branchIds: [s.branchId], userIds: [s.createdBy, s.cancelledBy] }), getSettings()]);
   const { permissions } = requireContext();
   const canSeeKyc = hasPermission(permissions, 'customer.viewKyc');
   const canSeeCost = hasPermission(permissions, 'product.viewCost');
@@ -311,10 +388,13 @@ async function serializeSale(s, returns) {
     notes: s.notes,
     order: s.orderId ? { id: s.orderId, orderNo: s.orderNo } : null,
     advanceAdjustedPaise: s.advanceAdjustedPaise ?? 0,
+    customerAdvancePaise: s.customerAdvancePaise ?? 0,
+    ...billBalance(s),
     createdBy: pick(maps.users, s.createdBy),
     cancelledAt: s.cancelledAt,
     cancelledBy: pick(maps.users, s.cancelledBy),
     cancelReason: s.cancelReason,
+    print: printLayout(settings, s.branchId),
     returns: (returns ?? []).map((r) => ({ id: r._id, creditNoteNo: r.creditNoteNo, amountPaise: r.amountPaise, refundMode: r.refundMode, reason: r.reason, productIds: r.productIds, createdAt: r.createdAt })),
   };
 }
@@ -331,7 +411,8 @@ export async function getSale(id) {
   return serializeSale(sale, returns);
 }
 
-export async function listSales({ page, limit, q, status, branchId, customerId, from, to }) {
+export async function listSales({ page, limit, q, status, branchId: chosen, customerId, from, to }) {
+  const branchId = chosen ?? (customerId ? null : await viewBranchFor('sales')); // navbar filter (a customer's bills: all)
   const filter = { ...accessibleBranchFilter(), ...searchFilter(q, ['invoiceNo', 'customer.name', 'customer.mobile', 'items.sku']) };
   if (status) filter.status = status;
   if (branchId) filter.branchId = oid(branchId);
@@ -350,8 +431,9 @@ export async function listSales({ page, limit, q, status, branchId, customerId, 
       itemCount: s.items.length,
       returnedCount: s.items.filter((i) => i.returned).length,
       grandTotalPaise: s.totals.grandTotalPaise,
-      duePaise: s.payments.filter((p) => p.mode === 'credit').reduce((sum, p) => sum + p.amountPaise, 0),
+      ...billBalance(s),
       paymentModes: [...new Set(s.payments.map((p) => p.mode))],
+      advanceUsed: Boolean(s.advanceAdjustedPaise || s.customerAdvancePaise),
       orderNo: s.orderNo ?? null,
       createdBy: pick(maps.users, s.createdBy),
     })),
@@ -365,9 +447,11 @@ async function salesSummary(branchId) {
   const monthStart = `${today.businessDate.slice(0, 7)}-01`;
   const scope = { ...accessibleBranchFilter(), ...(branchId && { branchId: oid(branchId) }), status: SALE_STATUS.COMPLETED };
   const credit = { $sum: { $map: { input: { $filter: { input: '$payments', cond: { $eq: ['$$this.mode', 'credit'] } } }, in: '$$this.amountPaise' } } };
+  // Still owed = left on credit less what was collected later.
+  const owed = { $max: [0, { $subtract: [credit, { $add: [{ $ifNull: ['$duePaidPaise', 0] }, { $ifNull: ['$returnCreditPaise', 0] }] }] }] };
   const [row] = await Sale.aggregate([
     { $match: scope },
-    { $project: { businessDate: 1, total: '$totals.grandTotalPaise', credit } },
+    { $project: { businessDate: 1, total: '$totals.grandTotalPaise', credit, owed } },
     {
       $group: {
         _id: null,
@@ -376,8 +460,8 @@ async function salesSummary(branchId) {
         monthPaise: { $sum: { $cond: [{ $gte: ['$businessDate', monthStart] }, '$total', 0] } },
         monthCreditPaise: { $sum: { $cond: [{ $gte: ['$businessDate', monthStart] }, '$credit', 0] } },
         monthBills: { $sum: { $cond: [{ $gte: ['$businessDate', monthStart] }, 1, 0] } },
-        duePaise: { $sum: '$credit' },
-        dueBills: { $sum: { $cond: [{ $gt: ['$credit', 0] }, 1, 0] } },
+        duePaise: { $sum: '$owed' },
+        dueBills: { $sum: { $cond: [{ $gt: ['$owed', 0] }, 1, 0] } },
       },
     },
   ]);
@@ -393,6 +477,7 @@ export async function cancelSale(id, reason) {
   const { userId } = requireContext();
   const sale = await findSale(id);
   if (sale.status !== SALE_STATUS.COMPLETED) throw ApiError.conflict('This invoice is already cancelled', 'INVALID_STATE');
+  if (sale.duePaidPaise > 0) throw ApiError.conflict('Due payments were collected against this invoice, so it cannot be cancelled. Return the items instead.', 'HAS_COLLECTIONS');
   if (sale.items.some((i) => i.returned)) throw ApiError.conflict('Items on this invoice were returned. Cancel is not possible; return the remaining items instead.', 'HAS_RETURNS');
   const today = await todayContext();
 
@@ -435,6 +520,16 @@ export async function returnItems(id, { productIds, refundMode, reason }) {
   const gstPaise = lines.reduce((s, l) => s + l.breakdown.gstPaise, 0);
   const cost = lines.reduce((s, l) => s + (l.costPaise ?? 0), 0);
   const amountPaise = taxablePaise + gstPaise;
+  // Refund kept on the customer's account only settles what is still due on this bill; more than that is paid back.
+  const dueOnBill = billDue(sale);
+  if (refundMode === 'credit' && amountPaise > dueOnBill) {
+    throw problem(
+      dueOnBill > 0
+        ? `Only ${(dueOnBill / 100).toFixed(2)} is due on this bill, less than the return (${(amountPaise / 100).toFixed(2)}). Refund by cash or bank.`
+        : `Nothing is due on this bill. Refund ${(amountPaise / 100).toFixed(2)} by cash or bank.`,
+      [{ path: 'refundMode', message: 'Choose cash or bank' }],
+    );
+  }
   const today = await todayContext();
   const branch = await requireBranch(sale.branchId, { active: false });
 
@@ -446,7 +541,7 @@ export async function returnItems(id, { productIds, refundMode, reason }) {
     );
     const updated = await Sale.updateOne(
       { _id: sale._id, status: SALE_STATUS.COMPLETED, items: { $not: { $elemMatch: { productId: { $in: productIds.map(oid) }, returned: true } } } },
-      { $set: { 'items.$[line].returned': true } },
+      { $set: { 'items.$[line].returned': true }, ...(refundMode === 'credit' && { $inc: { returnCreditPaise: amountPaise } }) },
       { session, arrayFilters: [{ 'line.productId': { $in: productIds.map(oid) } }] },
     );
     if (updated.modifiedCount !== 1) throw ApiError.conflict('This invoice changed while returning. Try again.', 'CONCURRENT_UPDATE');

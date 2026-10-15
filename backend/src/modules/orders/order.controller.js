@@ -13,6 +13,10 @@ export async function create(req, res) {
   sendCreated(res, order, { message: `Order ${order.orderNo} booked` });
 }
 
+export async function update(req, res) {
+  sendOk(res, await orderService.updateOrder(req.valid.params.id, req.valid.body), { message: 'Order updated' });
+}
+
 export const estimate = async (req, res) => sendOk(res, await orderService.estimateOrder(req.valid.body));
 
 export async function addImage(req, res) {

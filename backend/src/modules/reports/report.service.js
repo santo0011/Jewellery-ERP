@@ -14,7 +14,7 @@ import { accessibleBranchFilter, nameMaps, oid, pick, requireBranch } from '../i
 import { Order } from '../orders/order.model.js';
 import { Product } from '../products/product.model.js';
 import { Purchase } from '../purchases/purchase.model.js';
-import { Sale, SalesReturn } from '../sales/sale.model.js';
+import { Sale, SalesReturn, billDue } from '../sales/sale.model.js';
 
 // ---------------------------------------------------------------- helpers
 
@@ -30,7 +30,7 @@ const metalPurity = (metal, purity) => {
 const modeLabel = (m) => (m === 'advance' ? 'Order advance adjusted' : m === 'credit' ? 'On credit (due)' : (PAYMENT_MODES.find((x) => x.value === m)?.label ?? m));
 const pct = (part, whole) => (whole ? Math.round((part / whole) * 1000) / 10 : 0);
 const daysBetween = (a, b) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000);
-const received = (s) => sum(s.payments.filter((p) => p.mode !== 'credit'), (p) => p.amountPaise) + (s.advanceAdjustedPaise ?? 0);
+const received = (s) => sum(s.payments.filter((p) => p.mode !== 'credit'), (p) => p.amountPaise) + (s.advanceAdjustedPaise ?? 0) + (s.customerAdvancePaise ?? 0);
 const credit = (s) => sum(s.payments.filter((p) => p.mode === 'credit'), (p) => p.amountPaise);
 
 // ---------------------------------------------------------------- GST helpers
@@ -128,6 +128,66 @@ function taxReport(kind) {
         note: interState
           ? 'Inter-state sales only (buyer in another state) — the whole GST is IGST. Credit notes reduce the tax payable.'
           : `Intra-state sales only (buyer in your state) — GST is split equally between CGST and SGST. Credit notes reduce the tax payable.`,
+      };
+    },
+  };
+}
+
+/**
+ * All GST in one view: one row per tax head (CGST, SGST, IGST) with the taxable value it was charged on, the rate,
+ * what was collected, what returns reversed and the net payable — plus the total GST.
+ */
+function gstSummaryReport() {
+  return {
+    key: 'gst-summary',
+    group: 'GST',
+    title: 'GST summary (all types)',
+    description: 'CGST, SGST and IGST side by side: collected, reversed on returns and net payable.',
+    permission: 'report.finance',
+    filters: ['range', 'branch'],
+    async run(p) {
+      const [sales, notes] = await Promise.all([completedSales(p), creditNotes(p)]);
+      const rows = Object.entries(TAX_KINDS).map(([kind, { label, interState, share }]) => {
+        const field = `${kind}Paise`;
+        const own = sales.filter((s) => Boolean(s.interState) === interState);
+        const back = notes.filter((n) => n.interState === interState);
+        const collected = sum(own, (s) => s.totals[field] ?? 0);
+        const reversed = sum(back, (n) => splitTax(n.gstPaise, n.interState)[field]);
+        const rates = [...new Set(own.flatMap((s) => saleRates(s)))].sort((a, b) => a - b);
+        return {
+          head: label,
+          supply: interState ? 'Inter-state' : 'Intra-state',
+          rate: rates.length ? rates.map((bps) => rateText(bps * share)).join(' / ') : '—',
+          invoices: own.length,
+          taxablePaise: sum(own, (s) => s.totals.taxablePaise) - sum(back, (n) => n.taxablePaise),
+          collectedPaise: collected,
+          reversedPaise: -reversed,
+          netPaise: collected - reversed,
+          _links: { head: `/reports/gst-${kind}` },
+        };
+      });
+      const totals = totalsOf(rows, ['collectedPaise', 'reversedPaise', 'netPaise']);
+      const byHead = Object.fromEntries(rows.map((r) => [r.head, r.netPaise]));
+      return {
+        columns: [
+          col('head', 'GST type'),
+          col('supply', 'Applies to'),
+          col('rate', 'Rate'),
+          col('invoices', 'Invoices', 'number'),
+          col('taxablePaise', 'Taxable value', 'money'),
+          col('collectedPaise', 'Collected', 'money'),
+          col('reversedPaise', 'Reversed (returns)', 'money', { signed: true }),
+          col('netPaise', 'Net payable', 'money', { strong: true }),
+        ],
+        rows,
+        totals,
+        summary: [
+          { label: 'CGST payable', value: byHead.CGST, type: 'money' },
+          { label: 'SGST payable', value: byHead.SGST, type: 'money' },
+          { label: 'IGST payable', value: byHead.IGST, type: 'money' },
+          { label: 'Total GST payable', value: totals.netPaise, type: 'money', tone: 'paid' },
+        ],
+        note: 'Intra-state sales split GST equally into CGST and SGST; inter-state sales carry IGST. Open a GST type for its invoice-wise detail.',
       };
     },
   };
@@ -604,6 +664,7 @@ const REPORTS = [
     },
   },
   // ------------------------------------------------ GST
+  gstSummaryReport(),
   taxReport('cgst'),
   taxReport('sgst'),
   taxReport('igst'),
@@ -656,20 +717,20 @@ const REPORTS = [
     permission: 'report.customer',
     filters: ['branch'],
     async run({ branchId }) {
-      const sales = await Sale.find({ ...(await branchScope(branchId)), status: SALE_STATUS.COMPLETED, customerId: { $ne: null } }).select('customerId payments businessDate').lean();
+      const sales = await Sale.find({ ...(await branchScope(branchId)), status: SALE_STATUS.COMPLETED, customerId: { $ne: null } }).select('customerId payments businessDate duePaidPaise returnCreditPaise').lean();
       const byCust = new Map();
       for (const s of sales) {
         const r = byCust.get(String(s.customerId)) ?? { credit: 0, last: null };
-        r.credit += credit(s);
+        r.credit += billDue(s); // still owed after later collections and returns
         if (!r.last || s.businessDate > r.last) r.last = s.businessDate;
         byCust.set(String(s.customerId), r);
       }
       const withOld = allBranchView(branchId);
-      const customers = await Customer.find({ isDeleted: false, $or: [{ _id: { $in: [...byCust.keys()] } }, ...(withOld ? [{ openingBalancePaise: { $gt: 0 } }] : [])] }).select('code name mobile openingBalancePaise').lean();
+      const customers = await Customer.find({ isDeleted: false, $or: [{ _id: { $in: [...byCust.keys()] } }, ...(withOld ? [{ openingBalancePaise: { $gt: 0 } }] : [])] }).select('code name mobile openingBalancePaise openingDuePaidPaise').lean();
       const rows = customers
         .map((c) => {
           const s = byCust.get(String(c._id)) ?? { credit: 0, last: null };
-          const old = withOld ? Math.max(0, c.openingBalancePaise ?? 0) : 0;
+          const old = withOld ? Math.max(0, (c.openingBalancePaise ?? 0) - (c.openingDuePaidPaise ?? 0)) : 0;
           return { customer: c.name, code: c.code, mobile: c.mobile, creditPaise: s.credit, oldDuePaise: old, duePaise: s.credit + old, lastPurchase: s.last, _links: { customer: `/customers/${c._id}` } };
         })
         .filter((r) => r.duePaise > 0)

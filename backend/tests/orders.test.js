@@ -130,7 +130,7 @@ describe('customer orders', () => {
     expect((await api().patch(`/api/v1/products/${piece.id}/huid`).set(bearer(ctx.t)).send({ huid: 'OR12D3' })).status).toBe(409);
     const saved = await api().patch(`/api/v1/products/${piece.id}/huid`).set(bearer(ctx.t)).send({ huid: 'ch45n6' });
     expect(saved.body.data.huid).toBe('CH45N6');
-    expect((await api().post('/api/v1/sales/quote').set(bearer(ctx.t)).send({ branchId: ctx.ho, items: [{ productId: piece.id }] })).status).toBe(200);
+    expect((await api().post('/api/v1/sales/quote').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: ctx.customer.id, items: [{ productId: piece.id }] })).status).toBe(200);
   });
 
   it('shows a customer everything they bought and paid', async () => {
@@ -219,5 +219,70 @@ describe('customer orders', () => {
     const creditAdvance = await api().post('/api/v1/orders').set(bearer(ctx.t)).send(orderBody(ctx, { advance: { mode: 'credit', amountPaise: 100 } }));
     expect(creditAdvance.status).toBe(400);
     expect((await api().get('/api/v1/orders')).status).toBe(401);
+  });
+});
+
+describe('editing an order', () => {
+  it('can be edited while booked or in progress, not once ready', async () => {
+    const ctx = await setup();
+    const order = (await api().post('/api/v1/orders').set(bearer(ctx.t)).send(orderBody(ctx))).body.data;
+    const items = [
+      { description: '22K bridal ring, size 15', categoryId: ctx.ring.id, metal: 'gold', purity: 916, approxWeightMg: 12000, size: '15', estimatedPaise: 9500000 },
+      { description: 'Matching earrings', metal: 'gold', purity: 916, approxWeightMg: 6000, quantity: 2, estimatedPaise: 4000000 },
+    ];
+    const res = await api().put(`/api/v1/orders/${order.id}`).set(bearer(ctx.t)).send({ items, priority: 'urgent', notes: 'Changed design' });
+    expect(res.status).toBe(200);
+    expect(res.body.data).toMatchObject({ estimatedPaise: 9500000 + 2 * 4000000, priority: 'urgent', notes: 'Changed design', advancePaise: 2000000, customer: { name: 'Rupa Sen' } });
+    expect(res.body.data.items.map((i) => i.description)).toEqual(['22K bridal ring, size 15', 'Matching earrings']);
+
+    await api().patch(`/api/v1/orders/${order.id}/status`).set(bearer(ctx.t)).send({ status: 'in_progress' });
+    expect((await api().put(`/api/v1/orders/${order.id}`).set(bearer(ctx.t)).send({ items })).status).toBe(200);
+
+    await api().patch(`/api/v1/orders/${order.id}/status`).set(bearer(ctx.t)).send({ status: 'ready' });
+    const late = await api().put(`/api/v1/orders/${order.id}`).set(bearer(ctx.t)).send({ items });
+    expect(late.status).toBe(409);
+    expect(late.body.error.code).toBe('INVALID_STATE');
+  });
+});
+
+describe('a piece made for an order', () => {
+  it('can be billed only to that order’s customer', async () => {
+    const ctx = await setup();
+    const order = (await api().post('/api/v1/orders').set(bearer(ctx.t)).send(orderBody(ctx))).body.data;
+    const piece = (
+      await api().post(`/api/v1/orders/${order.id}/items/0/finish`).set(bearer(ctx.t)).send({ grossWeightMg: 10000, huid: 'RS5T01', wastage: { mode: 'none', value: 0 }, making: { type: 'per_gram', value: 40000 } })
+    ).body.data.items[0].product;
+    const other = (await api().post('/api/v1/customers').set(bearer(ctx.t)).send({ name: 'Someone Else', mobile: `97${Math.floor(10000000 + Math.random() * 89999999)}`, address: { stateCode: '19' } })).body.data;
+    const quote = (customerId) => api().post('/api/v1/sales/quote').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId, items: [{ productId: piece.id }] });
+
+    const walkIn = await quote(undefined);
+    expect(walkIn.status).toBe(422);
+    expect(walkIn.body.error.message).toContain(`made for order ${order.orderNo} of Rupa Sen`);
+    expect((await quote(other.id)).status).toBe(422);
+    expect((await api().post('/api/v1/sales').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: other.id, items: [{ productId: piece.id }], payments: [] })).status).toBe(422);
+    expect((await quote(ctx.customer.id)).status).toBe(200);
+  });
+});
+
+describe('billing an order piece without picking the order', () => {
+  it('links the order: its advance is deducted and the order is delivered', async () => {
+    const ctx = await setup();
+    const order = (await api().post('/api/v1/orders').set(bearer(ctx.t)).send(orderBody(ctx))).body.data; // ₹20,000 advance
+    const piece = (
+      await api().post(`/api/v1/orders/${order.id}/items/0/finish`).set(bearer(ctx.t)).send({ grossWeightMg: 10000, huid: 'AL1NK1', wastage: { mode: 'none', value: 0 }, making: { type: 'per_gram', value: 40000 } })
+    ).body.data.items[0].product;
+
+    // Scanned straight onto the bill for the customer, no order picked.
+    const quote = (await api().post('/api/v1/sales/quote').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: ctx.customer.id, items: [{ productId: piece.id }] })).body.data;
+    expect(quote).toMatchObject({ order: { orderNo: order.orderNo }, advancePaise: 2000000, payablePaise: quote.totals.grandTotalPaise - 2000000 });
+
+    const sale = await api().post('/api/v1/sales').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: ctx.customer.id, items: [{ productId: piece.id }], payments: [{ mode: 'card', amountPaise: 1000000 }] });
+    expect(sale.status).toBe(201);
+    expect(sale.body.data).toMatchObject({ order: { orderNo: order.orderNo }, advanceAdjustedPaise: 2000000, duePaise: quote.totals.grandTotalPaise - 2000000 - 1000000 });
+    expect((await api().get(`/api/v1/orders/${order.id}`).set(bearer(ctx.t))).body.data.status).toBe('delivered');
+
+    // The customer list: the advance is gone (it was used); the rest shows as due, partly paid.
+    const row = (await api().get('/api/v1/customers').query({ q: ctx.customer.code }).set(bearer(ctx.t))).body.data.find((c) => c.id === ctx.customer.id);
+    expect(row).toMatchObject({ advancePaise: 0, duePaise: quote.totals.grandTotalPaise - 3000000, paymentStatus: 'partly_paid' });
   });
 });

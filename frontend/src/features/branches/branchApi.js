@@ -27,7 +27,8 @@ export const branchApi = baseApi.injectEndpoints({
     updateBranch: build.mutation({
       query: ({ id, ...data }) => ({ url: `/branches/${id}`, method: 'put', data }),
       transformResponse: unwrapData,
-      invalidatesTags: (r, e, { id }) => [{ type: 'Branch', id }, 'Me', 'Audit'],
+      // The head office's address is also the organisation's: refresh that too.
+      invalidatesTags: (r, e, { id }) => [{ type: 'Branch', id }, 'Branch', 'Organisation', 'Me', 'Audit'],
     }),
     setBranchStatus: build.mutation({
       query: ({ id, status }) => ({ url: `/branches/${id}/status`, method: 'patch', data: { status } }),

@@ -36,6 +36,29 @@ export const ALL_PERMISSIONS = Object.freeze(
 
 const PERMISSION_SET = new Set(ALL_PERMISSIONS);
 
+/**
+ * Permissions for features that are not built yet. They stay valid (a role may already hold them, and they will
+ * matter once the feature arrives) but the role editor does not offer them: ticking them would change nothing today.
+ */
+const UPCOMING = new Set([
+  ...['repair', 'loyalty', 'oldgold', 'karigar', 'leave', 'expense', 'ai'].flatMap((mod) => ALL_PERMISSIONS.filter((p) => p.startsWith(`${mod}.`))),
+  'branch.viewAll',
+  'customer.export',
+  'order.approve', 'order.print',
+  'sales.edit', 'sales.approve', 'sales.export',
+  'product.export', 'product.print',
+  'inventory.export',
+  'supplier.export',
+  'purchase.return', 'purchase.approve', 'purchase.export',
+  'accounts.view', 'accounts.payment', 'accounts.journal', 'accounts.export',
+  'report.karigar',
+]);
+
+export const isUpcomingPermission = (key) => UPCOMING.has(key);
+
+/** What the role editor offers: every permission that does something in the app today. */
+export const AVAILABLE_PERMISSIONS = Object.freeze(ALL_PERMISSIONS.filter((p) => !UPCOMING.has(p)));
+
 export const WILDCARD_PERMISSION = '*';
 
 export const isValidPermission = (key) => key === WILDCARD_PERMISSION || PERMISSION_SET.has(key);

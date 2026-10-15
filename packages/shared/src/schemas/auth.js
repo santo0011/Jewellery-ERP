@@ -29,10 +29,11 @@ export const resetPasswordSchema = z.object({ email: emailSchema, otp: resetCode
 
 export const changePasswordSchema = z
   .object({
-    currentPassword: z.string().min(1, 'Current password is required').max(128),
+    // Optional only for a session opened with an emailed code (the server checks).
+    currentPassword: z.string().max(128).optional().default(''),
     newPassword: passwordSchema,
   })
-  .refine((d) => d.currentPassword !== d.newPassword, {
+  .refine((d) => !d.currentPassword || d.currentPassword !== d.newPassword, {
     path: ['newPassword'],
     message: 'New password must be different from the current password',
   });

@@ -176,10 +176,10 @@ function DailyAttendance({ branchId, branchPicker }) {
         <Box sx={{ opacity: isFetching ? 0.6 : 1, transition: 'opacity 120ms' }}>
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(5, 1fr)' }, gap: 1.5, mb: 2 }}>
             {ATTENDANCE_STATUSES.map((s) => (
-              <Card key={s.value} sx={{ p: 1.75, display: 'flex', alignItems: 'center', gap: 1.5 }}>
+              <Card key={s.value} sx={{ height: '100%', p: { xs: 1.25, sm: 1.75 }, display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 1.5 } }}>
                 <StatusBadge status={s.value} size={36} filled />
                 <Box sx={{ minWidth: 0 }}>
-                  <Typography variant="h3" sx={{ lineHeight: 1.1 }}>
+                  <Typography variant="h3" sx={{ lineHeight: 1.1, fontSize: { xs: '1.125rem', sm: '1.375rem' } }}>
                     {counts[s.value]}
                   </Typography>
                   <Typography variant="caption" color="textSecondary" noWrap sx={{ display: 'block' }}>

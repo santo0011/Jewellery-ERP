@@ -74,6 +74,14 @@ describe('subscriptions & billing', () => {
 
     const dash = (await api().get('/api/v1/platform/billing/dashboard').set(bearer(sa))).body.data;
     expect(dash.revenue.totalPaise).toBeGreaterThanOrEqual(999900);
+    // The period filter: today's payment counts for today and all time; an unknown period is refused.
+    const today = (await api().get('/api/v1/platform/billing/dashboard?period=today').set(bearer(sa))).body.data.period;
+    expect(today).toMatchObject({ key: 'today' });
+    expect(today.revenuePaise).toBeGreaterThanOrEqual(999900);
+    expect(today.payingOrganisations).toBeGreaterThanOrEqual(1);
+    expect((await api().get('/api/v1/platform/billing/dashboard?period=all').set(bearer(sa))).body.data.period.revenuePaise).toBe(dash.revenue.totalPaise);
+    expect((await api().get('/api/v1/platform/dashboard?period=week').set(bearer(sa))).body.data.newInPeriod).toBeGreaterThanOrEqual(1);
+    expect((await api().get('/api/v1/platform/billing/dashboard?period=decade').set(bearer(sa))).status).toBe(400);
     const payments = (await api().get('/api/v1/platform/payments?source=manual').set(bearer(sa))).body.data;
     expect(payments.some((p) => String(p.organisation.id) === String(o.id))).toBe(true);
   });
@@ -177,5 +185,36 @@ describe('subscriptions & billing', () => {
     const refused = await api().delete(`/api/v1/platform/plans/${taken.id}`).set(bearer(sa));
     expect(refused.status).toBe(409);
     expect(refused.body.error.code).toBe('PLAN_IN_USE');
+  });
+});
+
+describe('Super Admin activates a plan', () => {
+  it('records how every activation happened and who did it; only real payments count as revenue', async () => {
+    const sa = await superAdmin();
+    const o = await org();
+    const plan = (await api().get('/api/v1/platform/plans').set(bearer(sa))).body.data.find((p) => p.pricePaise > 0);
+    const activate = (body) => api().post(`/api/v1/platform/organisations/${o.id}/subscription`).set(bearer(sa)).send({ planId: plan.id, ...body });
+    const revenueBefore = (await api().get('/api/v1/platform/payments').set(bearer(sa))).body.meta.summary;
+
+    expect((await activate({ mode: 'trial', days: 10 })).status).toBe(200);
+    expect((await activate({ mode: 'extend', days: 5, note: 'Festival goodwill' })).status).toBe(200);
+    expect((await activate({ mode: 'complimentary', months: 1 })).status).toBe(200);
+    const paid = (await activate({ mode: 'manual', months: 1, amountPaise: 99900, paymentMode: 'upi', reference: 'UTR778' })).body.data;
+    expect((await activate({ mode: 'manual', months: 1, amountPaise: 0, paymentMode: 'cash' })).status).toBe(400);
+
+    const records = paid.payments.map((p) => ({ activation: p.activation, days: p.days, amount: p.amountPaise, by: p.activatedBy?.name }));
+    expect(records).toEqual([
+      { activation: 'payment', days: null, amount: 99900, by: 'Platform Owner' },
+      { activation: 'complimentary', days: null, amount: 0, by: 'Platform Owner' },
+      { activation: 'extension', days: 5, amount: 0, by: 'Platform Owner' },
+      { activation: 'trial', days: 10, amount: 0, by: 'Platform Owner' },
+    ]);
+    expect(paid.payments.find((p) => p.activation === 'extension').note).toBe('Festival goodwill');
+    expect(paid.payments[0]).toMatchObject({ paymentMethod: 'upi', reference: 'UTR778' });
+    expect(paid.subscription).toMatchObject({ status: 'active', expired: false });
+
+    const revenueAfter = (await api().get('/api/v1/platform/payments').set(bearer(sa))).body.meta.summary;
+    expect(revenueAfter.revenuePaise - revenueBefore.revenuePaise).toBe(99900);
+    expect(revenueAfter.paidCount - revenueBefore.paidCount).toBe(1);
   });
 });

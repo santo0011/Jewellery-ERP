@@ -1,12 +1,15 @@
 import { Alert, Box, Button, Card, CardContent, Divider, Typography } from '@mui/material';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { applyServerErrors, getErrorMessage } from '../../utils/errors.js';
 import { useUpdateSettingsMutation } from './settingsApi.js';
 
-export default function SettingsSectionForm({ section, title, description, value, toForm = (v) => v, fromForm = (v) => v, readOnly, children }) {
-  const [update, { isLoading }] = useUpdateSettingsMutation();
+/** One settings section as a card with Save / Discard. `save` replaces the usual save of the whole section. */
+export default function SettingsSectionForm({ section, title, description, value, toForm = (v) => v, fromForm = (v) => v, readOnly, save, notice, children }) {
+  const [update, { isLoading: updating }] = useUpdateSettingsMutation();
+  const [saving, setSaving] = useState(false);
+  const isLoading = updating || saving;
   const form = useForm({ defaultValues: toForm(value) });
   const { handleSubmit, reset, setError, formState } = form;
 
@@ -23,11 +26,14 @@ export default function SettingsSectionForm({ section, title, description, value
       toast.error('Some numbers are not valid. Please check the highlighted fields.');
       return;
     }
+    setSaving(true);
     try {
-      await update({ section, values: payload }).unwrap();
+      await (save ? save(payload) : update({ section, values: payload }).unwrap());
       toast.success('Settings saved');
     } catch (err) {
       if (!applyServerErrors(err, setError)) toast.error(getErrorMessage(err));
+    } finally {
+      setSaving(false);
     }
   });
 
@@ -46,6 +52,7 @@ export default function SettingsSectionForm({ section, title, description, value
             You have view-only access to settings.
           </Alert>
         )}
+        {notice}
         {children(form)}
         {!readOnly && (
           <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mt: 3 }}>

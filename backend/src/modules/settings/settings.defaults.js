@@ -51,4 +51,10 @@ export const DEFAULT_SETTINGS = Object.freeze({
   approvals: {
     stockAdjustments: true,
   },
+  // Invoice print: paper size and design for the organisation; branches listed here print differently.
+  print: {
+    size: 'a4',
+    design: 'classic',
+    branches: [],
+  },
 });

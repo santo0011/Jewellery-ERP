@@ -1,6 +1,7 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import AddCardOutlinedIcon from '@mui/icons-material/AddCardOutlined';
 import BlockRoundedIcon from '@mui/icons-material/BlockRounded';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import { Alert, Box, Button, Card, Chip, CardContent, Dialog, DialogActions, DialogContent, DialogTitle, Divider, Grid, Stack, Step, StepLabel, Stepper, Table, TableBody, TableCell, TableHead, TableRow, Typography } from '@mui/material';
 import { formatINR, formatWeight, JEWELLERY_TYPES, ORDER_STATUS_LABELS, STONE_TYPES, toPaise } from '@jerp/shared';
@@ -247,6 +248,11 @@ export default function OrderDetailPage() {
                 Cancel order
               </Button>
             )}
+            {canEdit && ['booked', 'in_progress'].includes(order.status) && (
+              <Button variant="outlined" startIcon={<EditOutlinedIcon />} onClick={() => navigate(`/orders/${order.id}/edit`)}>
+                Edit order
+              </Button>
+            )}
             {open && canEdit && (
               <Button variant="outlined" startIcon={<AddCardOutlinedIcon />} onClick={() => setDialog('advance')}>
                 Add advance
@@ -305,9 +311,10 @@ export default function OrderDetailPage() {
               <Typography variant="h4" sx={{ mb: 2 }}>
                 Items
               </Typography>
-              {/* Fits the card without a sideways scrollbar: metal and weight share a column, text wraps, tighter cells. */}
-              <Box>
-                <Table size="small" sx={{ width: '100%', '& th, & td': { px: 1 }, '& th:first-of-type, & td:first-of-type': { pl: 0 }, '& th:last-of-type, & td:last-of-type': { pr: 0 }, '& th': { whiteSpace: 'nowrap' } }}>
+              {/* Fits the card on wider screens (metal and weight share a column, text wraps); on a phone it keeps a
+                  readable width and scrolls sideways inside the card. */}
+              <Box sx={{ overflowX: 'auto', mx: { xs: -2, sm: 0 }, px: { xs: 2, sm: 0 } }}>
+                <Table size="small" sx={{ width: '100%', minWidth: { xs: 560, sm: 0 }, '& th, & td': { px: 1 }, '& th:first-of-type, & td:first-of-type': { pl: 0 }, '& th:last-of-type, & td:last-of-type': { pr: 0 }, '& th': { whiteSpace: 'nowrap' } }}>
                   <TableHead>
                     <TableRow>
                       <TableCell>Item</TableCell>

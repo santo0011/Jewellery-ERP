@@ -4,11 +4,12 @@ import {
   CASH_LIMIT_ACTIONS,
   INVOICE_FORMATS,
   MAKING_CHARGE_TYPES,
+  PRINT_DESIGNS,
   PURITIES,
   ROUND_OFF_MODES,
   WASTAGE_MODES,
 } from '../enums.js';
-import { optionalText } from './common.js';
+import { objectIdSchema, optionalText } from './common.js';
 import { approvalSettingsSchema } from './inventory.js';
 
 const prefix = (label) =>
@@ -84,10 +85,33 @@ export const barcodeSettingsSchema = z.object({
   showPrice: z.boolean(),
 });
 
+const printChoice = {
+  size: z.enum(Object.values(INVOICE_FORMATS), { error: 'Choose a paper size' }),
+  design: z.string({ error: 'Choose a design' }),
+};
+const designFits = (v) => PRINT_DESIGNS[v.size]?.includes(v.design);
+const designIssue = { path: ['design'], message: 'Choose a design for this paper size' };
+
+/** Invoice print: the organisation's size and design, and any branch that prints differently. */
+export const printSettingsSchema = z
+  .object({
+    ...printChoice,
+    branches: z
+      .array(z.object({ branchId: objectIdSchema, ...printChoice }).refine(designFits, designIssue))
+      .max(500)
+      .default([])
+      .refine((list) => new Set(list.map((b) => b.branchId)).size === list.length, 'A branch is listed twice'),
+  })
+  .refine(designFits, designIssue);
+
+/** One branch's own print choice, set from the branch; null goes back to the organisation's. */
+export const branchPrintSchema = z.object({ choice: z.object(printChoice).refine(designFits, designIssue).nullable() });
+
 export const SETTINGS_SCHEMAS = Object.freeze({
   invoice: invoiceSettingsSchema,
   tax: taxSettingsSchema,
   jewellery: jewellerySettingsSchema,
   barcode: barcodeSettingsSchema,
   approvals: approvalSettingsSchema,
+  print: printSettingsSchema,
 });

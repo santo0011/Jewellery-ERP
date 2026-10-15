@@ -6,8 +6,10 @@ export const organisationApi = baseApi.injectEndpoints({
     updateOrganisation: build.mutation({
       query: (data) => ({ url: '/organisation', method: 'patch', data }),
       transformResponse: unwrapData,
-      invalidatesTags: ['Organisation', 'Me', 'Audit'],
+      invalidatesTags: ['Organisation', 'Branch', 'Me', 'Audit'], // the head office branch shares the address
     }),
+    // PIN code -> post offices, city, district, state (India Post), for the address form.
+    pincode: build.query({ query: (pin) => ({ url: `/organisation/pincode/${pin}` }), transformResponse: unwrapData, keepUnusedDataFor: 3600 }),
     organisationHistory: build.query({ query: () => ({ url: '/organisation/history' }), transformResponse: unwrapData, providesTags: ['Organisation'] }),
     subscription: build.query({ query: () => ({ url: '/organisation/subscription' }), transformResponse: unwrapData, providesTags: ['Subscription'] }),
     uploadLogo: build.mutation({
@@ -22,4 +24,4 @@ export const organisationApi = baseApi.injectEndpoints({
   }),
 });
 
-export const { useOrganisationQuery, useOrganisationHistoryQuery, useUpdateOrganisationMutation, useSubscriptionQuery, useUploadLogoMutation, useRemoveLogoMutation } = organisationApi;
+export const { useLazyPincodeQuery, useOrganisationQuery, useOrganisationHistoryQuery, useUpdateOrganisationMutation, useSubscriptionQuery, useUploadLogoMutation, useRemoveLogoMutation } = organisationApi;

@@ -4,7 +4,7 @@ import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
 import ReplayRoundedIcon from '@mui/icons-material/ReplayRounded';
 import {
-  Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, LinearProgress, Link, ListItemIcon, Menu, MenuItem, Stack, Tab, Tabs, TextField, Typography,
+  Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, LinearProgress, Link, ListItemIcon, Menu, MenuItem, Stack, Tab, Tabs, TextField, Typography, useMediaQuery,
 } from '@mui/material';
 import { formatINR } from '@jerp/shared';
 import { useState } from 'react';
@@ -16,6 +16,7 @@ import PageHeader from '../../components/PageHeader.jsx';
 import { ErrorState, LoadingState } from '../../components/StateViews.jsx';
 import ViewButton from '../../components/ViewButton.jsx';
 import { usePermission } from '../../hooks/usePermission.js';
+import { useTabParam } from '../../hooks/useListParams.js';
 import { formatDate } from '../../utils/format.js';
 import { getErrorMessage } from '../../utils/errors.js';
 import AdvanceDrawer from './AdvanceDrawer.jsx';
@@ -46,8 +47,9 @@ export default function EmployeeDetailPage() {
   const navigate = useNavigate();
   const { data: e, isLoading, error, refetch } = useEmployeeQuery(id);
   const canEdit = usePermission('employee.edit');
+  const phone = useMediaQuery((theme) => theme.breakpoints.down('sm'));
   const canAdvance = usePermission('payroll.process');
-  const [tab, setTab] = useState('details');
+  const [tab, setTab] = useTabParam('details');
   const [menu, setMenu] = useState(null);
   const [advancing, setAdvancing] = useState(false);
   const [editAdvance, setEditAdvance] = useState(null);
@@ -128,23 +130,24 @@ export default function EmployeeDetailPage() {
 
       {/* Profile: photo, name and the few facts people look for. */}
       <Card sx={{ mb: 2 }}>
-        <CardContent sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, alignItems: { xs: 'center', md: 'center' }, gap: { xs: 2, md: 3 } }}>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2.5} sx={{ alignItems: 'center', textAlign: { xs: 'center', sm: 'left' }, flex: 1, minWidth: 0 }}>
-            <EmployeePhotoEditor employee={e} canEdit={canEdit} size={88} />
+        {/* Phones: photo beside the name (not stacked above it), so the card stays short. */}
+        <CardContent sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, alignItems: { xs: 'stretch', md: 'center' }, gap: { xs: 1.75, md: 2.5 }, p: 2, '&:last-child': { pb: 2 } }}>
+          <Stack direction="row" spacing={{ xs: 1.5, sm: 2 }} sx={{ alignItems: 'center', flex: 1, minWidth: 0 }}>
+            <EmployeePhotoEditor employee={e} canEdit={canEdit} size={phone ? 60 : 68} />
             <Box sx={{ minWidth: 0 }}>
-              <Typography variant="h2" sx={{ lineHeight: 1.2 }}>
+              <Typography variant="h2" sx={{ lineHeight: 1.2, fontSize: { xs: '1.1875rem', sm: '1.3125rem' } }}>
                 {e.name}
               </Typography>
               <Typography color="textSecondary" sx={{ mt: 0.25 }}>
                 {e.designation} · {e.branch?.name ?? ''}
               </Typography>
-              <Stack direction="row" spacing={1} sx={{ mt: 1, justifyContent: { xs: 'center', sm: 'flex-start' } }}>
+              <Stack direction="row" spacing={1} sx={{ mt: { xs: 0.75, sm: 1 } }}>
                 <Chip size="small" label={e.code} variant="outlined" sx={{ height: 22 }} />
                 <EmploymentChip status={e.status} />
               </Stack>
             </Box>
           </Stack>
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: `repeat(${e.payVisible ? 4 : 2}, auto)` }, columnGap: { xs: 3, sm: 4 }, rowGap: 1.5, width: { xs: '100%', md: 'auto' } }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: `repeat(${e.payVisible ? 4 : 2}, auto)` }, columnGap: { xs: 2, sm: 4 }, rowGap: { xs: 1, sm: 1.5 }, width: { xs: '100%', md: 'auto' }, pt: { xs: 1.5, md: 0 }, borderTop: { xs: 1, md: 0 }, borderColor: 'divider' }}>
             <Fact label="Mobile">
               <Link href={`tel:${e.mobile}`} underline="hover" color="inherit" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
                 <CallOutlinedIcon sx={{ fontSize: 15, color: 'text.secondary' }} />

@@ -16,6 +16,8 @@ export const quoteSchema = z.object({
   customerId: optional(objectIdSchema),
   // Billing a customer order: its advance is deducted from what the customer pays now.
   orderId: optional(objectIdSchema),
+  // A customer's advance from before (minus old due) is used on the bill unless this is false.
+  useCustomerAdvance: z.boolean().default(true),
   items: z
     .array(lineSchema)
     .min(1, 'Add at least one item')
@@ -32,6 +34,16 @@ export const paymentSchema = z.object({
 export const saleSchema = quoteSchema.extend({
   payments: z.array(paymentSchema).max(10).default([]),
   notes: optionalText(500),
+});
+
+// A customer paying later against what they owe (bills left due, old due). `saleId`: settle this bill first.
+export const duePaymentSchema = z.object({
+  branchId: objectIdSchema,
+  mode: z.enum(['cash', 'card', 'upi', 'bank'], { error: 'Select how it was paid' }),
+  amountPaise: z.number({ error: 'Amount is required' }).int().min(1, 'Amount must be more than zero').max(1e12),
+  reference: optionalText(60),
+  note: optionalText(300),
+  saleId: optional(objectIdSchema),
 });
 
 export const saleCancelSchema = z.object({ reason: z.string().trim().min(5, 'Give a reason (at least 5 characters)').max(300) });

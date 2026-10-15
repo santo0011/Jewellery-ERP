@@ -26,7 +26,7 @@ export const wastageText = (w) => (!w || w.mode === 'none' ? 'None' : w.mode ===
 export const makingText = (m) => (!m ? '—' : m.type === 'percent' ? `${m.value / 100}%` : m.type === 'per_gram' ? `${formatINR(m.value, { decimals: 0 })}/g` : `${formatINR(m.value, { decimals: 0 })} per piece`);
 
 export default function ItemsPage() {
-  const canEdit = usePermission(['purchase.create', 'product.create']);
+  const canEdit = usePermission('purchase.create');
   const [editing, setEditing] = useState(null); // null | 'new' | item
   const list = useListParams({ status: 'active' });
   const { data, isLoading, isFetching, error, refetch } = useItemListQuery(list.params);

@@ -1,0 +1,85 @@
+/**
+ * A made-up bill for previewing print designs in settings: two pieces (one set with diamonds and rubies), a discount,
+ * GST, a UPI payment and a balance due — so every part of a design shows. Uses the organisation's own name and GSTIN.
+ */
+export function sampleInvoice(organisation) {
+  return {
+    invoiceNo: 'INV/HO/26-27/0042',
+    status: 'completed',
+    createdAt: new Date().toISOString(),
+    seller: {
+      name: organisation?.name ?? 'Your Jewellers',
+      branchName: 'Head Office',
+      address: { line1: '12, Gold Street', line2: 'Bowbazar', city: 'Kolkata', stateCode: organisation?.stateCode ?? '19', pincode: '700012' },
+      phone: '98300 12345',
+      email: 'hello@example.com',
+      gstin: organisation?.gstin ?? '19ABCDE1234F1Z5',
+    },
+    customer: {
+      name: 'Ananya Sharma',
+      code: 'C-1024',
+      mobile: '98765 43210',
+      address: { line1: '45, Lake Road', city: 'Kolkata', stateCode: '19', pincode: '700029' },
+      gstin: null,
+      pan: null,
+    },
+    placeOfSupply: organisation?.stateCode ?? '19',
+    interState: false,
+    order: null,
+    items: [
+      {
+        productId: 'sample-1',
+        sku: 'JW-NK-0217',
+        name: 'Bridal necklace',
+        metal: 'gold',
+        purity: 916,
+        huid: 'AB12CD',
+        hsnCode: '7113',
+        grossWeightMg: 38450,
+        stoneWeightMg: 1250,
+        netWeightMg: 37200,
+        pricingInputs: {
+          stones: [
+            { type: 'diamond', weight: 620, weightUnit: 'ct', ratePaise: 6500000 },
+            { type: 'ruby', weight: 1150, weightUnit: 'ct', ratePaise: 800000 },
+          ],
+        },
+        breakdown: { ratePerGramPaise: 725000, metalPaise: 26970000, wastagePaise: 0, makingPaise: 1674000, stonePaise: 4950000, otherPaise: 0, discountPaise: 200000, taxablePaise: 33394000 },
+      },
+      {
+        productId: 'sample-2',
+        sku: 'JW-RG-0583',
+        name: 'Daily-wear ring',
+        metal: 'gold',
+        purity: 750,
+        huid: 'XY34ZW',
+        hsnCode: '7113',
+        grossWeightMg: 4820,
+        stoneWeightMg: 0,
+        netWeightMg: 4820,
+        pricingInputs: { stones: [] },
+        breakdown: { ratePerGramPaise: 594000, metalPaise: 2863080, wastagePaise: 0, makingPaise: 343570, stonePaise: 0, otherPaise: 0, discountPaise: 0, taxablePaise: 3206650 },
+      },
+    ],
+    totals: {
+      subtotalPaise: 36800650,
+      discountPaise: 200000,
+      taxablePaise: 36600650,
+      cgstPaise: 549010,
+      sgstPaise: 549010,
+      igstPaise: 0,
+      gstPaise: 1098020,
+      roundOffPaise: 30,
+      grandTotalPaise: 37698700,
+    },
+    payments: [
+      { mode: 'upi', amountPaise: 30000000, reference: 'UPI 6021' },
+      { mode: 'credit', amountPaise: 7698700, reference: null },
+    ],
+    advanceAdjustedPaise: 0,
+    customerAdvancePaise: 0,
+    duePaise: 7698700,
+    collectedLaterPaise: 0,
+    notes: null,
+  };
+}

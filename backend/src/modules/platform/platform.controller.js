@@ -32,7 +32,6 @@ export const me = (req, res) => {
   sendOk(res, { id: adminId, name, email, role });
 };
 
-export const dashboard = async (req, res) => sendOk(res, await platformService.platformDashboard());
 
 export async function list(req, res) {
   const { items, meta: m } = await platformService.listOrganisations(req.valid.query);

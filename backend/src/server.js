@@ -2,16 +2,23 @@ import { env } from './config/env.js';
 import { connectDb, disconnectDb } from './config/db.js';
 import { logger } from './config/logger.js';
 import { createApp } from './app.js';
+import { lanAddresses } from './utils/network.js';
 import { ensureDefaultSuperAdmin } from './modules/platform/bootstrapSuperAdmin.js';
 import { syncSystemRoles } from './modules/roles/syncSystemRoles.js';
 import { ensureBillingSetup } from './modules/billing/billing.service.js';
+import { syncHeadOfficeAddresses } from './modules/organisations/headOfficeAddress.js';
 
 async function start() {
   await connectDb();
   await ensureDefaultSuperAdmin();
   await syncSystemRoles();
   await ensureBillingSetup();
-  const server = createApp().listen(env.PORT, () => logger.info(`API listening on http://localhost:${env.PORT}/api/v1`));
+  await syncHeadOfficeAddresses();
+  const server = createApp().listen(env.PORT, env.HOST, () => {
+    logger.info(`API listening on http://localhost:${env.PORT}/api/v1`);
+    // Other devices on the same Wi-Fi reach it at this computer's network address.
+    if (env.HOST === '0.0.0.0') for (const ip of lanAddresses()) logger.info(`API on the network: http://${ip}:${env.PORT}/api/v1`);
+  });
 
   const shutdown = (signal) => {
     logger.info(`${signal} received, shutting down`);

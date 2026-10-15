@@ -2,7 +2,7 @@ import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import ContentCopyRoundedIcon from '@mui/icons-material/ContentCopyRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import { Box, Button, Chip, IconButton, Stack, Tooltip, Typography } from '@mui/material';
-import { ALL_PERMISSIONS } from '@jerp/shared';
+import { AVAILABLE_PERMISSIONS, isUpcomingPermission } from '@jerp/shared';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router';
@@ -66,7 +66,7 @@ export default function RolesPage() {
     {
       key: 'permissions',
       label: 'Permissions',
-      render: (r) => (r.fullAccess ? <Typography variant="body2" color="accent" sx={{ fontWeight: 600 }}>Full access</Typography> : `${r.permissions.length} of ${ALL_PERMISSIONS.length}`),
+      render: (r) => (r.fullAccess ? <Typography variant="body2" color="accent" sx={{ fontWeight: 600 }}>Full access</Typography> : `${r.permissions.filter((p) => !isUpcomingPermission(p)).length} of ${AVAILABLE_PERMISSIONS.length}`),
     },
     { key: 'userCount', label: 'Users', align: 'right', render: (r) => r.userCount },
     {

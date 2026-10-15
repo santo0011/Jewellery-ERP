@@ -1,6 +1,6 @@
 import { sendCreated, sendOk } from '../../utils/response.js';
 import { PlatformAdmin } from '../platform/platformAdmin.model.js';
-import { platformLogin } from '../platform/platformAuth.service.js';
+import { platformCodeSignIn, platformLogin } from '../platform/platformAuth.service.js';
 import * as authService from './auth.service.js';
 import { clearRefreshCookie, REFRESH_COOKIE, setPlatformRefreshCookie, setRefreshCookie } from './token.service.js';
 
@@ -58,6 +58,17 @@ export async function forgotPassword(req, res) {
 export async function verifyResetCode(req, res) {
   await authService.verifyResetCode(req.valid.body);
   sendOk(res, { valid: true }, { message: 'Code confirmed' });
+}
+
+/** Forgot password: the emailed code signs the user in (Super Admins into the platform panel). */
+export async function codeLogin(req, res) {
+  const result = await authService.signInWithResetCode(req.valid.body, requestMeta(req));
+  if (result.admin) {
+    const { accessToken, refreshToken } = await platformCodeSignIn(result.admin, requestMeta(req));
+    setPlatformRefreshCookie(res, refreshToken);
+    return sendOk(res, { accessToken, realm: 'platform' }, { message: 'Signed in' });
+  }
+  sendOk(res, { ...issueTokens(res, result), realm: 'tenant' }, { message: 'Signed in' });
 }
 
 export async function resetPassword(req, res) {

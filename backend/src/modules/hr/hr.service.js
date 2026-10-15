@@ -10,7 +10,7 @@ import { ApiError } from '../../utils/ApiError.js';
 import { randomToken } from '../../utils/crypto.js';
 import { businessDateFor, financialYearLabel, todayContext } from '../../utils/businessDate.js';
 import { paginate, searchFilter } from '../../utils/pagination.js';
-import { accessibleBranchFilter, nameMaps, oid, pick, requireBranch } from '../inventory/inventory.helpers.js';
+import { accessibleBranchFilter, nameMaps, oid, pick, requireBranch, viewBranchFor } from '../inventory/inventory.helpers.js';
 import { Attendance, AttendanceCalendar, Employee, PayrollRun, SalaryAdvance } from './hr.models.js';
 
 // ---------------------------------------------------------------- helpers
@@ -193,7 +193,8 @@ function serializeEmployee(e, maps) {
 
 // ---------------------------------------------------------------- employees
 
-export async function listEmployees({ page, limit, q, branchId, status }) {
+export async function listEmployees({ page, limit, q, branchId: chosen, status }) {
+  const branchId = chosen ?? (await viewBranchFor('employee')); // navbar filter
   const filter = { ...accessibleBranchFilter(), ...searchFilter(q, ['name', 'mobile', 'code', 'designation']) };
   if (branchId) filter.branchId = oid(branchId);
   if (status) filter.status = status;

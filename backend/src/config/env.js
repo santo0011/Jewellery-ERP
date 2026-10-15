@@ -6,6 +6,10 @@ const schema = z
   .object({
     NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
     PORT: z.coerce.number().int().positive().default(5000),
+    // 0.0.0.0 = reachable from other devices on the network (phones on the same Wi-Fi); 127.0.0.1 = this computer only.
+    HOST: z.string().trim().min(1).default('0.0.0.0'),
+    // Accept browser requests from any address on the private local network (192.168.x.x, 10.x …). Default: on outside production.
+    CORS_ALLOW_LAN: z.enum(['true', 'false']).optional(),
     MONGODB_URI: z.string().min(1, 'MONGODB_URI is required'),
     JWT_ACCESS_SECRET: z.string().min(32, 'JWT_ACCESS_SECRET must be at least 32 characters'),
     ACCESS_TOKEN_TTL: z.string().default('15m'),
@@ -18,6 +22,11 @@ const schema = z
     CORS_ORIGINS: z.string().default('http://localhost:5173'),
     APP_URL: z.url().default('http://localhost:5173'),
     COOKIE_SECURE: bool.default(false),
+    // 'strict' for the website only. The mobile app (Capacitor) calls the API from another origin, so a deployment
+    // with the app needs 'none' (which browsers allow only with COOKIE_SECURE=true, i.e. HTTPS).
+    COOKIE_SAMESITE: z.enum(['strict', 'lax', 'none']).default('strict'),
+    // Let the mobile app's built-in origins (https://localhost, capacitor://localhost) call the API.
+    CORS_ALLOW_APP: bool.default(true),
     TRUST_PROXY: z.coerce.number().int().min(0).default(0),
     ALLOW_PUBLIC_SIGNUP: bool.default(false),
     TRIAL_DAYS: z.coerce.number().int().positive().default(14),
@@ -39,6 +48,9 @@ const schema = z
     CASHFREE_ENV: z.enum(['sandbox', 'production']).default('sandbox'),
   })
   .superRefine((cfg, ctx) => {
+    if (cfg.COOKIE_SAMESITE === 'none' && !cfg.COOKIE_SECURE) {
+      ctx.addIssue({ code: 'custom', path: ['COOKIE_SAMESITE'], message: 'COOKIE_SAMESITE=none needs COOKIE_SECURE=true (HTTPS)' });
+    }
     if (cfg.NODE_ENV === 'production' && !cfg.COOKIE_SECURE) {
       ctx.addIssue({ code: 'custom', path: ['COOKIE_SECURE'], message: 'COOKIE_SECURE must be true in production' });
     }
@@ -55,6 +67,7 @@ if (!parsed.success) {
 export const env = Object.freeze({
   ...parsed.data,
   corsOrigins: parsed.data.CORS_ORIGINS.split(',').map((o) => o.trim()).filter(Boolean),
+  corsAllowLan: parsed.data.CORS_ALLOW_LAN ? parsed.data.CORS_ALLOW_LAN === 'true' : parsed.data.NODE_ENV !== 'production',
   isProduction: parsed.data.NODE_ENV === 'production',
   isTest: parsed.data.NODE_ENV === 'test',
 });

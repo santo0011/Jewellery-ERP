@@ -22,6 +22,7 @@ router.post('/refresh', controller.refresh);
 router.post('/logout', controller.logout);
 router.post('/forgot-password', authLimiter, validate({ body: forgotPasswordSchema }), controller.forgotPassword);
 router.post('/verify-reset-code', authLimiter, validate({ body: verifyResetCodeSchema }), controller.verifyResetCode);
+router.post('/code-login', authLimiter, validate({ body: verifyResetCodeSchema }), controller.codeLogin);
 router.post('/reset-password', authLimiter, validate({ body: resetPasswordSchema }), controller.resetPassword);
 
 router.use(authenticate);

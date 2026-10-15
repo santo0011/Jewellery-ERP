@@ -15,7 +15,7 @@ const ADD = '__add_item__';
  * `onPick(item)` runs on every pick; the box clears itself so the next item can be added.
  */
 export default function ItemPicker({ onPick, label = 'Search items — name or code', size = 'medium', helperText }) {
-  const canAdd = usePermission(['purchase.create', 'product.create']);
+  const canAdd = usePermission('purchase.create');
   const [input, setInput] = useState('');
   const [adding, setAdding] = useState(null);
   const q = useDebounce(input.trim(), 200);

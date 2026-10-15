@@ -22,7 +22,7 @@ export const SYSTEM_ROLE_TEMPLATES = [
     description: 'Runs a branch: sales, stock, orders, staff, payroll, reports and approvals.',
     permissions: pick(
       'dashboard.', 'branch.view', 'user.view', 'settings.view',
-      'customer.', 'order.', 'repair.', 'loyalty.', 'sales.', 'oldgold.', 'rate.',
+      'customer.', 'order.', 'repair.', 'loyalty.', 'sales.', 'oldgold.', 'rate.view',
       'category.view', 'product.', 'inventory.', 'supplier.view', 'purchase.view', 'purchase.approve',
       'karigar.view', 'karigar.approve', 'employee.', 'attendance.', 'leave.', 'payroll.',
       'expense.view', 'expense.create', 'expense.approve', 'accounts.view', 'accounts.receipt',

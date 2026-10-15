@@ -4,7 +4,7 @@ import { updateOrganisationSchema } from '@jerp/shared/schemas';
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
-import AddressFields from '../../components/form/AddressFields.jsx';
+import PincodeAddressFields, { addressFormValues, formatAddress } from '../../components/form/PincodeAddressFields.jsx';
 import LogoCard from './LogoCard.jsx';
 import RHFTextField from '../../components/form/RHFTextField.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
@@ -14,7 +14,7 @@ import { usePermission } from '../../hooks/usePermission.js';
 import { applyServerErrors, getErrorMessage } from '../../utils/errors.js';
 import { daysUntil, formatDate, nullsToEmpty } from '../../utils/format.js';
 import EditHistory from '../../components/EditHistory.jsx';
-import { useOrganisationHistoryQuery, useOrganisationQuery, useSubscriptionQuery, useUpdateOrganisationMutation } from './organisationApi.js';
+import { useLazyPincodeQuery, useOrganisationHistoryQuery, useOrganisationQuery, useSubscriptionQuery, useUpdateOrganisationMutation } from './organisationApi.js';
 
 const upper = (v) => v.toUpperCase();
 
@@ -28,7 +28,8 @@ export const toFormValues = (org) => {
     phone: v.phone,
     email: v.email,
     timezone: v.timezone || 'Asia/Kolkata',
-    address: { line1: '', line2: '', city: '', stateCode: '', pincode: '', ...v.address },
+    // Same address fields as the Super Admin's create and edit forms (ADDRESS_FIELDS); the state lives in it here.
+    address: { ...addressFormValues(org.address), stateCode: v.address?.stateCode ?? '' },
   };
 };
 
@@ -88,7 +89,8 @@ export default function OrganisationPage() {
   const canViewSubscription = usePermission('subscription.view');
   const { data, isLoading, error, refetch } = useOrganisationQuery();
   const [update, { isLoading: saving }] = useUpdateOrganisationMutation();
-  const { control, handleSubmit, reset, setError, formState } = useForm({ resolver: zodResolver(updateOrganisationSchema) });
+  const { control, handleSubmit, reset, setError, setValue, formState } = useForm({ resolver: zodResolver(updateOrganisationSchema) });
+  const [findPincode] = useLazyPincodeQuery();
 
   useEffect(() => {
     if (data) reset(toFormValues(data));
@@ -150,7 +152,19 @@ export default function OrganisationPage() {
               <Typography variant="h4" sx={{ mt: 4, mb: 2 }}>
                 Registered address
               </Typography>
-              <AddressFields control={control} disabled={!canEdit} />
+              {canEdit ? (
+                <PincodeAddressFields control={control} setValue={setValue} stateField="address.stateCode" lookup={(pin) => findPincode(pin, true).unwrap()} />
+              ) : formatAddress(data.address ?? {}).length ? (
+                formatAddress(data.address ?? {}).map((line) => (
+                  <Typography key={line} variant="body2" sx={{ lineHeight: 1.7 }}>
+                    {line}
+                  </Typography>
+                ))
+              ) : (
+                <Typography variant="body2" color="textSecondary">
+                  No address yet.
+                </Typography>
+              )}
 
               {canEdit && (
                 <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mt: 3 }}>

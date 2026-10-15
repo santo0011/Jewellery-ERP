@@ -15,13 +15,13 @@ import { todayContext } from '../../utils/businessDate.js';
 import { searchFilter } from '../../utils/pagination.js';
 import { Category } from '../categories/category.model.js';
 import { Customer } from '../customers/customer.model.js';
-import { accessibleBranchFilter, nameMaps, oid, pick, requireBranch } from '../inventory/inventory.helpers.js';
+import { accessibleBranchFilter, nameMaps, oid, pick, requireBranch, viewBranchFor } from '../inventory/inventory.helpers.js';
 import { createOpeningStock } from '../inventory/inventory.service.js';
 import { Product } from '../products/product.model.js';
 import { createProduct } from '../products/product.service.js';
 import { getApplicableRate } from '../rates/rate.service.js';
 import { getSettings } from '../settings/settings.service.js';
-import { Sale } from '../sales/sale.model.js';
+import { Sale, billDue } from '../sales/sale.model.js';
 import { Order } from './order.model.js';
 
 const customerSnapshot = (c) => ({ id: c._id, code: c.code, name: c.name, mobile: c.mobile });
@@ -114,6 +114,44 @@ export async function createOrder({ branchId, customerId, items, expectedDate, p
   return getOrder(order._id);
 }
 
+/** Orders can be changed until they are ready (booked or in progress). Finished pieces stay on their lines. */
+export const EDITABLE_ORDER_STATUSES = [ORDER_STATUS.BOOKED, ORDER_STATUS.IN_PROGRESS];
+
+export async function updateOrder(id, { items, expectedDate, priority, notes }) {
+  const order = await findOrder(id);
+  if (!EDITABLE_ORDER_STATUSES.includes(order.status)) {
+    throw ApiError.conflict(`Order ${order.orderNo} is ${order.status.replace('_', ' ')} and can no longer be edited`, 'INVALID_STATE');
+  }
+  const categoryIds = items.map((i) => i.categoryId).filter(Boolean);
+  if (categoryIds.length && (await Category.countDocuments({ _id: { $in: categoryIds } })) !== new Set(categoryIds).size) {
+    throw ApiError.badRequest('Some categories are not valid', [{ path: 'items', message: 'Select valid categories' }], 'VALIDATION_ERROR');
+  }
+  const finishedLast = order.items.reduce((last, i, n) => (i.productId ? n : last), -1);
+  if (items.length <= finishedLast) {
+    throw ApiError.badRequest('A finished item cannot be removed from the order', [{ path: 'items', message: 'Keep the finished items' }], 'VALIDATION_ERROR');
+  }
+  const today = await todayContext();
+  if (expectedDate && expectedDate !== order.expectedDate && expectedDate < today.businessDate) {
+    throw ApiError.badRequest('Delivery date cannot be in the past', [{ path: 'expectedDate', message: 'Choose today or a later date' }], 'VALIDATION_ERROR');
+  }
+
+  await withTransaction(async (session) => {
+    const fresh = await findOrder(id, session);
+    if (!EDITABLE_ORDER_STATUSES.includes(fresh.status)) throw ApiError.conflict(`Order ${fresh.orderNo} changed while editing. Try again.`, 'CONCURRENT_UPDATE');
+    const before = { estimatedPaise: fresh.estimatedPaise, items: fresh.items.length, expectedDate: fresh.expectedDate, priority: fresh.priority };
+    fresh.items = items.map((i, n) => ({ ...i, productId: fresh.items[n]?.productId ?? null }));
+    fresh.estimatedPaise = items.reduce((s, i) => s + i.estimatedPaise * i.quantity, 0);
+    fresh.expectedDate = expectedDate ?? null;
+    fresh.priority = priority ?? 'normal';
+    fresh.notes = notes ?? null;
+    await fresh.save({ session });
+    const after = { estimatedPaise: fresh.estimatedPaise, items: fresh.items.length, expectedDate: fresh.expectedDate, priority: fresh.priority };
+    const changes = Object.keys(after).filter((k) => before[k] !== after[k]).map((field) => ({ field, from: before[field] ?? null, to: after[field] ?? null }));
+    await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'order', recordType: 'Order', recordId: fresh._id, changes, meta: { name: fresh.orderNo } }, { session });
+  });
+  return getOrder(id);
+}
+
 export async function addAdvance(id, payment) {
   const order = await findOrder(id);
   assertOpen(order);
@@ -169,7 +207,8 @@ export async function cancelOrder(id, { reason, refundMode }) {
   return getOrder(id);
 }
 
-export async function listOrders({ page, limit, q, status, branchId, customerId }) {
+export async function listOrders({ page, limit, q, status, branchId: chosen, customerId }) {
+  const branchId = chosen ?? (customerId ? null : await viewBranchFor('order')); // navbar filter (a customer's orders: all)
   const filter = { ...accessibleBranchFilter(), ...searchFilter(q, ['orderNo', 'customer.name', 'customer.mobile', 'items.description', 'invoiceNo']) };
   if (status === 'open') filter.status = { $in: OPEN_ORDER_STATUSES };
   else if (status) filter.status = status;
@@ -224,7 +263,7 @@ async function orderSummary(branchId, today) {
 export async function getOrder(id) {
   const o = (await findOrder(id)).toObject();
   const userIds = [o.createdBy, ...o.advances.map((a) => a.by), ...o.timeline.map((t) => t.by)];
-  const sale = o.saleId ? await Sale.findById(o.saleId).select('invoiceNo status createdAt totals payments advanceAdjustedPaise').lean() : null;
+  const sale = o.saleId ? await Sale.findById(o.saleId).select('invoiceNo status createdAt totals payments advanceAdjustedPaise customerAdvancePaise duePaidPaise returnCreditPaise').lean() : null;
   const [maps, categories, products] = await Promise.all([
     nameMaps({ branchIds: [o.branchId], userIds }),
     Category.find({ _id: { $in: o.items.map((i) => i.categoryId).filter(Boolean) } }).select('name').lean(),
@@ -263,8 +302,10 @@ export async function getOrder(id) {
       grandTotalPaise: sale.totals.grandTotalPaise,
       advanceAdjustedPaise: sale.advanceAdjustedPaise ?? 0,
       payments: sale.payments.map((p) => ({ mode: p.mode, amountPaise: p.amountPaise, reference: p.reference })),
+      customerAdvancePaise: sale.customerAdvancePaise ?? 0,
       paidPaise: sale.payments.filter((p) => p.mode !== 'credit').reduce((sum, p) => sum + p.amountPaise, 0),
-      duePaise: sale.payments.filter((p) => p.mode === 'credit').reduce((sum, p) => sum + p.amountPaise, 0),
+      duePaise: billDue(sale),
+      collectedLaterPaise: sale.duePaidPaise ?? 0,
     },
     deliveredAt: o.deliveredAt,
     cancelledAt: o.cancelledAt,

@@ -4,27 +4,30 @@ import { branchSchema } from '@jerp/shared/schemas';
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
-import AddressFields from '../../components/form/AddressFields.jsx';
+import PincodeAddressFields, { addressFormValues } from '../../components/form/PincodeAddressFields.jsx';
+import { useLazyPincodeQuery } from '../settings/organisationApi.js';
 import RHFTextField from '../../components/form/RHFTextField.jsx';
 import FormDrawer from '../../components/FormDrawer.jsx';
 import { applyServerErrors, getErrorMessage } from '../../utils/errors.js';
 import { nullsToEmpty } from '../../utils/format.js';
 import { useCreateBranchMutation, useUpdateBranchMutation } from './branchApi.js';
 
-const EMPTY = { code: '', name: '', phone: '', email: '', gstin: '', address: { line1: '', line2: '', city: '', stateCode: '', pincode: '' } };
+// Same address fields as the organisation's (ADDRESS_FIELDS); the state lives in the address here.
+const EMPTY = { code: '', name: '', phone: '', email: '', gstin: '', address: { ...addressFormValues(), stateCode: '' } };
 const upper = (v) => v.toUpperCase();
 
 const toFormValues = (branch) => {
   if (!branch) return EMPTY;
   const v = nullsToEmpty(branch);
-  return { code: v.code, name: v.name, phone: v.phone, email: v.email, gstin: v.gstin, address: { ...EMPTY.address, ...v.address } };
+  return { code: v.code, name: v.name, phone: v.phone, email: v.email, gstin: v.gstin, address: { ...addressFormValues(branch.address), stateCode: v.address?.stateCode ?? '' } };
 };
 
 export default function BranchFormDrawer({ open, branch, onClose }) {
   const editing = Boolean(branch);
   const [createBranch, createState] = useCreateBranchMutation();
   const [updateBranch, updateState] = useUpdateBranchMutation();
-  const { control, handleSubmit, reset, setError } = useForm({ resolver: zodResolver(branchSchema), defaultValues: EMPTY });
+  const { control, handleSubmit, reset, setError, setValue } = useForm({ resolver: zodResolver(branchSchema), defaultValues: EMPTY });
+  const [findPincode] = useLazyPincodeQuery();
   const error = editing ? updateState.error : createState.error;
 
   useEffect(() => {
@@ -49,6 +52,7 @@ export default function BranchFormDrawer({ open, branch, onClose }) {
 
   return (
     <FormDrawer
+      width={640}
       open={open}
       title={editing ? 'Edit branch' : 'New branch'}
       subtitle={editing ? branch.name : 'Each branch keeps its own stock, cash and reports.'}
@@ -79,12 +83,17 @@ export default function BranchFormDrawer({ open, branch, onClose }) {
           <RHFTextField control={control} name="gstin" label="GSTIN" transform={upper} helperText="Required if this branch has a separate GST registration" slotProps={{ htmlInput: { maxLength: 15 } }} />
         </Grid>
         <Grid size={12}>
-          <Typography variant="overline" color="textSecondary">
+          <Typography variant="overline" color="textSecondary" sx={{ display: 'block' }}>
             Address
           </Typography>
+          {branch?.isHeadOffice && (
+            <Alert severity="info" variant="outlined" sx={{ mt: 0.5 }}>
+              This is also the organisation’s registered address — saving it here updates Settings → Organisation (and what the Super Admin sees), and the other way round.
+            </Alert>
+          )}
         </Grid>
         <Grid size={12}>
-          <AddressFields control={control} />
+          <PincodeAddressFields control={control} setValue={setValue} stateField="address.stateCode" lookup={(pin) => findPincode(pin, true).unwrap()} />
         </Grid>
       </Grid>
     </FormDrawer>

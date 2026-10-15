@@ -13,6 +13,8 @@ const sessionSchema = new mongoose.Schema(
     expiresAt: { type: Date, required: true },
     revokedAt: { type: Date, default: null },
     revokedReason: { type: String, default: null },
+    // 'code' = opened with an emailed code (forgot password): changing the password then needs no current password.
+    signedInWith: { type: String, enum: ['password', 'code'], default: 'password' },
   },
   { timestamps: true },
 );

@@ -143,7 +143,7 @@ export function AreaChart({ data, height = 240, formatValue = (v) => formatINR(v
  * Share of a whole as a ring: the total in the middle (or the hovered part), a labelled legend beside it.
  * rows: [{ key, label, value }] - six slots at most; the rest fold into "Other".
  */
-export function DonutChart({ rows: input, size = 156, thickness = 22, formatValue = (v) => formatINR(v, { decimals: 0 }), centerLabel = 'Total', empty = 'Nothing yet' }) {
+export function DonutChart({ rows: input, size = 156, thickness = 22, formatValue = (v) => formatINR(v, { decimals: 0 }), formatCenter = compactINR, centerLabel = 'Total', empty = 'Nothing yet' }) {
   const [active, setActive] = useState(null);
   const rows = foldRows(input.filter((r) => r.value > 0));
   const total = rows.reduce((s, r) => s + r.value, 0);
@@ -192,7 +192,7 @@ export function DonutChart({ rows: input, size = 156, thickness = 22, formatValu
         </svg>
         <Box sx={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', textAlign: 'center', pointerEvents: 'none' }}>
           <Box sx={{ maxWidth: inner * 1.6 }}>
-            <Typography sx={{ fontSize: '1.05rem', fontWeight: 800, lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{compactINR(shown ? shown.value : total)}</Typography>
+            <Typography sx={{ fontSize: '1.05rem', fontWeight: 800, lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>{formatCenter(shown ? shown.value : total)}</Typography>
             <Typography variant="caption" color="textSecondary" noWrap sx={{ display: 'block' }}>
               {shown ? shown.label : centerLabel}
             </Typography>

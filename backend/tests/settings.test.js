@@ -38,6 +38,23 @@ describe('business settings', () => {
 
     expect((await api().put('/api/v1/settings/secrets').set(bearer(token)).send({})).status).toBe(400);
   });
+
+  it('saves the print size and design, with branches that print differently', async () => {
+    const { token } = await registerOrg();
+    const me = (await api().get('/api/v1/auth/me').set(bearer(token))).body.data;
+    const branchId = me.branches[0].id;
+    expect((await api().get('/api/v1/settings').set(bearer(token))).body.data.print).toEqual({ size: 'a4', design: 'classic', branches: [] });
+
+    const print = { size: 'thermal80', design: 'detailed', branches: [{ branchId, size: 'thermal58', design: 'compact' }] };
+    const saved = await api().put('/api/v1/settings/print').set(bearer(token)).send(print);
+    expect(saved.status).toBe(200);
+    expect(saved.body.data.print).toEqual(print);
+
+    const wrongDesign = await api().put('/api/v1/settings/print').set(bearer(token)).send({ size: 'thermal58', design: 'royal', branches: [] });
+    expect(wrongDesign.status).toBe(400);
+    const twice = await api().put('/api/v1/settings/print').set(bearer(token)).send({ ...print, branches: [print.branches[0], print.branches[0]] });
+    expect(twice.status).toBe(400);
+  });
 });
 
 describe('organisation logo', () => {

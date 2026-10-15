@@ -2,7 +2,7 @@ const MODULE_LABELS = { auth: 'Sign-in & security', organisation: 'Organisation'
 
 export const moduleLabel = (module) => MODULE_LABELS[module] ?? module;
 
-const SECTION_LABELS = { invoice: 'invoice', tax: 'tax & GST', jewellery: 'jewellery', barcode: 'barcode' };
+const SECTION_LABELS = { invoice: 'invoice', tax: 'tax & GST', jewellery: 'jewellery', barcode: 'barcode', print: 'print' };
 
 export function describeEntry(e) {
   const name = e.meta?.name ? ` “${e.meta.name}”` : '';

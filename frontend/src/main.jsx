@@ -8,7 +8,10 @@ import { createRoot } from 'react-dom/client';
 import { Toaster } from 'react-hot-toast';
 import { Provider } from 'react-redux';
 import { RouterProvider } from 'react-router';
+import TopProgress from './components/TopProgress.jsx';
 import { router } from './routes/index.jsx';
+import { preloadPages } from './routes/lazyPage.jsx';
+import { setupNativeApp } from './native.js';
 import { AuthBootstrap } from './routes/guards.jsx';
 import { store } from './store/index.js';
 import { theme } from './theme/index.js';
@@ -18,6 +21,7 @@ createRoot(document.getElementById('root')).render(
     <Provider store={store}>
       <ThemeProvider theme={theme} defaultMode="light">
         <CssBaseline />
+        <TopProgress />
         <AuthBootstrap>
           <RouterProvider router={router} />
         </AuthBootstrap>
@@ -33,3 +37,8 @@ createRoot(document.getElementById('root')).render(
   </StrictMode>,
 );
 
+// In the built app, fetch the other pages in the background after the first screen (dev serves them on demand).
+if (import.meta.env.PROD) preloadPages();
+
+// Inside the Android / iPhone app: Back button and status bar (does nothing on the website).
+setupNativeApp();

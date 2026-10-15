@@ -53,6 +53,12 @@ const saleSchema = new mongoose.Schema(
     orderId: { type: ObjectId, ref: 'Order', default: null },
     orderNo: { type: String, default: null },
     advanceAdjustedPaise: { type: Number, default: 0 },
+    // The customer's own advance (a minus opening balance) used on this bill.
+    customerAdvancePaise: { type: Number, default: 0 },
+    // Collected later against this bill's due (Customers → Collect payment).
+    duePaidPaise: { type: Number, default: 0 },
+    // Items returned with the refund kept on the customer's account: taken off this bill's due.
+    returnCreditPaise: { type: Number, default: 0 },
     idempotencyKey: { type: String, default: null },
     cancelledAt: { type: Date, default: null },
     cancelledBy: { type: ObjectId, ref: 'User', default: null },
@@ -95,3 +101,7 @@ salesReturnSchema.index({ organisationId: 1, creditNoteNo: 1 }, { unique: true }
 salesReturnSchema.index({ organisationId: 1, saleId: 1 });
 
 export const SalesReturn = mongoose.model('SalesReturn', salesReturnSchema);
+
+/** Still owed on one bill: what was left on credit, less what was collected later and returns adjusted against it. */
+export const billDue = (s) =>
+  Math.max(0, s.payments.filter((p) => p.mode === 'credit').reduce((sum, p) => sum + p.amountPaise, 0) - (s.duePaidPaise ?? 0) - (s.returnCreditPaise ?? 0));

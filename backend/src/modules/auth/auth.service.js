@@ -10,6 +10,7 @@ import { recordPlatformAudit } from '../platform/platformAuth.service.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { safeEqualHex, sha256 } from '../../utils/crypto.js';
 import { Branch } from '../branches/branch.model.js';
+import { sharedBranchModules } from '../inventory/inventory.helpers.js';
 import { Organisation } from '../organisations/organisation.model.js';
 import { organisationDeactivated } from '../organisations/organisationAccess.js';
 import { onboardOrganisation } from '../organisations/organisation.service.js';
@@ -35,7 +36,7 @@ const hashPassword = (password) => bcrypt.hash(password, env.BCRYPT_ROUNDS);
 
 const actorFrom = (user, meta) => ({ organisationId: String(user.organisationId), userId: String(user._id), ...meta });
 
-async function openSession(user, { rememberMe = false, ip, userAgent }, session) {
+async function openSession(user, { rememberMe = false, ip, userAgent, via = 'password' }, session) {
   const { secret, hash } = createRefreshSecret();
   const [doc] = await Session.create(
     [
@@ -46,6 +47,7 @@ async function openSession(user, { rememberMe = false, ip, userAgent }, session)
         rememberMe,
         ip,
         userAgent,
+        signedInWith: via,
         expiresAt: new Date(Date.now() + refreshTtlDays(rememberMe) * 24 * 60 * 60 * 1000),
       },
     ],
@@ -239,6 +241,29 @@ export async function verifyResetCode({ email, otp }) {
   await checkResetCode(email, otp);
 }
 
+/**
+ * Forgot password → signed in with the emailed code (no new password needed; it can be changed later from the
+ * profile). The code is used up. Returns the tenant tokens, or `{ admin }` for a Super Admin (whose platform
+ * session the controller opens).
+ */
+export async function signInWithResetCode({ email, otp }, meta) {
+  const acct = await checkResetCode(email, otp);
+  const usedUp = { tokenHash: null, expiresAt: null, attempts: 0, sentAt: null };
+
+  if (acct.kind === 'admin') {
+    await PlatformAdmin.updateOne({ _id: acct.doc._id }, { $set: { passwordReset: usedUp, failedLoginCount: 0, lockedUntil: null, lastLoginAt: new Date() } });
+    return { admin: acct.doc };
+  }
+
+  const user = acct.doc;
+  const organisation = await Organisation.findById(user.organisationId).select('status').lean();
+  if (!organisation || organisation.status !== ORG_STATUS.ACTIVE) throw organisationDeactivated();
+  await User.updateOne({ _id: user._id }, { $set: { passwordReset: null, failedLoginCount: 0, lockedUntil: null, lastLoginAt: new Date() } }).setOptions(SKIP);
+  const tokens = await openSession(user, { ...meta, rememberMe: false, via: 'code' });
+  await recordAudit({ action: AUDIT_ACTIONS.LOGIN, module: 'auth', recordType: 'User', recordId: user._id, meta: { via: 'Emailed code' } }, { actor: actorFrom(user, meta) });
+  return tokens;
+}
+
 /** Step 3: the code again and the new password. Every session of the account is signed out. */
 export async function resetPassword({ email, otp, password }, meta) {
   const acct = await checkResetCode(email, otp);
@@ -272,8 +297,13 @@ export async function resetPassword({ email, otp, password }, meta) {
 export async function changePassword(userId, sessionId, { currentPassword, newPassword }) {
   const user = await User.findById(userId).select('+passwordHash');
   if (!user) throw ApiError.notFound('User');
-  if (!(await bcrypt.compare(currentPassword, user.passwordHash))) {
-    throw ApiError.badRequest('Current password is incorrect', [{ path: 'currentPassword', message: 'Current password is incorrect' }], 'VALIDATION_ERROR');
+  // Signed in with an emailed code (forgot password): the code already proved who they are.
+  const current = await Session.findById(sessionId).select('signedInWith').lean();
+  if (current?.signedInWith !== 'code') {
+    if (!currentPassword) throw ApiError.badRequest('Current password is required', [{ path: 'currentPassword', message: 'Current password is required' }], 'VALIDATION_ERROR');
+    if (!(await bcrypt.compare(currentPassword, user.passwordHash))) {
+      throw ApiError.badRequest('Current password is incorrect', [{ path: 'currentPassword', message: 'Current password is incorrect' }], 'VALIDATION_ERROR');
+    }
   }
 
   user.passwordHash = await hashPassword(newPassword);
@@ -288,6 +318,12 @@ export async function changePassword(userId, sessionId, { currentPassword, newPa
       { $set: { revokedAt: new Date(), revokedReason: 'password_change' } },
       { session },
     );
+    // From now on this session is an ordinary one: the next change asks for the (new) current password.
+    await Session.updateOne(
+      { _id: sessionId },
+      { $set: { signedInWith: 'password' } },
+      { session },
+    );
     await recordAudit({ action: AUDIT_ACTIONS.PASSWORD_CHANGE, module: 'auth', recordType: 'User', recordId: user._id }, { session });
   });
 
@@ -297,8 +333,9 @@ export async function changePassword(userId, sessionId, { currentPassword, newPa
 }
 
 export async function getMe(auth) {
-  const [user, organisation, subscription] = await Promise.all([
+  const [user, currentSession, organisation, subscription] = await Promise.all([
     User.findById(auth.userId).select('name email mobile isOwner defaultBranchId roleIds branchAccess lastLoginAt mustChangePassword branchLoginFor').lean(),
+    Session.findById(auth.sessionId).select('signedInWith').lean(),
     Organisation.findById(auth.organisationId).select('name legalName timezone currency address gstin logoFileId').lean(),
     Subscription.findOne({}).lean(),
   ]);
@@ -324,6 +361,7 @@ export async function getMe(auth) {
       allBranches: Boolean(user.branchAccess?.all),
       lastLoginAt: user.lastLoginAt,
       mustChangePassword: Boolean(user.mustChangePassword),
+      signedInWithCode: currentSession?.signedInWith === 'code', // can set a new password without the old one
       branchLogin: Boolean(user.branchLoginFor),
       roles: roles.map((r) => ({ id: r._id, key: r.key, name: r.name })),
     },
@@ -345,6 +383,8 @@ export async function getMe(auth) {
     })(),
     permissions: expandPermissions(auth.permissions),
     activeBranchId: auth.branchId,
+    // Modules opened to at least one other branch: their list pages show the navbar branch filter.
+    branchModules: [...(await sharedBranchModules())],
     branches: branches.map((b) => ({ id: b._id, code: b.code, name: b.name, isHeadOffice: b.isHeadOffice })),
     catalog: {
       enabledPurities: settings.jewellery.enabledPurities,

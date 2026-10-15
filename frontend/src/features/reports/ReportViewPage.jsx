@@ -1,17 +1,18 @@
 import FileDownloadOutlinedIcon from '@mui/icons-material/FileDownloadOutlined';
 import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
-import { Alert, Box, Button, Card, Chip, GlobalStyles, Link, MenuItem, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, Typography } from '@mui/material';
+import { Alert, Box, Button, Card, GlobalStyles, Link, MenuItem, Stack, Table, TableBody, TableCell, TableContainer, TableHead, TableRow, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import { formatINR, formatWeight } from '@jerp/shared';
 import { Link as RouterLink, useParams, useSearchParams } from 'react-router';
+import StatTile from '../../components/StatTile.jsx';
 import { MONEY_TONE } from '../../components/Amount.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
 import { EmptyState, ErrorState, LoadingState } from '../../components/StateViews.jsx';
-import { useSession } from '../../hooks/usePermission.js';
+import { usePermission, useSession } from '../../hooks/usePermission.js';
 import { formatDate, formatDateTime } from '../../utils/format.js';
 import { useReportQuery } from './reportApi.js';
 
 // Print only the report sheet.
-const printStyles = (
+export const printStyles = (
   <GlobalStyles
     styles={{
       '@media print': {
@@ -26,7 +27,7 @@ const printStyles = (
 );
 
 const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
-function presets() {
+export function presets() {
   const now = new Date();
   const y = now.getFullYear();
   const m = now.getMonth();
@@ -40,7 +41,7 @@ function presets() {
 }
 
 /** One formatter per column type, shared by the table and the summary tiles. */
-function formatValue(type, v) {
+export function formatValue(type, v) {
   if (v === null || v === undefined || v === '') return '—';
   switch (type) {
     case 'money':
@@ -68,7 +69,7 @@ function csvValue(type, v) {
   return String(v);
 }
 
-function downloadCsv(report) {
+export function downloadCsv(report) {
   const head = report.columns.map((c) => c.label + (c.type === 'money' ? ' (₹)' : c.type === 'weight' ? ' (g)' : ''));
   const body = report.rows.map((r) => report.columns.map((c) => csvValue(c.type, r[c.key])));
   const totals = report.totals && Object.keys(report.totals).length ? [report.columns.map((c, i) => (i === 0 ? 'Total' : c.key in report.totals ? csvValue(c.type, report.totals[c.key]) : ''))] : [];
@@ -103,9 +104,97 @@ function Cell({ column, row, value, total }) {
   );
 }
 
+/** The report itself: print heading, summary tiles, note and table with totals. Shared with the Super Admin reports. */
+export function ReportSheet({ report, isFetching, period, scope, printTitle, emptyHint }) {
+  const hasTotals = report.totals && Object.keys(report.totals).length > 0 && report.rows.length > 0;
+  return (
+    <Box id="report-sheet" sx={{ opacity: isFetching ? 0.6 : 1, transition: 'opacity 120ms' }}>
+      {/* Print heading: hidden on screen, shown on paper. */}
+      <Box sx={{ display: 'none', '@media print': { display: 'block' }, mb: 2 }}>
+        <Typography variant="h2">{printTitle}</Typography>
+        <Typography variant="h3">{report.title}</Typography>
+        <Typography variant="body2">
+          {period}{scope ? ` · ${scope}` : ''} · printed {formatDateTime(new Date())}
+        </Typography>
+      </Box>
+
+      {report.summary?.length > 0 && (
+        <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: `repeat(${Math.min(report.summary.length, 4)}, minmax(0, 1fr))` }, gap: 1.5, mb: 2 }}>
+          {report.summary.map((s) => (
+            <StatTile key={s.label} label={s.label} value={formatValue(s.type, s.value ?? 0)} tone={s.tone && s.value ? MONEY_TONE[s.tone] : undefined} />
+          ))}
+        </Box>
+      )}
+
+      {report.note && (
+        <Alert severity="info" sx={{ mb: 2 }}>
+          {report.note}
+        </Alert>
+      )}
+
+      <Card>
+        <Stack direction="row" sx={{ px: 2, py: 1.25, justifyContent: 'space-between', alignItems: 'center', borderBottom: 1, borderColor: 'divider' }}>
+          <Typography variant="body2" color="textSecondary">
+            {period}
+            {scope ? ` · ${scope}` : ''}
+          </Typography>
+          <Typography variant="body2" color="textSecondary">
+            {report.rows.length} row{report.rows.length === 1 ? '' : 's'}
+          </Typography>
+        </Stack>
+        {report.rows.length === 0 ? (
+          <EmptyState title="Nothing in this period" description={emptyHint} />
+        ) : (
+          <TableContainer>
+            <Table size="small" stickyHeader sx={{ '& th, & td': { px: 1.25 }, '& th:first-of-type, & td:first-of-type': { pl: 2 }, '& th:last-of-type, & td:last-of-type': { pr: 2 }, '& th': { fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'text.secondary', whiteSpace: 'nowrap', py: 1.25 }, '& td': { fontSize: 13, py: 1 } }}>
+              <TableHead>
+                <TableRow>
+                  {report.columns.map((c) => (
+                    <TableCell key={c.key} align={numeric(c.type) ? 'right' : 'left'}>
+                      {c.label}
+                    </TableCell>
+                  ))}
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {report.rows.map((r, i) => (
+                  <TableRow key={i} hover>
+                    {report.columns.map((c) => (
+                      <Cell key={c.key} column={c} row={r} value={r[c.key]} />
+                    ))}
+                  </TableRow>
+                ))}
+                {hasTotals && (
+                  <TableRow sx={{ '& td': { borderTop: 2, borderColor: 'divider', bgcolor: 'action.hover' } }}>
+                    {report.columns.map((c, i) =>
+                      i === 0 ? (
+                        <TableCell key={c.key} sx={{ fontWeight: 700 }}>
+                          Total
+                        </TableCell>
+                      ) : c.key in report.totals ? (
+                        <Cell key={c.key} column={c} value={report.totals[c.key]} total />
+                      ) : (
+                        <TableCell key={c.key} />
+                      ),
+                    )}
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        )}
+      </Card>
+      <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 1 }} className="no-print">
+        Generated {formatDateTime(report.generatedAt)}
+      </Typography>
+    </Box>
+  );
+}
+
 export default function ReportViewPage() {
   const { key } = useParams();
   const { data: session } = useSession();
+  const canExport = usePermission('report.export');
   const [params, setParams] = useSearchParams();
   const query = Object.fromEntries([...params.entries()].filter(([, v]) => v));
   const { data: report, isLoading, isFetching, error, refetch } = useReportQuery({ key, ...query });
@@ -122,7 +211,6 @@ export default function ReportViewPage() {
   const multiBranch = session.branches.length > 1;
   const branchName = p.branchId ? (session.branches.find((b) => b.id === p.branchId)?.name ?? '') : 'All branches';
   const period = f.includes('month') ? new Date(`${p.month}-01T00:00:00Z`).toLocaleString('en-IN', { month: 'long', year: 'numeric', timeZone: 'UTC' }) : f.includes('range') ? `${formatDate(p.from)} – ${formatDate(p.to)}` : f.includes('asOf') ? `As on ${formatDate(p.to)}` : 'As on today';
-  const hasTotals = report.totals && Object.keys(report.totals).length > 0 && report.rows.length > 0;
 
   return (
     <>
@@ -133,9 +221,12 @@ export default function ReportViewPage() {
         back={{ to: '/reports', label: 'Reports' }}
         actions={
           <Stack direction="row" spacing={1}>
-            <Button variant="outlined" color="secondary" startIcon={<FileDownloadOutlinedIcon />} onClick={() => downloadCsv(report)} disabled={!report.rows.length}>
-              Excel (CSV)
-            </Button>
+            {/* Reports → Export: downloading the rows. */}
+            {canExport && (
+              <Button variant="outlined" color="secondary" startIcon={<FileDownloadOutlinedIcon />} onClick={() => downloadCsv(report)} disabled={!report.rows.length}>
+                Excel (CSV)
+              </Button>
+            )}
             <Button variant="contained" startIcon={<PrintOutlinedIcon />} onClick={() => window.print()}>
               Print
             </Button>
@@ -143,29 +234,69 @@ export default function ReportViewPage() {
         }
       />
 
-      <Card sx={{ p: 2, mb: 2 }}>
-        <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 1.5, alignItems: 'center' }}>
+      {/* Filters on a grid, all controls the same height. Phones: From | To, quick periods, Branch.
+          Tablets and laptops: From | To | Branch, quick periods below. Large screens: one row. */}
+      <Card sx={{ p: { xs: 1.5, sm: 2 }, mb: 2 }}>
+        <Box
+          sx={{
+            display: 'grid',
+            gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(3, minmax(0, 1fr))', xl: 'minmax(150px, 180px) minmax(150px, 180px) auto minmax(200px, 260px)' },
+            alignItems: 'center',
+            gap: 1.5,
+            '& .MuiInputBase-root': { height: 40 },
+            // Smaller text with a mouse; touch screens keep 16px (iPhones zoom into smaller fields).
+            '@media (pointer: fine)': { '& .MuiInputBase-input': { fontSize: '0.875rem' } },
+          }}
+        >
           {f.includes('range') && (
             <>
-              <TextField label="From" type="date" value={p.from} onChange={(e) => e.target.value && set({ from: e.target.value })} slotProps={{ inputLabel: { shrink: true } }} sx={{ width: 170 }} />
-              <TextField label="To" type="date" value={p.to} onChange={(e) => e.target.value && set({ to: e.target.value })} slotProps={{ inputLabel: { shrink: true } }} sx={{ width: 170 }} />
-              <Stack direction="row" spacing={0.75} sx={{ flexWrap: 'wrap', rowGap: 0.75 }}>
+              <TextField label="From" type="date" value={p.from} onChange={(e) => e.target.value && set({ from: e.target.value })} slotProps={{ inputLabel: { shrink: true } }} sx={{ order: 1 }} />
+              <TextField label="To" type="date" value={p.to} onChange={(e) => e.target.value && set({ to: e.target.value })} slotProps={{ inputLabel: { shrink: true } }} sx={{ order: 2 }} />
+              <ToggleButtonGroup
+                exclusive
+                size="small"
+                aria-label="Quick period"
+                value={presets().find((x) => p.from === x.from && p.to === x.to)?.label ?? null}
+                onChange={(e, label) => {
+                  const x = presets().find((y) => y.label === label);
+                  if (x) set({ from: x.from, to: x.to });
+                }}
+                sx={{
+                  height: 40,
+                  order: { xs: 3, sm: 4, xl: 3 },
+                  gridColumn: { xs: '1 / -1', xl: 'auto' },
+                  justifySelf: { xl: 'start' },
+                  width: { xs: '100%', xl: 'auto' },
+                  bgcolor: 'background.paper',
+                  '& .MuiToggleButton-root': { flex: { xs: 1, xl: 'none' }, px: { xs: 0.75, sm: 1.5 }, fontSize: '0.8125rem', fontWeight: 600, color: 'text.secondary' },
+                  '& .MuiToggleButton-root.Mui-selected': { bgcolor: 'primary.main', color: 'primary.contrastText', '&:hover': { bgcolor: 'primary.dark' } },
+                }}
+              >
                 {presets().map((x) => (
-                  <Chip key={x.label} label={x.label} onClick={() => set({ from: x.from, to: x.to })} color={p.from === x.from && p.to === x.to ? 'primary' : 'default'} variant={p.from === x.from && p.to === x.to ? 'filled' : 'outlined'} />
+                  <ToggleButton key={x.label} value={x.label}>
+                    {x.label}
+                  </ToggleButton>
                 ))}
-              </Stack>
+              </ToggleButtonGroup>
             </>
           )}
-          {f.includes('asOf') && <TextField label="As on" type="date" value={p.to} onChange={(e) => e.target.value && set({ to: e.target.value })} slotProps={{ inputLabel: { shrink: true } }} sx={{ width: 170 }} />}
-          {f.includes('month') && <TextField label="Month" type="month" value={p.month} onChange={(e) => e.target.value && set({ month: e.target.value })} slotProps={{ inputLabel: { shrink: true } }} sx={{ width: 190 }} />}
+          {f.includes('asOf') && <TextField label="As on" type="date" value={p.to} onChange={(e) => e.target.value && set({ to: e.target.value })} slotProps={{ inputLabel: { shrink: true } }} sx={{ gridColumn: { xs: '1 / -1', sm: 'auto' } }} />}
+          {f.includes('month') && <TextField label="Month" type="month" value={p.month} onChange={(e) => e.target.value && set({ month: e.target.value })} slotProps={{ inputLabel: { shrink: true } }} sx={{ gridColumn: { xs: '1 / -1', sm: 'auto' } }} />}
           {f.includes('account') && (
-            <TextField select label="Account" value={p.account ?? 'cash'} onChange={(e) => set({ account: e.target.value })} sx={{ width: 170 }}>
+            <TextField select label="Account" value={p.account ?? 'cash'} onChange={(e) => set({ account: e.target.value })} sx={{ gridColumn: { xs: '1 / -1', sm: 'auto' } }}>
               <MenuItem value="cash">Cash in hand</MenuItem>
               <MenuItem value="bank">Bank accounts</MenuItem>
             </TextField>
           )}
           {f.includes('branch') && multiBranch && (
-            <TextField select label="Branch" value={p.branchId ?? ''} onChange={(e) => set({ branchId: e.target.value })} slotProps={{ inputLabel: { shrink: true }, select: { displayEmpty: true } }} sx={{ width: 210 }}>
+            <TextField
+              select
+              label="Branch"
+              value={p.branchId ?? ''}
+              onChange={(e) => set({ branchId: e.target.value })}
+              slotProps={{ inputLabel: { shrink: true }, select: { displayEmpty: true } }}
+              sx={{ order: { xs: 4, sm: 3, xl: 4 }, gridColumn: { xs: '1 / -1', sm: 'auto' } }}
+            >
               <MenuItem value="">All branches</MenuItem>
               {session.branches.map((b) => (
                 <MenuItem key={b.id} value={b.id}>
@@ -174,96 +305,10 @@ export default function ReportViewPage() {
               ))}
             </TextField>
           )}
-        </Stack>
+        </Box>
       </Card>
 
-      <Box id="report-sheet" sx={{ opacity: isFetching ? 0.6 : 1, transition: 'opacity 120ms' }}>
-        {/* Print heading: hidden on screen, shown on paper. */}
-        <Box sx={{ display: 'none', '@media print': { display: 'block' }, mb: 2 }}>
-          <Typography variant="h2">{session.organisation.name}</Typography>
-          <Typography variant="h3">{report.title}</Typography>
-          <Typography variant="body2">
-            {period} · {branchName} · printed {formatDateTime(new Date())}
-          </Typography>
-        </Box>
-
-        {report.summary?.length > 0 && (
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: `repeat(${Math.min(report.summary.length, 4)}, 1fr)` }, gap: 1.5, mb: 2 }}>
-            {report.summary.map((s) => (
-              <Card key={s.label} sx={{ p: 2 }}>
-                <Typography variant="caption" color="textSecondary">
-                  {s.label}
-                </Typography>
-                <Typography variant="h3" sx={{ color: s.tone && s.value ? MONEY_TONE[s.tone] : 'text.primary', fontVariantNumeric: 'tabular-nums' }}>
-                  {formatValue(s.type, s.value ?? 0)}
-                </Typography>
-              </Card>
-            ))}
-          </Box>
-        )}
-
-        {report.note && (
-          <Alert severity="info" sx={{ mb: 2 }}>
-            {report.note}
-          </Alert>
-        )}
-
-        <Card>
-          <Stack direction="row" sx={{ px: 2, py: 1.25, justifyContent: 'space-between', alignItems: 'center', borderBottom: 1, borderColor: 'divider' }}>
-            <Typography variant="body2" color="textSecondary">
-              {period}
-              {f.includes('branch') ? ` · ${branchName}` : ''}
-            </Typography>
-            <Typography variant="body2" color="textSecondary">
-              {report.rows.length} row{report.rows.length === 1 ? '' : 's'}
-            </Typography>
-          </Stack>
-          {report.rows.length === 0 ? (
-            <EmptyState title="Nothing in this period" description="Try a wider date range or another branch." />
-          ) : (
-            <TableContainer>
-              <Table size="small" stickyHeader sx={{ '& th, & td': { px: 1.25 }, '& th:first-of-type, & td:first-of-type': { pl: 2 }, '& th:last-of-type, & td:last-of-type': { pr: 2 }, '& th': { fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'text.secondary', whiteSpace: 'nowrap', py: 1.25 }, '& td': { fontSize: 13, py: 1 } }}>
-                <TableHead>
-                  <TableRow>
-                    {report.columns.map((c) => (
-                      <TableCell key={c.key} align={numeric(c.type) ? 'right' : 'left'}>
-                        {c.label}
-                      </TableCell>
-                    ))}
-                  </TableRow>
-                </TableHead>
-                <TableBody>
-                  {report.rows.map((r, i) => (
-                    <TableRow key={i} hover>
-                      {report.columns.map((c) => (
-                        <Cell key={c.key} column={c} row={r} value={r[c.key]} />
-                      ))}
-                    </TableRow>
-                  ))}
-                  {hasTotals && (
-                    <TableRow sx={{ '& td': { borderTop: 2, borderColor: 'divider', bgcolor: 'action.hover' } }}>
-                      {report.columns.map((c, i) =>
-                        i === 0 ? (
-                          <TableCell key={c.key} sx={{ fontWeight: 700 }}>
-                            Total
-                          </TableCell>
-                        ) : c.key in report.totals ? (
-                          <Cell key={c.key} column={c} value={report.totals[c.key]} total />
-                        ) : (
-                          <TableCell key={c.key} />
-                        ),
-                      )}
-                    </TableRow>
-                  )}
-                </TableBody>
-              </Table>
-            </TableContainer>
-          )}
-        </Card>
-        <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 1 }} className="no-print">
-          Generated {formatDateTime(report.generatedAt)}
-        </Typography>
-      </Box>
+      <ReportSheet report={report} isFetching={isFetching} period={period} scope={f.includes('branch') ? branchName : null} printTitle={session.organisation.name} emptyHint="Try a wider date range or another branch." />
     </>
   );
 }

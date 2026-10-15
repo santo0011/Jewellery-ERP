@@ -19,32 +19,37 @@ import { EmptyState, ErrorState } from './StateViews.jsx';
 
 const cellValue = (column, row) => (column.render ? column.render(row) : (row[column.key] ?? '—'));
 
+/**
+ * Phones and tablets: each row is a card — the first column as its title with the row's actions beside it, and the
+ * other columns as label / value pairs in two columns (`desktopOnly` columns are left out; `wide` ones take a full row).
+ */
 function MobileList({ columns, rows, getRowId }) {
-  const [primary, ...rest] = columns.filter((c) => !c.desktopOnly);
+  const [primary, ...rest] = columns.filter((c) => !c.desktopOnly && c.key !== 'actions');
   const actions = columns.find((c) => c.key === 'actions');
   return (
-    <Stack divider={<Divider />}>
+    // Phones: one card per row; tablets: two side by side.
+    <Box sx={{ p: 1, display: 'grid', gap: 1, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' } }}>
       {rows.map((row) => (
-        <Box key={getRowId(row)} sx={{ px: 2, py: 1.5 }}>
-          <Stack direction="row" spacing={1} sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
-            <Box sx={{ minWidth: 0, fontWeight: 600 }}>{cellValue(primary, row)}</Box>
-            {actions && <Box>{actions.render(row)}</Box>}
+        <Box key={getRowId(row)} sx={{ px: 1.75, py: 1.5, borderRadius: 2.5, border: 1, borderColor: 'divider', bgcolor: 'background.paper', boxShadow: '0 1px 2px rgba(23, 23, 23, 0.04)' }}>
+          <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start', justifyContent: 'space-between' }}>
+            <Box sx={{ minWidth: 0, flex: 1, fontWeight: 600, overflowWrap: 'anywhere' }}>{cellValue(primary, row)}</Box>
+            {actions && <Box sx={{ flexShrink: 0, mr: -0.75, mt: -0.5 }}>{actions.render(row)}</Box>}
           </Stack>
-          <Box sx={{ display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 2, rowGap: 0.5, mt: 1 }}>
-            {rest
-              .filter((c) => c.key !== 'actions')
-              .map((c) => (
-                <Fragment key={c.key}>
-                  <Typography variant="overline" color="textSecondary" sx={{ lineHeight: '20px' }}>
+          {rest.length > 0 && (
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', columnGap: 1.5, rowGap: 1.25, mt: 1.25, pt: 1.25, borderTop: 1, borderColor: 'divider', borderTopStyle: 'dashed' }}>
+              {rest.map((c) => (
+                <Box key={c.key} sx={{ minWidth: 0, gridColumn: c.wide ? '1 / -1' : 'auto', textAlign: 'left' }}>
+                  <Typography sx={{ display: 'block', fontSize: '0.625rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'text.secondary', lineHeight: 1.6 }}>
                     {c.label}
                   </Typography>
-                  <Box sx={{ fontSize: '0.8125rem', minWidth: 0, overflowWrap: 'anywhere' }}>{cellValue(c, row)}</Box>
-                </Fragment>
+                  <Box sx={{ fontSize: '0.8125rem', minWidth: 0, overflowWrap: 'anywhere', '& .MuiTypography-root': { textAlign: 'left' } }}>{cellValue(c, row)}</Box>
+                </Box>
               ))}
-          </Box>
+            </Box>
+          )}
         </Box>
       ))}
-    </Stack>
+    </Box>
   );
 }
 
@@ -64,10 +69,26 @@ export default function DataTable({
   const showEmpty = !loading && !error && rows.length === 0;
 
   return (
-    <Card sx={{ borderRadius: 3, overflow: 'hidden', boxShadow: '0 1px 2px rgba(23, 23, 23, 0.04), 0 10px 30px -12px rgba(120, 104, 60, 0.18)' }}>
+    <Card sx={{ borderRadius: 3, overflow: 'hidden', boxShadow: '0 1px 2px rgba(23, 23, 23, 0.04), 0 10px 30px -12px rgba(120, 104, 60, 0.18)', ...(mobile && { bgcolor: 'soft.main' }) }}>
       {toolbar && (
         <>
-          <Box sx={{ p: 2 }}>{toolbar}</Box>
+          {/* Phones: the search box takes a full row and the filters sit two to a row. */}
+          <Box
+            sx={{
+              p: { xs: 1.5, sm: 2 },
+              bgcolor: 'background.paper',
+              '@media (max-width:599.95px)': {
+                '& > .MuiStack-root': { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 1.25 },
+                '& > .MuiStack-root > *': { m: '0 !important', width: '100% !important', maxWidth: 'none !important', minWidth: 0 },
+                '& > .MuiStack-root > :first-of-type': { gridColumn: '1 / -1' },
+                // Segmented filters (Working / Left / All …) take a full row, options sharing it evenly.
+                '& > .MuiStack-root > .MuiToggleButtonGroup-root': { gridColumn: '1 / -1', display: 'flex' },
+                '& .MuiToggleButtonGroup-root > .MuiToggleButton-root': { flex: 1, whiteSpace: 'nowrap', px: 1 },
+              },
+            }}
+          >
+            {toolbar}
+          </Box>
           <Divider />
         </>
       )}
@@ -117,10 +138,11 @@ export default function DataTable({
             count={pagination.total}
             page={pagination.page - 1}
             rowsPerPage={pagination.limit}
-            rowsPerPageOptions={[10, 20, 50, 100]}
+            rowsPerPageOptions={mobile ? [] : [10, 20, 50, 100]}
             onPageChange={(e, page) => pagination.onPageChange(page + 1)}
             onRowsPerPageChange={(e) => pagination.onLimitChange(Number(e.target.value))}
-            labelRowsPerPage={mobile ? 'Rows' : 'Rows per page'}
+            labelRowsPerPage="Rows per page"
+            sx={{ bgcolor: 'background.paper', '& .MuiTablePagination-toolbar': { px: { xs: 1.5, sm: 2 } } }}
           />
         </>
       )}

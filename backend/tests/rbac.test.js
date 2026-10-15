@@ -21,6 +21,17 @@ async function createStaffUser(ownerToken, permissions, branchAccess = { all: tr
 }
 
 describe('permission enforcement', () => {
+  it('keeps the item list under Purchases: Products alone does not open it', async () => {
+    const owner = await registerOrg();
+    const products = await createStaffUser(owner.token, ['product.view', 'product.create']);
+    expect((await api().get('/api/v1/items').set(bearer(products.token))).status).toBe(403);
+    expect((await api().post('/api/v1/items').set(bearer(products.token)).send({})).status).toBe(403);
+
+    const buyer = await createStaffUser(owner.token, ['purchase.view']);
+    expect((await api().get('/api/v1/items').set(bearer(buyer.token))).status).toBe(200);
+    expect((await api().post('/api/v1/items').set(bearer(buyer.token)).send({})).status).toBe(403);
+  });
+
   it('returns 403 when the user lacks the permission', async () => {
     const owner = await registerOrg();
     const { token } = await createStaffUser(owner.token, ['branch.view']);

@@ -26,7 +26,8 @@ export const planSchema = z.object({
 export const assignPlanSchema = z
   .object({
     planId: objectIdSchema,
-    mode: z.enum(['trial', 'manual', 'extend']),
+    // How the Super Admin activates it: payment received (manual), free of charge (complimentary), a trial, or more days.
+    mode: z.enum(['manual', 'complimentary', 'trial', 'extend']),
     days: z.number().int().min(1).max(3650).optional(),
     months: z.number().int().min(1).max(60).optional(),
     amountPaise: z.number().int().min(0).max(1e10).optional(),
@@ -34,7 +35,9 @@ export const assignPlanSchema = z
     reference: optionalText(80),
     note: optionalText(200),
   })
-  .refine((v) => v.mode !== 'extend' || v.days, { path: ['days'], message: 'Enter the number of days' });
+  .refine((v) => v.mode !== 'extend' || v.days, { path: ['days'], message: 'Enter the number of days' })
+  // No amount: the plan's price. A zero payment is a complimentary activation instead.
+  .refine((v) => v.mode !== 'manual' || v.amountPaise !== 0, { path: ['amountPaise'], message: 'Enter the amount received (or choose Complimentary)' });
 
 /** Which payment methods Cashfree's page offers for this checkout ('all' = everything enabled on the account). */
 export const CHECKOUT_METHODS = ['all', 'upi', 'cards', 'netbanking', 'wallets', 'paylater'];

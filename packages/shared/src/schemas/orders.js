@@ -60,6 +60,9 @@ export const orderSchema = z.object({
   notes: optionalText(1000),
 });
 
+// Editing an order before it is ready: what is being made, delivery and notes (customer, branch and advances stay).
+export const orderUpdateSchema = orderSchema.pick({ items: true, expectedDate: true, priority: true, notes: true });
+
 export const orderStatusSchema = z.object({
   status: z.enum([ORDER_STATUS.BOOKED, ORDER_STATUS.IN_PROGRESS, ORDER_STATUS.READY]),
   note: optionalText(300),

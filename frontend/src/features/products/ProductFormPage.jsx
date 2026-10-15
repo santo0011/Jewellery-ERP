@@ -388,7 +388,25 @@ export default function ProductFormPage() {
 
       <Paper
         square
-        sx={{ position: 'sticky', bottom: { xs: 64, md: 0 }, mt: 3, mx: { xs: -2, sm: -3, lg: -4 }, px: { xs: 2, sm: 3, lg: 4 }, py: 1.5, borderTop: 1, borderColor: 'divider', display: 'flex', justifyContent: 'flex-end', gap: 1, zIndex: 2 }}
+        // Desktop: a bar along the bottom edge. Phones: a floating card just above the bottom navigation.
+        sx={{
+          position: 'sticky',
+          bottom: { xs: 'calc(84px + env(safe-area-inset-bottom))', md: 0 },
+          mt: 3,
+          mx: { xs: 0, md: -3, lg: -4 },
+          px: { xs: 1.5, md: 3, lg: 4 },
+          py: 1.5,
+          border: { xs: 1, md: 0 },
+          borderTop: 1,
+          borderColor: 'divider',
+          borderRadius: { xs: 3, md: 0 },
+          boxShadow: { xs: '0 10px 30px -10px rgba(23, 23, 23, 0.3)', md: 'none' },
+          display: 'flex',
+          justifyContent: 'flex-end',
+          gap: 1,
+          zIndex: 2,
+          '& .MuiButton-root': { flex: { xs: 1, md: 'none' } },
+        }}
       >
         <Button color="secondary" onClick={() => navigate(editing ? `/products/${id}` : '/products')} disabled={saving}>
           Cancel

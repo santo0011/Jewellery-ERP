@@ -26,6 +26,7 @@ import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettin
 import GroupOutlinedIcon from '@mui/icons-material/GroupOutlined';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import StorefrontOutlinedIcon from '@mui/icons-material/StorefrontOutlined';
+import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
 import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
 import WorkspacePremiumOutlinedIcon from '@mui/icons-material/WorkspacePremiumOutlined';
 
@@ -33,7 +34,7 @@ import WorkspacePremiumOutlinedIcon from '@mui/icons-material/WorkspacePremiumOu
 export const REPORT_PERMISSIONS = ['report.sales', 'report.inventory', 'report.customer', 'report.finance', 'payroll.view', 'attendance.view'];
 
 /** Always first and never folded away: a `pinned` group renders without a collapsible header. */
-export const DASHBOARD_GROUP = { label: 'Dashboard', pinned: true, items: [{ label: 'Dashboard', path: '/', icon: DashboardOutlinedIcon, end: true, mobile: true }] };
+export const DASHBOARD_GROUP = { label: 'Dashboard', pinned: true, items: [{ label: 'Dashboard', mobileLabel: 'Home', path: '/', icon: DashboardOutlinedIcon, end: true, mobile: true }] };
 
 export const NAV_GROUPS = [
   DASHBOARD_GROUP,
@@ -71,7 +72,7 @@ export const NAV_GROUPS = [
     label: 'Purchase',
     items: [
       { label: 'Purchases', path: '/purchases', icon: ShoppingBagOutlinedIcon, permission: 'purchase.view', end: true },
-      { label: 'Items', path: '/items', icon: CategoryOutlinedIcon, permission: ['purchase.view', 'product.view'] },
+      { label: 'Items', path: '/items', icon: CategoryOutlinedIcon, permission: 'purchase.view' },
       { label: 'Purchase orders', path: '/purchases/orders', icon: PendingActionsOutlinedIcon, permission: 'purchase.view' },
       { label: 'Suppliers', path: '/suppliers', icon: LocalShippingOutlinedIcon, permission: 'supplier.view' },
     ],
@@ -92,6 +93,8 @@ export const NAV_GROUPS = [
       { label: 'Organisation', path: '/settings/organisation', icon: StorefrontOutlinedIcon, permission: 'organisation.view' },
       { label: 'Branches', path: '/settings/branches', icon: AccountTreeOutlinedIcon, permission: 'branch.view' },
       { label: 'Business settings', path: '/settings/business', icon: TuneRoundedIcon, permission: 'settings.view' },
+      // A branch's own invoice print design — for people who work in particular branches (the organisation sets its own under Business settings → Print).
+      { label: 'Print settings', path: '/settings/print', icon: PrintOutlinedIcon, permission: 'settings.view', ownBranchesOnly: true },
       { label: 'Product categories', path: '/settings/categories', icon: CategoryOutlinedIcon, permission: 'category.view' },
       { label: 'Subscription', path: '/settings/subscription', icon: WorkspacePremiumOutlinedIcon, permission: 'subscription.view' },
     ],
@@ -109,17 +112,47 @@ export const NAV_GROUPS = [
 
 export const PROFILE_ITEM = { label: 'Profile', path: '/profile', icon: PersonOutlineRoundedIcon, mobile: true };
 
-const item = (path) => NAV_GROUPS.flatMap((g) => g.items).find((i) => i.path === path);
+/**
+ * The menu for these permissions: every page the role allows, for an organisation user and a branch login alike.
+ * `ownBranchesOnly` items show only to people who work in particular branches (`allBranches` false).
+ */
+export function visibleNav(permissions, { allBranches = true } = {}) {
+  const allowed = (i) => (!i.permission || [].concat(i.permission).some((p) => permissions.has(p))) && !(i.ownBranchesOnly && allBranches);
+  return NAV_GROUPS.map((g) => ({ ...g, items: g.items.filter(allowed) })).filter((g) => g.items.length);
+}
 
-/** A branch's own login runs the counter, its stock, its staff and payroll, and its reports — nothing organisation-wide. */
-export const BRANCH_NAV_GROUPS = [
-  DASHBOARD_GROUP,
-  { label: 'Overview', items: [item('/reports'), item('/rates')] },
-  { label: 'Sales', items: [item('/billing'), item('/orders'), item('/sales'), item('/customers')] },
-  { label: 'Stock', items: [item('/inventory'), item('/products'), item('/inventory/transfers')] },
-  { label: 'HR & Payroll', items: [item('/hr/employees'), item('/hr/attendance'), item('/hr/advances'), item('/hr/payroll')] },
+/**
+ * List pages whose data follows the navbar branch filter, and the module each belongs to. The filter shows on a page
+ * only while its module is opened to at least one other branch (session.branchModules, from Branch access); otherwise
+ * the page shows the head office's data. A new list page that filters by branch is one more line here.
+ */
+export const BRANCH_FILTER_PAGES = [
+  { path: '/sales', module: 'sales' },
+  { path: '/orders', module: 'order' },
+  { path: '/products', module: 'product' },
+  { path: '/inventory', module: 'inventory' },
+  { path: '/inventory/opening', module: 'inventory' },
+  { path: '/inventory/adjustments', module: 'inventory' },
+  { path: '/inventory/transfers', module: 'inventory' },
+  { path: '/inventory/ledger', module: 'inventory' },
+  { path: '/purchases', module: 'purchase' },
+  { path: '/purchases/orders', module: 'purchase' },
+  { path: '/hr/employees', module: 'employee' },
 ];
 
-export function visibleNav(permissions, { branchLogin = false } = {}) {
-  return (branchLogin ? BRANCH_NAV_GROUPS : NAV_GROUPS).map((g) => ({ ...g, items: g.items.filter((i) => !i.permission || [].concat(i.permission).some((p) => permissions.has(p))) })).filter((g) => g.items.length);
+/** Pages that work in one branch at a time (they keep the switcher, without "All branches"). */
+export const WORKING_BRANCH_PAGES = [
+  { path: '/', module: null },
+  { path: '/billing', module: 'sales' },
+];
+
+/** How the navbar branch control behaves on a page: 'filter' (with All), 'working' (one branch), or null (hidden). */
+export function branchControlFor(pathname, sharedModules) {
+  const shared = new Set(sharedModules ?? []);
+  const exact = (list) => list.find((p) => p.path === pathname.replace(/\/+$/, '') || (p.path === '/' && pathname === '/'));
+  const filterPage = exact(BRANCH_FILTER_PAGES);
+  if (filterPage) return shared.has(filterPage.module) ? 'filter' : null;
+  const workingPage = exact(WORKING_BRANCH_PAGES);
+  if (workingPage) return !workingPage.module || shared.has(workingPage.module) ? 'working' : null;
+  return null;
 }

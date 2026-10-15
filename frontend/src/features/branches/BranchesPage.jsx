@@ -6,7 +6,7 @@ import PowerSettingsNewRoundedIcon from '@mui/icons-material/PowerSettingsNewRou
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import { Alert, Box, Button, Chip, IconButton, InputAdornment, LinearProgress, Link, MenuItem, Stack, TextField, Tooltip, Typography } from '@mui/material';
 import { Link as RouterLink } from 'react-router';
-import { BRANCH_PERMISSIONS } from '@jerp/shared';
+import { BRANCH_PERMISSIONS, isUpcomingPermission } from '@jerp/shared';
 import { stateName } from '@jerp/shared';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
@@ -105,8 +105,10 @@ export default function BranchesPage() {
       key: 'access',
       label: 'Access',
       render: (b) => {
-        const n = (b.allowedPermissions ?? BRANCH_PERMISSIONS).length;
-        return n === BRANCH_PERMISSIONS.length ? 'Full' : `${n} of ${BRANCH_PERMISSIONS.length}`;
+        // Only permissions the app uses today are counted.
+        const real = BRANCH_PERMISSIONS.filter((p) => !isUpcomingPermission(p));
+        const n = (b.allowedPermissions ?? BRANCH_PERMISSIONS).filter((p) => !isUpcomingPermission(p)).length;
+        return n === real.length ? 'Full' : `${n} of ${real.length}`;
       },
     },
     { key: 'status', label: 'Status', render: (b) => <StatusChip status={b.status} /> },

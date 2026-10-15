@@ -6,7 +6,6 @@ import PendingActionsOutlinedIcon from '@mui/icons-material/PendingActionsOutlin
 import ShoppingBagOutlinedIcon from '@mui/icons-material/ShoppingBagOutlined';
 import { Box, Button, Card, CardContent, Chip, Grid, Link, Stack, Tab, Tabs, Typography } from '@mui/material';
 import { formatINR, formatWeight } from '@jerp/shared';
-import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate, useParams } from 'react-router';
 import { BalanceAmount } from '../../components/Amount.jsx';
@@ -20,6 +19,7 @@ import StatusChip from '../../components/StatusChip.jsx';
 import SummaryCards, { SummaryCard } from '../../components/SummaryCards.jsx';
 import { viewColumn } from '../../components/ViewButton.jsx';
 import { usePermission } from '../../hooks/usePermission.js';
+import { useTabParam } from '../../hooks/useListParams.js';
 import { fonts, tokens } from '../../theme/tokens.js';
 import { formatDate } from '../../utils/format.js';
 import { formatAddress } from '../customers/CustomerDetailPage.jsx';
@@ -131,7 +131,7 @@ function OrdersTab({ supplierId }) {
 export default function SupplierDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [tab, setTab] = useState('bills');
+  const [tab, setTab] = useTabParam('bills');
   const canEdit = usePermission('supplier.edit');
   const canBuy = usePermission('purchase.create');
   const { data: s, isLoading, error, refetch } = useSupplierQuery(id);
@@ -172,16 +172,17 @@ export default function SupplierDetailPage() {
 
       {/* Profile: who they are and how to reach them. */}
       <Card sx={{ mb: 2 }}>
-        <CardContent sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, alignItems: 'center', gap: { xs: 2, md: 3 } }}>
-          <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2.5} sx={{ alignItems: 'center', textAlign: { xs: 'center', sm: 'left' }, flex: 1, minWidth: 0 }}>
-            <Box sx={{ width: 72, height: 72, borderRadius: 3, flexShrink: 0, display: 'grid', placeItems: 'center', background: tokens.sidebar.goldGradient, color: 'var(--brand-contrast)', fontFamily: fonts.display, fontWeight: 700, fontSize: 30, boxShadow: '0 6px 18px rgba(var(--brand-rgb), 0.3)' }}>
+        {/* Phones: initials beside the name (not stacked above it), so the card stays short. */}
+        <CardContent sx={{ display: 'flex', flexDirection: { xs: 'column', md: 'row' }, alignItems: { xs: 'stretch', md: 'center' }, gap: { xs: 1.75, md: 2.5 }, p: 2, '&:last-child': { pb: 2 } }}>
+          <Stack direction="row" spacing={{ xs: 1.5, sm: 2 }} sx={{ alignItems: 'center', flex: 1, minWidth: 0 }}>
+            <Box sx={{ width: { xs: 52, sm: 56 }, height: { xs: 52, sm: 56 }, borderRadius: 3, flexShrink: 0, display: 'grid', placeItems: 'center', background: tokens.sidebar.goldGradient, color: 'var(--brand-contrast)', fontFamily: fonts.display, fontWeight: 700, fontSize: { xs: 22, sm: 24 }, boxShadow: '0 6px 18px rgba(var(--brand-rgb), 0.3)' }}>
               {initials(s.companyName)}
             </Box>
             <Box sx={{ minWidth: 0 }}>
-              <Typography variant="h2" sx={{ lineHeight: 1.2 }}>
+              <Typography variant="h2" sx={{ lineHeight: 1.2, fontSize: { xs: '1.1875rem', sm: '1.3125rem' } }}>
                 {s.companyName}
               </Typography>
-              <Stack direction="row" spacing={1} sx={{ mt: 1, flexWrap: 'wrap', rowGap: 0.75, justifyContent: { xs: 'center', sm: 'flex-start' } }}>
+              <Stack direction="row" spacing={1} sx={{ mt: { xs: 0.75, sm: 1 }, flexWrap: 'wrap', rowGap: 0.75 }}>
                 <Chip size="small" label={s.code} variant="outlined" sx={{ height: 22 }} />
                 <StatusChip status={s.status} />
                 {(s.supplies ?? []).map((x) => (
@@ -190,7 +191,7 @@ export default function SupplierDetailPage() {
               </Stack>
             </Box>
           </Stack>
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, auto)' }, columnGap: { xs: 3, sm: 4 }, rowGap: 1.5, width: { xs: '100%', md: 'auto' } }}>
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, auto)' }, columnGap: { xs: 2, sm: 4 }, rowGap: { xs: 1, sm: 1.5 }, width: { xs: '100%', md: 'auto' }, pt: { xs: 1.5, md: 0 }, borderTop: { xs: 1, md: 0 }, borderColor: 'divider' }}>
             <Fact label="Mobile">
               <Link href={`tel:${s.mobile}`} underline="hover" color="inherit" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
                 <CallOutlinedIcon sx={{ fontSize: 15, color: 'text.secondary' }} />

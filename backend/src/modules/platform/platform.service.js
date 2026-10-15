@@ -2,7 +2,7 @@ import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 import { randomInt } from 'node:crypto';
 import { trySendEmail } from '../../core/notifications/email.service.js';
-import { BRANCH_STATUS, ORG_STATUS, SUBSCRIPTION_STATUS, USER_STATUS } from '@jerp/shared';
+import { ADDRESS_FIELDS, BRANCH_STATUS, ORG_STATUS, SUBSCRIPTION_STATUS, USER_STATUS } from '@jerp/shared';
 import { env } from '../../config/env.js';
 import { withTransaction } from '../../config/db.js';
 import { ApiError } from '../../utils/ApiError.js';
@@ -11,10 +11,13 @@ import { Branch } from '../branches/branch.model.js';
 import { Organisation } from '../organisations/organisation.model.js';
 import { Subscription } from '../organisations/subscription.model.js';
 import { onboardOrganisation } from '../organisations/organisation.service.js';
+import { copyToHeadOffice } from '../organisations/headOfficeAddress.js';
 import { Session } from '../auth/session.model.js';
 import { User } from '../users/user.model.js';
+import { PlatformAdmin } from './platformAdmin.model.js';
 import { recordPlatformAudit } from './platformAuth.service.js';
 import { effectiveSubscription, limitsOf } from '../billing/limits.js';
+import { periodStart } from '../billing/billing.service.js';
 import { assertEmailAvailable } from '../users/emailAvailability.js';
 
 const SKIP = { skipTenant: true };
@@ -54,6 +57,7 @@ async function serializeMany(orgs) {
       email: o.email,
       phone: o.phone,
       stateCode: o.address?.stateCode ?? null,
+      address: o.address ?? null,
       branchLimit: limits.branches,
       branchesUsed: used,
       branchesAvailable: limits.branches == null ? null : Math.max(0, limits.branches - used),
@@ -74,16 +78,33 @@ async function serializeMany(orgs) {
   });
 }
 
-export async function platformDashboard() {
-  const [organisations, active, suspended, branches, users, recent] = await Promise.all([
+export async function platformDashboard({ period = 'month' } = {}) {
+  const now = new Date();
+  const from = periodStart(period, now);
+  const joinedInPeriod = from ? { createdAt: { $gte: from } } : {};
+  const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+  const [organisations, active, suspended, branches, users, recent, joined, newInPeriod] = await Promise.all([
     Organisation.countDocuments({}),
     Organisation.countDocuments({ status: ORG_STATUS.ACTIVE }),
     Organisation.countDocuments({ status: ORG_STATUS.SUSPENDED }),
     Branch.countDocuments({ status: BRANCH_STATUS.ACTIVE }).setOptions(SKIP),
     User.countDocuments({ status: USER_STATUS.ACTIVE }).setOptions(SKIP),
-    Organisation.find({}).sort({ createdAt: -1 }).limit(5).lean(),
+    Organisation.find(joinedInPeriod).sort({ createdAt: -1 }).limit(5).lean(),
+    Organisation.find({ createdAt: { $gte: sixMonthsAgo } }).select('createdAt').lean(),
+    Organisation.countDocuments(joinedInPeriod),
   ]);
-  return { organisations, active, suspended, branches, users, recent: await serializeMany(recent) };
+  // Sign-ups in each of the last six months (oldest first).
+  const signups = Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1);
+    return { key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, count: 0 };
+  });
+  const byKey = new Map(signups.map((m) => [m.key, m]));
+  for (const o of joined) {
+    const d = new Date(o.createdAt);
+    const m = byKey.get(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
+    if (m) m.count += 1;
+  }
+  return { organisations, active, suspended, branches, users, newThisMonth: signups[5].count, newInPeriod, signups, recent: await serializeMany(recent) };
 }
 
 export async function listOrganisations({ page, limit, q, status }) {
@@ -102,8 +123,25 @@ async function findOrg(id) {
 export async function getOrganisation(id) {
   const org = await findOrg(id);
   const [summary] = await serializeMany([org]);
-  const branches = await Branch.find({ organisationId: org._id }).setOptions(SKIP).select('code name status isHeadOffice address.city createdAt').sort({ isHeadOffice: -1, name: 1 }).lean();
-  return { ...summary, branches: branches.map((b) => ({ id: b._id, code: b.code, name: b.name, status: b.status, isHeadOffice: b.isHeadOffice, city: b.address?.city ?? null })) };
+  const [branches, creator] = await Promise.all([
+    Branch.find({ organisationId: org._id }).setOptions(SKIP).select('code name status isHeadOffice address.city createdAt').sort({ isHeadOffice: -1, name: 1 }).lean(),
+    org.createdByPlatformAdmin ? PlatformAdmin.findById(org.createdByPlatformAdmin).select('name').lean() : null,
+  ]);
+  return {
+    ...summary,
+    // Everything else the organisation holds about itself, for the Super Admin's organisation page.
+    details: {
+      legalName: org.legalName ?? null,
+      pan: org.pan ?? null,
+      currency: org.currency ?? 'INR',
+      timezone: org.timezone ?? null,
+      fyStartMonth: org.fyStartMonth ?? 4,
+      hasLogo: Boolean(org.logoFileId),
+      createdBy: org.createdByPlatformAdmin ? { kind: 'admin', name: creator?.name ?? 'Super Admin' } : { kind: 'signup', name: 'Signed up themselves' },
+      updatedAt: org.updatedAt,
+    },
+    branches: branches.map((b) => ({ id: b._id, code: b.code, name: b.name, status: b.status, isHeadOffice: b.isHeadOffice, city: b.address?.city ?? null })),
+  };
 }
 
 /** A 6-digit sign-in code (digits 0–9 only), used as a first or replacement password. */
@@ -152,7 +190,7 @@ export async function sendLoginCode(id, admin, meta) {
 }
 
 /** Edits the organisation; its email is also the owner's login email, and a new password replaces the owner's. */
-export async function updateOrganisation(id, { organisationName, email, password, mobile, stateCode, freeDays }, admin, meta) {
+export async function updateOrganisation(id, { organisationName, email, password, mobile, stateCode, address, freeDays }, admin, meta) {
   const org = await findOrg(id);
   const owner = await User.findById(org.ownerUserId).setOptions(SKIP).select('email').lean();
   const emailChanged = owner && owner.email !== email;
@@ -160,6 +198,13 @@ export async function updateOrganisation(id, { organisationName, email, password
 
   const next = { name: organisationName, email, phone: mobile, 'address.stateCode': stateCode };
   const current = { name: org.name, email: org.email, phone: org.phone, 'address.stateCode': org.address?.stateCode ?? null };
+  // Address parts (the same list create and display use); each change is recorded on its own.
+  if (address) {
+    for (const f of ADDRESS_FIELDS) {
+      next[`address.${f}`] = address[f] || null;
+      current[`address.${f}`] = org.address?.[f] ?? null;
+    }
+  }
   const changes = Object.keys(next)
     .filter((field) => next[field] !== current[field])
     .map((field) => ({ field, from: current[field], to: next[field] }));
@@ -187,6 +232,9 @@ export async function updateOrganisation(id, { organisationName, email, password
     }
   });
   await recordPlatformAudit({ adminId: admin.adminId, action: 'organisation_update', organisationId: org._id, changes }, meta);
+  // The head office branch shares the registered address.
+  const saved = await Organisation.findById(org._id).select('address').lean();
+  await copyToHeadOffice(org._id, saved.address, { changes });
   return getOrganisation(id);
 }
 

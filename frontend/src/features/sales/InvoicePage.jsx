@@ -1,6 +1,8 @@
 import BlockRoundedIcon from '@mui/icons-material/BlockRounded';
 import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
-import { Alert, Box, Button, Card, Dialog, DialogActions, DialogContent, DialogTitle, Divider, GlobalStyles, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
+import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
+import CollectDueDialog from '../customers/CollectDueDialog.jsx';
+import { Alert, Box, Button, Card, Dialog, DialogActions, DialogContent, DialogTitle, Divider, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Typography } from '@mui/material';
 import { formatINR, formatWeight, rupeesInWords, stateName } from '@jerp/shared';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
@@ -8,28 +10,18 @@ import { Link as RouterLink, useParams } from 'react-router';
 import Amount, { MONEY_TONE } from '../../components/Amount.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
 import { ErrorState, LoadingState } from '../../components/StateViews.jsx';
+import { useOrganisationLogo } from '../../hooks/useOrganisationLogo.js';
 import { usePermission } from '../../hooks/usePermission.js';
 import { fonts } from '../../theme/tokens.js';
 import { getErrorMessage } from '../../utils/errors.js';
 import { formatDateTime } from '../../utils/format.js';
 import { paymentLabel } from '../orders/orderUi.jsx';
+import PrintPreviewDialog from '../print/PrintPreviewDialog.jsx';
+import { PrintSheet } from '../print/PrintSheet.jsx';
+import { DEFAULT_LAYOUT } from '../print/printLayouts.js';
 import { purityLabel } from '../products/productForm.js';
 import { billLabels } from './billLabels.js';
 import { useCancelSaleMutation, useSaleQuery } from './saleApi.js';
-
-// Print only the invoice sheet, on plain white paper.
-const printStyles = (
-  <GlobalStyles
-    styles={{
-      '@media print': {
-        'body *': { visibility: 'hidden' },
-        '#invoice-sheet, #invoice-sheet *': { visibility: 'visible' },
-        '#invoice-sheet': { position: 'absolute', inset: 0, margin: 0, boxShadow: 'none !important', border: '0 !important' },
-        '@page': { size: 'A4', margin: '12mm' },
-      },
-    }}
-  />
-);
 
 const address = (a) => (a ? [a.line1, a.line2, a.city, stateName(a.stateCode), a.pincode].filter(Boolean).join(', ') : '');
 
@@ -85,7 +77,12 @@ export default function InvoicePage() {
   const { id } = useParams();
   const { data: sale, isLoading, error, refetch } = useSaleQuery(id);
   const canCancel = usePermission('sales.cancel');
+  const canCollect = usePermission('accounts.receipt');
+  const canPrint = usePermission('sales.print');
   const [cancelOpen, setCancelOpen] = useState(false);
+  const [collectOpen, setCollectOpen] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const logo = useOrganisationLogo();
 
   if (isLoading) return <LoadingState />;
   if (error) return <ErrorState error={error} onRetry={refetch} />;
@@ -93,11 +90,17 @@ export default function InvoicePage() {
   const { seller, customer, totals } = sale;
   const cancelled = sale.status === 'cancelled';
   const paidNow = sale.payments.filter((p) => p.mode !== 'credit').reduce((s, p) => s + p.amountPaise, 0);
-  const duePaise = sale.payments.filter((p) => p.mode === 'credit').reduce((s, p) => s + p.amountPaise, 0);
+  // Still owed (the server takes off what was collected later).
+  const duePaise = sale.duePaise ?? 0;
+  const collectedLater = sale.collectedLaterPaise ?? 0;
+  // This branch's paper size and design (Business settings → Print), with what Invoice settings put on the page.
+  const layout = { ...DEFAULT_LAYOUT, ...sale.print };
+  const printLogo = seller.hasLogo === false ? null : logo;
 
   return (
     <>
-      {printStyles}
+      {/* Sales → Print: the preview, the Print button and Ctrl+P all need it. */}
+      {canPrint && <PrintSheet sale={sale} layout={layout} logo={printLogo} />}
       <PageHeader
         title={sale.invoiceNo}
         subtitle={formatDateTime(sale.createdAt)}
@@ -109,9 +112,16 @@ export default function InvoicePage() {
                 Cancel
               </Button>
             )}
-            <Button variant="contained" startIcon={<PrintOutlinedIcon />} onClick={() => window.print()}>
-              Print
-            </Button>
+            {!cancelled && canCollect && customer?.id && duePaise > 0 && (
+              <Button variant="outlined" startIcon={<PaymentsOutlinedIcon />} onClick={() => setCollectOpen(true)}>
+                Collect due {formatINR(duePaise, { decimals: 0 })}
+              </Button>
+            )}
+            {canPrint && (
+              <Button variant="contained" startIcon={<PrintOutlinedIcon />} onClick={() => setPreviewOpen(true)}>
+                Print
+              </Button>
+            )}
           </Stack>
         }
       />
@@ -122,7 +132,7 @@ export default function InvoicePage() {
         </Alert>
       )}
 
-      <Card id="invoice-sheet" sx={{ maxWidth: 900, mx: 'auto', p: { xs: 2, sm: 4 }, bgcolor: '#fff', color: '#171717' }}>
+      <Card sx={{ maxWidth: 900, mx: 'auto', p: { xs: 2, sm: 4 }, bgcolor: '#fff', color: '#171717' }}>
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ justifyContent: 'space-between' }}>
           <Box>
             <Typography sx={{ fontFamily: fonts.display, fontSize: 28, fontWeight: 700, lineHeight: 1.1 }}>{seller.name}</Typography>
@@ -197,7 +207,8 @@ export default function InvoicePage() {
         </Stack>
 
         <Box sx={{ overflowX: 'auto', mt: 2.5 }}>
-          <Table size="small" sx={{ '& td, & th': { borderColor: '#E6E1D3' } }}>
+          {/* Phones: the table keeps a readable width and scrolls sideways. */}
+          <Table size="small" sx={{ minWidth: { xs: 600, md: 0 }, '& td, & th': { borderColor: '#E6E1D3' } }}>
             <TableHead>
               <TableRow>
                 <TableCell>#</TableCell>
@@ -267,9 +278,14 @@ export default function InvoicePage() {
                 Order advance <Amount paise={sale.advanceAdjustedPaise} tone="paid" />
               </Typography>
             )}
+            {sale.customerAdvancePaise > 0 && (
+              <Typography variant="body2">
+                Advance paid earlier <Amount paise={sale.customerAdvancePaise} tone="paid" />
+              </Typography>
+            )}
             {sale.payments.map((p, n) => (
               <Typography key={n} variant="body2">
-                {p.mode === 'credit' ? 'Customer credit (due)' : paymentLabel(p.mode)} <Amount paise={p.amountPaise} tone={p.mode === 'credit' ? 'due' : 'paid'} />
+                {p.mode === 'credit' ? 'Left due at billing' : paymentLabel(p.mode)} <Amount paise={p.amountPaise} tone={p.mode === 'credit' ? 'due' : 'paid'} />
                 {p.reference ? ` · ${p.reference}` : ''}
               </Typography>
             ))}
@@ -294,9 +310,11 @@ export default function InvoicePage() {
             <Divider sx={{ my: 1, borderColor: '#E6E1D3' }} />
             <Line label="Invoice total" value={formatINR(totals.grandTotalPaise)} strong />
             {sale.advanceAdjustedPaise > 0 && <Line label="Order advance" value={formatINR(sale.advanceAdjustedPaise)} tone="paid" />}
-            <Line label={sale.advanceAdjustedPaise > 0 ? 'Paid now' : 'Paid'} value={formatINR(paidNow)} tone="paid" strong />
+            {sale.customerAdvancePaise > 0 && <Line label="Advance paid earlier" value={formatINR(sale.customerAdvancePaise)} tone="paid" />}
+            <Line label={sale.advanceAdjustedPaise > 0 || sale.customerAdvancePaise > 0 ? 'Paid now' : 'Paid'} value={formatINR(paidNow)} tone="paid" strong />
+            {collectedLater > 0 && <Line label="Collected later" value={formatINR(collectedLater)} tone="paid" />}
             {duePaise > 0 ? (
-              <Line label="Due (customer credit)" value={formatINR(duePaise)} tone="due" strong />
+              <Line label={paidNow > 0 || collectedLater > 0 || sale.advanceAdjustedPaise > 0 || sale.customerAdvancePaise > 0 ? 'Due (partly paid)' : 'Due'} value={formatINR(duePaise)} tone="due" strong />
             ) : (
               <Line label="Due" value="Fully paid" tone="paid" />
             )}
@@ -314,7 +332,9 @@ export default function InvoicePage() {
           </Box>
         </Stack>
       </Card>
+      {canPrint && <PrintPreviewDialog open={previewOpen} onClose={() => setPreviewOpen(false)} sale={sale} layout={layout} logo={printLogo} />}
       <CancelDialog sale={sale} open={cancelOpen} onClose={() => setCancelOpen(false)} />
+      {customer?.id && <CollectDueDialog open={collectOpen} onClose={() => setCollectOpen(false)} customerId={customer.id} saleId={sale.id} />}
     </>
   );
 }

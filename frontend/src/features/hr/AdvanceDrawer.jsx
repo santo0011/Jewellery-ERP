@@ -176,10 +176,10 @@ export default function AdvanceDrawer({ open, employee, advance, onClose }) {
         </Box>
 
         <Grid container spacing={2}>
-          <Grid size={6}>
+          <Grid size={{ xs: 12, sm: 6 }}>
             <RHFTextField control={control} name="givenOn" label="Given on" type="date" slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: todayIso() } }} />
           </Grid>
-          <Grid size={6}>
+          <Grid size={{ xs: 12, sm: 6 }}>
             <RHFTextField control={control} name="recoverFrom" label="Cut from salary of" type="month" slotProps={{ inputLabel: { shrink: true } }} />
           </Grid>
         </Grid>
