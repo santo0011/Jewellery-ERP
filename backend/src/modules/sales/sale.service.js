@@ -447,28 +447,31 @@ async function salesSummary(branchId) {
   const monthStart = `${today.businessDate.slice(0, 7)}-01`;
   const scope = { ...accessibleBranchFilter(), ...(branchId && { branchId: oid(branchId) }), status: SALE_STATUS.COMPLETED };
   const credit = { $sum: { $map: { input: { $filter: { input: '$payments', cond: { $eq: ['$$this.mode', 'credit'] } } }, in: '$$this.amountPaise' } } };
+  // Paid at the counter (every mode but credit). Not total less credit: that would also count the order and customer
+  // advances used on the bill, which were collected — and counted — when they were paid.
+  const paid = { $sum: { $map: { input: { $filter: { input: '$payments', cond: { $ne: ['$$this.mode', 'credit'] } } }, in: '$$this.amountPaise' } } };
   // Still owed = left on credit less what was collected later.
   const owed = { $max: [0, { $subtract: [credit, { $add: [{ $ifNull: ['$duePaidPaise', 0] }, { $ifNull: ['$returnCreditPaise', 0] }] }] }] };
   const [row] = await Sale.aggregate([
     { $match: scope },
-    { $project: { businessDate: 1, total: '$totals.grandTotalPaise', credit, owed } },
+    { $project: { businessDate: 1, total: '$totals.grandTotalPaise', paid, owed } },
     {
       $group: {
         _id: null,
         todayPaise: { $sum: { $cond: [{ $eq: ['$businessDate', today.businessDate] }, '$total', 0] } },
         todayBills: { $sum: { $cond: [{ $eq: ['$businessDate', today.businessDate] }, 1, 0] } },
         monthPaise: { $sum: { $cond: [{ $gte: ['$businessDate', monthStart] }, '$total', 0] } },
-        monthCreditPaise: { $sum: { $cond: [{ $gte: ['$businessDate', monthStart] }, '$credit', 0] } },
+        monthPaidPaise: { $sum: { $cond: [{ $gte: ['$businessDate', monthStart] }, '$paid', 0] } },
         monthBills: { $sum: { $cond: [{ $gte: ['$businessDate', monthStart] }, 1, 0] } },
         duePaise: { $sum: '$owed' },
         dueBills: { $sum: { $cond: [{ $gt: ['$owed', 0] }, 1, 0] } },
       },
     },
   ]);
-  const r = row ?? { todayPaise: 0, todayBills: 0, monthPaise: 0, monthCreditPaise: 0, monthBills: 0, duePaise: 0, dueBills: 0 };
+  const r = row ?? { todayPaise: 0, todayBills: 0, monthPaise: 0, monthPaidPaise: 0, monthBills: 0, duePaise: 0, dueBills: 0 };
   return {
     today: { totalPaise: r.todayPaise, bills: r.todayBills },
-    month: { totalPaise: r.monthPaise, collectedPaise: r.monthPaise - r.monthCreditPaise, bills: r.monthBills, averagePaise: r.monthBills ? Math.round(r.monthPaise / r.monthBills) : 0 },
+    month: { totalPaise: r.monthPaise, collectedPaise: r.monthPaidPaise, bills: r.monthBills, averagePaise: r.monthBills ? Math.round(r.monthPaise / r.monthBills) : 0 },
     due: { totalPaise: r.duePaise, bills: r.dueBills },
   };
 }

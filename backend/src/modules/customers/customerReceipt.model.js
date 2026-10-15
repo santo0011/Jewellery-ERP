@@ -9,10 +9,14 @@ const allocationSchema = new mongoose.Schema(
   { _id: false },
 );
 
-/** Money a customer paid later against what they owe (bills on credit and old due). */
+/**
+ * Money a customer paid on their account: 'due' — later, against what they owe (bills on credit and old due);
+ * 'advance' — an advance paid when the customer was added or edited (part of their minus opening balance).
+ */
 const customerReceiptSchema = new mongoose.Schema(
   {
     receiptNo: { type: String, required: true },
+    kind: { type: String, enum: ['due', 'advance'], default: 'due' },
     customerId: { type: ObjectId, ref: 'Customer', required: true },
     customer: { type: mongoose.Schema.Types.Mixed, required: true },
     branchId: { type: ObjectId, ref: 'Branch', required: true },
@@ -30,5 +34,6 @@ const customerReceiptSchema = new mongoose.Schema(
 customerReceiptSchema.plugin(tenantPlugin);
 customerReceiptSchema.index({ organisationId: 1, receiptNo: 1 }, { unique: true });
 customerReceiptSchema.index({ organisationId: 1, customerId: 1, createdAt: -1 });
+customerReceiptSchema.index({ organisationId: 1, branchId: 1, businessDate: -1 });
 
 export const CustomerReceipt = mongoose.model('CustomerReceipt', customerReceiptSchema);

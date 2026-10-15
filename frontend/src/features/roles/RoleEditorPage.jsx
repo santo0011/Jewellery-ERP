@@ -150,12 +150,6 @@ export default function RoleEditorPage() {
         }
       />
 
-      {branchRole && (
-        <Alert severity="info" icon={<PublicOutlinedIcon />} sx={{ mb: 2.5 }}>
-          {role.name} is a branch role: it runs particular branches and never the organisation, so organisation-level permissions (branches, users, roles, settings, audit log, subscription…) are not offered. People with this role always work in chosen branches.
-        </Alert>
-      )}
-
       {!isNew && role.isSystem && (
         <Alert severity="info" sx={{ mb: 2.5 }}>
           {role.fullAccess

@@ -13,6 +13,7 @@ import { useSelector } from 'react-redux';
 import { useNavigate, useSearchParams } from 'react-router';
 import Amount from '../../components/Amount.jsx';
 import AuthImage from '../../components/AuthImage.jsx';
+import ConfirmDialog from '../../components/ConfirmDialog.jsx';
 import CustomerPicker from '../../components/CustomerPicker.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
 import { useDebounce } from '../../hooks/useDebounce.js';
@@ -580,7 +581,18 @@ export default function BillingPage() {
   if (compliance?.panMissing) problems.push(customer ? `Bills above ₹2 lakh need the customer's PAN — add PAN to ${customer.name}.` : 'Bills above ₹2 lakh need a customer with PAN — select the customer.');
   if (cashOver && compliance.cashLimitAction === 'block') problems.push(`Cash cannot be more than ${formatINR(compliance.cashLimitPaise, { decimals: 0 })} (Section 269ST) — take the rest by card, UPI or bank (use Split).`);
 
+  // A bill cannot be undone casually, so "Generate bill" asks first and only the dialog's button saves it.
+  const [confirming, setConfirming] = useState(false);
+  const paidBy = payments
+    .filter((p) => safePaise(p.amount) > 0)
+    .map((p) => `${PAYMENT_MODES.find((m) => m.value === p.mode)?.label ?? p.mode} ${formatINR(safePaise(p.amount))}`)
+    .join(', ');
+  const confirmMessage = `${lines.length} item${lines.length === 1 ? '' : 's'}${customer ? ` for ${customer.name}` : ' (walk-in)'}. Bill total ${formatINR(payable)}. Paid now: ${paidBy || 'nothing'}.${
+    remaining > 0 ? ` ${formatINR(remaining)} stays due.` : ''
+  } Once generated, the bill can only be cancelled or returned.`;
+
   const generate = async () => {
+    setConfirming(false);
     try {
       const sale = await createSale({
         idempotencyKey: idempotencyKey.current,
@@ -834,7 +846,7 @@ export default function BillingPage() {
                     </Alert>
                   )}
                   {cashOver && compliance.cashLimitAction !== 'block' && <Alert severity="info">Cash above {formatINR(compliance.cashLimitPaise, { decimals: 0 })} (Section 269ST) — allowed by your settings.</Alert>}
-                  <Button variant="contained" size="large" disabled={problems.length > 0 || quoting} loading={saving} onClick={generate} startIcon={<ReceiptLongOutlinedIcon />} sx={{ py: 1.4, fontSize: '1rem' }}>
+                  <Button variant="contained" size="large" disabled={problems.length > 0 || quoting} loading={saving} onClick={() => setConfirming(true)} startIcon={<ReceiptLongOutlinedIcon />} sx={{ py: 0.9, fontSize: '1rem' }}>
                     Generate bill {quote ? (remaining > 0 && paid > 0 ? `· ${formatINR(remaining, { decimals: 0 })} due` : `· ${formatINR(payable, { decimals: 0 })}`) : ''}
                   </Button>
                 </Stack>
@@ -843,6 +855,14 @@ export default function BillingPage() {
           </Stack>
         </Grid>
       </Grid>
+      <ConfirmDialog
+        open={confirming && problems.length === 0}
+        title="Generate this bill?"
+        message={confirmMessage}
+        confirmLabel="Yes, generate bill"
+        onConfirm={generate}
+        onClose={() => setConfirming(false)}
+      />
       {linkedOrder && <FinishItemDialog order={linkedOrder} index={finishing} onClose={() => setFinishing(null)} onFinished={(piece) => { autoAdded.current.add(String(piece.id)); addFinished(piece); }} />}
       {/* Phones: the amount to collect stays in view above the bottom bar, one tap from the payment section. */}
       {lines.length > 0 && quote && <Box sx={{ display: { xs: 'block', md: 'none' }, height: 72 }} />}

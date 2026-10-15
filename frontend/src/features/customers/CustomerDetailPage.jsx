@@ -48,6 +48,7 @@ const PAYMENT_KIND = {
   refund: { title: 'Advance refunded', icon: ReplayRoundedIcon, tone: 'due' },
   credit: { title: 'On credit (due)', icon: CreditCardOffOutlinedIcon, tone: 'due' },
   collection: { title: 'Due collected', icon: CallReceivedRoundedIcon, tone: 'paid' },
+  customer_advance: { title: 'Advance paid', icon: CallReceivedRoundedIcon, tone: 'paid' },
 };
 
 const BILL_STATUS = {
@@ -66,8 +67,10 @@ function BillStatus({ status }) {
   );
 }
 
-function PaymentsTimeline({ payments, openingBalance }) {
+function PaymentsTimeline({ payments, openingBalance: balance }) {
   const rows = [...payments];
+  // Advances paid as money have their own rows; the opening balance row shows only what was carried over.
+  const openingBalance = balance + rows.filter((p) => p.kind === 'customer_advance').reduce((n, p) => n + p.amountPaise, 0);
   if (!rows.length && !openingBalance) return <EmptyState title="No payments yet" description="Advances, bill payments and credit for this customer appear here." />;
   return (
     <Card>
@@ -95,7 +98,8 @@ function PaymentsTimeline({ payments, openingBalance }) {
                     {formatDateTime(p.at)} ·{' '}
                     {p.ref.type === 'receipt' ? (
                       <Box component="span" sx={{ fontWeight: 600 }}>
-                        {p.ref.no} · for {p.ref.bills.join(', ')}
+                        {p.ref.no}
+                        {p.ref.bills.length ? ` · for ${p.ref.bills.join(', ')}` : ''}
                       </Box>
                     ) : (
                       <Link component={RouterLink} to={p.ref.type === 'sale' ? `/sales/${p.ref.id}` : `/orders/${p.ref.id}`} underline="hover" color="inherit" sx={{ fontWeight: 600 }}>

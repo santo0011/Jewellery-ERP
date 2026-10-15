@@ -114,11 +114,13 @@ function ProfileForm({ user }) {
   );
 }
 
-export function ChangePasswordForm() {
+/** `firstLogin`: setting their own password after signing in with the temporary one — the current one is not asked again. */
+export function ChangePasswordForm({ firstLogin = false }) {
   const [changePassword, { isLoading }] = useChangePasswordMutation();
   // Signed in with an emailed code (forgot password): a new password can be set without the old one.
   const { data: session } = useSession();
   const viaCode = Boolean(session?.user?.signedInWithCode);
+  const noCurrent = viaCode || firstLogin;
   const { control, handleSubmit, setError, reset } = useForm({
     resolver: zodResolver(passwordFormSchema),
     defaultValues: { currentPassword: '', newPassword: '', confirmPassword: '' },
@@ -126,7 +128,7 @@ export function ChangePasswordForm() {
 
   const onSubmit = handleSubmit(async ({ currentPassword, newPassword }) => {
     try {
-      await changePassword({ currentPassword: viaCode ? '' : currentPassword, newPassword }).unwrap();
+      await changePassword({ currentPassword: noCurrent ? '' : currentPassword, newPassword }).unwrap();
       reset();
       toast.success('Password changed. Other devices have been signed out.');
     } catch (err) {
@@ -136,7 +138,7 @@ export function ChangePasswordForm() {
 
   return (
     <Stack component="form" spacing={2} noValidate onSubmit={onSubmit}>
-      {viaCode ? (
+      {firstLogin ? null : viaCode ? (
         <Alert severity="info" variant="outlined">
           You signed in with a code sent to your email, so the current password is not needed. Set a new one below.
         </Alert>
@@ -147,7 +149,7 @@ export function ChangePasswordForm() {
       <PasswordField control={control} name="confirmPassword" label="Confirm new password" autoComplete="new-password" />
       <Stack direction="row" sx={{ justifyContent: 'flex-end' }}>
         <Button type="submit" variant="contained" loading={isLoading}>
-          Change password
+          {firstLogin ? 'Set password' : 'Change password'}
         </Button>
       </Stack>
     </Stack>

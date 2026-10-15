@@ -82,10 +82,11 @@ export async function customerActivity(id) {
         reference: p.reference,
       })),
     ),
-    // Dues paid later (Collect payment).
+    // Dues paid later (Collect payment), and advances paid when the customer was added or edited. An advance receipt
+    // is part of the minus opening balance, which `paidPaise` already counts — its kind keeps it out of that sum.
     ...receipts.map((r) => ({
       at: r.createdAt,
-      kind: 'collection',
+      kind: r.kind === 'advance' ? 'customer_advance' : 'collection',
       mode: r.mode,
       amountPaise: r.amountPaise,
       docNo: r.receiptNo,

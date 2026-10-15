@@ -297,15 +297,19 @@ export async function resetPassword({ email, otp, password }, meta) {
 export async function changePassword(userId, sessionId, { currentPassword, newPassword }) {
   const user = await User.findById(userId).select('+passwordHash');
   if (!user) throw ApiError.notFound('User');
-  // Signed in with an emailed code (forgot password): the code already proved who they are.
+  // Signed in with an emailed code (forgot password), or just signed in with the temporary password they must replace
+  // (a new organisation or user): who they are is already proved, so the current password is not asked again.
   const current = await Session.findById(sessionId).select('signedInWith').lean();
-  if (current?.signedInWith !== 'code') {
+  if (current?.signedInWith !== 'code' && !user.mustChangePassword) {
     if (!currentPassword) throw ApiError.badRequest('Current password is required', [{ path: 'currentPassword', message: 'Current password is required' }], 'VALIDATION_ERROR');
     if (!(await bcrypt.compare(currentPassword, user.passwordHash))) {
       throw ApiError.badRequest('Current password is incorrect', [{ path: 'currentPassword', message: 'Current password is incorrect' }], 'VALIDATION_ERROR');
     }
   }
 
+  if (user.mustChangePassword && (await bcrypt.compare(newPassword, user.passwordHash))) {
+    throw ApiError.badRequest('Choose a password different from the temporary one', [{ path: 'newPassword', message: 'Same as the temporary password' }], 'VALIDATION_ERROR');
+  }
   user.passwordHash = await hashPassword(newPassword);
   user.passwordChangedAt = new Date();
   user.tokenVersion += 1;

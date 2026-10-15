@@ -4,6 +4,7 @@ import { formatINR, fromPaise, KYC_DOC_TYPES, toPaise } from '@jerp/shared';
 import { customerSchema } from '@jerp/shared/schemas';
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
+import { useSelector } from 'react-redux';
 import toast from 'react-hot-toast';
 import { useNavigate } from 'react-router';
 import { z } from 'zod';
@@ -12,14 +13,15 @@ import RHFSelect from '../../components/form/RHFSelect.jsx';
 import RHFTextField from '../../components/form/RHFTextField.jsx';
 import FormDrawer from '../../components/FormDrawer.jsx';
 import MoreDetails from '../../components/MoreDetails.jsx';
-import { usePermission } from '../../hooks/usePermission.js';
+import { usePermission, useSession } from '../../hooks/usePermission.js';
 import { applyServerErrors, getErrorMessage } from '../../utils/errors.js';
+import { ADVANCE_MODE_OPTIONS } from '../orders/orderUi.jsx';
 import { useCreateCustomerMutation, useCustomerDuesQuery, useUpdateCustomerMutation } from './customerApi.js';
 
 const EMPTY_ADDRESS = { line1: '', line2: '', city: '', stateCode: '', pincode: '' };
 const EMPTY = {
   name: '', mobile: '', alternateMobile: '', email: '', address: EMPTY_ADDRESS, dob: '', anniversary: '', gstin: '', pan: '',
-  kyc: { type: '', number: '', verified: false }, segment: 'new', preferredMetals: [], tags: [], balanceType: 'advance', openingBalance: '', notes: '',
+  kyc: { type: '', number: '', verified: false }, segment: 'new', preferredMetals: [], tags: [], balanceType: 'advance', openingBalance: '', advanceMode: 'cash', advanceReference: '', notes: '',
 };
 
 // One amount with its kind: money they owe you from before (old due) or money they paid you in advance.
@@ -28,8 +30,12 @@ const BALANCE_TYPES = [
   { value: 'advance', label: 'Advance paid' },
   { value: 'due', label: 'Old due' },
 ];
-const formSchema = customerSchema.omit({ openingBalancePaise: true }).extend({
+// How a new advance came in: paid now (a receipt in cash/bank, counted in today's collection) or an old balance.
+const ADVANCE_RECEIVED = [...ADVANCE_MODE_OPTIONS, { value: 'old', label: 'Old balance — not received now' }];
+const formSchema = customerSchema.omit({ openingBalancePaise: true, advancePayment: true }).extend({
   balanceType: z.enum(['advance', 'due']),
+  advanceMode: z.string(),
+  advanceReference: z.string().trim().max(60, 'Up to 60 characters'),
   openingBalance: z.string().refine((v) => {
     try {
       const paise = toPaise(v || '0');
@@ -81,6 +87,9 @@ export default function CustomerFormDrawer({ open, customer, onClose, onCreated 
   const [update, updateState] = useUpdateCustomerMutation();
   const { control, handleSubmit, reset, setError, formState, watch } = useForm({ resolver: zodResolver(formSchema), defaultValues: EMPTY });
   const balanceType = watch('balanceType');
+  const [openingBalance, advanceMode] = watch(['openingBalance', 'advanceMode']);
+  const { data: session } = useSession();
+  const activeBranchId = useSelector((st) => st.auth.activeBranchId) ?? session?.branches?.[0]?.id;
   // While the customer owes anything, no new (or bigger) advance can be taken: the dues are settled first.
   const { data: dues } = useCustomerDuesQuery(customer?.id, { skip: !open || !editing });
   // Dues on bills (the old due is this very field, so changing it is a correction, not a new advance).
@@ -88,17 +97,26 @@ export default function CustomerFormDrawer({ open, customer, onClose, onCreated 
   const advanceBefore = Math.max(0, -(customer?.openingBalancePaise ?? 0));
   const balanceOptions = BALANCE_TYPES.map((o) => (o.value === 'advance' && owes > 0 && advanceBefore === 0 ? { ...o, label: 'Advance paid — clear the due first', disabled: true } : o));
   const error = editing ? updateState.error : createState.error;
+  // The advance being added now: on edit the field holds what is still available (what bills used is added back).
+  const advanceAdded = (() => {
+    if (balanceType !== 'advance') return 0;
+    try {
+      return Math.max(0, (toPaise(openingBalance || '0') ?? 0) + (editing ? (customer.advanceUsedPaise ?? 0) : 0) - (editing ? advanceBefore : 0));
+    } catch {
+      return 0;
+    }
+  })();
 
   useEffect(() => {
     if (open) {
-      reset(toForm(customer));
+      reset({ advanceMode: 'cash', advanceReference: '', ...toForm(customer) });
       createState.reset();
       updateState.reset();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, customer, reset]);
 
-  const onSubmit = handleSubmit(async ({ openingBalance, balanceType, ...values }) => {
+  const onSubmit = handleSubmit(async ({ openingBalance, balanceType, advanceMode: mode, advanceReference, ...values }) => {
     const amount = toPaise(openingBalance || '0');
     // The field holds the advance still available; what bills already used stays on record (added back on save).
     const used = editing ? (customer.advanceUsedPaise ?? 0) : 0;
@@ -110,7 +128,12 @@ export default function CustomerFormDrawer({ open, customer, onClose, onCreated 
       setError('openingBalance', { message: `${formatINR(owes)} is due — collect it before taking an advance` });
       return;
     }
-    const payload = { ...values, openingBalancePaise: balanceType === 'advance' || (used > 0 && amount === 0) ? -(amount + used) : amount };
+    const payload = {
+      ...values,
+      openingBalancePaise: balanceType === 'advance' || (used > 0 && amount === 0) ? -(amount + used) : amount,
+      // A new advance paid now is recorded as a receipt at this branch (today's collection); an old balance is not.
+      advancePayment: advanceAdded > 0 && mode !== 'old' ? { branchId: activeBranchId, mode, reference: advanceReference || null } : null,
+    };
     if (!kycEditable) {
       delete payload.pan;
       delete payload.kyc;
@@ -186,6 +209,24 @@ export default function CustomerFormDrawer({ open, customer, onClose, onCreated 
             slotProps={{ input: { startAdornment: <InputAdornment position="start">₹</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }}
           />
         </Grid>
+        {advanceAdded > 0 && (
+          <>
+            <Grid size={{ xs: 12, sm: 5 }}>
+              <RHFSelect
+                control={control}
+                name="advanceMode"
+                label={editing ? `Extra ${formatINR(advanceAdded, { decimals: 0 })} paid by` : 'Advance paid by'}
+                options={ADVANCE_RECEIVED}
+                helperText={advanceMode === 'old' ? 'Not added to today’s collection' : 'Added to today’s collection'}
+              />
+            </Grid>
+            {advanceMode !== 'old' && advanceMode !== 'cash' && (
+              <Grid size={{ xs: 12, sm: 7 }}>
+                <RHFTextField control={control} name="advanceReference" label="Reference (optional)" placeholder="Card / UPI / bank ref. no." />
+              </Grid>
+            )}
+          </>
+        )}
         <Grid size={12}>
           <MoreDetails
             hint="Address, email, birthday, GSTIN, PAN / KYC, notes"

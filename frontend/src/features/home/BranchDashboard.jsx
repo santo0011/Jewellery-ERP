@@ -23,6 +23,17 @@ const PERIODS = [
   { value: 'all', label: 'All time', short: 'All', phrase: 'all time' },
 ];
 const periodPhrase = (v) => PERIODS.find((p) => p.value === v)?.phrase ?? '';
+const COLLECTION_PARTS = [
+  ['bills', 'Bills'],
+  ['orderAdvances', 'Orders'],
+  ['dueCollections', 'Dues'],
+  ['customerAdvances', 'Advances'],
+];
+/** Where the money came from: bill payments, order advances / part payments, dues collected and customer advances. */
+const collectedCaption = (by) => {
+  const parts = COLLECTION_PARTS.filter(([key]) => by?.[key] > 0).map(([key, label]) => `${label} ${formatINR(by[key], { decimals: 0 })}`);
+  return parts.length ? parts.join(' · ') : 'Bills, orders, dues and advances';
+};
 // Phones: tighter gaps between cards, so more of the dashboard fits on a screen.
 const GAP = { xs: 1.5, sm: 2 };
 const ROW_GAP = { xs: 1.5, sm: 2.5 };
@@ -55,9 +66,12 @@ const shortDay = (ymd, bucket) => {
   return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
 };
 
+/** 0–23 → "9 am", "12 pm", "5 pm". */
+const hourLabel = (h) => `${h % 12 || 12} ${h < 12 ? 'am' : 'pm'}`;
+
 /** The branch at a glance: today, the period's sales trend and mix, collections, orders and stock. */
 export default function BranchDashboard({ branchId }) {
-  const [period, setPeriod] = useState('all');
+  const [period, setPeriod] = useState('today');
   const { data, isLoading, isFetching, error, refetch } = useBranchDashboardQuery({ branchId, period }, { skip: !branchId });
   const phone = useMediaQuery((theme) => theme.breakpoints.down('sm'));
 
@@ -90,7 +104,7 @@ export default function BranchDashboard({ branchId }) {
       {sales && (
         <SummaryCards>
           <SummaryCard hideCaptionOnPhone icon={ReceiptLongOutlinedIcon} label={`Sales · ${periodPhrase(period)}`} value={formatINR(sales.period.revenuePaise, { decimals: 0 })} caption={`${sales.period.bills} bills · avg ${formatINR(sales.period.averageBillPaise, { decimals: 0 })}`} tone="blue" />
-          <SummaryCard hideCaptionOnPhone icon={PaymentsOutlinedIcon} label={`Collected · ${periodPhrase(period)}`} value={formatINR(sales.period.collectedPaise, { decimals: 0 })} caption="Cash, card, UPI and bank" tone="green" valueTone="paid" />
+          <SummaryCard hideCaptionOnPhone icon={PaymentsOutlinedIcon} label={`Collected · ${periodPhrase(period)}`} value={formatINR(sales.period.collectedPaise, { decimals: 0 })} caption={collectedCaption(sales.period.collectedBreakdown)} tone="green" valueTone="paid" />
           <SummaryCard hideCaptionOnPhone icon={PendingActionsOutlinedIcon} label={`Due · ${periodPhrase(period)}`} value={formatINR(sales.period.creditDuePaise, { decimals: 0 })} caption={sales.period.dueBills ? `${sales.period.dueBills} bill${sales.period.dueBills === 1 ? '' : 's'} still unpaid` : 'Nothing due'} tone={sales.period.creditDuePaise ? 'red' : 'green'} valueTone={sales.period.creditDuePaise ? 'due' : undefined} />
           <SummaryCard hideCaptionOnPhone icon={DiamondOutlinedIcon} label="Items sold" value={sales.period.items} caption={`${formatWeight(sales.period.grossWeightMg)} gross${sales.period.discountPaise ? ` · ${formatINR(sales.period.discountPaise, { decimals: 0 })} discount` : ''}`} tone="amber" />
         </SummaryCards>
@@ -99,16 +113,20 @@ export default function BranchDashboard({ branchId }) {
       {sales && (
         <Grid container spacing={GAP} sx={{ mb: ROW_GAP }}>
           <Grid size={{ xs: 12, lg: 8 }}>
-            <Panel title="Sales trend" subtitle={`Bill totals per ${monthly ? 'month' : 'day'} · ${periodPhrase(period)}`}>
+            <Panel title="Sales trend" subtitle={`Bill totals per ${sales.hourly ? 'hour' : monthly ? 'month' : 'day'} · ${periodPhrase(period)}`}>
               <AreaChart
                 height={phone ? 170 : 240}
-                data={sales.daily.map((d) => ({ key: d.date, label: shortDay(d.date, data.range.bucket), value: d.totalPaise, detail: `${monthly ? shortDay(d.date, 'month') : formatDate(d.date)} · ${d.bills} bill${d.bills === 1 ? '' : 's'}` }))}
+                data={
+                  sales.hourly
+                    ? sales.hourly.map((h) => ({ key: h.hour, label: hourLabel(h.hour), value: h.totalPaise, detail: `${hourLabel(h.hour)} – ${hourLabel((h.hour + 1) % 24)} · ${h.bills} bill${h.bills === 1 ? '' : 's'}` }))
+                    : sales.daily.map((d) => ({ key: d.date, label: shortDay(d.date, data.range.bucket), value: d.totalPaise, detail: `${monthly ? shortDay(d.date, 'month') : formatDate(d.date)} · ${d.bills} bill${d.bills === 1 ? '' : 's'}` }))
+                }
               />
             </Panel>
           </Grid>
           <Grid size={{ xs: 12, lg: 4 }}>
-            <Panel title="Payment mix" subtitle="How customers paid">
-              <ShareBars rows={sales.byPaymentMode} owedKeys={['credit']} totalLabel="Total billed" empty="No payments in this period" />
+            <Panel title="Payment mix" subtitle="Money received, by mode: bills, orders, dues and advances">
+              <ShareBars rows={sales.byPaymentMode} owedKeys={['credit']} totalLabel="Collected + on credit" empty="No payments in this period" />
             </Panel>
           </Grid>
         </Grid>

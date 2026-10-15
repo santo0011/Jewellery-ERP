@@ -49,6 +49,25 @@ describe('new organisations sign in with an emailed 6-digit code', () => {
     expect((await api().get('/api/v1/auth/me').set(bearer(first.body.data.accessToken))).status).toBe(401);
   });
 
+  it('sets the first own password without asking for the emailed one again', async () => {
+    await EmailSettings.deleteMany({});
+    const sa = await superAdmin();
+    const body = orgBody();
+    const { loginEmail } = (await api().post('/api/v1/platform/organisations').set(bearer(sa.token)).send(body)).body.data;
+    const token = (await login(body.email, loginEmail.otp)).body.data.accessToken;
+    const change = (newPassword) => api().post('/api/v1/auth/change-password').set(bearer(token)).send({ newPassword });
+
+    // Not the temporary password again.
+    expect((await change(loginEmail.otp)).body.error.details[0].path).toBe('newPassword');
+    const changed = await change('Owner1234');
+    expect(changed.status).toBe(200);
+    const me = (await api().get('/api/v1/auth/me').set(bearer(changed.body.data.accessToken))).body.data;
+    expect(me.user.mustChangePassword).toBe(false);
+    expect((await login(body.email, 'Owner1234')).status).toBe(200);
+    // From now on, changing it again needs the current password.
+    expect((await api().post('/api/v1/auth/change-password').set(bearer(changed.body.data.accessToken)).send({ newPassword: 'Other1234' })).status).toBe(400);
+  });
+
   it('still creates the organisation when the mail server is down, and says so', async () => {
     const sa = await superAdmin();
     await EmailSettings.findOneAndUpdate({ key: 'smtp' }, { $set: { enabled: true, host: '127.0.0.1', port: 1, security: 'none', fromEmail: 'noreply@test.local' } }, { upsert: true });

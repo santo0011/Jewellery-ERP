@@ -13,7 +13,7 @@ import { accessibleBranchFilter } from '../inventory/inventory.helpers.js';
 import { Order } from '../orders/order.model.js';
 import { Sale } from '../sales/sale.model.js';
 import { Customer } from './customer.model.js';
-import { billDue, customerDues, openingDueLeft } from './customerReceipt.service.js';
+import { advanceReceived, billDue, customerDues, openingDueLeft, recordAdvanceReceipt } from './customerReceipt.service.js';
 
 const TRACKED = [
   'name', 'mobile', 'alternateMobile', 'email', 'address', 'dob', 'anniversary', 'gstin', 'pan',
@@ -55,7 +55,9 @@ function serialize(c) {
 function toDocument(input, existing) {
   const { permissions, userId } = requireContext();
   const canSeeKyc = hasPermission(permissions, 'customer.viewKyc');
-  const doc = { ...input, dob: toDate(input.dob), anniversary: toDate(input.anniversary) };
+  // advancePayment is how an advance was paid (a receipt), not part of the customer.
+  const { advancePayment, ...fields } = input;
+  const doc = { ...fields, dob: toDate(input.dob), anniversary: toDate(input.anniversary) };
 
   if (!canSeeKyc && existing) {
     doc.pan = existing.pan;
@@ -202,7 +204,11 @@ export async function createCustomer(input) {
   const customer = await withTransaction(async (session) => {
     const code = await nextCode('customer', 'C', 5, { session });
     const [doc] = await Customer.create([{ ...toDocument(input), code, createdBy: userId, updatedBy: userId }], { session });
-    await syncOpeningBalance({ partyType: 'customer', partyId: doc._id, code, amountPaise: doc.openingBalancePaise }, { session });
+    // An advance paid now is a receipt (cash/bank, today, this branch); only the rest stays an opening balance.
+    const advance = Math.max(0, -(doc.openingBalancePaise ?? 0));
+    const received = input.advancePayment && advance > 0 ? advance : 0;
+    if (received) await recordAdvanceReceipt(doc, input.advancePayment, received, { session });
+    await syncOpeningBalance({ partyType: 'customer', partyId: doc._id, code, amountPaise: doc.openingBalancePaise + received }, { session });
     await recordAudit({ action: AUDIT_ACTIONS.CREATE, module: 'customer', recordType: 'Customer', recordId: doc._id, meta: { name: doc.name, code } }, { session });
     return doc;
   });
@@ -225,6 +231,14 @@ export async function updateCustomer(id, input) {
   const advanceAfter = Math.max(0, -(input.openingBalancePaise ?? 0));
   // Advance already used on bills stays part of the record: it cannot be taken back or turned into an old due.
   const used = await advanceUsed(customer._id);
+  // Advance paid as money has a receipt and is in cash/bank: it cannot be lowered here (that would be a refund).
+  const receivedBefore = await advanceReceived(customer._id);
+  if (receivedBefore > 0 && advanceAfter < receivedBefore) {
+    throw new ApiError(422, 'ADVANCE_RECEIVED', `${(receivedBefore / 100).toFixed(2)} of ${customer.name}'s advance was received as payment, so the advance cannot be less than that.`, [
+      { path: 'openingBalancePaise', message: 'Advance received as payment' },
+    ]);
+  }
+  const receivedNow = input.advancePayment && advanceAfter > advanceBefore ? advanceAfter - advanceBefore : 0;
   if (used > 0 && advanceAfter < used) {
     throw new ApiError(422, 'ADVANCE_USED', `${(used / 100).toFixed(2)} of ${customer.name}'s advance is already used on bills, so the advance cannot be less than that.`, [
       { path: 'openingBalancePaise', message: 'Advance already used on bills' },
@@ -249,8 +263,16 @@ export async function updateCustomer(id, input) {
 
   await withTransaction(async (session) => {
     await customer.save({ session });
+    if (receivedNow) await recordAdvanceReceipt(customer, input.advancePayment, receivedNow, { session });
+    // The opening-balance journal holds only what was not received as payment.
     await syncOpeningBalance(
-      { partyType: 'customer', partyId: customer._id, code: customer.code, amountPaise: after.openingBalancePaise, previousPaise: before.openingBalancePaise },
+      {
+        partyType: 'customer',
+        partyId: customer._id,
+        code: customer.code,
+        amountPaise: after.openingBalancePaise + receivedBefore + receivedNow,
+        previousPaise: before.openingBalancePaise + receivedBefore,
+      },
       { session },
     );
     await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'customer', recordType: 'Customer', recordId: customer._id, meta: { name: customer.name }, changes }, { session });

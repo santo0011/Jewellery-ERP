@@ -5,7 +5,7 @@ import CalculateOutlinedIcon from '@mui/icons-material/CalculateOutlined';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import { Alert, Box, Button, Card, CardContent, Chip, Divider, Grid, IconButton, InputAdornment, MenuItem, Stack, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography } from '@mui/material';
-import { decimalToScaledInt, formatINR, METAL_OPTIONS, PURITIES, STONE_TYPES, toBps, toMg, toPaise } from '@jerp/shared';
+import { decimalToScaledInt, formatINR, METAL_OPTIONS, PURITIES, STONE_TYPES, stoneWeightToMg, toBps, toMg, toPaise } from '@jerp/shared';
 import { useEffect, useMemo, useState } from 'react';
 import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form';
 import toast from 'react-hot-toast';
@@ -25,6 +25,14 @@ import { ErrorState, LoadingState } from '../../components/StateViews.jsx';
 import { useAddOrderImageMutation, useCreateOrderMutation, useEstimateOrderMutation, useOrderQuery, useUpdateOrderMutation } from './orderApi.js';
 import { ADVANCE_MODE_OPTIONS } from './orderUi.jsx';
 
+const safe = (fn, fallback = null) => {
+  try {
+    return fn();
+  } catch {
+    return fallback;
+  }
+};
+
 const number = (label, places) =>
   z
     .string()
@@ -32,13 +40,21 @@ const number = (label, places) =>
     .refine((v) => v === '' || new RegExp(`^\\d+(\\.\\d{0,${places}})?$`).test(v), `Enter a valid ${label}`);
 
 const stoneSchema = z.object({
-  type: z.string().min(1),
-  name: z.string().trim().max(60),
-  count: z.string().regex(/^[1-9]\d{0,5}$/, 'Pieces'),
-  weight: number('weight', 3).refine((v) => Number(v) > 0, 'Weight'),
+  type: z.string().min(1, 'Select a stone'),
+  name: z.string().trim().max(60, 'Up to 60 characters'),
+  count: z.string().trim().regex(/^[1-9]\d{0,4}$/, 'At least 1'),
+  weight: z
+    .string()
+    .trim()
+    .min(1, 'Enter the weight')
+    .regex(/^\d+(\.\d{0,3})?$/, 'Up to 3 decimals')
+    .refine((v) => Number(v) > 0, 'Must be more than 0'),
   weightUnit: z.enum(['ct', 'g']),
   rate: number('rate', 2),
 });
+
+/** Total stone weight in mg, checked against the item weight as the server does. */
+const stonesMg = (stones) => stones.reduce((sum, st) => sum + safe(() => stoneWeightToMg({ weight: decimalToScaledInt(st.weight || '0', 3), weightUnit: st.weightUnit }), 0), 0);
 
 const itemSchema = z
   .object({
@@ -61,7 +77,8 @@ const itemSchema = z
     huid: z.string().trim().toUpperCase().refine((v) => v === '' || /^[A-Z0-9]{6}$/.test(v), 'HUID is 6 letters or digits'),
     notes: z.string().trim().max(500),
   })
-  .refine((i) => i.pricingMode !== 'fixed' || Number(i.fixedPrice) > 0, { path: ['fixedPrice'], message: 'Enter the agreed price' });
+  .refine((i) => i.pricingMode !== 'fixed' || Number(i.fixedPrice) > 0, { path: ['fixedPrice'], message: 'Enter the agreed price' })
+  .refine((i) => !Number(i.weight) || stonesMg(i.stones) < safe(() => toMg(i.weight), 0), { path: ['weight'], message: 'Must be more than the stone weight' });
 
 const formSchema = z
   .object({
@@ -98,17 +115,16 @@ const emptyItem = (catalog) => ({
   huid: '',
   notes: '',
 });
-const EMPTY_STONE = { type: 'diamond', name: '', count: '1', weight: '', weightUnit: 'ct', rate: '' };
+/** Width of the side column: its share of the 12-column grid (same formula as MUI Grid), less 20px. */
+const SIDE_WIDTH = (size) => `calc(100% * ${size} / 12 - (12 - ${size}) * (var(--Grid-parent-columnSpacing) / 12) - 20px)`;
+const STONE_UNITS = [
+  { value: 'ct', label: 'ct' },
+  { value: 'g', label: 'g' },
+];
+const EMPTY_STONE ={ type: 'diamond', name: '', count: '1', weight: '', weightUnit: 'ct', rate: '' };
 const MAKING_LABEL = { per_gram: 'Making (₹ per gram)', percent: 'Making (% of metal)', fixed: 'Making (₹ for the piece)' };
 const today = () => new Date().toISOString().slice(0, 10);
 const paiseOf = (v) => (v ? toPaise(v) : 0);
-const safe = (fn, fallback = null) => {
-  try {
-    return fn();
-  } catch {
-    return fallback;
-  }
-};
 
 /** Jewellery type follows from the metal and stones, so the form does not ask for it. */
 function typeFor(i) {
@@ -196,35 +212,26 @@ function StonesEditor({ control, index }) {
         <Stack spacing={1.25}>
           {fields.map((f, i) => (
             <Grid container spacing={1.25} key={f.id} sx={{ alignItems: 'flex-start' }}>
-              <Grid size={{ xs: 6, sm: 2.5 }}>
+              <Grid size={{ xs: 6, md: 3 }}>
                 <RHFSelect control={control} name={`${name}.${i}.type`} label="Stone" options={STONE_TYPES} />
               </Grid>
-              <Grid size={{ xs: 6, sm: 3 }}>
+              <Grid size={{ xs: 6, md: 2.5 }}>
                 <RHFTextField control={control} name={`${name}.${i}.name`} label="Details" placeholder="e.g. VVS1 round" />
               </Grid>
-              <Grid size={{ xs: 4, sm: 1.5 }}>
+              <Grid size={{ xs: 4, md: 1.25 }}>
                 <RHFTextField control={control} name={`${name}.${i}.count`} label="Pcs" slotProps={{ htmlInput: { inputMode: 'numeric' } }} />
               </Grid>
-              <Grid size={{ xs: 8, sm: 2.5 }}>
-                <Stack direction="row" spacing={0.5}>
-                  <RHFTextField control={control} name={`${name}.${i}.weight`} label="Weight" slotProps={{ htmlInput: { inputMode: 'decimal' } }} />
-                  <Controller
-                    control={control}
-                    name={`${name}.${i}.weightUnit`}
-                    render={({ field }) => (
-                      <TextField select {...field} sx={{ width: 74, flexShrink: 0 }}>
-                        <MenuItem value="ct">ct</MenuItem>
-                        <MenuItem value="g">g</MenuItem>
-                      </TextField>
-                    )}
-                  />
-                </Stack>
+              <Grid size={{ xs: 4, md: 1.75 }}>
+                <RHFTextField control={control} name={`${name}.${i}.weight`} label="Weight" slotProps={{ htmlInput: { inputMode: 'decimal' } }} />
               </Grid>
-              <Grid size={{ xs: 10, sm: 2 }}>
+              <Grid size={{ xs: 4, md: 1.5 }}>
+                <RHFSelect control={control} name={`${name}.${i}.weightUnit`} label="Unit" options={STONE_UNITS} />
+              </Grid>
+              <Grid size={{ xs: 10, md: 2 }}>
                 <RHFTextField control={control} name={`${name}.${i}.rate`} label={`₹ per ${stones?.[i]?.weightUnit === 'g' ? 'g' : 'ct'}`} slotProps={{ htmlInput: { inputMode: 'decimal' } }} />
               </Grid>
-              <Grid size={{ xs: 2, sm: 0.5 }} sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                <IconButton size="small" onClick={() => remove(i)} aria-label="Remove stone" sx={{ mt: 0.5 }}>
+              <Grid size={{ xs: 2, md: 0.5 }} sx={{ display: 'flex', justifyContent: 'center' }}>
+                <IconButton size="small" onClick={() => remove(i)} aria-label="Remove stone" sx={{ mt: 1 }}>
                   <CloseRoundedIcon fontSize="small" />
                 </IconButton>
               </Grid>
@@ -423,11 +430,24 @@ export default function OrderFormPage() {
   const [photos, setPhotos] = useState([]);
   const [saving, setSaving] = useState(false);
 
-  const { control, handleSubmit, setError, setValue, getValues, trigger, reset } = useForm({
+  const { control, handleSubmit, setError, setValue, getValues, getFieldState, trigger, reset, watch } = useForm({
     resolver: zodResolver(formSchema),
     defaultValues: { customer: null, branchId: activeBranchId ?? session.branches[0]?.id ?? '', expectedDate: '', priority: 'normal', items: [emptyItem(session.catalog)], advanceAmount: '', advanceMode: 'cash', advanceReference: '', notes: '' },
   });
   const { fields, append, remove } = useFieldArray({ control, name: 'items' });
+  // Errors shown by "Calculate estimate" (before any submit) go away as soon as the field is fixed.
+  useEffect(() => {
+    const sub = watch((_, { name, type }) => {
+      if (type !== 'change' || !name) return;
+      const toCheck = [name];
+      // A stone change can fix the item's "more than the stone weight" error.
+      const item = name.match(/^items\.\d+/)?.[0];
+      if (item && name.includes('.stones') && getFieldState(`${item}.weight`).error) toCheck.push(`${item}.weight`);
+      const withErrors = toCheck.filter((n) => getFieldState(n).error);
+      if (withErrors.length) trigger(withErrors);
+    });
+    return () => sub.unsubscribe();
+  }, [watch, getFieldState, trigger]);
   useEffect(() => {
     if (!editOrder) return;
     reset({
@@ -485,7 +505,7 @@ export default function OrderFormPage() {
         toast.success(`Order ${editOrder.orderNo} updated`);
         navigate(`/orders/${editId}`, { replace: true });
       } catch (err) {
-        const details = err?.data?.error?.details?.map((d) => ({ ...d, path: d.path.replace(/\.fixedPricePaise$/, '.fixedPrice').replace(/\.approxWeightMg$/, '.weight') }));
+        const details = err?.data?.error?.details?.map((d) => ({ ...d, path: d.path.replace(/\.fixedPricePaise$/, '.fixedPrice').replace(/\.approxWeightMg$/, '.weight').replace(/\.ratePaise$/, '.rate') }));
         if (!applyServerErrors({ data: { error: { details } } }, setError)) toast.error(getErrorMessage(err));
       }
       return;
@@ -517,7 +537,7 @@ export default function OrderFormPage() {
     } catch (err) {
       const details = err?.data?.error?.details?.map((d) => ({
         ...d,
-        path: d.path === 'customerId' ? 'customer' : d.path === 'advance.mode' ? 'advanceMode' : d.path.replace(/\.fixedPricePaise$/, '.fixedPrice').replace(/\.approxWeightMg$/, '.weight'),
+        path: d.path === 'customerId' ? 'customer' : d.path === 'advance.mode' ? 'advanceMode' : d.path.replace(/\.fixedPricePaise$/, '.fixedPrice').replace(/\.approxWeightMg$/, '.weight').replace(/\.ratePaise$/, '.rate'),
       }));
       if (!applyServerErrors({ data: { error: { details } } }, setError)) toast.error(getErrorMessage(err));
     } finally {
@@ -539,7 +559,7 @@ export default function OrderFormPage() {
         <PageHeader title="New order" subtitle="Book exactly what the customer wants, at the agreed charges, and take an advance." back={{ to: '/orders', label: 'Orders' }} />
       )}
       <Grid container spacing={3}>
-        <Grid size={{ xs: 12, lg: 7, xl: 7.5 }}>
+        <Grid size={{ xs: 12, lg: 'grow' }}>
           <Stack spacing={3}>
             <Card>
               <CardContent>
@@ -612,7 +632,8 @@ export default function OrderFormPage() {
           </Stack>
         </Grid>
 
-        <Grid size={{ xs: 12, lg: 5, xl: 4.5 }}>
+        {/* 20px narrower than its grid share; the left column grows to take the space. */}
+        <Grid size={{ xs: 12, lg: 5, xl: 4.5 }} sx={{ width: { lg: SIDE_WIDTH(5), xl: SIDE_WIDTH(4.5) } }}>
           <Card sx={{ position: { lg: 'sticky' }, top: { lg: 88 } }}>
             <CardContent>
               <Typography variant="h4" sx={{ mb: 2 }}>

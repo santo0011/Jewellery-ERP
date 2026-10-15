@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  ADVANCE_PAYMENT_MODES,
   CUSTOMER_SEGMENTS,
   JEWELLERY_TYPES,
   KYC_DOC_TYPES,
@@ -60,6 +61,15 @@ export const customerSchema = z.object({
   preferredMetals: z.array(z.enum(values(METAL_OPTIONS))).max(3).default([]),
   tags,
   openingBalancePaise: int('Opening balance', { min: -1e12, max: 1e12 }).default(0),
+  // An advance (or a bigger one on edit) paid now: how and at which branch. Left out, the advance is an old balance.
+  advancePayment: z
+    .object({
+      branchId: objectIdSchema,
+      mode: z.enum(ADVANCE_PAYMENT_MODES, { error: 'Select how the advance was paid' }),
+      reference: optionalText(60),
+    })
+    .nullable()
+    .optional(),
   notes: optionalText(1000),
 });
 
