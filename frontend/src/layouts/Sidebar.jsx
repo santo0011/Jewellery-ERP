@@ -345,7 +345,7 @@ function WorkspaceCard({ name, caption, collapsed }) {
  */
 export default function Sidebar({ collapsed = false, onToggleCollapse, onClose, onNavigate, organisationName, caption = 'Organisation', panelName = 'Organisation Panel', logoUrl = null, groups: groupsProp, fixedGroups = false, searchable }) {
   const { data: session } = useSession();
-  const storeGroups = visibleNav(usePermissions(), { branchLogin: session?.user?.branchLogin });
+  const storeGroups = visibleNav(usePermissions(), { allBranches: session?.user?.allBranches ?? true });
   const groups = groupsProp ?? storeGroups;
   const location = useLocation();
   const containsActive = (group) => group.items.some((i) => matchPath({ path: i.path, end: Boolean(i.end) }, location.pathname));

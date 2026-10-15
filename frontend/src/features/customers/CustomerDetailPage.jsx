@@ -22,6 +22,7 @@ import SummaryCards, { SummaryCard } from '../../components/SummaryCards.jsx';
 import StatusChip from '../../components/StatusChip.jsx';
 import ViewButton from '../../components/ViewButton.jsx';
 import { usePermission } from '../../hooks/usePermission.js';
+import { useTabParam } from '../../hooks/useListParams.js';
 import { fonts, tokens } from '../../theme/tokens.js';
 import { formatDate, formatDateTime } from '../../utils/format.js';
 import { OrderStatusChip, paymentLabel } from '../orders/orderUi.jsx';
@@ -133,7 +134,7 @@ function PaymentsTimeline({ payments, openingBalance }) {
 export default function CustomerDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [chosenTab, setTab] = useState('bills');
+  const [chosenTab, setTab] = useTabParam('bills');
   const canEdit = usePermission('customer.edit');
   const canCollect = usePermission('accounts.receipt');
   const [collecting, setCollecting] = useState(false);

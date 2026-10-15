@@ -78,6 +78,7 @@ export default function InvoicePage() {
   const { data: sale, isLoading, error, refetch } = useSaleQuery(id);
   const canCancel = usePermission('sales.cancel');
   const canCollect = usePermission('accounts.receipt');
+  const canPrint = usePermission('sales.print');
   const [cancelOpen, setCancelOpen] = useState(false);
   const [collectOpen, setCollectOpen] = useState(false);
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -98,7 +99,8 @@ export default function InvoicePage() {
 
   return (
     <>
-      <PrintSheet sale={sale} layout={layout} logo={printLogo} />
+      {/* Sales → Print: the preview, the Print button and Ctrl+P all need it. */}
+      {canPrint && <PrintSheet sale={sale} layout={layout} logo={printLogo} />}
       <PageHeader
         title={sale.invoiceNo}
         subtitle={formatDateTime(sale.createdAt)}
@@ -115,9 +117,11 @@ export default function InvoicePage() {
                 Collect due {formatINR(duePaise, { decimals: 0 })}
               </Button>
             )}
-            <Button variant="contained" startIcon={<PrintOutlinedIcon />} onClick={() => setPreviewOpen(true)}>
-              Print
-            </Button>
+            {canPrint && (
+              <Button variant="contained" startIcon={<PrintOutlinedIcon />} onClick={() => setPreviewOpen(true)}>
+                Print
+              </Button>
+            )}
           </Stack>
         }
       />
@@ -328,7 +332,7 @@ export default function InvoicePage() {
           </Box>
         </Stack>
       </Card>
-      <PrintPreviewDialog open={previewOpen} onClose={() => setPreviewOpen(false)} sale={sale} layout={layout} logo={printLogo} />
+      {canPrint && <PrintPreviewDialog open={previewOpen} onClose={() => setPreviewOpen(false)} sale={sale} layout={layout} logo={printLogo} />}
       <CancelDialog sale={sale} open={cancelOpen} onClose={() => setCancelOpen(false)} />
       {customer?.id && <CollectDueDialog open={collectOpen} onClose={() => setCollectOpen(false)} customerId={customer.id} saleId={sale.id} />}
     </>

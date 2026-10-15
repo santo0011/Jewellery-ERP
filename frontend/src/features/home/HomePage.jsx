@@ -31,7 +31,8 @@ export default function HomePage() {
   const permissions = usePermissions();
   const activeBranchId = useSelector((s) => s.auth.activeBranchId);
   const { user, organisation, branches } = session;
-  const showDashboard = ["sales.view", "order.view", "inventory.view"].some((p) => permissions.has(p));
+  // Dashboard → View, and something to show on it (sales figures also need View financial figures).
+  const showDashboard = permissions.has("dashboard.view") && ["sales.view", "order.view", "inventory.view"].some((p) => permissions.has(p));
   const actions = QUICK_ACTIONS.filter((a) => permissions.has(a.perm));
 
   return (

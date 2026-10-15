@@ -72,7 +72,7 @@ export const NAV_GROUPS = [
     label: 'Purchase',
     items: [
       { label: 'Purchases', path: '/purchases', icon: ShoppingBagOutlinedIcon, permission: 'purchase.view', end: true },
-      { label: 'Items', path: '/items', icon: CategoryOutlinedIcon, permission: ['purchase.view', 'product.view'] },
+      { label: 'Items', path: '/items', icon: CategoryOutlinedIcon, permission: 'purchase.view' },
       { label: 'Purchase orders', path: '/purchases/orders', icon: PendingActionsOutlinedIcon, permission: 'purchase.view' },
       { label: 'Suppliers', path: '/suppliers', icon: LocalShippingOutlinedIcon, permission: 'supplier.view' },
     ],
@@ -93,6 +93,8 @@ export const NAV_GROUPS = [
       { label: 'Organisation', path: '/settings/organisation', icon: StorefrontOutlinedIcon, permission: 'organisation.view' },
       { label: 'Branches', path: '/settings/branches', icon: AccountTreeOutlinedIcon, permission: 'branch.view' },
       { label: 'Business settings', path: '/settings/business', icon: TuneRoundedIcon, permission: 'settings.view' },
+      // A branch's own invoice print design — for people who work in particular branches (the organisation sets its own under Business settings → Print).
+      { label: 'Print settings', path: '/settings/print', icon: PrintOutlinedIcon, permission: 'settings.view', ownBranchesOnly: true },
       { label: 'Product categories', path: '/settings/categories', icon: CategoryOutlinedIcon, permission: 'category.view' },
       { label: 'Subscription', path: '/settings/subscription', icon: WorkspacePremiumOutlinedIcon, permission: 'subscription.view' },
     ],
@@ -110,21 +112,13 @@ export const NAV_GROUPS = [
 
 export const PROFILE_ITEM = { label: 'Profile', path: '/profile', icon: PersonOutlineRoundedIcon, mobile: true };
 
-const item = (path) => NAV_GROUPS.flatMap((g) => g.items).find((i) => i.path === path);
-
-/** A branch's own login runs the counter, its stock, its staff and payroll, and its reports — nothing organisation-wide. */
-export const BRANCH_NAV_GROUPS = [
-  DASHBOARD_GROUP,
-  { label: 'Overview', items: [item('/reports'), item('/rates')] },
-  { label: 'Sales', items: [item('/billing'), item('/orders'), item('/sales'), item('/customers')] },
-  { label: 'Stock', items: [item('/inventory'), item('/products'), item('/inventory/transfers')] },
-  { label: 'HR & Payroll', items: [item('/hr/employees'), item('/hr/attendance'), item('/hr/advances'), item('/hr/payroll')] },
-  // The branch's own invoice print design (the organisation sets its own under Business settings → Print).
-  { label: 'Settings', items: [{ label: 'Print settings', path: '/settings/print', icon: PrintOutlinedIcon, permission: ['settings.view'] }] },
-];
-
-export function visibleNav(permissions, { branchLogin = false } = {}) {
-  return (branchLogin ? BRANCH_NAV_GROUPS : NAV_GROUPS).map((g) => ({ ...g, items: g.items.filter((i) => !i.permission || [].concat(i.permission).some((p) => permissions.has(p))) })).filter((g) => g.items.length);
+/**
+ * The menu for these permissions: every page the role allows, for an organisation user and a branch login alike.
+ * `ownBranchesOnly` items show only to people who work in particular branches (`allBranches` false).
+ */
+export function visibleNav(permissions, { allBranches = true } = {}) {
+  const allowed = (i) => (!i.permission || [].concat(i.permission).some((p) => permissions.has(p))) && !(i.ownBranchesOnly && allBranches);
+  return NAV_GROUPS.map((g) => ({ ...g, items: g.items.filter(allowed) })).filter((g) => g.items.length);
 }
 
 /**

@@ -5,6 +5,7 @@ import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate, useParams } from 'react-router';
 import ConfirmDialog from '../../components/ConfirmDialog.jsx';
+import { useTabParam } from '../../hooks/useListParams.js';
 import InfoCard from '../../components/InfoCard.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
 import { ErrorState, LoadingState } from '../../components/StateViews.jsx';
@@ -52,7 +53,7 @@ export default function AdminOrganisationDetailPage() {
   const [removeOrg, { isLoading: deleting }] = useDeleteOrganisationMutation();
   const [confirmDelete, setConfirmDelete] = useState(false);
   const navigate = useNavigate();
-  const [tab, setTab] = useState('overview'); // Overview · Activations & payments · Edit history
+  const [tab, setTab] = useTabParam('overview'); // Overview · Activations & payments · Edit history
 
   if (isLoading) return <LoadingState />;
   if (error) return <ErrorState error={error} onRetry={refetch} />;

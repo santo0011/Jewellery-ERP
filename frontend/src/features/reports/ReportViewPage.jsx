@@ -7,7 +7,7 @@ import StatTile from '../../components/StatTile.jsx';
 import { MONEY_TONE } from '../../components/Amount.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
 import { EmptyState, ErrorState, LoadingState } from '../../components/StateViews.jsx';
-import { useSession } from '../../hooks/usePermission.js';
+import { usePermission, useSession } from '../../hooks/usePermission.js';
 import { formatDate, formatDateTime } from '../../utils/format.js';
 import { useReportQuery } from './reportApi.js';
 
@@ -194,6 +194,7 @@ export function ReportSheet({ report, isFetching, period, scope, printTitle, emp
 export default function ReportViewPage() {
   const { key } = useParams();
   const { data: session } = useSession();
+  const canExport = usePermission('report.export');
   const [params, setParams] = useSearchParams();
   const query = Object.fromEntries([...params.entries()].filter(([, v]) => v));
   const { data: report, isLoading, isFetching, error, refetch } = useReportQuery({ key, ...query });
@@ -220,9 +221,12 @@ export default function ReportViewPage() {
         back={{ to: '/reports', label: 'Reports' }}
         actions={
           <Stack direction="row" spacing={1}>
-            <Button variant="outlined" color="secondary" startIcon={<FileDownloadOutlinedIcon />} onClick={() => downloadCsv(report)} disabled={!report.rows.length}>
-              Excel (CSV)
-            </Button>
+            {/* Reports → Export: downloading the rows. */}
+            {canExport && (
+              <Button variant="outlined" color="secondary" startIcon={<FileDownloadOutlinedIcon />} onClick={() => downloadCsv(report)} disabled={!report.rows.length}>
+                Excel (CSV)
+              </Button>
+            )}
             <Button variant="contained" startIcon={<PrintOutlinedIcon />} onClick={() => window.print()}>
               Print
             </Button>

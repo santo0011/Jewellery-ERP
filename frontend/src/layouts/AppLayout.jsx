@@ -62,7 +62,7 @@ function MobileBottomNav({ onMore }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { data: session } = useSession();
-  const items = [...visibleNav(usePermissions(), { branchLogin: session?.user?.branchLogin }).flatMap((g) => g.items), PROFILE_ITEM].filter((i) => i.mobile).slice(0, 4);
+  const items = [...visibleNav(usePermissions(), { allBranches: session?.user?.allBranches ?? true }).flatMap((g) => g.items), PROFILE_ITEM].filter((i) => i.mobile).slice(0, 4);
   const centre = items.find((i) => i.path === '/billing');
   const side = items.filter((i) => i !== centre);
   const half = Math.ceil(side.length / 2);

@@ -56,6 +56,24 @@ describe('branch login', () => {
     expect(back.body.data.print.branches).toEqual([]);
   });
 
+  it('gets every permission its role is given — e.g. the audit log once Branch Manager may view it', async () => {
+    const { owner, email, url } = await setup();
+    await api().put(url).set(bearer(owner.token)).send({ password: '123456' });
+    const signIn = async () => (await login(email, '123456')).body.data.accessToken;
+
+    expect((await api().get('/api/v1/audit-logs').set(bearer(await signIn()))).status).toBe(403);
+
+    const roles = (await api().get('/api/v1/roles').set(bearer(owner.token))).body.data;
+    const manager = roles.find((r) => r.key === 'branch_manager');
+    const full = (await api().get(`/api/v1/roles/${manager.id}`).set(bearer(owner.token))).body.data;
+    const saved = await api().put(`/api/v1/roles/${manager.id}`).set(bearer(owner.token)).send({ name: full.name, description: full.description ?? '', permissions: [...full.permissions, 'audit.view'] });
+    expect(saved.status).toBe(200);
+
+    const t = await signIn();
+    expect((await api().get('/api/v1/auth/me').set(bearer(t))).body.data.permissions).toContain('audit.view');
+    expect((await api().get('/api/v1/audit-logs').set(bearer(t))).status).toBe(200);
+  });
+
   it('needs a branch email first', async () => {
     const { owner, url } = await setup({ email: '' });
     const res = await api().put(url).set(bearer(owner.token)).send({ password: '123456' });

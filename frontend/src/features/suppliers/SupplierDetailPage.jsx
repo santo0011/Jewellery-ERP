@@ -6,7 +6,6 @@ import PendingActionsOutlinedIcon from '@mui/icons-material/PendingActionsOutlin
 import ShoppingBagOutlinedIcon from '@mui/icons-material/ShoppingBagOutlined';
 import { Box, Button, Card, CardContent, Chip, Grid, Link, Stack, Tab, Tabs, Typography } from '@mui/material';
 import { formatINR, formatWeight } from '@jerp/shared';
-import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { useNavigate, useParams } from 'react-router';
 import { BalanceAmount } from '../../components/Amount.jsx';
@@ -20,6 +19,7 @@ import StatusChip from '../../components/StatusChip.jsx';
 import SummaryCards, { SummaryCard } from '../../components/SummaryCards.jsx';
 import { viewColumn } from '../../components/ViewButton.jsx';
 import { usePermission } from '../../hooks/usePermission.js';
+import { useTabParam } from '../../hooks/useListParams.js';
 import { fonts, tokens } from '../../theme/tokens.js';
 import { formatDate } from '../../utils/format.js';
 import { formatAddress } from '../customers/CustomerDetailPage.jsx';
@@ -131,7 +131,7 @@ function OrdersTab({ supplierId }) {
 export default function SupplierDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [tab, setTab] = useState('bills');
+  const [tab, setTab] = useTabParam('bills');
   const canEdit = usePermission('supplier.edit');
   const canBuy = usePermission('purchase.create');
   const { data: s, isLoading, error, refetch } = useSupplierQuery(id);

@@ -16,6 +16,7 @@ import PageHeader from '../../components/PageHeader.jsx';
 import { ErrorState, LoadingState } from '../../components/StateViews.jsx';
 import ViewButton from '../../components/ViewButton.jsx';
 import { usePermission } from '../../hooks/usePermission.js';
+import { useTabParam } from '../../hooks/useListParams.js';
 import { formatDate } from '../../utils/format.js';
 import { getErrorMessage } from '../../utils/errors.js';
 import AdvanceDrawer from './AdvanceDrawer.jsx';
@@ -48,7 +49,7 @@ export default function EmployeeDetailPage() {
   const canEdit = usePermission('employee.edit');
   const phone = useMediaQuery((theme) => theme.breakpoints.down('sm'));
   const canAdvance = usePermission('payroll.process');
-  const [tab, setTab] = useState('details');
+  const [tab, setTab] = useTabParam('details');
   const [menu, setMenu] = useState(null);
   const [advancing, setAdvancing] = useState(false);
   const [editAdvance, setEditAdvance] = useState(null);

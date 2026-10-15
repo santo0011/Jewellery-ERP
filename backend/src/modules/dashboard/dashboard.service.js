@@ -55,7 +55,8 @@ export async function branchDashboard({ branchId, period }) {
   const monthly = span > DAILY_UP_TO;
 
   const [sales, orders, stock] = await Promise.all([
-    can('sales.view') ? Sale.find({ ...branchFilter, status: SALE_STATUS.COMPLETED, businessDate: { $gte: from } }).sort({ createdAt: -1 }).lean() : null,
+    // Sales figures are money: they also need Dashboard → View financial figures.
+    can('sales.view') && can('dashboard.viewFinancials') ? Sale.find({ ...branchFilter, status: SALE_STATUS.COMPLETED, businessDate: { $gte: from } }).sort({ createdAt: -1 }).lean() : null,
     can('order.view') ? Order.find({ ...branchFilter, $or: [{ status: { $in: OPEN_ORDER_STATUSES } }, { createdAt: { $gte: new Date(`${from}T00:00:00Z`) } }] }).sort({ expectedDate: 1 }).lean() : null,
     can('inventory.view')
       ? Product.aggregate([

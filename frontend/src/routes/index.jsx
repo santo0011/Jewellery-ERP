@@ -165,7 +165,7 @@ export const router = createBrowserRouter([
           { path: 'inventory/adjustments', element: guard('inventory.view', <StockEntriesPage key="adjustment" mode="adjustment" />) },
           { path: 'inventory/transfers', element: guard('inventory.view', <TransfersPage />) },
           { path: 'inventory/ledger', element: guard('inventory.view', <StockLedgerPage />) },
-          { path: 'items', element: guard(['purchase.view', 'product.view'], <ItemsPage />) },
+          { path: 'items', element: guard('purchase.view', <ItemsPage />) },
           { path: 'purchases', element: guard('purchase.view', <PurchasesPage />) },
           { path: 'purchases/new', element: guard('purchase.create', <PurchaseFormPage />) },
           { path: 'purchases/orders', element: guard('purchase.view', <PurchaseOrdersPage />) },

@@ -65,15 +65,29 @@ describe('branch dashboard', () => {
 
   it('hides the sections a user may not see', async () => {
     const ctx = await setup();
-    const email = `dash${Date.now()}@abc.local`;
-    await runWithContext({ organisationId: ctx.orgId }, async () => {
-      const role = await Role.create({ key: `d${Date.now()}`, name: 'Orders only', permissions: ['order.view'] });
-      await User.create({ name: 'Order Desk', email, passwordHash: await bcrypt.hash('Secret123', 4), roleIds: [role._id], branchAccess: { all: true, branchIds: [] } });
-    });
-    const token = (await api().post('/api/v1/auth/login').send({ email, password: 'Secret123' })).body.data.accessToken;
-    const d = (await api().get(`/api/v1/dashboard?branchId=${ctx.ho}`).set(bearer(token))).body.data;
+    const signIn = async (name, permissions) => {
+      const email = `dash${Date.now()}${Math.random().toString(36).slice(2, 6)}@abc.local`;
+      await runWithContext({ organisationId: ctx.orgId }, async () => {
+        const role = await Role.create({ key: `d${Date.now()}${Math.random().toString(36).slice(2, 6)}`, name, permissions });
+        await User.create({ name, email, passwordHash: await bcrypt.hash('Secret123', 4), roleIds: [role._id], branchAccess: { all: true, branchIds: [] } });
+      });
+      return (await api().post('/api/v1/auth/login').send({ email, password: 'Secret123' })).body.data.accessToken;
+    };
+
+    // No Dashboard → View: no dashboard at all.
+    const noDashboard = await signIn('Orders only', ['order.view']);
+    expect((await api().get(`/api/v1/dashboard?branchId=${ctx.ho}`).set(bearer(noDashboard))).status).toBe(403);
+
+    const orders = await signIn('Order desk', ['dashboard.view', 'order.view']);
+    const d = (await api().get(`/api/v1/dashboard?branchId=${ctx.ho}`).set(bearer(orders))).body.data;
     expect(d.sales).toBeNull();
     expect(d.stock).toBeNull();
     expect(d.orders).toMatchObject({ open: 0 });
+
+    // Sales without View financial figures: the money stays hidden.
+    const counter = await signIn('Counter', ['dashboard.view', 'sales.view']);
+    expect((await api().get(`/api/v1/dashboard?branchId=${ctx.ho}`).set(bearer(counter))).body.data.sales).toBeNull();
+    const manager = await signIn('Manager', ['dashboard.view', 'dashboard.viewFinancials', 'sales.view']);
+    expect((await api().get(`/api/v1/dashboard?branchId=${ctx.ho}`).set(bearer(manager))).body.data.sales).not.toBeNull();
   });
 });
