@@ -55,7 +55,8 @@ export default function PageHeader({ title, subtitle, breadcrumbs, actions, back
           <BackButton to={back.to} label={back.label} />
         ) : (
           breadcrumbs && (
-            <Breadcrumbs sx={{ mb: 0.5, fontSize: '0.75rem' }}>
+            // Phones: the title (and the menu) say where you are; breadcrumbs and the subtitle are left out.
+            <Breadcrumbs sx={{ mb: 0.5, fontSize: '0.75rem', display: { xs: 'none', sm: 'block' } }}>
               {breadcrumbs.map((b) =>
                 b.to ? (
                   <Link key={b.label} component={RouterLink} to={b.to} underline="hover" color="textSecondary">
@@ -74,7 +75,7 @@ export default function PageHeader({ title, subtitle, breadcrumbs, actions, back
           {title}
         </Typography>
         {subtitle && (
-          <Typography component="div" variant="body2" color="textSecondary" sx={{ mt: 0.5 }}>
+          <Typography component="div" variant="body2" color="textSecondary" sx={{ mt: 0.5, display: { xs: 'none', sm: 'block' } }}>
             {subtitle}
           </Typography>
         )}

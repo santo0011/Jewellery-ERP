@@ -18,7 +18,9 @@ const branchUsersOnly = (req, res, next) => {
   if (req.auth.branchAccess.all) throw ApiError.forbidden('Each branch chooses its own print design', 'BRANCH_PRINT_ONLY');
   next();
 };
-router.put('/print/branches/:id', authorize('settings.view'), authorize('sales.print'), branchUsersOnly, validate({ params: idParamsSchema, body: branchPrintSchema }), controller.updateBranchPrint);
+// A branch's own print setup: only what printing needs, never the organisation's settings (organisation-level).
+router.get('/print/branches/:id', authorize('sales.print'), branchUsersOnly, validate({ params: idParamsSchema }), controller.getBranchPrint);
+router.put('/print/branches/:id', authorize('sales.print'), branchUsersOnly, validate({ params: idParamsSchema, body: branchPrintSchema }), controller.updateBranchPrint);
 router.put('/:section', authorize('settings.edit'), validate({ params: sectionParams }), controller.update);
 
 export default router;

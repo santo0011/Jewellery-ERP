@@ -28,18 +28,12 @@ export async function requireBranch(branchId, { path = 'branchId', active = true
 // ---------------------------------------------------------------- navbar branch filter (list pages)
 
 /**
- * Modules the organisation has opened to at least one other active branch (Settings → Branches → Branch access):
- * a branch without its own list allows every module. Their list pages show the navbar branch filter; the rest
- * only ever show the head office's data. Giving a branch a module later adds it here — nothing else to change.
+ * Modules whose list pages show the navbar branch filter: every branch module once the organisation has another
+ * active branch (what each person may use there comes from their role). With the head office only, none.
  */
 export async function sharedBranchModules() {
-  const branches = await Branch.find({ isHeadOffice: false, status: BRANCH_STATUS.ACTIVE }).select('allowedPermissions').lean();
-  const modules = new Set();
-  for (const b of branches) {
-    if (!b.allowedPermissions) BRANCH_SCOPED_MODULES.forEach((m) => modules.add(m));
-    else b.allowedPermissions.forEach((p) => modules.add(p.split('.')[0]));
-  }
-  return modules;
+  const other = await Branch.exists({ isHeadOffice: false, status: BRANCH_STATUS.ACTIVE });
+  return new Set(other ? BRANCH_SCOPED_MODULES : []);
 }
 
 async function headOfficeId() {

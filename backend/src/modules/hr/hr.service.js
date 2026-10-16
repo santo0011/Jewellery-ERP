@@ -1,6 +1,7 @@
 import { ATTENDANCE_STATUSES, EMPLOYMENT_STATUS, hasPermission, PAYROLL_STATUS } from '@jerp/shared';
 import { withTransaction } from '../../config/db.js';
 import { AUDIT_ACTIONS, recordAudit } from '../../core/audit/audit.service.js';
+import { AuditLog } from '../../core/audit/auditLog.model.js';
 import { requireContext } from '../../core/context/requestContext.js';
 import { postJournal, reverseJournalsFor } from '../../core/ledger/posting.service.js';
 import { nextCode, nextDocumentNo } from '../../core/numbering/numbering.service.js';
@@ -232,6 +233,7 @@ export async function getEmployee(id) {
     attendance: null,
     advances: null,
     payslips: null,
+    salaryHistory: null,
   };
 
   if (can('attendance.view')) {
@@ -246,6 +248,7 @@ export async function getEmployee(id) {
       days: recent.map((r) => ({ date: r.date, status: r.status, note: r.note })),
     };
   }
+  if (canSeePay()) result.salaryHistory = await salaryHistory(emp);
   if (can('payroll.view')) {
     const [advances, runs] = await Promise.all([
       SalaryAdvance.find({ employeeId: emp._id }).sort({ createdAt: -1 }).lean(),
@@ -370,6 +373,34 @@ export async function setEmployeeStatus(id, { status, exitDate, rejoinDate, note
   await emp.save();
   await recordAudit({ action: AUDIT_ACTIONS.STATUS_CHANGE, module: 'employee', recordType: 'Employee', recordId: emp._id, meta: { name: emp.name }, changes: [{ field: 'status', from, to: status }] });
   return getEmployee(id);
+}
+
+const PAY_FIELDS = ['basicPaise', 'allowancePaise'];
+
+/**
+ * Starting salary and every later change, oldest first, read from the employee's audit trail. The starting figures
+ * are the "from" side of the first change of each field (or today's salary if it never changed).
+ */
+async function salaryHistory(emp) {
+  const logs = await AuditLog.find({ organisationId: requireContext().organisationId, recordType: 'Employee', recordId: emp._id, action: AUDIT_ACTIONS.UPDATE, 'changes.field': { $in: PAY_FIELDS } })
+    .sort({ createdAt: 1 })
+    .select('userId changes createdAt')
+    .lean();
+  const pay = { basicPaise: emp.basicPaise, allowancePaise: emp.allowancePaise };
+  for (const field of PAY_FIELDS) {
+    const first = logs.find((l) => l.changes.some((c) => c.field === field));
+    if (first) pay[field] = Number(first.changes.find((c) => c.field === field).from);
+  }
+  const maps = await nameMaps({ userIds: logs.map((l) => l.userId) });
+  const entry = (extra) => ({ basicPaise: pay.basicPaise, allowancePaise: pay.allowancePaise, grossPaise: pay.basicPaise + pay.allowancePaise, ...extra });
+  const rows = [entry({ event: 'joined', date: emp.joiningDate, at: null, by: null, changePaise: null })];
+  for (const l of logs) {
+    const before = pay.basicPaise + pay.allowancePaise;
+    for (const c of l.changes) if (PAY_FIELDS.includes(c.field)) pay[c.field] = Number(c.to);
+    const change = pay.basicPaise + pay.allowancePaise - before;
+    rows.push(entry({ event: change >= 0 ? 'increment' : 'decrement', date: null, at: l.createdAt, by: pick(maps.users, l.userId) ?? null, changePaise: change }));
+  }
+  return rows;
 }
 
 /** Stored history, or for older employees the joined / left events their dates imply. */

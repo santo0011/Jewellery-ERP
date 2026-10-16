@@ -52,6 +52,23 @@ export async function updateSection(section, input) {
 }
 
 /**
+ * One branch's print setup, as its own users see it: its choice (null: the organisation's), the organisation's default,
+ * and what Invoice settings put on the page (for the preview). Nothing else of the organisation's settings.
+ */
+export async function getBranchPrint(branchId) {
+  const branch = await requireBranch(branchId, { active: false });
+  const { print, invoice } = await getSettings();
+  const own = print.branches.find((b) => String(b.branchId) === String(branch._id));
+  const { copies, showHsn, showHuid, showWeightBreakup, showRateTable, signatoryLabel, terms, footerNote } = invoice;
+  return {
+    branch: { id: branch._id, name: branch.name },
+    choice: own ? { size: own.size, design: own.design } : null,
+    organisation: { size: print.size, design: print.design },
+    invoice: { copies, showHsn, showHuid, showWeightBreakup, showRateTable, signatoryLabel, terms, footerNote },
+  };
+}
+
+/**
  * A branch chooses its own print size and design (or goes back to the organisation's, with `choice` null). Only for
  * a branch the user can work in; the rest of Print settings stays as the organisation set it.
  */
@@ -62,10 +79,10 @@ export async function updateBranchPrint(branchId, choice) {
   const own = (p) => p.branches.find((b) => String(b.branchId) === String(branchId)) ?? null;
   const before = own(print) && { size: own(print).size, design: own(print).design };
   const changes = diffChanges({ print: before }, { print: choice }, ['print']);
-  if (!changes.length) return getSettings();
+  if (!changes.length) return getBranchPrint(branchId);
 
   const branches = [...print.branches.filter((b) => String(b.branchId) !== String(branchId)), ...(choice ? [{ branchId: String(branchId), ...choice }] : [])];
   await Settings.findOneAndUpdate({}, { $set: { print: { ...print, branches }, updatedBy: userId } }, { upsert: true, setDefaultsOnInsert: true });
   await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'settings', recordType: 'Settings', meta: { section: 'print', branch: branch.name }, changes });
-  return getSettings();
+  return getBranchPrint(branchId);
 }

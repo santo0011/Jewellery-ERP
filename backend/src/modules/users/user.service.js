@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
 import mongoose from 'mongoose';
-import { BRANCH_STATUS, hasPermission, PLAN_LIMITS, USER_STATUS } from '@jerp/shared';
+import { BRANCH_STATUS, hasPermission, isBranchRole, PLAN_LIMITS, USER_STATUS } from '@jerp/shared';
 import { env } from '../../config/env.js';
 import { withTransaction } from '../../config/db.js';
 import { AUDIT_ACTIONS, recordAudit } from '../../core/audit/audit.service.js';
@@ -15,11 +15,13 @@ import { User } from './user.model.js';
 import { limitsOf } from '../billing/limits.js';
 import { assertEmailAvailable } from './emailAvailability.js';
 
-const PUBLIC_FIELDS = 'name email mobile roleIds branchAccess defaultBranchId isOwner status lastLoginAt mustChangePassword createdAt';
+const PUBLIC_FIELDS = 'name email mobile roleIds branchAccess defaultBranchId isOwner status lastLoginAt mustChangePassword createdAt branchLoginFor';
 
 const toObjectIds = (ids) => ids.map((id) => new mongoose.Types.ObjectId(String(id)));
 
 function serialize(user, rolesById, branchesById) {
+  // A branch login always works in its own branch only (whatever is stored), so that is what it shows.
+  const access = user.branchLoginFor ? { all: false, branchIds: [user.branchLoginFor] } : (user.branchAccess ?? {});
   return {
     id: user._id,
     name: user.name,
@@ -31,9 +33,10 @@ function serialize(user, rolesById, branchesById) {
     lastLoginAt: user.lastLoginAt,
     createdAt: user.createdAt,
     roles: (user.roleIds ?? []).map((id) => rolesById.get(String(id))).filter(Boolean),
+    branchLogin: Boolean(user.branchLoginFor),
     branchAccess: {
-      all: Boolean(user.branchAccess?.all),
-      branches: (user.branchAccess?.branchIds ?? []).map((id) => branchesById.get(String(id))).filter(Boolean),
+      all: Boolean(access.all),
+      branches: (access.branchIds ?? []).map((id) => branchesById.get(String(id))).filter(Boolean),
     },
     defaultBranch: user.defaultBranchId ? (branchesById.get(String(user.defaultBranchId)) ?? null) : null,
   };
@@ -60,11 +63,23 @@ async function findUser(id) {
 }
 
 async function resolveRoles(roleIds) {
-  const roles = await Role.find({ _id: { $in: roleIds } }).select('permissions name').lean();
+  const roles = await Role.find({ _id: { $in: roleIds } }).select('permissions name key').lean();
   if (roles.length !== new Set(roleIds.map(String)).size) {
     throw ApiError.badRequest('One or more roles are invalid', [{ path: 'roleIds', message: 'Select valid roles' }], 'VALIDATION_ERROR');
   }
   return roles;
+}
+
+/** Branch Manager (a branch role) works in particular branches: it cannot be given "all branches". */
+function assertBranchRoleAccess(roles, branchAccess) {
+  const branchRole = roles.find((r) => isBranchRole(r.key));
+  if (branchRole && branchAccess.all) {
+    throw ApiError.badRequest(
+      `${branchRole.name} runs particular branches: choose the branches instead of “All branches”.`,
+      [{ path: 'branchAccess.all', message: `${branchRole.name} cannot have access to all branches` }],
+      'BRANCH_ROLE_ALL_BRANCHES',
+    );
+  }
 }
 
 function assertCanAssign(roles) {
@@ -101,7 +116,8 @@ async function revokeAllSessions(userId, reason, session) {
 }
 
 export async function listUsers({ page, limit, q, status, roleId, branchId }) {
-  const filter = { ...visibilityFilter() };
+  // Branch logins are managed on the Branches page (password and role), so they are not listed with people.
+  const filter = { ...visibilityFilter(), branchLoginFor: null };
   if (status) filter.status = status;
   if (roleId) filter.roleIds = new mongoose.Types.ObjectId(roleId);
   if (branchId) filter.$or = [{ 'branchAccess.all': true }, { 'branchAccess.branchIds': new mongoose.Types.ObjectId(branchId) }];
@@ -127,6 +143,7 @@ export async function createUser(input) {
   const { userId } = requireContext();
   const roles = await resolveRoles(input.roleIds);
   assertCanAssign(roles);
+  assertBranchRoleAccess(roles, input.branchAccess);
   await assertBranches(input);
   await assertUserLimit();
 
@@ -163,18 +180,22 @@ export async function updateUser(id, input) {
 
   const rolesChanged = JSON.stringify(user.roleIds.map(String).sort()) !== JSON.stringify([...input.roleIds].sort());
   const branchAccess = { all: input.branchAccess.all, branchIds: input.branchAccess.all ? [] : input.branchAccess.branchIds };
-  const accessChanged =
-    Boolean(user.branchAccess?.all) !== branchAccess.all ||
-    JSON.stringify((user.branchAccess?.branchIds ?? []).map(String).sort()) !== JSON.stringify([...branchAccess.branchIds].sort());
+  // Compared with the access that applies: a branch login's is always its own branch (whatever is stored), so saving it
+  // also puts the stored value right.
+  const current = user.branchLoginFor ? { all: false, branchIds: [String(user.branchLoginFor)] } : { all: Boolean(user.branchAccess?.all), branchIds: (user.branchAccess?.branchIds ?? []).map(String) };
+  const accessChanged = current.all !== branchAccess.all || JSON.stringify([...current.branchIds].sort()) !== JSON.stringify([...branchAccess.branchIds].sort());
 
   if ((rolesChanged || accessChanged) && user.isOwner) throw ApiError.forbidden('The owner’s roles and branch access cannot be changed', 'OWNER_PROTECTED');
+  // A branch login always works in its own branch only. Its role can change (what it may do there), its branch cannot.
+  if (accessChanged && user.branchLoginFor) throw ApiError.forbidden('This is a branch login: it always works in its own branch only.', 'BRANCH_LOGIN_PROTECTED');
   if ((rolesChanged || accessChanged) && isSelf) throw ApiError.forbidden('You cannot change your own roles or branch access', 'SELF_PROTECTED');
 
+  const roles = await resolveRoles(input.roleIds);
   if (rolesChanged) {
     const current = new Set(user.roleIds.map(String));
-    const roles = await resolveRoles(input.roleIds);
     assertCanAssign(roles.filter((r) => !current.has(String(r._id))));
   }
+  if (rolesChanged || accessChanged) assertBranchRoleAccess(roles, branchAccess);
   await assertBranches({ branchAccess, defaultBranchId: input.defaultBranchId });
 
   const changes = [];
@@ -218,22 +239,30 @@ const BRANCH_LOGIN_ROLE_KEY = 'branch_manager';
 
 /**
  * A branch's own login: one account per branch, limited to that branch, with the Branch Manager role.
- * Its email is always the branch's email; here only the password is set (first time creates the account).
+ * Its email is always the branch's email; here its password and role are set (the first time creates the account,
+ * with the password and — unless another is chosen — the Branch Manager role). Its branch never changes.
  */
-export async function setBranchLogin(branchId, { password }) {
+export async function setBranchLogin(branchId, { password, roleId }) {
   const { userId } = requireContext();
   const branch = await Branch.findById(branchId).select('code name email').lean();
   if (!branch) throw ApiError.notFound('Branch');
   if (!branch.email) {
     throw ApiError.badRequest('Add an email to this branch first. The branch signs in with it.', [{ path: 'email', message: 'Branch has no email' }], 'BRANCH_EMAIL_REQUIRED');
   }
-  const passwordHash = await hashPassword(password);
-  const existing = await User.findOne({ branchLoginFor: branch._id }).select('email').lean();
+  const existing = await User.findOne({ branchLoginFor: branch._id }).select('email roleIds').lean();
+  if (!existing && !password) throw ApiError.badRequest('Enter a password to create the branch login', [{ path: 'password', message: 'Enter a password' }], 'VALIDATION_ERROR');
+  // A chosen role must be one the person setting it could give themselves.
+  let chosen = null;
+  if (roleId) {
+    [chosen] = await resolveRoles([roleId]);
+    if (!existing || !existing.roleIds.map(String).includes(String(roleId))) assertCanAssign([chosen]);
+  }
+  const passwordHash = password ? await hashPassword(password) : null;
 
   if (!existing) {
     await assertEmailAvailable(branch.email);
     await assertUserLimit();
-    const role = await Role.findOne({ key: BRANCH_LOGIN_ROLE_KEY }).select('_id').lean();
+    const role = chosen ?? (await Role.findOne({ key: BRANCH_LOGIN_ROLE_KEY }).select('_id').lean());
     if (!role) throw ApiError.conflict('The Branch Manager role is missing. Restore it under Roles first.', 'ROLE_MISSING');
     await withTransaction(async (session) => {
       const [user] = await User.create(
@@ -257,14 +286,24 @@ export async function setBranchLogin(branchId, { password }) {
     return getBranchLogin(branch._id);
   }
 
+  const roleChanged = chosen && !(existing.roleIds.length === 1 && String(existing.roleIds[0]) === String(chosen._id));
   await withTransaction(async (session) => {
-    await User.updateOne(
-      { _id: existing._id },
-      { $set: { passwordHash, passwordChangedAt: new Date(), mustChangePassword: false, failedLoginCount: 0, lockedUntil: null } },
-      { session },
-    );
-    await revokeAllSessions(existing._id, 'branch_login_password_changed', session);
-    await recordAudit({ action: AUDIT_ACTIONS.PASSWORD_RESET, module: 'user', recordType: 'User', recordId: existing._id, meta: { branchLogin: branch.name, byAdmin: true } }, { session });
+    if (passwordHash) {
+      await User.updateOne(
+        { _id: existing._id },
+        { $set: { passwordHash, passwordChangedAt: new Date(), mustChangePassword: false, failedLoginCount: 0, lockedUntil: null } },
+        { session },
+      );
+      await revokeAllSessions(existing._id, 'branch_login_password_changed', session);
+      await recordAudit({ action: AUDIT_ACTIONS.PASSWORD_RESET, module: 'user', recordType: 'User', recordId: existing._id, meta: { branchLogin: branch.name, byAdmin: true } }, { session });
+    }
+    if (roleChanged) {
+      await User.updateOne({ _id: existing._id }, { $set: { roleIds: [chosen._id] } }, { session });
+      await recordAudit(
+        { action: AUDIT_ACTIONS.UPDATE, module: 'user', recordType: 'User', recordId: existing._id, meta: { branchLogin: branch.name }, changes: [{ field: 'roleIds', from: existing.roleIds.map(String), to: [String(chosen._id)] }] },
+        { session },
+      );
+    }
   });
   return getBranchLogin(branch._id);
 }
@@ -281,15 +320,23 @@ export async function syncBranchLoginEmail(branchId, email, { session } = {}) {
   await revokeAllSessions(login._id, 'branch_login_email_changed', session);
 }
 
+/** What the Branches page shows for a branch login: email, status, last sign-in and its role. */
+async function loginSummaries(users) {
+  const roles = await Role.find({ _id: { $in: users.flatMap((u) => u.roleIds ?? []) } }).select('name').lean();
+  const roleById = new Map(roles.map((r) => [String(r._id), { id: r._id, name: r.name }]));
+  return users.map((u) => ({ id: u._id, email: u.email, status: u.status, lastLoginAt: u.lastLoginAt, role: roleById.get(String(u.roleIds?.[0])) ?? null }));
+}
+
 export async function getBranchLogin(branchId) {
-  const user = await User.findOne({ branchLoginFor: branchId }).select('email status lastLoginAt').lean();
-  return user ? { id: user._id, email: user.email, status: user.status, lastLoginAt: user.lastLoginAt } : null;
+  const user = await User.findOne({ branchLoginFor: branchId }).select('email status lastLoginAt roleIds').lean();
+  return user ? (await loginSummaries([user]))[0] : null;
 }
 
 /** Branch id -> its login summary, for the branches list. */
 export async function branchLoginsByBranch(branchIds) {
-  const users = await User.find({ branchLoginFor: { $in: branchIds } }).select('email status lastLoginAt branchLoginFor').lean();
-  return new Map(users.map((u) => [String(u.branchLoginFor), { id: u._id, email: u.email, status: u.status, lastLoginAt: u.lastLoginAt }]));
+  const users = await User.find({ branchLoginFor: { $in: branchIds } }).select('email status lastLoginAt branchLoginFor roleIds').lean();
+  const summaries = await loginSummaries(users);
+  return new Map(users.map((u, i) => [String(u.branchLoginFor), summaries[i]]));
 }
 
 export async function adminResetPassword(id, password) {
@@ -297,6 +344,8 @@ export async function adminResetPassword(id, password) {
   const user = await findUser(id);
   if (String(user._id) === ctx.userId) throw ApiError.forbidden('Use Profile & security to change your own password', 'SELF_PROTECTED');
   if (user.isOwner) throw ApiError.forbidden('The owner’s password can only be changed by the owner', 'OWNER_PROTECTED');
+  // One place per password: a branch login's is set on the Branches page (it has no temporary-password step).
+  if (user.branchLoginFor) throw ApiError.forbidden('This is a branch login. Change its password from Settings → Branches.', 'BRANCH_LOGIN_PROTECTED');
 
   const passwordHash = await hashPassword(password);
   await withTransaction(async (session) => {

@@ -59,8 +59,8 @@ export function ColumnChart({ data, height = 220, formatValue = (v) => formatINR
       <Box component="svg" width={width} height={height} role="img" aria-label="Daily sales" sx={{ display: 'block', overflow: 'visible' }}>
         {ticks.map((t) => (
           <g key={t}>
-            <Box component="line" x1={pad.left} x2={width - pad.right} y1={y(t)} y2={y(t)} sx={{ stroke: t === 0 ? 'text.disabled' : 'divider', strokeWidth: 1 }} />
-            <Box component="text" x={pad.left - 8} y={y(t)} dy="0.32em" textAnchor="end" sx={{ fontSize: 11, fill: 'text.secondary', fontVariantNumeric: 'tabular-nums' }}>
+            <Box component="line" x1={pad.left} x2={width - pad.right} y1={y(t)} y2={y(t)} sx={{ stroke: t === 0 ? 'var(--mui-palette-text-disabled)' : 'var(--mui-palette-divider)', strokeWidth: 1 }} />
+            <Box component="text" x={pad.left - 8} y={y(t)} dy="0.32em" textAnchor="end" sx={{ fontSize: 11, fill: 'var(--mui-palette-text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
               {formatAxis(t)}
             </Box>
           </g>
@@ -89,7 +89,7 @@ export function ColumnChart({ data, height = 220, formatValue = (v) => formatINR
                 style={{ cursor: 'default', outline: 'none' }}
               />
               {i % labelEvery === 0 && (
-                <Box component="text" x={pad.left + i * slot + slot / 2} y={height - 8} textAnchor="middle" sx={{ fontSize: 11, fill: 'text.secondary' }}>
+                <Box component="text" x={pad.left + i * slot + slot / 2} y={height - 8} textAnchor="middle" sx={{ fontSize: 11, fill: 'var(--mui-palette-text-secondary)' }}>
                   {d.label}
                 </Box>
               )}

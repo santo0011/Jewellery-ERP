@@ -4,13 +4,21 @@ import { IconButton, InputAdornment } from '@mui/material';
 import { useState } from 'react';
 import RHFTextField from './RHFTextField.jsx';
 
-export default function PasswordField(props) {
+/** `startIcon` (optional): an icon component shown at the start of the field, as on the sign-in screen. */
+export default function PasswordField({ startIcon: StartIcon, ...props }) {
   const [visible, setVisible] = useState(false);
   return (
     <RHFTextField
       type={visible ? 'text' : 'password'}
       slotProps={{
         input: {
+          ...(StartIcon && {
+            startAdornment: (
+              <InputAdornment position="start">
+                <StartIcon fontSize="small" sx={{ color: 'text.secondary' }} />
+              </InputAdornment>
+            ),
+          }),
           endAdornment: (
             <InputAdornment position="end">
               <IconButton onClick={() => setVisible((v) => !v)} edge="end" size="small" aria-label={visible ? 'Hide password' : 'Show password'}>

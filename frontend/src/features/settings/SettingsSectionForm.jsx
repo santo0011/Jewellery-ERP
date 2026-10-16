@@ -42,7 +42,7 @@ export default function SettingsSectionForm({ section, title, description, value
       <CardContent sx={{ p: { xs: 2.5, sm: 3 } }}>
         <Typography variant="h4">{title}</Typography>
         {description && (
-          <Typography variant="body2" color="textSecondary" sx={{ mt: 0.5 }}>
+          <Typography variant="body2" color="textSecondary" sx={{ mt: 0.5, display: { xs: 'none', sm: 'block' } }}>
             {description}
           </Typography>
         )}

@@ -5,7 +5,7 @@ import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
 import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
 import CelebrationOutlinedIcon from '@mui/icons-material/CelebrationOutlined';
 import TodayOutlinedIcon from '@mui/icons-material/TodayOutlined';
-import { Alert, Avatar, Box, Button, ButtonBase, Card, Chip, Divider, IconButton, MenuItem, Stack, Tab, Tabs, TextField, Tooltip, Typography, useMediaQuery } from '@mui/material';
+import { Alert, Avatar, Box, Button, ButtonBase, Card, Chip, Divider, IconButton, MenuItem, Stack, TextField, Tooltip, Typography, useMediaQuery } from '@mui/material';
 import { ATTENDANCE_STATUSES } from '@jerp/shared';
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
@@ -20,6 +20,7 @@ import { getErrorMessage } from '../../utils/errors.js';
 import { useAttendanceDayQuery, useSaveAttendanceMutation } from './hrApi.js';
 import { todayIso } from './hrUi.jsx';
 import { EmployeeAvatar } from './EmployeePhoto.jsx';
+import ViewTabs from '../../components/ViewTabs.jsx';
 
 const shiftDate = (iso, days) => {
   const d = new Date(`${iso}T00:00:00Z`);
@@ -39,6 +40,8 @@ const TONE = {
 /** Palette colour behind each status, for the ring around an employee photo. */
 const TONE_PALETTE = { present: 'success', absent: 'error', half_day: 'warning', paid_leave: 'info', holiday: 'grey' };
 const STATUS_SHORT = { absent: 'absent', half_day: 'half', paid_leave: 'leave', holiday: 'off' };
+/** Word under each status button on phones and tablets. */
+const SHORT_LABEL = { present: 'Present', absent: 'Absent', half_day: 'Half', paid_leave: 'Leave', holiday: 'Off' };
 const LETTER = Object.fromEntries(ATTENDANCE_STATUSES.map((s) => [s.value, s.short]));
 const initials = (name) =>
   name
@@ -101,10 +104,11 @@ function DailyAttendance({ branchId, branchPicker }) {
 
   return (
     <>
-      <Card sx={{ mb: 2, p: 2 }}>
+      {/* Phones: the day picker and the buttons each take a full row, and the date field fills what is left. */}
+      <Card sx={{ mb: 2, p: { xs: 1.5, sm: 2 } }}>
         <Stack direction="row" sx={{ alignItems: 'center', flexWrap: 'wrap', gap: 1.5 }}>
           {branchPicker}
-          <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', flexShrink: 0 }}>
+          <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', flexShrink: 0, width: { xs: '100%', sm: 'auto' }, minWidth: 0 }}>
             <IconButton aria-label="Previous day" onClick={() => setDate(shiftDate(date, -1))}>
               <ChevronLeftRoundedIcon />
             </IconButton>
@@ -114,19 +118,19 @@ function DailyAttendance({ branchId, branchPicker }) {
               value={date}
               onChange={(e) => e.target.value && setDate(e.target.value)}
               slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: today } }}
-              sx={{ width: 190 }}
+              sx={{ width: { xs: 'auto', sm: 190 }, flex: { xs: 1, sm: 'none' }, minWidth: 0 }}
             />
             <IconButton aria-label="Next day" onClick={() => setDate(shiftDate(date, 1))} disabled={date >= today}>
               <ChevronRightRoundedIcon />
             </IconButton>
             {date !== today && (
-              <Button size="small" onClick={() => setDate(today)} sx={{ whiteSpace: 'nowrap' }}>
-                Go to today
+              <Button size="small" onClick={() => setDate(today)} sx={{ whiteSpace: 'nowrap', flexShrink: 0 }}>
+                Today
               </Button>
             )}
           </Stack>
           {editable && (
-            <Stack direction="row" spacing={1} sx={{ flexShrink: 0, ml: 'auto' }}>
+            <Stack direction="row" spacing={1} sx={{ flexShrink: 0, ml: { xs: 0, sm: 'auto' }, width: { xs: '100%', sm: 'auto' }, '& > *': { flex: { xs: 1, sm: 'none' } }, '& .MuiButton-root': { width: { xs: '100%', sm: 'auto' } } }}>
               {unmarked > 0 && (
                 <Tooltip title={`Mark the ${unmarked} unmarked employee${unmarked > 1 ? 's' : ''} as present`}>
                   <Button
@@ -174,21 +178,38 @@ function DailyAttendance({ branchId, branchPicker }) {
         </Card>
       ) : (
         <Box sx={{ opacity: isFetching ? 0.6 : 1, transition: 'opacity 120ms' }}>
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(3, 1fr)', md: 'repeat(5, 1fr)' }, gap: 1.5, mb: 2 }}>
-            {ATTENDANCE_STATUSES.map((s) => (
-              <Card key={s.value} sx={{ height: '100%', p: { xs: 1.25, sm: 1.75 }, display: 'flex', alignItems: 'center', gap: { xs: 1, sm: 1.5 } }}>
-                <StatusBadge status={s.value} size={36} filled />
-                <Box sx={{ minWidth: 0 }}>
-                  <Typography variant="h3" sx={{ lineHeight: 1.1, fontSize: { xs: '1.125rem', sm: '1.375rem' } }}>
-                    {counts[s.value]}
+          {compact ? (
+            // Phones / tablets: the day's counts as one strip — all five in a row, letter and number over a short word.
+            <Card sx={{ mb: 2, display: 'grid', gridTemplateColumns: `repeat(${ATTENDANCE_STATUSES.length}, minmax(0, 1fr))` }}>
+              {ATTENDANCE_STATUSES.map((s, i) => (
+                <Stack key={s.value} spacing={0.5} sx={{ alignItems: 'center', py: 1.25, px: 0.5, minWidth: 0, borderLeft: i ? 1 : 0, borderColor: 'divider', borderTop: 3, borderTopColor: TONE[s.value].ring }}>
+                  <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
+                    <StatusBadge status={s.value} size={20} filled />
+                    <Typography sx={{ fontSize: '1.25rem', fontWeight: 800, lineHeight: 1, color: counts[s.value] ? 'text.primary' : 'text.disabled' }}>{counts[s.value]}</Typography>
+                  </Stack>
+                  <Typography variant="caption" color="textSecondary" noWrap sx={{ fontSize: 11, fontWeight: 600, maxWidth: '100%' }}>
+                    {SHORT_LABEL[s.value]}
                   </Typography>
-                  <Typography variant="caption" color="textSecondary" noWrap sx={{ display: 'block' }}>
-                    {s.label}
-                  </Typography>
-                </Box>
-              </Card>
-            ))}
-          </Box>
+                </Stack>
+              ))}
+            </Card>
+          ) : (
+            <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(5, minmax(0, 1fr))', gap: 1.5, mb: 2 }}>
+              {ATTENDANCE_STATUSES.map((s) => (
+                <Card key={s.value} sx={{ height: '100%', p: 1.75, display: 'flex', alignItems: 'center', gap: 1.5, minWidth: 0 }}>
+                  <StatusBadge status={s.value} size={36} filled />
+                  <Box sx={{ minWidth: 0 }}>
+                    <Typography variant="h3" sx={{ lineHeight: 1.1, fontSize: '1.375rem' }}>
+                      {counts[s.value]}
+                    </Typography>
+                    <Typography variant="caption" color="textSecondary" noWrap sx={{ display: 'block' }}>
+                      {s.label}
+                    </Typography>
+                  </Box>
+                </Card>
+              ))}
+            </Box>
+          )}
           <Card>
             {data.employees.map((e, i) => {
               const value = draft[e.id] ?? null;
@@ -206,7 +227,7 @@ function DailyAttendance({ branchId, branchPicker }) {
                   <Stack
                     direction={{ xs: 'column', md: 'row' }}
                     spacing={1.5}
-                    sx={{ px: 2, py: 1.25, alignItems: { md: 'center' }, boxShadow: dirty ? (t) => `inset 3px 0 0 ${t.vars.palette.primary.main}` : 'none' }}
+                    sx={{ px: { xs: 1.5, sm: 2 }, py: 1.25, alignItems: { md: 'center' }, boxShadow: dirty ? (t) => `inset 3px 0 0 ${t.vars.palette.primary.main}` : 'none' }}
                   >
                     <Stack direction="row" spacing={1.5} sx={{ flex: 1, minWidth: 0, alignItems: 'center' }}>
                       {e.photoFileId ? (
@@ -244,7 +265,12 @@ function DailyAttendance({ branchId, branchPicker }) {
                         {dirty && <Chip label="Unsaved" size="small" color="primary" variant="outlined" sx={{ height: 20, fontSize: 11 }} />}
                       </Stack>
                     </Stack>
-                    <Stack direction="row" spacing={0.5} sx={{ flexWrap: 'wrap', rowGap: 0.5 }} role="radiogroup" aria-label={`Attendance for ${e.name}`}>
+                    {/* Phones / tablets: the five buttons share the full width — bigger targets, with a short word under each. */}
+                    <Box
+                      role="radiogroup"
+                      aria-label={`Attendance for ${e.name}`}
+                      sx={compact ? { display: 'grid', gridTemplateColumns: `repeat(${ATTENDANCE_STATUSES.length}, minmax(0, 1fr))`, gap: 0.75, width: '100%' } : { display: 'flex', flexWrap: 'wrap', gap: 0.5 }}
+                    >
                       {ATTENDANCE_STATUSES.map((s) => {
                         const on = value === s.value;
                         return (
@@ -256,12 +282,7 @@ function DailyAttendance({ branchId, branchPicker }) {
                             disabled={!editable}
                             onClick={() => setDraft((d) => ({ ...d, [e.id]: s.value }))}
                             sx={{
-                              gap: 0.5,
-                              pl: 0.5,
-                              pr: compact ? 0.5 : 1,
-                              height: 28,
-                              borderRadius: 999,
-                              fontSize: 12,
+                              ...(compact ? { flexDirection: 'column', gap: 0.25, py: 0.4, borderRadius: 2, fontSize: 10.5 } : { gap: 0.5, pl: 0.5, pr: 1, height: 28, borderRadius: 999, fontSize: 12 }),
                               fontWeight: 600,
                               border: 1,
                               transition: 'all 120ms',
@@ -270,12 +291,12 @@ function DailyAttendance({ branchId, branchPicker }) {
                               '&.Mui-disabled': { opacity: on ? 1 : 0.55 },
                             }}
                           >
-                            <StatusBadge status={s.value} size={18} filled={!on} inverse={on} />
-                            {!compact && (s.value === 'holiday' ? 'Holiday' : s.label)}
+                            <StatusBadge status={s.value} size={compact ? 20 : 18} filled={!on} inverse={on} />
+                            {compact ? <Box component="span" sx={{ lineHeight: 1.1, whiteSpace: 'nowrap' }}>{SHORT_LABEL[s.value]}</Box> : s.value === 'holiday' ? 'Holiday' : s.label}
                           </ButtonBase>
                         );
                       })}
-                    </Stack>
+                    </Box>
                   </Stack>
                 </Box>
               );
@@ -292,9 +313,10 @@ function DailyAttendance({ branchId, branchPicker }) {
 }
 
 const VIEWS = [
-  { value: 'mark', label: 'Mark attendance', icon: TodayOutlinedIcon },
-  { value: 'records', label: 'Records', icon: CalendarMonthOutlinedIcon },
-  { value: 'holidays', label: 'Holidays & week off', icon: CelebrationOutlinedIcon },
+  // `short` is the label on phones, where the three share one row.
+  { value: 'mark', label: 'Mark attendance', short: 'Mark', icon: TodayOutlinedIcon },
+  { value: 'records', label: 'Records', short: 'Records', icon: CalendarMonthOutlinedIcon },
+  { value: 'holidays', label: 'Holidays & week off', short: 'Holidays', icon: CelebrationOutlinedIcon },
 ];
 
 export default function AttendancePage() {
@@ -303,6 +325,7 @@ export default function AttendancePage() {
   const [branchId, setBranchId] = useState(activeBranchId ?? session.branches[0]?.id ?? '');
   const [params, setParams] = useSearchParams();
   const view = VIEWS.some((v) => v.value === params.get('view')) ? params.get('view') : 'mark';
+  const openView = (v) => setParams(v === 'mark' ? {} : { view: v }, { replace: true });
 
   const branchPicker =
     session.branches.length > 1 ? (
@@ -318,11 +341,7 @@ export default function AttendancePage() {
   return (
     <>
       <PageHeader title="Attendance" subtitle="Mark only who was absent, on leave or a half day — everyone else counts as present." />
-      <Tabs value={view} onChange={(e, v) => setParams(v === 'mark' ? {} : { view: v }, { replace: true })} variant="scrollable" allowScrollButtonsMobile sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
-        {VIEWS.map(({ value, label, icon: Icon }) => (
-          <Tab key={value} value={value} label={label} icon={<Icon fontSize="small" />} iconPosition="start" sx={{ minHeight: 48, textTransform: 'none', fontWeight: 600 }} />
-        ))}
-      </Tabs>
+      <ViewTabs value={view} onChange={openView} items={VIEWS} />
       {view === 'mark' && <DailyAttendance branchId={branchId} branchPicker={branchPicker} />}
       {view === 'records' && <AttendanceRecords branchId={branchId} branchPicker={branchPicker} />}
       {view === 'holidays' && <HolidaysPanel branchId={branchId} branchPicker={branchPicker} />}

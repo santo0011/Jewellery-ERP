@@ -66,7 +66,6 @@ const formSchema = platformCreateOrganisationSchema.extend({
 const EMPTY = { organisationName: '', ownerName: '', email: '', mobile: '', stateCode: '', freeDays: '14', address: addressFormValues() };
 
 function CreateOrganisationDrawer({ open, onClose }) {
-  const navigate = useNavigate();
   const [create, { isLoading, error, reset: resetMutation }] = useCreateOrganisationMutation();
   const [findPincode] = useLazyPincodeQuery();
   const { control, handleSubmit, reset, setError, setValue } = useForm({ resolver: zodResolver(formSchema), defaultValues: EMPTY });
@@ -101,9 +100,7 @@ function CreateOrganisationDrawer({ open, onClose }) {
       result={created?.loginEmail}
       title={created ? `${created.name} is ready` : ''}
       onClose={() => {
-        const id = created.id;
         setCreated(null);
-        navigate(`/admin/organisations/${id}`);
       }}
     />
     <FormDrawer open={open} title="New organisation" subtitle="Creates the business, its head office branch, standard roles and its login." onClose={onClose} onSubmit={onSubmit} submitting={isLoading} submitLabel="Create organisation" width={640}>

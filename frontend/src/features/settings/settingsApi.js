@@ -13,16 +13,18 @@ export const settingsApi = baseApi.injectEndpoints({
         if (data) dispatch(settingsApi.util.upsertQueryData('settings', undefined, data));
       },
     }),
+    // A branch's own print setup (its users never read the organisation's settings).
+    branchPrint: build.query({ query: (branchId) => ({ url: `/settings/print/branches/${branchId}` }), transformResponse: unwrapData }),
     updateBranchPrint: build.mutation({
       query: ({ branchId, choice }) => ({ url: `/settings/print/branches/${branchId}`, method: 'put', data: { choice } }),
       transformResponse: unwrapData,
       invalidatesTags: ['Audit', 'Sale'],
-      async onQueryStarted(arg, { dispatch, queryFulfilled }) {
+      async onQueryStarted({ branchId }, { dispatch, queryFulfilled }) {
         const { data } = await queryFulfilled.catch(() => ({}));
-        if (data) dispatch(settingsApi.util.upsertQueryData('settings', undefined, data));
+        if (data) dispatch(settingsApi.util.upsertQueryData('branchPrint', branchId, data));
       },
     }),
   }),
 });
 
-export const { useSettingsQuery, useUpdateSettingsMutation, useUpdateBranchPrintMutation } = settingsApi;
+export const { useSettingsQuery, useUpdateSettingsMutation, useBranchPrintQuery, useUpdateBranchPrintMutation } = settingsApi;

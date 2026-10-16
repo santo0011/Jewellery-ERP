@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { branchListQuerySchema, branchLoginSchema, branchPermissionsSchema, branchSchema, branchStatusSchema, idParamsSchema } from '@jerp/shared/schemas';
+import { branchListQuerySchema, branchLoginSchema, branchSchema, branchStatusSchema, idParamsSchema } from '@jerp/shared/schemas';
 import { authenticate } from '../../middleware/authenticate.js';
 import { authorize, authorizeAny, requireAllBranches } from '../../middleware/authorize.js';
 import { validate } from '../../middleware/validate.js';
@@ -16,7 +16,6 @@ router.get('/:id', authorize('branch.view'), validate({ params: idParamsSchema }
 router.put('/:id', authorize('branch.edit'), validate({ params: idParamsSchema, body: branchSchema }), controller.update);
 // The branch's own login account; managing it needs both branch and user rights across all branches.
 router.put('/:id/login', authorize('branch.edit'), authorize('user.edit'), requireAllBranches, validate({ params: idParamsSchema, body: branchLoginSchema }), controller.setLogin);
-router.put('/:id/permissions', authorize('branch.edit'), requireAllBranches, validate({ params: idParamsSchema, body: branchPermissionsSchema }), controller.setPermissions);
 router.patch('/:id/status', authorize('branch.delete'), validate({ params: idParamsSchema, body: branchStatusSchema }), controller.setStatus);
 
 export default router;

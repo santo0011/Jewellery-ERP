@@ -6,13 +6,14 @@ import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import RestartAltRoundedIcon from '@mui/icons-material/RestartAltRounded';
 import ShowChartRoundedIcon from '@mui/icons-material/ShowChartRounded';
 import { Alert, Autocomplete, Box, Button, Card, CardContent, Chip, Divider, Grid, IconButton, InputAdornment, MenuItem, Stack, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography } from '@mui/material';
-import { formatINR, formatWeight, PAYMENT_MODES, toPaise } from '@jerp/shared';
+import { formatINR, formatWeight, LOOKUP_ACCESS, PAYMENT_MODES, toPaise } from '@jerp/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useSelector } from 'react-redux';
 import { useNavigate, useSearchParams } from 'react-router';
 import Amount from '../../components/Amount.jsx';
 import AuthImage from '../../components/AuthImage.jsx';
+import ConfirmDialog from '../../components/ConfirmDialog.jsx';
 import CustomerPicker from '../../components/CustomerPicker.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
 import { useDebounce } from '../../hooks/useDebounce.js';
@@ -26,6 +27,7 @@ import { purityLabel } from '../products/productForm.js';
 import { useCurrentRatesQuery } from '../rates/rateApi.js';
 import { billLabels } from './billLabels.js';
 import { useCreateSaleMutation, useLazyLookupProductQuery, useQuoteSaleMutation, useSetProductHuidMutation } from './saleApi.js';
+import KeepOnPhone from '../../components/KeepOnPhone.jsx';
 
 const newKey = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
 const safePaise = (v) => {
@@ -311,7 +313,7 @@ function LineCard({ product: p, discount, discountType, breakdown: b, quoting, c
                   value={discount}
                   onChange={(e) => onDiscount(e.target.value.replace(/[^\d.]/g, ''))}
                   error={discountType === 'percent' && Number(discount) > 100}
-                  helperText={discountType === 'percent' && discount && b ? (Number(discount) > 100 ? 'Up to 100%' : `= ${formatINR(b.discountPaise, { decimals: 0 })}`) : ' '}
+                  helperText={<KeepOnPhone>{discountType === 'percent' && discount && b ? (Number(discount) > 100 ? 'Up to 100%' : `= ${formatINR(b.discountPaise, { decimals: 0 })}`) : ' '}</KeepOnPhone>}
                   sx={{ width: 110 }}
                   slotProps={{
                     input: discountType === 'percent' ? { endAdornment: <InputAdornment position="end">%</InputAdornment> } : { startAdornment: <InputAdornment position="start">₹</InputAdornment> },
@@ -450,7 +452,8 @@ export default function BillingPage() {
   const activeBranchId = useSelector((s) => s.auth.activeBranchId) ?? session.branches[0]?.id;
   const branchName = session.branches.find((b) => b.id === activeBranchId)?.name ?? 'this branch';
   const canDiscount = usePermission('sales.discount');
-  const canViewOrders = usePermission('order.view');
+  // Open orders to deliver on this bill: New bill is enough to look them up (see LOOKUP_ACCESS).
+  const canViewOrders = usePermission(LOOKUP_ACCESS.order);
 
   const [lines, setLines] = useState([]); // [{ product, discount, discountType: 'amount' | 'percent' }]
   const [customer, setCustomer] = useState(null);
@@ -580,7 +583,18 @@ export default function BillingPage() {
   if (compliance?.panMissing) problems.push(customer ? `Bills above ₹2 lakh need the customer's PAN — add PAN to ${customer.name}.` : 'Bills above ₹2 lakh need a customer with PAN — select the customer.');
   if (cashOver && compliance.cashLimitAction === 'block') problems.push(`Cash cannot be more than ${formatINR(compliance.cashLimitPaise, { decimals: 0 })} (Section 269ST) — take the rest by card, UPI or bank (use Split).`);
 
+  // A bill cannot be undone casually, so "Generate bill" asks first and only the dialog's button saves it.
+  const [confirming, setConfirming] = useState(false);
+  const paidBy = payments
+    .filter((p) => safePaise(p.amount) > 0)
+    .map((p) => `${PAYMENT_MODES.find((m) => m.value === p.mode)?.label ?? p.mode} ${formatINR(safePaise(p.amount))}`)
+    .join(', ');
+  const confirmMessage = `${lines.length} item${lines.length === 1 ? '' : 's'}${customer ? ` for ${customer.name}` : ' (walk-in)'}. Bill total ${formatINR(payable)}. Paid now: ${paidBy || 'nothing'}.${
+    remaining > 0 ? ` ${formatINR(remaining)} stays due.` : ''
+  } Once generated, the bill can only be cancelled or returned.`;
+
   const generate = async () => {
+    setConfirming(false);
     try {
       const sale = await createSale({
         idempotencyKey: idempotencyKey.current,
@@ -588,8 +602,26 @@ export default function BillingPage() {
         payments: payments.filter((p) => safePaise(p.amount) > 0).map((p) => ({ mode: p.mode, amountPaise: safePaise(p.amount), reference: p.reference || null })),
         notes: notes || null,
       }).unwrap();
-      toast.success(`Invoice ${sale.invoiceNo} created`);
-      navigate(`/sales/${sale.id}`, { replace: true });
+      // Back to the invoice list (the new bill is at the top); the invoice itself — to print — is one tap away.
+      toast.success(
+        (t) => (
+          <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+            Invoice {sale.invoiceNo} created
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => {
+                toast.dismiss(t.id);
+                navigate(`/sales/${sale.id}`);
+              }}
+            >
+              Open invoice
+            </Button>
+          </Box>
+        ),
+        { duration: 8000 },
+      );
+      navigate('/sales', { replace: true });
     } catch (err) {
       toast.error(getErrorMessage(err));
     }
@@ -834,7 +866,7 @@ export default function BillingPage() {
                     </Alert>
                   )}
                   {cashOver && compliance.cashLimitAction !== 'block' && <Alert severity="info">Cash above {formatINR(compliance.cashLimitPaise, { decimals: 0 })} (Section 269ST) — allowed by your settings.</Alert>}
-                  <Button variant="contained" size="large" disabled={problems.length > 0 || quoting} loading={saving} onClick={generate} startIcon={<ReceiptLongOutlinedIcon />} sx={{ py: 1.4, fontSize: '1rem' }}>
+                  <Button variant="contained" size="large" disabled={problems.length > 0 || quoting} loading={saving} onClick={() => setConfirming(true)} startIcon={<ReceiptLongOutlinedIcon />} sx={{ py: 0.9, fontSize: '1rem' }}>
                     Generate bill {quote ? (remaining > 0 && paid > 0 ? `· ${formatINR(remaining, { decimals: 0 })} due` : `· ${formatINR(payable, { decimals: 0 })}`) : ''}
                   </Button>
                 </Stack>
@@ -843,6 +875,14 @@ export default function BillingPage() {
           </Stack>
         </Grid>
       </Grid>
+      <ConfirmDialog
+        open={confirming && problems.length === 0}
+        title="Generate this bill?"
+        message={confirmMessage}
+        confirmLabel="Yes, generate bill"
+        onConfirm={generate}
+        onClose={() => setConfirming(false)}
+      />
       {linkedOrder && <FinishItemDialog order={linkedOrder} index={finishing} onClose={() => setFinishing(null)} onFinished={(piece) => { autoAdded.current.add(String(piece.id)); addFinished(piece); }} />}
       {/* Phones: the amount to collect stays in view above the bottom bar, one tap from the payment section. */}
       {lines.length > 0 && quote && <Box sx={{ display: { xs: 'block', md: 'none' }, height: 72 }} />}

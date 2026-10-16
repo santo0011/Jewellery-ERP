@@ -1,7 +1,7 @@
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import { Alert, Box, Button, Card, CardContent, Divider, Grid, IconButton, InputAdornment, Paper, Stack, Typography } from '@mui/material';
-import { deriveWeights, formatWeight, JEWELLERY_TYPES, METAL_OPTIONS, PURITIES, STONE_TYPES } from '@jerp/shared';
+import { deriveWeights, formatWeight, JEWELLERY_TYPES, LOOKUP_ACCESS, METAL_OPTIONS, PURITIES, STONE_TYPES } from '@jerp/shared';
 import { productSchema } from '@jerp/shared/schemas';
 import { useEffect, useMemo } from 'react';
 import { useFieldArray, useForm, useWatch } from 'react-hook-form';
@@ -13,6 +13,7 @@ import RHFTextField from '../../components/form/RHFTextField.jsx';
 import MoreDetails from '../../components/MoreDetails.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
 import { ErrorState, LoadingState } from '../../components/StateViews.jsx';
+import KeepOnPhone from '../../components/KeepOnPhone.jsx';
 import { usePermission, useSession } from '../../hooks/usePermission.js';
 import { applyServerErrors, getErrorMessage } from '../../utils/errors.js';
 import { buildCategoryTree, useCategoriesQuery } from '../categories/categoryApi.js';
@@ -29,7 +30,7 @@ function Section({ title, description, children }) {
       <CardContent sx={{ p: { xs: 2.5, sm: 3 } }}>
         <Typography variant="h4">{title}</Typography>
         {description && (
-          <Typography variant="body2" color="textSecondary" sx={{ mt: 0.5 }}>
+          <Typography variant="body2" color="textSecondary" sx={{ mt: 0.5, display: { xs: 'none', sm: 'block' } }}>
             {description}
           </Typography>
         )}
@@ -143,7 +144,8 @@ export default function ProductFormPage() {
   const navigate = useNavigate();
   const { data: session } = useSession();
   const canSeeCost = usePermission('product.viewCost');
-  const canSeeSuppliers = usePermission('supplier.view');
+  // Picking the supplier: creating or editing a product is enough (see LOOKUP_ACCESS).
+  const canSeeSuppliers = usePermission(LOOKUP_ACCESS.supplier);
   const { data: product, isLoading, error, refetch } = useProductQuery(id, { skip: !editing });
   const { data: categories = [] } = useCategoriesQuery();
   const { data: suppliers } = useSupplierListQuery({ page: 1, limit: 100, status: 'active' }, { skip: !canSeeSuppliers });
@@ -198,7 +200,8 @@ export default function ProductFormPage() {
     try {
       const saved = editing ? await update({ id, ...payload }).unwrap() : await create(payload).unwrap();
       toast.success(editing ? 'Product updated' : `Product ${saved.sku} created`);
-      navigate(`/products/${saved.id}`, { replace: !editing });
+      // A new product goes back to the list (it shows there); an edit returns to the product.
+      navigate(editing ? `/products/${saved.id}` : '/products', { replace: !editing });
     } catch (err) {
       if (!applyServerErrors(err, setError)) toast.error(getErrorMessage(err));
     }
@@ -247,7 +250,7 @@ export default function ProductFormPage() {
                   <RHFSelect control={control} name="metal" label="Metal" options={METAL_OPTIONS} disabled={locked} onChange={(e) => onMetalChange(e.target.value)} />
                 </Grid>
                 <Grid size={{ xs: 6, sm: 3 }}>
-                  <RHFSelect control={control} name="purity" label="Purity" options={purityOptions} disabled={locked} helperText={purityOptions.length ? undefined : 'Enable a purity in Business settings'} />
+                  <RHFSelect control={control} name="purity" label="Purity" options={purityOptions} disabled={locked} helperText={purityOptions.length ? undefined : <KeepOnPhone>Enable a purity in Business settings</KeepOnPhone>} />
                 </Grid>
                 <Grid size={{ xs: 6, sm: 3 }}>
                   <RHFTextField control={control} name="grossWeightMg" label="Gross weight" slotProps={adorn('g')} disabled={locked} />
@@ -258,7 +261,7 @@ export default function ProductFormPage() {
                     name="huid"
                     label="HUID"
                     transform={upper}
-                    helperText={metal === 'gold' && catalog.huidMandatory ? 'Needed to sell' : undefined}
+                    helperText={metal === 'gold' && catalog.huidMandatory ? <KeepOnPhone>Needed to sell</KeepOnPhone> : undefined}
                     slotProps={{ htmlInput: { maxLength: 6 } }}
                   />
                 </Grid>

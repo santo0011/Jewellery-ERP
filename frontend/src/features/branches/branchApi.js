@@ -8,11 +8,6 @@ export const branchApi = baseApi.injectEndpoints({
       providesTags: (result) => [{ type: 'Branch', id: 'LIST' }, ...(result?.items ?? []).map((b) => ({ type: 'Branch', id: b._id }))],
     }),
     branchUsage: build.query({ query: () => ({ url: '/branches/usage' }), transformResponse: unwrapData, providesTags: [{ type: 'Branch', id: 'USAGE' }] }),
-    setBranchPermissions: build.mutation({
-      query: ({ id, permissions }) => ({ url: `/branches/${id}/permissions`, method: 'put', data: { permissions } }),
-      transformResponse: unwrapData,
-      invalidatesTags: (r, e, { id }) => [{ type: 'Branch', id }, { type: 'Branch', id: 'LIST' }, 'Me', 'Audit'],
-    }),
     setBranchLogin: build.mutation({
       query: ({ id, ...data }) => ({ url: `/branches/${id}/login`, method: 'put', data }),
       transformResponse: unwrapData,
@@ -38,4 +33,4 @@ export const branchApi = baseApi.injectEndpoints({
   }),
 });
 
-export const { useBranchUsageQuery, useSetBranchPermissionsMutation, useBranchDirectoryQuery, useBranchesQuery, useCreateBranchMutation, useUpdateBranchMutation, useSetBranchStatusMutation, useSetBranchLoginMutation } = branchApi;
+export const { useBranchUsageQuery, useBranchDirectoryQuery, useBranchesQuery, useCreateBranchMutation, useUpdateBranchMutation, useSetBranchStatusMutation, useSetBranchLoginMutation } = branchApi;

@@ -1,4 +1,6 @@
 import { createTheme } from '@mui/material/styles';
+import { createElement } from 'react';
+import { ButtonPulse } from '../components/PulseLoader.jsx';
 import { BRAND_DEFAULTS, BRAND_DEFAULTS_DARK, fonts, tokens } from './tokens.js';
 
 // Mobile first: phones (< 600px) get tighter headings; touch screens get finger-sized targets.
@@ -54,9 +56,24 @@ export const theme = createTheme({
       },
     },
     MuiButton: {
-      defaultProps: { disableElevation: true },
+      // A busy button (loading) shows the app's breathing dot instead of a spinning circle.
+      defaultProps: { disableElevation: true, loadingIndicator: createElement(ButtonPulse) },
       // Compact everywhere; touch screens keep a little more height so buttons stay easy to tap.
-      styleOverrides: { root: { borderRadius: 6, paddingInline: 14, paddingBlock: 4, minHeight: 34, [TOUCH]: { minHeight: 40 } }, sizeSmall: { minHeight: 30, [TOUCH]: { minHeight: 34 } } },
+      styleOverrides: {
+        root: {
+          borderRadius: 6,
+          paddingInline: 14,
+          paddingBlock: 4,
+          minHeight: 34,
+          [TOUCH]: { minHeight: 40 },
+          // A busy button keeps its colour (not greyed out); only the label gives way to the breathing dot.
+          '&.MuiButton-loading.MuiButton-contained.MuiButton-colorPrimary': { backgroundColor: 'var(--brand)', '& .MuiButton-loadingIndicator': { color: 'var(--brand-contrast)' } },
+          '&.MuiButton-loading.MuiButton-contained.MuiButton-colorSecondary': { backgroundColor: 'var(--mui-palette-secondary-main)', '& .MuiButton-loadingIndicator': { color: 'var(--mui-palette-secondary-contrastText)' } },
+          '&.MuiButton-loading.MuiButton-colorPrimary:not(.MuiButton-contained)': { '& .MuiButton-loadingIndicator': { color: 'var(--brand-strong)' } },
+          '&.MuiButton-loading.MuiButton-colorSecondary:not(.MuiButton-contained)': { '& .MuiButton-loadingIndicator': { color: 'var(--mui-palette-secondary-main)' } },
+        },
+        sizeSmall: { minHeight: 30, [TOUCH]: { minHeight: 34 } },
+      },
     },
     MuiPaper: {
       defaultProps: { elevation: 0 },
@@ -87,6 +104,9 @@ export const theme = createTheme({
     MuiMenuItem: { styleOverrides: { root: { [TOUCH]: { minHeight: 44 } } } },
     MuiTab: { styleOverrides: { root: { textTransform: 'none', fontWeight: 600, [PHONE]: { minWidth: 0, paddingInline: 14 } } } },
     MuiTextField: { defaultProps: { size: 'small', fullWidth: true } },
+    // Phones: field hints go (the label says enough); errors stay, and so does a hint marked <KeepOnPhone> (amounts
+    // due, limits — what the person needs to fill the field right).
+    MuiFormHelperText: { styleOverrides: { root: { [PHONE]: { '&:not(.Mui-error):not(:has(.keep-on-phone))': { display: 'none' } } } } },
     MuiOutlinedInput: {
       styleOverrides: {
         root: ({ theme }) => ({ backgroundColor: theme.vars.palette.background.paper }),

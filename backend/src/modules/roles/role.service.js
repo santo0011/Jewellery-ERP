@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { expandPermissions, hasPermission } from '@jerp/shared';
+import { expandPermissions, hasPermission, isBranchRole, isOrganisationLevel, WILDCARD_PERMISSION } from '@jerp/shared';
 import { AUDIT_ACTIONS, recordAudit } from '../../core/audit/audit.service.js';
 import { requireContext } from '../../core/context/requestContext.js';
 import { ApiError } from '../../utils/ApiError.js';
@@ -79,6 +79,14 @@ export async function updateRole(id, { name, description, permissions }) {
   const role = await findRole(id);
   // Organisation Admin must keep full access, or the owner could lock everyone out. Other default roles can change.
   if (role.permissions.includes('*')) throw ApiError.forbidden('Organisation Admin always has full access and cannot be changed.', 'SYSTEM_ROLE');
+
+  // A branch role (Branch Manager) never holds organisation-level permissions.
+  if (isBranchRole(role.key)) {
+    const orgLevel = permissions.filter((p) => p === WILDCARD_PERMISSION || isOrganisationLevel(p));
+    if (orgLevel.length) {
+      throw ApiError.badRequest(`${role.name} is a branch role and cannot run the organisation: remove ${orgLevel.slice(0, 3).join(', ')}${orgLevel.length > 3 ? '…' : ''}.`, [{ path: 'permissions', message: 'Organisation-level permissions are not allowed for a branch role' }], 'BRANCH_ROLE_ORG_PERMISSION');
+    }
+  }
 
   const added = permissions.filter((p) => !role.permissions.includes(p));
   const removed = role.permissions.filter((p) => !permissions.includes(p));

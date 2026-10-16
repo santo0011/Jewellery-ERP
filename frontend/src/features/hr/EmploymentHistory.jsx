@@ -2,6 +2,8 @@ import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import PersonAddAlt1OutlinedIcon from '@mui/icons-material/PersonAddAlt1Outlined';
 import ReplayRoundedIcon from '@mui/icons-material/ReplayRounded';
 import { Box, Card, CardContent, Chip, Stack, Typography } from '@mui/material';
+import { formatINR } from '@jerp/shared';
+import DataTable from '../../components/DataTable.jsx';
 import { formatDate, formatDateTime } from '../../utils/format.js';
 
 const EVENT = {
@@ -90,6 +92,68 @@ export default function EmploymentHistory({ employee }) {
             );
           })}
         </Box>
+      </CardContent>
+    </Card>
+  );
+}
+
+const money = (paise) => formatINR(paise, { decimals: 0 });
+
+/** Starting salary and each increment / cut after it, newest first. */
+export function SalaryHistory({ rows }) {
+  const increments = rows.filter((r) => r.event === 'increment' && r.changePaise > 0).length;
+  const first = rows[0];
+  const current = rows.at(-1);
+  const growth = first && first.grossPaise > 0 ? Math.round(((current.grossPaise - first.grossPaise) / first.grossPaise) * 100) : null;
+  return (
+    <Card>
+      <CardContent>
+        <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', alignItems: 'center', mb: 2 }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700, mr: 1 }}>
+            Salary history
+          </Typography>
+          <Chip size="small" label={increments ? `${increments} increment${increments > 1 ? 's' : ''}` : 'No increments yet'} />
+          {first && <Chip size="small" variant="outlined" label={`Started at ${money(first.grossPaise)}`} />}
+          {growth !== null && current !== first && <Chip size="small" variant="outlined" color={growth >= 0 ? 'success' : 'error'} label={`${growth >= 0 ? '+' : ''}${growth}% since joining`} />}
+        </Stack>
+        <DataTable
+          columns={[
+            {
+              key: 'when',
+              label: 'Date',
+              render: (r) => (
+                <Box>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    {r.date ? formatDate(r.date) : formatDateTime(r.at)}
+                  </Typography>
+                  <Typography variant="caption" color="textSecondary">
+                    {r.event === 'joined' ? 'Starting salary' : r.by ? `by ${r.by.name}` : 'Salary changed'}
+                  </Typography>
+                </Box>
+              ),
+            },
+            { key: 'basic', label: 'Basic', align: 'right', render: (r) => money(r.basicPaise) },
+            { key: 'allowance', label: 'Allowance', align: 'right', render: (r) => money(r.allowancePaise) },
+            { key: 'gross', label: 'Salary / month', align: 'right', render: (r) => <Typography variant="body2" sx={{ fontWeight: 700 }}>{money(r.grossPaise)}</Typography> },
+            {
+              key: 'change',
+              label: 'Change',
+              align: 'right',
+              render: (r) =>
+                r.changePaise === null ? (
+                  '—'
+                ) : (
+                  <Typography variant="body2" sx={{ fontWeight: 600, color: r.changePaise > 0 ? 'success.main' : r.changePaise < 0 ? 'error.main' : 'text.secondary' }}>
+                    {r.changePaise > 0 ? '+' : r.changePaise < 0 ? '−' : ''}
+                    {money(Math.abs(r.changePaise))}
+                  </Typography>
+                ),
+            },
+          ]}
+          rows={[...rows].reverse()}
+          getRowId={(r) => `${r.event}-${r.at ?? r.date}`}
+          empty={{ title: 'No salary record', description: 'Salary changes appear here when the employee is edited.' }}
+        />
       </CardContent>
     </Card>
   );

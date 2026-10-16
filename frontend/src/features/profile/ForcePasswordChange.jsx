@@ -25,7 +25,7 @@ export default function ForcePasswordChange({ user }) {
           <Typography variant="body2" color="textSecondary" sx={{ mb: 3 }}>
             Welcome, {user.name.split(' ')[0]}. Your account was created with a temporary password. Choose a new one to continue.
           </Typography>
-          <ChangePasswordForm />
+          <ChangePasswordForm firstLogin />
           <Button color="secondary" size="small" onClick={signOut} sx={{ mt: 2 }}>
             Sign out
           </Button>

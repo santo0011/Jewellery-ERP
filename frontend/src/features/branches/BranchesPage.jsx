@@ -1,12 +1,9 @@
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
-import KeyOutlinedIcon from '@mui/icons-material/KeyOutlined';
-import LockPersonOutlinedIcon from '@mui/icons-material/LockPersonOutlined';
 import PowerSettingsNewRoundedIcon from '@mui/icons-material/PowerSettingsNewRounded';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import { Alert, Box, Button, Chip, IconButton, InputAdornment, LinearProgress, Link, MenuItem, Stack, TextField, Tooltip, Typography } from '@mui/material';
 import { Link as RouterLink } from 'react-router';
-import { BRANCH_PERMISSIONS, isUpcomingPermission } from '@jerp/shared';
 import { stateName } from '@jerp/shared';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
@@ -18,11 +15,12 @@ import StatusChip from '../../components/StatusChip.jsx';
 import { usePermission, useSession } from '../../hooks/usePermission.js';
 import { useDebounce } from '../../hooks/useDebounce.js';
 import { getErrorMessage } from '../../utils/errors.js';
-import BranchAccessDrawer from './BranchAccessDrawer.jsx';
 import { useBranchesQuery, useBranchUsageQuery, useSetBranchStatusMutation } from './branchApi.js';
 import BranchFormDrawer from './BranchFormDrawer.jsx';
 import BranchLoginDrawer from './BranchLoginDrawer.jsx';
 import { useDeleteStatus } from '../../services/recordApi.js';
+
+const smallChip = { height: 20, fontSize: '0.6875rem' };
 
 export default function BranchesPage() {
   const { data: session } = useSession();
@@ -36,7 +34,6 @@ export default function BranchesPage() {
   const [limit, setLimit] = useState(20);
   const [drawer, setDrawer] = useState({ open: false, branch: null });
   const [confirm, setConfirm] = useState(null);
-  const [accessFor, setAccessFor] = useState(null);
   const canManageAccess = canEdit && session.user.allBranches;
   const canEditUsers = usePermission('user.edit');
   const canManageLogin = canManageAccess && canEditUsers;
@@ -45,7 +42,8 @@ export default function BranchesPage() {
   const full = usage ? usage.available === 0 : false;
   const q = useDebounce(search.trim());
 
-  const params = { page, limit, ...(q && { q }), ...(status && { status }) };
+  // The head office is the organisation itself (Settings → Organisation), not listed with the branches.
+  const params = { page, limit, headOffice: 'exclude', ...(q && { q }), ...(status && { status }) };
   const { data, isLoading, isFetching, error, refetch } = useBranchesQuery(params);
   // Which rows can be deleted (Delete stays visible; it is disabled with the reason when not).
   const deleteStatus = useDeleteStatus('branch', data?.items);
@@ -74,69 +72,49 @@ export default function BranchesPage() {
               {b.code}
             </Typography>
           </Box>
-          {b.isHeadOffice && <Chip size="small" label="Head office" color="primary" variant="outlined" sx={{ height: 20, fontSize: '0.6875rem' }} />}
         </Stack>
       ),
     },
     { key: 'location', label: 'Location', render: (b) => [b.address?.city, stateName(b.address?.stateCode)].filter(Boolean).join(', ') || '—' },
     { key: 'gstin', label: 'GSTIN', render: (b) => b.gstin ?? '—' },
+    // The branch's own sign-in: its email and a password — set and changed here only.
     {
-      key: 'email',
-      label: 'Email',
-      render: (b) =>
-        b.email ? (
-          <Stack direction="row" sx={{ alignItems: 'center', flexWrap: 'wrap', columnGap: 0.75, rowGap: 0.25 }}>
+      key: 'login',
+      label: 'Branch login',
+      render: (b) => (
+        <Stack spacing={0.5} sx={{ alignItems: 'flex-start' }}>
+          {b.email ? (
             <Typography variant="body2" sx={{ overflowWrap: 'anywhere' }}>
               {b.email}
             </Typography>
-            {b.login && (
-              <Tooltip title="This email can sign in to the branch panel">
-                <Chip size="small" icon={<KeyOutlinedIcon />} label="Login" color="success" variant="outlined" sx={{ height: 20, fontSize: '0.6875rem', '& .MuiChip-icon': { fontSize: 13 } }} />
-              </Tooltip>
+          ) : (
+            <Typography variant="body2" color="textSecondary">
+              No email
+            </Typography>
+          )}
+          <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
+            <Chip size="small" label={b.login ? b.login.role?.name ?? 'Active' : 'Not set up'} color={b.login ? 'success' : 'default'} variant="outlined" sx={smallChip} />
+            {canManageLogin && (
+              <Link component="button" type="button" variant="caption" onClick={() => setLoginFor(b)} sx={{ fontWeight: 600 }}>
+                {b.login ? 'Manage' : 'Set up'}
+              </Link>
             )}
           </Stack>
-        ) : (
-          <Typography variant="body2" color="textSecondary">
-            —
-          </Typography>
-        ),
-    },
-    {
-      key: 'access',
-      label: 'Access',
-      render: (b) => {
-        // Only permissions the app uses today are counted.
-        const real = BRANCH_PERMISSIONS.filter((p) => !isUpcomingPermission(p));
-        const n = (b.allowedPermissions ?? BRANCH_PERMISSIONS).filter((p) => !isUpcomingPermission(p)).length;
-        return n === real.length ? 'Full' : `${n} of ${real.length}`;
-      },
+        </Stack>
+      ),
     },
     { key: 'status', label: 'Status', render: (b) => <StatusChip status={b.status} /> },
     {
       key: 'actions',
       label: 'Action',
       align: 'right',
-      width: 204,
+      width: 132,
       render: (b) => (
         <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
           {canEdit && (
             <Tooltip title="Edit">
               <IconButton size="small" onClick={() => setDrawer({ open: true, branch: b })} aria-label={`Edit ${b.name}`}>
                 <EditOutlinedIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          )}
-          {canManageLogin && (
-            <Tooltip title={b.login ? 'Change password' : 'Set up branch login'}>
-              <IconButton size="small" onClick={() => setLoginFor(b)} aria-label={`Login for ${b.name}`}>
-                <KeyOutlinedIcon fontSize="small" />
-              </IconButton>
-            </Tooltip>
-          )}
-          {canManageAccess && (
-            <Tooltip title="Branch access">
-              <IconButton size="small" onClick={() => setAccessFor(b)} aria-label={`Access for ${b.name}`}>
-                <LockPersonOutlinedIcon fontSize="small" />
               </IconButton>
             </Tooltip>
           )}
@@ -231,7 +209,6 @@ export default function BranchesPage() {
         }
       />
 
-      <BranchAccessDrawer branch={accessFor} onClose={() => setAccessFor(null)} />
       <BranchLoginDrawer
         branch={loginFor}
         onClose={() => setLoginFor(null)}

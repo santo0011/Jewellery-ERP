@@ -12,8 +12,8 @@ import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import ShoppingBagOutlinedIcon from '@mui/icons-material/ShoppingBagOutlined';
 import { Box, ButtonBase, Collapse, IconButton, InputBase, List, ListItemButton, Tooltip, Typography } from '@mui/material';
-import { useEffect, useMemo, useState } from 'react';
-import { matchPath, NavLink, useLocation } from 'react-router';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { Link, matchPath, useLocation } from 'react-router';
 import { DiamondMark } from '../components/Wordmark.jsx';
 import { APP_NAME } from '../config.js';
 import { usePendingApprovalsQuery } from '../features/approvals/approvalApi.js';
@@ -66,16 +66,36 @@ function NavBadge({ collapsed }) {
 }
 
 /**
+ * The menu item for the page you are on: the longest menu path the address starts with, so a page that is not in
+ * the menu itself (a New form, a detail page) lights its list's item and opens its group — /purchases/new and
+ * /purchases/:id are Purchases, /purchases/orders/:id is Purchase orders. Pinned items (Dashboard) count only on
+ * their own page, or they would match everything.
+ */
+export function activeNavPath(groups, pathname) {
+  let best = null;
+  for (const g of groups) {
+    for (const i of g.items) {
+      if (matchPath({ path: i.path, end: Boolean(g.pinned) }, pathname) && (!best || i.path.length > best.length)) best = i.path;
+    }
+  }
+  return best;
+}
+
+const ActivePath = createContext(null);
+
+/**
  * One page link. `nested` items sit on the group's tree line (small dot instead of an icon tile when the sidebar
  * is open); the active page is a soft gold pill with a glowing icon.
  */
 function NavItem({ item, collapsed, nested = false, onNavigate }) {
   const Icon = item.icon;
+  const active = useContext(ActivePath) === item.path;
   const button = (
     <ListItemButton
-      component={NavLink}
+      component={Link}
       to={item.path}
-      end={item.end}
+      className={active ? 'active' : undefined}
+      aria-current={active ? 'page' : undefined}
       onClick={onNavigate}
       sx={{
         position: 'relative',
@@ -119,10 +139,10 @@ function NavItem({ item, collapsed, nested = false, onNavigate }) {
           color: s.muted,
         }}
       >
-        <Icon sx={{ fontSize: nested && !collapsed ? 17 : 18 }} />
+        <Icon sx={{ fontSize: nested && !collapsed ? { xs: 19, sm: 17 } : { xs: 20, sm: 18 } }} />
       </Box>
       {!collapsed && (
-        <Typography className="nav-label" noWrap sx={{ flex: 1, minWidth: 0, fontSize: nested ? '0.8375rem' : '0.875rem', fontWeight: 500, letterSpacing: '0.005em', color: 'inherit' }}>
+        <Typography className="nav-label" noWrap sx={{ flex: 1, minWidth: 0, fontSize: nested ? { xs: '0.9375rem', sm: '0.8375rem' } : { xs: '0.975rem', sm: '0.875rem' }, fontWeight: 500, letterSpacing: '0.005em', color: 'inherit' }}>
           {item.label}
         </Typography>
       )}
@@ -188,9 +208,9 @@ function GroupHeader({ group, open, active, onClick, fixed }) {
           transition: 'all 160ms ease',
         }}
       >
-        <Icon sx={{ fontSize: 18 }} />
+        <Icon sx={{ fontSize: { xs: 20, sm: 18 } }} />
       </Box>
-      <Typography noWrap sx={{ flex: 1, textAlign: 'left', fontSize: '0.875rem', fontWeight: open || active ? 600 : 500, color: 'inherit' }}>
+      <Typography noWrap sx={{ flex: 1, textAlign: 'left', fontSize: { xs: '0.975rem', sm: '0.875rem' }, fontWeight: open || active ? 600 : 500, color: 'inherit' }}>
         {group.label}
       </Typography>
       {!fixed && !open && active && <Box sx={{ width: 6, height: 6, borderRadius: '50%', background: s.goldGradient, boxShadow: '0 0 8px rgba(var(--brand-rgb), 0.8)' }} />}
@@ -298,7 +318,7 @@ function NavSearch({ value, onChange }) {
         onKeyDown={(e) => e.key === 'Escape' && onChange('')}
         placeholder="Find a page…"
         inputProps={{ 'aria-label': 'Find a page' }}
-        sx={{ flex: 1, fontSize: '0.8125rem', color: INK, '& input::placeholder': { color: s.muted, opacity: 1 } }}
+        sx={{ flex: 1, fontSize: { xs: '0.9375rem', sm: '0.8125rem' }, color: INK, '& input::placeholder': { color: s.muted, opacity: 1 } }}
       />
       {value && (
         <IconButton size="small" onClick={() => onChange('')} aria-label="Clear search" sx={{ p: 0.25, color: s.muted, '&:hover': { color: INK } }}>
@@ -328,10 +348,10 @@ function WorkspaceCard({ name, caption, collapsed }) {
     <Box sx={{ m: 1.5, p: 1.25, display: 'flex', alignItems: 'center', gap: 1.25, borderRadius: 2.5, border: '1px solid rgba(var(--brand-rgb), 0.18)', background: 'linear-gradient(145deg, rgba(var(--brand-rgb), 0.10), rgba(255, 255, 255, 0.01))' }}>
       {monogram}
       <Box sx={{ minWidth: 0 }}>
-        <Typography noWrap title={name} sx={{ fontSize: '0.8125rem', fontWeight: 600, color: INK, lineHeight: 1.3 }}>
+        <Typography noWrap title={name} sx={{ fontSize: { xs: '0.9375rem', sm: '0.8125rem' }, fontWeight: 600, color: INK, lineHeight: 1.3 }}>
           {name}
         </Typography>
-        <Typography noWrap sx={{ fontSize: '0.6875rem', color: s.muted, letterSpacing: '0.04em' }}>
+        <Typography noWrap sx={{ fontSize: { xs: '0.75rem', sm: '0.6875rem' }, color: s.muted, letterSpacing: '0.04em' }}>
           {caption}
         </Typography>
       </Box>
@@ -348,7 +368,8 @@ export default function Sidebar({ collapsed = false, onToggleCollapse, onClose, 
   const storeGroups = visibleNav(usePermissions(), { allBranches: session?.user?.allBranches ?? true });
   const groups = groupsProp ?? storeGroups;
   const location = useLocation();
-  const containsActive = (group) => group.items.some((i) => matchPath({ path: i.path, end: Boolean(i.end) }, location.pathname));
+  const activePath = activeNavPath(groups, location.pathname);
+  const containsActive = (group) => group.items.some((i) => i.path === activePath);
   // Accordion: only one group is open at a time. It starts as the group of the current page (so you can see where
   // you are); clicking another group opens it and closes the rest, clicking the open one closes it.
   // Pinned groups (Dashboard) are always visible and take no part in this.
@@ -439,6 +460,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse, onClose, 
           '&::-webkit-scrollbar-thumb': { borderRadius: 3, bgcolor: 'rgba(var(--brand-rgb), 0.25)' },
         }}
       >
+        <ActivePath.Provider value={activePath}>
         {collapsed ? (
           groups.map((group, index) => (
             <Box key={group.label}>
@@ -459,6 +481,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse, onClose, 
         ) : (
           groups.map((group) => <NavGroup key={group.label} group={group} fixed={fixedGroups} open={isOpen(group)} active={containsActive(group)} onToggle={() => toggleGroup(group.label)} onNavigate={onNavigate} />)
         )}
+        </ActivePath.Provider>
       </Box>
 
       {organisationName && (

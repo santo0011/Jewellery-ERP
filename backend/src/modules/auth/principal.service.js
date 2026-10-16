@@ -1,4 +1,4 @@
-import { ORG_STATUS, USER_STATUS } from '@jerp/shared';
+import { isBranchRole, ORG_STATUS, USER_STATUS } from '@jerp/shared';
 import { ApiError } from '../../utils/ApiError.js';
 import { Branch } from '../branches/branch.model.js';
 import { Organisation } from '../organisations/organisation.model.js';
@@ -9,11 +9,25 @@ import { organisationDeactivated } from '../organisations/organisationAccess.js'
 
 const SKIP = { skipTenant: true };
 
+/**
+ * The branches a user really works in — enforced here, whatever is stored: a branch login only ever its own branch,
+ * and someone whose roles are all branch roles (Branch Manager) never "all branches" (their listed branches, or their
+ * default branch). Everything else — permissions, data, menus — follows from this.
+ */
+export function effectiveBranchAccess(user, roles) {
+  if (user.branchLoginFor) return { all: false, branchIds: [String(user.branchLoginFor)] };
+  const stored = { all: Boolean(user.branchAccess?.all), branchIds: (user.branchAccess?.branchIds ?? []).map(String) };
+  if (stored.all && roles.length && roles.every((r) => isBranchRole(r.key))) {
+    return { all: false, branchIds: user.defaultBranchId ? [String(user.defaultBranchId)] : [] };
+  }
+  return stored;
+}
+
 export async function loadPrincipal({ sub, org, sid, tv }) {
   const [user, session, organisation] = await Promise.all([
     User.findOne({ _id: sub, organisationId: org })
       .setOptions(SKIP)
-      .select('name email status tokenVersion roleIds branchAccess defaultBranchId mustChangePassword')
+      .select('name email status tokenVersion roleIds branchAccess defaultBranchId mustChangePassword branchLoginFor')
       .lean(),
     Session.findOne({ _id: sid, userId: sub, realm: { $ne: 'platform' }, revokedAt: null, expiresAt: { $gt: new Date() } }).select('_id').lean(),
     Organisation.findById(org).select('status').lean(),
@@ -25,7 +39,7 @@ export async function loadPrincipal({ sub, org, sid, tv }) {
   if (user.status !== USER_STATUS.ACTIVE) throw ApiError.unauthorized('Your account is disabled', 'ACCOUNT_DISABLED');
   if (!organisation || organisation.status !== ORG_STATUS.ACTIVE) throw organisationDeactivated();
 
-  const roles = await Role.find({ _id: { $in: user.roleIds }, organisationId: org }).setOptions(SKIP).select('permissions').lean();
+  const roles = await Role.find({ _id: { $in: user.roleIds }, organisationId: org }).setOptions(SKIP).select('permissions key').lean();
   const permissions = new Set(roles.flatMap((r) => r.permissions));
 
   return {
@@ -35,7 +49,7 @@ export async function loadPrincipal({ sub, org, sid, tv }) {
     name: user.name,
     email: user.email,
     permissions,
-    branchAccess: { all: Boolean(user.branchAccess?.all), branchIds: (user.branchAccess?.branchIds ?? []).map(String) },
+    branchAccess: effectiveBranchAccess(user, roles),
     defaultBranchId: user.defaultBranchId ? String(user.defaultBranchId) : null,
     mustChangePassword: Boolean(user.mustChangePassword),
   };

@@ -1,5 +1,5 @@
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
-import { Alert, Box, Button, Card, CardContent, Chip, Grid, Link, Stack, Tab, Table, TableBody, TableCell, TableHead, TableRow, Tabs, Tooltip, Typography } from '@mui/material';
+import { Alert, Box, Button, Card, CardContent, Chip, Grid, Link, Stack, Table, TableBody, TableCell, TableHead, TableRow, Tooltip, Typography } from '@mui/material';
 import { ADDRESS_FIELDS, stateName, TRIAL_BRANCH_LIMIT } from '@jerp/shared';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
@@ -17,6 +17,7 @@ import EditHistory from '../../components/EditHistory.jsx';
 import { useDeleteOrganisationMutation, useOrganisationHistoryQuery, useOrganisationQuery, useSetOrganisationStatusMutation } from './platformApi.js';
 import OrgSubscriptionPanel, { OrgPaymentsTable } from './OrgSubscriptionPanel.jsx';
 import { formatAddress } from '../../components/form/PincodeAddressFields.jsx';
+import ViewTabs from '../../components/ViewTabs.jsx';
 
 /** Branches in use and where the limit comes from: the free trial (TRIAL_BRANCH_LIMIT, head office included) or the plan. */
 function BranchesCard({ org }) {
@@ -120,11 +121,15 @@ export default function AdminOrganisationDetailPage() {
           Deactivated: nobody in this organisation can sign in. Their data is kept.
         </Alert>
       )}
-      <Tabs value={tab} onChange={(e, v) => setTab(v)} variant="scrollable" sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
-        <Tab value="overview" label="Overview" />
-        <Tab value="payments" label="Activations & payments" />
-        <Tab value="history" label={history.data?.length ? `Edit history (${history.data.length})` : 'Edit history'} />
-      </Tabs>
+      <ViewTabs
+        value={tab}
+        onChange={setTab}
+        items={[
+          { value: 'overview', label: 'Overview' },
+          { value: 'payments', label: 'Activations & payments', short: 'Payments' },
+          { value: 'history', label: 'Edit history', short: 'History', count: history.data?.length || undefined },
+        ]}
+      />
       {tab === 'payments' && <OrgPaymentsTable orgId={org.id} />}
       {tab === 'history' && <EditHistory entries={history.data} isLoading={history.isLoading} error={history.error} />}
       {tab === 'overview' && (

@@ -12,6 +12,7 @@ import MoreDetails from '../../components/MoreDetails.jsx';
 import { applyServerErrors, getErrorMessage } from '../../utils/errors.js';
 import { useCreateAdvanceMutation, useEmployeeListQuery, useUpdateAdvanceMutation } from './hrApi.js';
 import { monthLabel, PAY_MODES, remapErrors, salaryMonth, todayIso } from './hrUi.jsx';
+import KeepOnPhone from '../../components/KeepOnPhone.jsx';
 
 const paiseOf = (v) => {
   try {
@@ -152,7 +153,7 @@ export default function AdvanceDrawer({ open, employee, advance, onClose }) {
           label="Amount"
           autoFocus
           {...money}
-          helperText={chosen?.grossPaise ? `Salary ${formatINR(chosen.grossPaise, { decimals: 0 })} / month` : ' '}
+          helperText={<KeepOnPhone>{chosen?.grossPaise ? `Salary ${formatINR(chosen.grossPaise, { decimals: 0 })} / month` : ' '}</KeepOnPhone>}
           sx={{ '& input': { fontSize: '1.25rem', fontWeight: 600 } }}
         />
 

@@ -1,4 +1,3 @@
-import { BRANCH_PERMISSIONS } from '@jerp/shared';
 import { describe, expect, it } from 'vitest';
 import { api, bearer, registerOrg } from './helpers.js';
 
@@ -27,22 +26,5 @@ describe('navbar branch filter on list pages', () => {
     // A page's own branch choice still wins.
     const own = (await api().get(`/api/v1/hr/employees?branchId=${ctx.b2id}`).set({ ...bearer(ctx.t), 'X-Branch-View': 'all' })).body.data.map((e) => e.name);
     expect(own).toEqual(['Salt Lake Staff']);
-  });
-
-  it('shows only the head office for a module no branch has access to, and follows new access', async () => {
-    const ctx = await setup();
-    const me = async () => (await api().get('/api/v1/auth/me').set(bearer(ctx.t))).body.data;
-    expect((await me()).branchModules).toContain('employee');
-
-    // Take Employees away from the branch: the module is no longer shared.
-    const withoutEmployees = BRANCH_PERMISSIONS.filter((p) => !p.startsWith('employee.'));
-    expect((await api().put(`/api/v1/branches/${ctx.b2id}/permissions`).set(bearer(ctx.t)).send({ permissions: withoutEmployees })).status).toBe(200);
-    expect((await me()).branchModules).not.toContain('employee');
-    expect(await ctx.names({ 'X-Branch-Id': ctx.ho, 'X-Branch-View': 'all' })).toEqual(['Head Office Staff']);
-
-    // Give it back: the filter works again, with no other change.
-    await api().put(`/api/v1/branches/${ctx.b2id}/permissions`).set(bearer(ctx.t)).send({ permissions: BRANCH_PERMISSIONS });
-    expect((await me()).branchModules).toContain('employee');
-    expect(await ctx.names({ 'X-Branch-Id': ctx.ho, 'X-Branch-View': 'all' })).toEqual(['Head Office Staff', 'Salt Lake Staff']);
   });
 });

@@ -1,4 +1,4 @@
-import { effectivePermissions, WILDCARD_PERMISSION } from '@jerp/shared';
+import { effectivePermissions, WILDCARD_PERMISSION, withinBranchAccess } from '@jerp/shared';
 import { runWithContext } from '../core/context/requestContext.js';
 import { loadPrincipal, resolveActiveBranch } from '../modules/auth/principal.service.js';
 import { verifyAccessToken } from '../modules/auth/token.service.js';
@@ -32,10 +32,12 @@ export async function authenticate(req, res, next) {
       throw new ApiError(402, 'SUBSCRIPTION_EXPIRED', 'Your subscription has ended. Renew it under Settings → Subscription to continue.');
     }
   }
-  const { branchId, allowedPermissions } = await resolveActiveBranch(principal, req.get('x-branch-id'));
+  const { branchId } = await resolveActiveBranch(principal, req.get('x-branch-id'));
   const rolePermissions = principal.permissions;
-  const permissions = new Set(effectivePermissions(rolePermissions, allowedPermissions));
-  const fullAccess = rolePermissions.has(WILDCARD_PERMISSION);
+  // What a user may do comes from their role alone (no per-branch module limits). Branch-limited users never hold
+  // organisation-level permissions, whatever their role says (see isOrganisationLevel).
+  const permissions = new Set(withinBranchAccess(effectivePermissions(rolePermissions, null), principal.branchAccess.all));
+  const fullAccess = rolePermissions.has(WILDCARD_PERMISSION) && principal.branchAccess.all;
 
   req.auth = { ...principal, permissions, rolePermissions, fullAccess, branchId };
 

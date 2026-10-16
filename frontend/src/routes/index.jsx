@@ -22,7 +22,6 @@ const OrganisationPage = lazyPage(() => import('../features/settings/Organisatio
 const AuditLogPage = lazyPage(() => import('../features/audit/AuditLogPage.jsx'));
 const BusinessSettingsPage = lazyPage(() => import('../features/settings/BusinessSettingsPage.jsx'));
 const PrintSettingsPage = lazyPage(() => import('../features/settings/PrintSettingsPage.jsx'));
-const UsersPage = lazyPage(() => import('../features/users/UsersPage.jsx'));
 const CategoriesPage = lazyPage(() => import('../features/categories/CategoriesPage.jsx'));
 const CustomerDetailPage = lazyPage(() => import('../features/customers/CustomerDetailPage.jsx'));
 const CustomersPage = lazyPage(() => import('../features/customers/CustomersPage.jsx'));
@@ -134,10 +133,9 @@ export const router = createBrowserRouter([
           { path: 'settings/organisation', element: guard('organisation.view', <OrganisationPage />) },
           { path: 'settings/branches', element: guard('branch.view', <BranchesPage />) },
           { path: 'settings/business', element: guard('settings.view', <BusinessSettingsPage />) },
-          { path: 'settings/print', element: guard('settings.view', <PrintSettingsPage />) },
+          { path: 'settings/print', element: guard('sales.print', <PrintSettingsPage />) },
           { path: 'settings/categories', element: guard('category.view', <CategoriesPage />) },
           { path: 'settings/subscription', element: guard('subscription.view', <SubscriptionPage />) },
-          { path: 'settings/users', element: guard('user.view', <UsersPage />) },
           { path: 'settings/roles', element: guard('role.view', <RolesPage />) },
           { path: 'settings/roles/new', element: guard('role.create', <RoleEditorPage />) },
           { path: 'settings/roles/:id', element: guard('role.view', <RoleEditorPage />) },

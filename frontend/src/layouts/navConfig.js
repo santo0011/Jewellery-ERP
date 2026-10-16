@@ -23,7 +23,6 @@ import RequestQuoteOutlinedIcon from '@mui/icons-material/RequestQuoteOutlined';
 import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined';
 import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
 import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettingsOutlined';
-import GroupOutlinedIcon from '@mui/icons-material/GroupOutlined';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import StorefrontOutlinedIcon from '@mui/icons-material/StorefrontOutlined';
 import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
@@ -31,7 +30,7 @@ import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
 import WorkspacePremiumOutlinedIcon from '@mui/icons-material/WorkspacePremiumOutlined';
 
 /** Anyone with at least one of these sees Reports (each report checks its own permission). */
-export const REPORT_PERMISSIONS = ['report.sales', 'report.inventory', 'report.customer', 'report.finance', 'payroll.view', 'attendance.view'];
+export const REPORT_PERMISSIONS = ['report.sales', 'report.inventory', 'report.customer', 'report.finance', 'purchase.view', 'payroll.view', 'attendance.view'];
 
 /** Always first and never folded away: a `pinned` group renders without a collapsible header. */
 export const DASHBOARD_GROUP = { label: 'Dashboard', pinned: true, items: [{ label: 'Dashboard', mobileLabel: 'Home', path: '/', icon: DashboardOutlinedIcon, end: true, mobile: true }] };
@@ -94,7 +93,7 @@ export const NAV_GROUPS = [
       { label: 'Branches', path: '/settings/branches', icon: AccountTreeOutlinedIcon, permission: 'branch.view' },
       { label: 'Business settings', path: '/settings/business', icon: TuneRoundedIcon, permission: 'settings.view' },
       // A branch's own invoice print design — for people who work in particular branches (the organisation sets its own under Business settings → Print).
-      { label: 'Print settings', path: '/settings/print', icon: PrintOutlinedIcon, permission: 'settings.view', ownBranchesOnly: true },
+      { label: 'Print settings', path: '/settings/print', icon: PrintOutlinedIcon, permission: 'sales.print', ownBranchesOnly: true },
       { label: 'Product categories', path: '/settings/categories', icon: CategoryOutlinedIcon, permission: 'category.view' },
       { label: 'Subscription', path: '/settings/subscription', icon: WorkspacePremiumOutlinedIcon, permission: 'subscription.view' },
     ],
@@ -103,7 +102,6 @@ export const NAV_GROUPS = [
     // The people who use it and what they may do.
     label: 'Users & access',
     items: [
-      { label: 'Users', path: '/settings/users', icon: GroupOutlinedIcon, permission: 'user.view' },
       { label: 'Roles & permissions', path: '/settings/roles', icon: AdminPanelSettingsOutlinedIcon, permission: 'role.view' },
       { label: 'Audit log', path: '/settings/audit-log', icon: HistoryRoundedIcon, permission: 'audit.view' },
     ],

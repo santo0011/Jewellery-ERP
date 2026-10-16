@@ -115,6 +115,37 @@ describe('customer money adds up everywhere', () => {
     expect(await everyScreen(ctx, c)).toMatchObject(same(0, { advanceLeft: 0, status: 'paid' }));
   });
 
+  it('an advance received as money can be lowered (the difference is paid back) and raised again', async () => {
+    const ctx = await setup();
+    const base = { name: 'Refund Das', mobile: '9876500022', address: { stateCode: '19' } };
+    const c = (await api().post('/api/v1/customers').set(bearer(ctx.t)).send({ ...base, openingBalancePaise: -3000000, advancePayment: { branchId: ctx.ho, mode: 'cash' } })).body.data;
+    const edit = (body) => api().put(`/api/v1/customers/${c.id}`).set(bearer(ctx.t)).send({ ...base, ...body });
+    const cash = () =>
+      runWithContext({ organisationId: ctx.orgId }, async () => {
+        const acc = await Account.findOne({ systemKey: 'cash' }).lean();
+        const entries = await JournalEntry.find({ 'lines.accountId': acc._id }).lean();
+        return entries.flatMap((e) => e.lines).filter((l) => String(l.accountId) === String(acc._id)).reduce((s, l) => s + l.debitPaise - l.creditPaise, 0);
+      });
+
+    // Lowering below what was received needs to say how the money goes back, on the field it belongs to.
+    const noMode = await edit({ openingBalancePaise: -1000000 });
+    expect(noMode.status).toBe(422);
+    expect(noMode.body.error.details[0].path).toBe('advancePayment.mode');
+
+    // ₹30,000 → ₹10,000: ₹20,000 paid back in cash; the customer's account and the cash book both move.
+    expect((await edit({ openingBalancePaise: -1000000, advancePayment: { branchId: ctx.ho, mode: 'cash' } })).status).toBe(200);
+    expect((await api().get(`/api/v1/customers/${c.id}`).set(bearer(ctx.t))).body.data).toMatchObject({ openingBalancePaise: -1000000, advanceReceivedPaise: 1000000, advanceLeftPaise: 1000000 });
+    expect(await ledgerBalance(ctx, c.id)).toBe(-1000000);
+    expect(await cash()).toBe(1000000);
+    const activity = (await api().get(`/api/v1/customers/${c.id}/activity`).set(bearer(ctx.t))).body.data;
+    expect(activity.payments.find((p) => p.kind === 'customer_advance_refund')).toMatchObject({ amountPaise: -2000000, mode: 'cash' });
+
+    // Raised again to ₹15,000: the extra ₹5,000 is a new receipt.
+    expect((await edit({ openingBalancePaise: -1500000, advancePayment: { branchId: ctx.ho, mode: 'cash' } })).status).toBe(200);
+    expect(await ledgerBalance(ctx, c.id)).toBe(-1500000);
+    expect(await cash()).toBe(1500000);
+  });
+
   it('an order advance shows while the order is open and is taken off the bill that delivers it, even when the order is not picked', async () => {
     const ctx = await setup();
     const c = (await api().post('/api/v1/customers').set(bearer(ctx.t)).send({ name: 'Order Customer', mobile: '9876500022', address: { stateCode: '19' } })).body.data;

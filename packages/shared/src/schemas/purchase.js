@@ -86,3 +86,13 @@ export const purchaseOrderListQuerySchema = listQuerySchema.extend({
   branchId: objectIdSchema.optional(),
   status: z.enum(['open', 'received', 'cancelled']).optional(),
 });
+
+/** A payment on a supplier's account (old balance first, then the oldest bills), from a branch's cash / bank. */
+export const supplierPaymentSchema = z.object({
+  branchId: objectIdSchema,
+  amountPaise: paise('Amount', { min: 1 }),
+  mode: z.enum(PURCHASE_PAY_MODES, { error: 'Select how it was paid' }),
+  reference: optionalText(60),
+  note: optionalText(200),
+  date: isoDate.optional(),
+});

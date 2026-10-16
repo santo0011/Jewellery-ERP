@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { APPROVAL_STATUS, hasPermission } from '@jerp/shared';
 import { withTransaction } from '../../config/db.js';
 import { User } from '../../modules/users/user.model.js';
@@ -5,6 +6,12 @@ import { ApiError } from '../../utils/ApiError.js';
 import { AUDIT_ACTIONS, recordAudit } from '../audit/audit.service.js';
 import { requireContext } from '../context/requestContext.js';
 import { ApprovalRequest } from './approvalRequest.model.js';
+
+/** A branch-limited user sees and decides only their own branches' requests. */
+function ownBranches() {
+  const { branchAccess } = requireContext();
+  return branchAccess?.all ? {} : { branchId: { $in: (branchAccess?.branchIds ?? []).map((b) => new mongoose.Types.ObjectId(b)) } };
+}
 
 /**
  * Modules register a handler per document type:
@@ -27,7 +34,7 @@ export async function requestApproval({ docType, docId, docNo, branchId, summary
 
 export async function listApprovals({ page, limit, status }) {
   const { permissions } = requireContext();
-  const filter = { docType: { $in: allowedDocTypes(permissions) } };
+  const filter = { docType: { $in: allowedDocTypes(permissions) }, ...ownBranches() };
   if (status) filter.status = status;
   const [items, total] = await Promise.all([
     ApprovalRequest.find(filter).sort({ status: 1, createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
@@ -56,12 +63,13 @@ export async function listApprovals({ page, limit, status }) {
 
 export async function pendingCount() {
   const { permissions } = requireContext();
-  return ApprovalRequest.countDocuments({ status: APPROVAL_STATUS.PENDING, docType: { $in: allowedDocTypes(permissions) } });
+  return ApprovalRequest.countDocuments({ status: APPROVAL_STATUS.PENDING, docType: { $in: allowedDocTypes(permissions) }, ...ownBranches() });
 }
 
 export async function decide(id, { decision, comment }) {
   const ctx = requireContext();
-  const request = await ApprovalRequest.findById(id);
+  // Only requests from a branch this user works in (another branch's request is "not found").
+  const request = await ApprovalRequest.findOne({ _id: id, ...ownBranches() });
   if (!request) throw ApiError.notFound('Approval request');
   const handler = handlers.get(request.docType);
   if (!handler || !hasPermission(ctx.permissions, handler.permission)) throw ApiError.forbidden();

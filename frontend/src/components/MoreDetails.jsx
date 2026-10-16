@@ -21,7 +21,7 @@ export default function MoreDetails({ title = 'More details', hint, defaultOpen 
         <Box>
           <Typography variant="subtitle2">{title}</Typography>
           {hint && (
-            <Typography variant="caption" color="textSecondary">
+            <Typography variant="caption" color="textSecondary" sx={{ display: { xs: 'none', sm: 'block' } }}>
               {hint}
             </Typography>
           )}

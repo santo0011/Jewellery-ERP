@@ -4,7 +4,7 @@ import MoreVertRoundedIcon from '@mui/icons-material/MoreVertRounded';
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
 import ReplayRoundedIcon from '@mui/icons-material/ReplayRounded';
 import {
-  Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, LinearProgress, Link, ListItemIcon, Menu, MenuItem, Stack, Tab, Tabs, TextField, Typography, useMediaQuery,
+  Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle, IconButton, LinearProgress, Link, ListItemIcon, Menu, MenuItem, Stack, TextField, Typography, useMediaQuery,
 } from '@mui/material';
 import { formatINR } from '@jerp/shared';
 import { useState } from 'react';
@@ -23,10 +23,11 @@ import AdvanceDrawer from './AdvanceDrawer.jsx';
 import { AdvanceActions } from './AdvanceHistory.jsx';
 import EmployeeAttendance from './EmployeeAttendance.jsx';
 import EmployeeDetailsTab from './EmployeeDetailsTab.jsx';
-import EmploymentHistory from './EmploymentHistory.jsx';
+import EmploymentHistory, { SalaryHistory } from './EmploymentHistory.jsx';
 import { EmployeePhotoEditor } from './EmployeePhoto.jsx';
 import { useEmployeeQuery, useSetEmployeeStatusMutation } from './hrApi.js';
 import { EmploymentChip, formatDays, monthLabel, PayrollStatusChip, todayIso } from './hrUi.jsx';
+import ViewTabs from '../../components/ViewTabs.jsx';
 
 const dayAfter = (iso) => new Date(Date.parse(`${iso}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
 
@@ -161,13 +162,17 @@ export default function EmployeeDetailPage() {
         </CardContent>
       </Card>
 
-      <Tabs value={tab} onChange={(ev, v) => setTab(v)} variant="scrollable" sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
-        <Tab value="details" label="Details" />
-        {att && <Tab value="attendance" label="Attendance" />}
-        {e.payslips && <Tab value="payslips" label={`Payslips (${e.payslips.length})`} />}
-        <Tab value="history" label={`History (${e.history?.length ?? 0})`} />
-        {e.advances && <Tab value="advances" label={openAdvances ? `Advances (${openAdvances} open)` : `Advances (${e.advances.length})`} />}
-      </Tabs>
+      <ViewTabs
+        value={tab}
+        onChange={setTab}
+        items={[
+          { value: 'details', label: 'Details' },
+          att && { value: 'attendance', label: 'Attendance' },
+          e.payslips && { value: 'payslips', label: 'Payslips', count: e.payslips.length },
+          { value: 'history', label: 'History', count: e.history?.length ?? 0 },
+          e.advances && { value: 'advances', label: 'Advances', count: openAdvances ? `${openAdvances} open` : e.advances.length },
+        ]}
+      />
 
       {tab === 'details' && <EmployeeDetailsTab employee={e} />}
 
@@ -188,7 +193,12 @@ export default function EmployeeDetailPage() {
         />
       )}
 
-      {tab === 'history' && <EmploymentHistory employee={e} />}
+      {tab === 'history' && (
+        <Stack spacing={2}>
+          <EmploymentHistory employee={e} />
+          {e.salaryHistory && <SalaryHistory rows={e.salaryHistory} />}
+        </Stack>
+      )}
 
       {tab === 'advances' && e.advances && (
         <DataTable

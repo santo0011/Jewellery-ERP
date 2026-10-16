@@ -106,7 +106,7 @@ export default function EmployeeFormDrawer({ open, employee, onClose }) {
         await savePhoto(created.id);
         toast.success(`${created.name} added as ${created.code}`);
         onClose();
-        navigate(`/hr/employees/${created.id}`);
+        navigate('/hr/employees');
       }
     } catch (err) {
       if (!applyServerErrors(remapErrors(err, { basicPaise: 'basic', allowancePaise: 'allowance' }), setError)) toast.error(getErrorMessage(err));

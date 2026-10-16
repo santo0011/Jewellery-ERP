@@ -1,12 +1,13 @@
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import { Box, Button, Chip, CircularProgress, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, IconButton, Stack, Tooltip } from '@mui/material';
+import { Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogContentText, DialogTitle, IconButton, Stack, Tooltip } from '@mui/material';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { useDeleteRecordMutation, useLazyDeleteCheckQuery } from '../services/recordApi.js';
 import { getErrorMessage } from '../utils/errors.js';
 import DisabledDelete from './DisabledDelete.jsx';
+import PulseLoader from './PulseLoader.jsx';
 import ViewButton from './ViewButton.jsx';
 
 export { DisabledDelete };
@@ -51,7 +52,7 @@ export function DeleteAction({ type, id, name, status, onDeleted, size = 'small'
       <Dialog open={open} onClose={close} maxWidth="xs" fullWidth>
         {!ready && !error ? (
           <DialogContent sx={{ display: 'grid', placeItems: 'center', py: 5 }}>
-            <CircularProgress size={28} />
+            <PulseLoader size={18} />
           </DialogContent>
         ) : error ? (
           <>

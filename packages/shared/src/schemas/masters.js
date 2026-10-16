@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import {
+  ADVANCE_PAYMENT_MODES,
   CUSTOMER_SEGMENTS,
   JEWELLERY_TYPES,
   KYC_DOC_TYPES,
@@ -60,6 +61,15 @@ export const customerSchema = z.object({
   preferredMetals: z.array(z.enum(values(METAL_OPTIONS))).max(3).default([]),
   tags,
   openingBalancePaise: int('Opening balance', { min: -1e12, max: 1e12 }).default(0),
+  // An advance (or a bigger one on edit) paid now: how and at which branch. Left out, the advance is an old balance.
+  advancePayment: z
+    .object({
+      branchId: objectIdSchema,
+      mode: z.enum(ADVANCE_PAYMENT_MODES, { error: 'Select how the advance was paid' }),
+      reference: optionalText(60),
+    })
+    .nullable()
+    .optional(),
   notes: optionalText(1000),
 });
 
@@ -90,7 +100,8 @@ export const supplierSchema = z.object({
     .default({}),
   supplies: z.array(z.enum(values(SUPPLIER_SUPPLIES))).max(8).default([]),
   paymentTermsDays: int('Payment terms', { max: 365 }).default(0),
-  openingBalancePaise: int('Opening balance', { min: -1e12, max: 1e12 }).default(0),
+  // Old balance: what we owe the supplier from before (never minus — a supplier we paid ahead is not kept here).
+  openingBalancePaise: z.number({ error: 'Old balance is required' }).int('Old balance must be a whole number').min(0, 'Old balance cannot be negative').max(1e12, 'Old balance is too large').default(0),
   openingFineGoldMg: int('Opening gold', { min: -1e9, max: 1e9 }).default(0),
   openingFineSilverMg: int('Opening silver', { min: -1e10, max: 1e10 }).default(0),
   notes: optionalText(1000),

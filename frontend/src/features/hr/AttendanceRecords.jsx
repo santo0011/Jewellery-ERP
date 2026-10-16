@@ -1,11 +1,15 @@
 import ChevronLeftRoundedIcon from '@mui/icons-material/ChevronLeftRounded';
 import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
+import BadgeOutlinedIcon from '@mui/icons-material/BadgeOutlined';
+import BeachAccessOutlinedIcon from '@mui/icons-material/BeachAccessOutlined';
+import EventBusyOutlinedIcon from '@mui/icons-material/EventBusyOutlined';
 import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
+import TimelapseRoundedIcon from '@mui/icons-material/TimelapseRounded';
 import { Alert, Box, Card, IconButton, Link, Stack, Table, TableBody, TableCell, TableHead, TableRow, TextField, Tooltip, Typography } from '@mui/material';
 import { ATTENDANCE_STATUSES } from '@jerp/shared';
 import { useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router';
-import StatTile from '../../components/StatTile.jsx';
+import SummaryCards, { SummaryCard } from '../../components/SummaryCards.jsx';
 import { EmptyState, ErrorState, LoadingState } from '../../components/StateViews.jsx';
 import { useAttendanceRegisterQuery } from './hrApi.js';
 import { formatDays, monthLabel, thisMonth } from './hrUi.jsx';
@@ -59,20 +63,21 @@ export default function AttendanceRecords({ branchId, branchPicker }) {
 
   return (
     <>
-      <Card sx={{ mb: 2, p: 2 }}>
+      {/* Phones: the month picker takes the full row (the field fills what the arrows leave). */}
+      <Card sx={{ mb: 2, p: { xs: 1.5, sm: 2 } }}>
         <Stack direction="row" sx={{ alignItems: 'center', flexWrap: 'wrap', gap: 1.5 }}>
           {branchPicker}
-          <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
+          <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', width: { xs: '100%', sm: 'auto' }, minWidth: 0 }}>
             <IconButton aria-label="Previous month" onClick={() => setMonth(shiftMonth(month, -1))}>
               <ChevronLeftRoundedIcon />
             </IconButton>
-            <TextField label="Month" type="month" value={month} onChange={(e) => e.target.value && setMonth(e.target.value)} slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: thisMonth() } }} sx={{ width: 200 }} />
+            <TextField label="Month" type="month" value={month} onChange={(e) => e.target.value && setMonth(e.target.value)} slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: thisMonth() } }} sx={{ width: { xs: 'auto', sm: 200 }, flex: { xs: 1, sm: 'none' }, minWidth: 0 }} />
             <IconButton aria-label="Next month" onClick={() => setMonth(shiftMonth(month, 1))} disabled={month >= thisMonth()}>
               <ChevronRightRoundedIcon />
             </IconButton>
           </Stack>
           {holidays.length > 0 && (
-            <Typography variant="body2" color="textSecondary" sx={{ ml: 'auto' }}>
+            <Typography variant="body2" color="textSecondary" sx={{ ml: { sm: 'auto' }, width: { xs: '100%', sm: 'auto' } }}>
               Holidays: {holidays.map(([d, n]) => `${Number(d.slice(8))} ${n}`).join(' · ')}
             </Typography>
           )}
@@ -95,12 +100,12 @@ export default function AttendanceRecords({ branchId, branchPicker }) {
         </Card>
       ) : (
         <Box sx={{ opacity: isFetching ? 0.6 : 1, transition: 'opacity 120ms' }}>
-          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', md: 'repeat(4, 1fr)' }, gap: 1.5, mb: 2 }}>
-            <StatTile label="Staff" value={rows.length} />
-            <StatTile label="Absent days" value={totals.absent} tone={totals.absent ? 'error.main' : undefined} />
-            <StatTile label="Half days" value={totals.half} tone={totals.half ? 'warning.main' : undefined} />
-            <StatTile label="Paid leave days" value={totals.leave} />
-          </Box>
+          <SummaryCards>
+            <SummaryCard icon={BadgeOutlinedIcon} label="Staff" value={rows.length} caption={`On the rolls in ${monthLabel(month)}`} />
+            <SummaryCard icon={EventBusyOutlinedIcon} label="Absent days" value={totals.absent} caption={totals.absent ? 'Not paid' : 'No one absent'} tone={totals.absent ? 'red' : 'grey'} valueTone={totals.absent ? 'due' : undefined} />
+            <SummaryCard icon={TimelapseRoundedIcon} label="Half days" value={totals.half} caption={totals.half ? 'Paid half' : 'No half days'} tone={totals.half ? 'amber' : 'grey'} />
+            <SummaryCard icon={BeachAccessOutlinedIcon} label="Paid leave days" value={totals.leave} caption={totals.leave ? 'Paid in full' : 'No leave taken'} tone="blue" />
+          </SummaryCards>
 
           <Card sx={{ mb: 2 }}>
             <Box sx={{ overflowX: 'auto' }}>
@@ -191,7 +196,8 @@ export default function AttendanceRecords({ branchId, branchPicker }) {
                   </Typography>
                 </Stack>
               ))}
-              <Typography variant="caption" color="textSecondary">
+              {/* The longer key is for desktop; phones keep only the status colours above. */}
+              <Typography variant="caption" color="textSecondary" sx={{ display: { xs: 'none', sm: 'block' } }}>
                 · not marked (present) · faded W = weekly off / holiday, not marked · grey column = day off
               </Typography>
             </Stack>
@@ -204,7 +210,16 @@ export default function AttendanceRecords({ branchId, branchPicker }) {
             <Typography variant="body2" color="textSecondary" sx={{ px: 2, pb: 1 }}>
               Paid days are what payroll uses: absent days are not paid, a half day is paid half.
             </Typography>
-            <Table size="small" sx={{ '& th': { fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'text.secondary' } }}>
+            {/* Eight columns do not fit a phone: the table scrolls sideways inside the card, the name column stays put. */}
+            <Box sx={{ overflowX: 'auto' }}>
+            <Table
+              size="small"
+              sx={{
+                minWidth: 640,
+                '& th': { fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'text.secondary', whiteSpace: 'nowrap' },
+                '& td:first-of-type, & th:first-of-type': { position: 'sticky', left: 0, zIndex: 1, bgcolor: 'background.paper' },
+              }}
+            >
               <TableHead>
                 <TableRow>
                   <TableCell>Employee</TableCell>
@@ -247,6 +262,7 @@ export default function AttendanceRecords({ branchId, branchPicker }) {
                 ))}
               </TableBody>
             </Table>
+            </Box>
           </Card>
         </Box>
       )}

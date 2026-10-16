@@ -68,6 +68,60 @@ function allocate(amount, { openingDuePaise, bills }, saleId) {
   return allocations;
 }
 
+/** Advance the customer paid as money (receipts), as opposed to an old advance carried over as opening balance. */
+export async function advanceReceived(customerId, { session } = {}) {
+  const rows = await CustomerReceipt.find({ customerId, kind: 'advance' }).select('amountPaise').session(session ?? null).lean();
+  return rows.reduce((n, r) => n + r.amountPaise, 0);
+}
+
+/**
+ * An advance paid now, when the customer is added (or their advance raised): a receipt at the branch on today's date,
+ * cash/bank debited and the customer's account credited — the same side as the minus opening balance it is part of.
+ * A minus amount is an advance paid back (the advance lowered below what was received): the same entry reversed.
+ */
+export async function recordAdvanceReceipt(customer, { branchId, mode, reference }, amountPaise, { session }) {
+  const { userId } = requireContext();
+  const branch = await requireBranch(branchId, { path: 'advancePayment.branchId' });
+  const today = await todayContext();
+  const receiptNo = await nextDocumentNo({ prefix: 'ADV', branchCode: branch.code, financialYear: today.financialYear }, { session });
+  const [doc] = await CustomerReceipt.create(
+    [
+      {
+        receiptNo,
+        kind: 'advance',
+        customerId: customer._id,
+        customer: { id: customer._id, code: customer.code, name: customer.name, mobile: customer.mobile },
+        branchId: branch._id,
+        businessDate: today.businessDate,
+        mode,
+        amountPaise,
+        reference: reference ?? null,
+        note: null,
+        allocations: [],
+        createdBy: userId,
+      },
+    ],
+    { session },
+  );
+  const refund = amountPaise < 0;
+  const amount = Math.abs(amountPaise);
+  const money = { account: PAYMENT_ACCOUNT[mode], branchId: branch._id };
+  const party = { account: 'sundry_debtors', branchId: branch._id, party: { type: 'customer', id: customer._id } };
+  await postJournal(
+    {
+      voucherType: 'customer_advance',
+      date: today.now,
+      businessDate: today.businessDate,
+      financialYear: today.financialYear,
+      narration: refund ? `Advance refunded to ${customer.name} (${receiptNo})` : `Advance received from ${customer.name} (${receiptNo})`,
+      source: { docType: 'customer_receipt', docId: doc._id, docNo: receiptNo },
+      lines: refund ? [{ ...party, debit: amount }, { ...money, credit: amount }] : [{ ...money, debit: amount }, { ...party, credit: amount }],
+    },
+    { session },
+  );
+  return doc;
+}
+
 export async function collectPayment(customerId, { branchId, mode, amountPaise, reference, note, saleId }) {
   const { userId } = requireContext();
   const branch = await requireBranch(branchId);

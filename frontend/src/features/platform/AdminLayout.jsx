@@ -9,10 +9,11 @@ import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import ManageAccountsOutlinedIcon from '@mui/icons-material/ManageAccountsOutlined';
 import { AppBar, Avatar, Box, ButtonBase, Drawer, IconButton, ListItemIcon, Menu, MenuItem, Toolbar, Typography, useMediaQuery, useScrollTrigger } from '@mui/material';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { Outlet, useNavigate } from 'react-router';
 import ConfirmDialog from '../../components/ConfirmDialog.jsx';
+import { applyDefaultBrand, applyRememberedBrand } from '../../theme/brandMemory.js';
 import Sidebar from '../../layouts/Sidebar.jsx';
 import { usePlatformLogoutMutation, usePlatformMeQuery } from './platformApi.js';
 import { platformSessionEnded } from './platformSlice.js';
@@ -108,6 +109,11 @@ const readCollapsed = () => {
 
 export default function AdminLayout() {
   const desktop = useMediaQuery((theme) => theme.breakpoints.up('md'));
+  // The Super Admin panel keeps the default colours and icon (not the last organisation's).
+  useEffect(() => {
+    applyDefaultBrand();
+    return () => applyRememberedBrand();
+  }, []);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const dispatch = useDispatch();

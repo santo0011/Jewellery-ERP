@@ -49,7 +49,7 @@ function Section({ icon: Icon, title, caption, children, action }) {
               {title}
             </Typography>
             {caption && (
-              <Typography variant="caption" color="textSecondary">
+              <Typography variant="caption" color="textSecondary" sx={{ display: { xs: 'none', sm: 'block' } }}>
                 {caption}
               </Typography>
             )}
