@@ -139,10 +139,10 @@ function NavItem({ item, collapsed, nested = false, onNavigate }) {
           color: s.muted,
         }}
       >
-        <Icon sx={{ fontSize: nested && !collapsed ? 17 : 18 }} />
+        <Icon sx={{ fontSize: nested && !collapsed ? { xs: 19, sm: 17 } : { xs: 20, sm: 18 } }} />
       </Box>
       {!collapsed && (
-        <Typography className="nav-label" noWrap sx={{ flex: 1, minWidth: 0, fontSize: nested ? '0.8375rem' : '0.875rem', fontWeight: 500, letterSpacing: '0.005em', color: 'inherit' }}>
+        <Typography className="nav-label" noWrap sx={{ flex: 1, minWidth: 0, fontSize: nested ? { xs: '0.9375rem', sm: '0.8375rem' } : { xs: '0.975rem', sm: '0.875rem' }, fontWeight: 500, letterSpacing: '0.005em', color: 'inherit' }}>
           {item.label}
         </Typography>
       )}
@@ -208,9 +208,9 @@ function GroupHeader({ group, open, active, onClick, fixed }) {
           transition: 'all 160ms ease',
         }}
       >
-        <Icon sx={{ fontSize: 18 }} />
+        <Icon sx={{ fontSize: { xs: 20, sm: 18 } }} />
       </Box>
-      <Typography noWrap sx={{ flex: 1, textAlign: 'left', fontSize: '0.875rem', fontWeight: open || active ? 600 : 500, color: 'inherit' }}>
+      <Typography noWrap sx={{ flex: 1, textAlign: 'left', fontSize: { xs: '0.975rem', sm: '0.875rem' }, fontWeight: open || active ? 600 : 500, color: 'inherit' }}>
         {group.label}
       </Typography>
       {!fixed && !open && active && <Box sx={{ width: 6, height: 6, borderRadius: '50%', background: s.goldGradient, boxShadow: '0 0 8px rgba(var(--brand-rgb), 0.8)' }} />}
@@ -318,7 +318,7 @@ function NavSearch({ value, onChange }) {
         onKeyDown={(e) => e.key === 'Escape' && onChange('')}
         placeholder="Find a page…"
         inputProps={{ 'aria-label': 'Find a page' }}
-        sx={{ flex: 1, fontSize: '0.8125rem', color: INK, '& input::placeholder': { color: s.muted, opacity: 1 } }}
+        sx={{ flex: 1, fontSize: { xs: '0.9375rem', sm: '0.8125rem' }, color: INK, '& input::placeholder': { color: s.muted, opacity: 1 } }}
       />
       {value && (
         <IconButton size="small" onClick={() => onChange('')} aria-label="Clear search" sx={{ p: 0.25, color: s.muted, '&:hover': { color: INK } }}>
@@ -348,10 +348,10 @@ function WorkspaceCard({ name, caption, collapsed }) {
     <Box sx={{ m: 1.5, p: 1.25, display: 'flex', alignItems: 'center', gap: 1.25, borderRadius: 2.5, border: '1px solid rgba(var(--brand-rgb), 0.18)', background: 'linear-gradient(145deg, rgba(var(--brand-rgb), 0.10), rgba(255, 255, 255, 0.01))' }}>
       {monogram}
       <Box sx={{ minWidth: 0 }}>
-        <Typography noWrap title={name} sx={{ fontSize: '0.8125rem', fontWeight: 600, color: INK, lineHeight: 1.3 }}>
+        <Typography noWrap title={name} sx={{ fontSize: { xs: '0.9375rem', sm: '0.8125rem' }, fontWeight: 600, color: INK, lineHeight: 1.3 }}>
           {name}
         </Typography>
-        <Typography noWrap sx={{ fontSize: '0.6875rem', color: s.muted, letterSpacing: '0.04em' }}>
+        <Typography noWrap sx={{ fontSize: { xs: '0.75rem', sm: '0.6875rem' }, color: s.muted, letterSpacing: '0.04em' }}>
           {caption}
         </Typography>
       </Box>

@@ -1,5 +1,9 @@
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Alert, Button, Checkbox, FormControlLabel, Link, Stack } from '@mui/material';
+import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
+import LockOutlinedIcon from '@mui/icons-material/LockOutlined';
+import MailOutlineRoundedIcon from '@mui/icons-material/MailOutlineRounded';
+import VerifiedUserOutlinedIcon from '@mui/icons-material/VerifiedUserOutlined';
+import { Alert, Button, Checkbox, FormControlLabel, InputAdornment, Link, Stack, Typography } from '@mui/material';
 import { loginSchema } from '@jerp/shared/schemas';
 import { useEffect, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
@@ -43,8 +47,9 @@ export default function LoginPage() {
 
   return (
     <AuthCard
+      eyebrow="Welcome back"
       title="Sign in"
-      subtitle="Welcome back. Sign in to manage your store."
+      subtitle="Manage your store, stock and sales in one place."
       footer={
         config?.publicSignup && (
           <>
@@ -58,8 +63,16 @@ export default function LoginPage() {
     >
       <Stack component="form" spacing={2} noValidate onSubmit={onSubmit} onChange={() => error && reset()}>
         {error ? <Alert severity="error">{getErrorMessage(error)}</Alert> : signedOutReason && <Alert severity="warning">{signedOutReason}</Alert>}
-        <RHFTextField control={control} name="email" label="Email" type="email" autoComplete="email" autoFocus />
-        <PasswordField control={control} name="password" label="Password" autoComplete="current-password" />
+        <RHFTextField
+          control={control}
+          name="email"
+          label="Email"
+          type="email"
+          autoComplete="email"
+          autoFocus
+          slotProps={{ input: { startAdornment: <InputAdornment position="start"><MailOutlineRoundedIcon fontSize="small" sx={{ color: 'text.secondary' }} /></InputAdornment> } }}
+        />
+        <PasswordField control={control} name="password" label="Password" autoComplete="current-password" startIcon={LockOutlinedIcon} />
         <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
           <Controller
             name="rememberMe"
@@ -76,9 +89,32 @@ export default function LoginPage() {
             Forgot password?
           </Link>
         </Stack>
-        <Button type="submit" variant="contained" size="large" loading={isLoading} fullWidth>
+        <Button
+          type="submit"
+          variant="contained"
+          size="large"
+          loading={isLoading}
+          fullWidth
+          endIcon={!isLoading && <ArrowForwardRoundedIcon />}
+          sx={{
+            minHeight: { xs: 46, md: 42 },
+            fontSize: { xs: '0.975rem', md: '0.9375rem' },
+            letterSpacing: '0.02em',
+            borderRadius: 2.5,
+            background: 'linear-gradient(135deg, var(--brand-light) 0%, var(--brand) 45%, var(--brand-deep) 100%)',
+            color: 'var(--brand-contrast)',
+            boxShadow: '0 10px 24px -10px rgba(var(--brand-rgb), 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.35)',
+            '&:hover': { boxShadow: '0 14px 30px -10px rgba(var(--brand-rgb), 0.95), inset 0 1px 0 rgba(255, 255, 255, 0.35)', filter: 'brightness(1.04)' },
+            '& .MuiButton-endIcon': { transition: 'transform 160ms ease' },
+            '&:hover .MuiButton-endIcon': { transform: 'translateX(3px)' },
+          }}
+        >
           Sign in
         </Button>
+        <Stack direction="row" spacing={0.75} sx={{ justifyContent: 'center', alignItems: 'center', color: 'text.secondary', pt: 0.5 }}>
+          <VerifiedUserOutlinedIcon sx={{ fontSize: 15, color: 'var(--brand-strong)' }} />
+          <Typography variant="caption">Encrypted, secure sign-in</Typography>
+        </Stack>
       </Stack>
     </AuthCard>
   );

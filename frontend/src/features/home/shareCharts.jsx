@@ -94,8 +94,8 @@ export function AreaChart({ data, height = 240, formatValue = (v) => formatINR(v
         </defs>
         {ticks.map((t) => (
           <g key={t}>
-            <Box component="line" x1={pad.left} x2={width - pad.right} y1={y(t)} y2={y(t)} sx={{ stroke: t === 0 ? 'text.disabled' : 'divider', strokeWidth: 1 }} />
-            <Box component="text" x={pad.left - 8} y={y(t)} dy="0.32em" textAnchor="end" sx={{ fontSize: 11, fill: 'text.secondary', fontVariantNumeric: 'tabular-nums' }}>
+            <Box component="line" x1={pad.left} x2={width - pad.right} y1={y(t)} y2={y(t)} sx={{ stroke: t === 0 ? 'var(--mui-palette-text-disabled)' : 'var(--mui-palette-divider)', strokeWidth: 1 }} />
+            <Box component="text" x={pad.left - 8} y={y(t)} dy="0.32em" textAnchor="end" sx={{ fontSize: 11, fill: 'var(--mui-palette-text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
               {formatAxis(t)}
             </Box>
           </g>
@@ -108,14 +108,14 @@ export function AreaChart({ data, height = 240, formatValue = (v) => formatINR(v
         )}
         {data.map((d, i) =>
           i % labelEvery === 0 ? (
-            <Box key={d.key} component="text" x={x(i)} y={height - 8} textAnchor="middle" sx={{ fontSize: 11, fill: 'text.secondary' }}>
+            <Box key={d.key} component="text" x={x(i)} y={height - 8} textAnchor="middle" sx={{ fontSize: 11, fill: 'var(--mui-palette-text-secondary)' }}>
               {d.label}
             </Box>
           ) : null,
         )}
         {hovered && !allZero && (
           <g>
-            <Box component="line" x1={x(active)} x2={x(active)} y1={pad.top} y2={pad.top + innerH} sx={{ stroke: 'text.disabled', strokeWidth: 1, strokeDasharray: '3 3' }} />
+            <Box component="line" x1={x(active)} x2={x(active)} y1={pad.top} y2={pad.top + innerH} sx={{ stroke: 'var(--mui-palette-text-disabled)', strokeWidth: 1, strokeDasharray: '3 3' }} />
             <Box component="circle" cx={x(active)} cy={y(hovered.value)} r={5} sx={(theme) => ({ fill: GOLD, stroke: theme.palette.background.paper, strokeWidth: 2, ...theme.applyStyles('dark', { fill: GOLD_DARK }) })} />
           </g>
         )}
