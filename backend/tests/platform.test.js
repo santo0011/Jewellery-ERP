@@ -1,6 +1,5 @@
 import bcrypt from 'bcryptjs';
 import { describe, expect, it } from 'vitest';
-import { BRANCH_PERMISSIONS } from '@jerp/shared';
 import { runWithContext } from '../src/core/context/requestContext.js';
 import { PlatformAdmin } from '../src/modules/platform/platformAdmin.model.js';
 import { Role } from '../src/modules/roles/role.model.js';
@@ -213,78 +212,6 @@ describe('super admin', () => {
     await api().patch(`/api/v1/platform/organisations/${org.id}/status`).set(bearer(sa.token)).send({ status: 'active' });
     expect((await api().post('/api/v1/auth/refresh').set('Cookie', cookie)).body.error.code).toBe('REFRESH_INVALID');
     expect((await api().post('/api/v1/auth/login').send({ email: body.email, password: 'Temp1234' })).status).toBe(200);
-  });
-});
-
-describe('branch permissions', () => {
-  async function setup() {
-    const owner = await registerOrg();
-    const me = (await api().get('/api/v1/auth/me').set(bearer(owner.token))).body.data;
-    const kol = (await api().post('/api/v1/branches').set(bearer(owner.token)).send(branch('KOL'))).body.data;
-    return { owner: owner.token, orgId: me.organisation.id, ho: me.branches[0].id, kol: kol._id };
-  }
-
-  const kolkataAccess = BRANCH_PERMISSIONS.filter((p) => ['sales.', 'customer.', 'inventory.', 'product.', 'order.'].some((m) => p.startsWith(m)));
-
-  it('defaults to everything, and the organisation can restrict a branch', async () => {
-    const ctx = await setup();
-    const before = (await api().get(`/api/v1/branches/${ctx.kol}`).set(bearer(ctx.owner))).body.data;
-    expect(before.allowedPermissions).toHaveLength(BRANCH_PERMISSIONS.length);
-
-    const res = await api().put(`/api/v1/branches/${ctx.kol}/permissions`).set(bearer(ctx.owner)).send({ permissions: kolkataAccess });
-    expect(res.status).toBe(200);
-    expect(res.body.data.allowedPermissions).toEqual(kolkataAccess);
-
-    const orgLevel = await api().put(`/api/v1/branches/${ctx.kol}/permissions`).set(bearer(ctx.owner)).send({ permissions: ['role.create'] });
-    expect(orgLevel.status).toBe(400);
-  });
-
-  it('limits what users can do while working in that branch — on the server', async () => {
-    const ctx = await setup();
-    await api().put(`/api/v1/branches/${ctx.kol}/permissions`).set(bearer(ctx.owner)).send({ permissions: kolkataAccess });
-
-    const inKolkata = (await api().get('/api/v1/auth/me').set(bearer(ctx.owner)).set('X-Branch-Id', ctx.kol)).body.data;
-    expect(inKolkata.activeBranchId).toBe(ctx.kol);
-    expect(inKolkata.permissions).toContain('sales.create');
-    expect(inKolkata.permissions).not.toContain('supplier.create');
-    expect(inKolkata.permissions).not.toContain('payroll.view');
-    expect(inKolkata.permissions).toContain('role.create');
-
-    const blocked = await api().post('/api/v1/suppliers').set(bearer(ctx.owner)).set('X-Branch-Id', ctx.kol).send({ companyName: 'Vendor', mobile: '9830011111', address: {} });
-    expect(blocked.status).toBe(403);
-    const allowed = await api().post('/api/v1/suppliers').set(bearer(ctx.owner)).set('X-Branch-Id', ctx.ho).send({ companyName: 'Vendor', mobile: '9830011111', address: {} });
-    expect(allowed.status).toBe(201);
-  });
-
-  it('applies to branch staff by default branch and never grants more than their role', async () => {
-    const ctx = await setup();
-    await api().put(`/api/v1/branches/${ctx.kol}/permissions`).set(bearer(ctx.owner)).send({ permissions: ['customer.view', 'sales.view'] });
-
-    const email = `staff${Date.now()}@abc.local`;
-    await runWithContext({ organisationId: ctx.orgId }, async () => {
-      const role = await Role.create({ key: `k${Date.now()}`, name: 'Counter', permissions: ['customer.view', 'customer.create', 'product.view'] });
-      await User.create({ name: 'Counter Staff', email, passwordHash: await bcrypt.hash('Secret123', 4), roleIds: [role._id], branchAccess: { all: false, branchIds: [ctx.kol] }, defaultBranchId: ctx.kol });
-    });
-    const staff = (await api().post('/api/v1/auth/login').send({ email, password: 'Secret123' })).body.data.accessToken;
-
-    const me = (await api().get('/api/v1/auth/me').set(bearer(staff))).body.data;
-    expect(me.permissions.sort()).toEqual(['customer.view']);
-    expect((await api().get('/api/v1/customers').set(bearer(staff))).status).toBe(200);
-    expect((await api().post('/api/v1/customers').set(bearer(staff)).send({ name: 'Walk In', mobile: '9830099999', address: {} })).status).toBe(403);
-    expect((await api().get('/api/v1/products').set(bearer(staff))).status).toBe(403);
-    expect((await api().get('/api/v1/auth/me').set(bearer(staff)).set('X-Branch-Id', ctx.ho)).status).toBe(403);
-  });
-
-  it('only the organisation (all-branch users with branch.edit) can change branch access', async () => {
-    const ctx = await setup();
-    const email = `mgr${Date.now()}@abc.local`;
-    await runWithContext({ organisationId: ctx.orgId }, async () => {
-      const role = await Role.create({ key: `m${Date.now()}`, name: 'Manager', permissions: ['branch.view', 'branch.edit'] });
-      await User.create({ name: 'Branch Manager', email, passwordHash: await bcrypt.hash('Secret123', 4), roleIds: [role._id], branchAccess: { all: false, branchIds: [ctx.kol] } });
-    });
-    const manager = (await api().post('/api/v1/auth/login').send({ email, password: 'Secret123' })).body.data.accessToken;
-    const res = await api().put(`/api/v1/branches/${ctx.kol}/permissions`).set(bearer(manager)).send({ permissions: BRANCH_PERMISSIONS });
-    expect(res.status).toBe(403);
   });
 });
 

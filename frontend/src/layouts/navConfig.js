@@ -23,7 +23,6 @@ import RequestQuoteOutlinedIcon from '@mui/icons-material/RequestQuoteOutlined';
 import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined';
 import AccountTreeOutlinedIcon from '@mui/icons-material/AccountTreeOutlined';
 import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettingsOutlined';
-import GroupOutlinedIcon from '@mui/icons-material/GroupOutlined';
 import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import StorefrontOutlinedIcon from '@mui/icons-material/StorefrontOutlined';
 import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
@@ -103,7 +102,6 @@ export const NAV_GROUPS = [
     // The people who use it and what they may do.
     label: 'Users & access',
     items: [
-      { label: 'Users', path: '/settings/users', icon: GroupOutlinedIcon, permission: 'user.view' },
       { label: 'Roles & permissions', path: '/settings/roles', icon: AdminPanelSettingsOutlinedIcon, permission: 'role.view' },
       { label: 'Audit log', path: '/settings/audit-log', icon: HistoryRoundedIcon, permission: 'audit.view' },
     ],

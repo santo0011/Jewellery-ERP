@@ -1,4 +1,4 @@
-import { ADDRESS_FIELDS, BRANCH_PERMISSIONS, BRANCH_STATUS, SUBSCRIPTION_STATUS } from '@jerp/shared';
+import { ADDRESS_FIELDS, BRANCH_STATUS, SUBSCRIPTION_STATUS } from '@jerp/shared';
 import { copyToOrganisation } from '../organisations/headOfficeAddress.js';
 import { AUDIT_ACTIONS, recordAudit } from '../../core/audit/audit.service.js';
 import { requireContext } from '../../core/context/requestContext.js';
@@ -18,9 +18,10 @@ function accessFilter() {
   return branchAccess?.all ? {} : { _id: { $in: branchAccess?.branchIds ?? [] } };
 }
 
-export async function listBranches({ page, limit, q, status }) {
+export async function listBranches({ page, limit, q, status, headOffice }) {
   const filter = { ...accessFilter() };
   if (status) filter.status = status;
+  if (headOffice === 'exclude') filter.isHeadOffice = { $ne: true };
   if (q) {
     const rx = new RegExp(escapeRegex(q), 'i');
     filter.$or = [{ name: rx }, { code: rx }, { 'address.city': rx }];
@@ -59,30 +60,9 @@ async function assertBranchLimit() {
   }
 }
 
-export async function setBranchPermissions(id, permissions) {
-  const { userId } = requireContext();
-  const branch = await Branch.findOne({ _id: id, ...accessFilter() });
-  if (!branch) throw ApiError.notFound('Branch');
-  const before = branch.allowedPermissions ? [...branch.allowedPermissions] : [...BRANCH_PERMISSIONS];
-  const added = permissions.filter((p) => !before.includes(p));
-  const removed = before.filter((p) => !permissions.includes(p));
-  if (!added.length && !removed.length) return serializeBranch(branch.toObject());
-
-  branch.allowedPermissions = permissions;
-  branch.updatedBy = userId;
-  await branch.save();
-  await recordAudit({
-    action: AUDIT_ACTIONS.UPDATE,
-    module: 'branch',
-    recordType: 'Branch',
-    recordId: branch._id,
-    meta: { name: branch.name },
-    changes: [{ field: 'allowedPermissions', from: { removed }, to: { added } }],
-  });
-  return serializeBranch(branch.toObject());
-}
-
-export const serializeBranch = (b) => ({ ...b, allowedPermissions: b.allowedPermissions ?? [...BRANCH_PERMISSIONS] });
+// Per-branch module limits are gone (the role decides); a list stored on older branches is not sent.
+// eslint-disable-next-line no-unused-vars
+export const serializeBranch = ({ allowedPermissions, ...b }) => b;
 
 export async function createBranch(input) {
   const { userId } = requireContext();

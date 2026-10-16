@@ -35,7 +35,7 @@ export default function ProductsPage() {
   const navigate = useNavigate();
   const canCreate = usePermission('product.create');
   const canEdit = usePermission('product.edit');
-  const list = useListParams({ categoryId: '', metal: '', status: 'in_stock' });
+  const list = useListParams({ categoryId: '', metal: '', status: '' });
   const { data, isLoading, isFetching, error, refetch } = useProductListQuery(list.params);
   // Which rows can be deleted (Delete stays visible; it is disabled with the reason when not).
   const deleteStatus = useDeleteStatus('product', data?.items);

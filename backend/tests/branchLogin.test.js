@@ -23,6 +23,10 @@ describe('branch login', () => {
     const list = (await api().get('/api/v1/branches').set(bearer(owner.token))).body.data;
     expect(list.find((b) => b._id === branchId).login.email).toBe(email);
     expect(list.find((b) => b.isHeadOffice).login).toBeNull();
+    // The Branches page leaves the head office out.
+    const others = (await api().get('/api/v1/branches?headOffice=exclude').set(bearer(owner.token))).body;
+    expect(others.data.map((b) => b._id)).toEqual([branchId]);
+    expect(others.meta.total).toBe(1);
 
     const res = await login(email.toUpperCase(), '123456');
     expect(res.body.data.realm).toBe('tenant');
@@ -30,6 +34,51 @@ describe('branch login', () => {
     expect(me.user).toMatchObject({ allBranches: false, mustChangePassword: false, defaultBranchId: branchId });
     expect(me.branches.map((b) => b.id)).toEqual([branchId]);
     expect(me.user.roles.map((r) => r.key)).toEqual(['branch_manager']);
+  });
+
+  it('sets a branch login password only from the branch, not from Users → Reset password', async () => {
+    const { owner, email, url } = await setup();
+    const created = (await api().put(url).set(bearer(owner.token)).send({ password: '123456' })).body.data;
+    const reset = await api().post(`/api/v1/users/${created.id}/reset-password`).set(bearer(owner.token)).send({ password: '654321' });
+    expect(reset.status).toBe(403);
+    expect(reset.body.error.code).toBe('BRANCH_LOGIN_PROTECTED');
+    expect((await login(email, '123456')).status).toBe(200);
+  });
+
+  it('changes the role from the branch, keeps the password when left out, and leaves branch logins off the users list', async () => {
+    const { owner, email, branchId, url } = await setup();
+    expect((await api().put(url).set(bearer(owner.token)).send({ roleId: '000000000000000000000000' })).status).toBe(400);
+    await api().put(url).set(bearer(owner.token)).send({ password: '123456' });
+    let list = (await api().get('/api/v1/branches').set(bearer(owner.token))).body.data;
+    expect(list.find((b) => b._id === branchId).login.role.name).toBe('Branch Manager');
+
+    const sales = (await api().get('/api/v1/roles').set(bearer(owner.token))).body.data.find((r) => r.key === 'sales_staff');
+    const changed = await api().put(url).set(bearer(owner.token)).send({ roleId: sales.id });
+    expect(changed.status).toBe(200);
+    expect(changed.body.data.role).toMatchObject({ name: sales.name });
+    // The password was left out, so it still works.
+    const t = (await login(email, '123456')).body.data.accessToken;
+    const me = (await api().get('/api/v1/auth/me').set(bearer(t))).body.data;
+    expect(me.user.roles.map((r) => r.key)).toEqual(['sales_staff']);
+    expect(me.branches.map((b) => b.id)).toEqual([branchId]);
+
+    const users = (await api().get('/api/v1/users').set(bearer(owner.token))).body.data;
+    expect(users.some((u) => u.email === email)).toBe(false);
+  });
+
+  it('lets the role of a branch login change, but never its branch', async () => {
+    const { owner, branchId, url } = await setup();
+    const created = (await api().put(url).set(bearer(owner.token)).send({ password: '123456' })).body.data;
+    const roles = (await api().get('/api/v1/roles').set(bearer(owner.token))).body.data;
+    const sales = roles.find((r) => r.key === 'sales_staff').id;
+    const edit = (body) => api().put(`/api/v1/users/${created.id}`).set(bearer(owner.token)).send({ name: 'Branch login', roleIds: [sales], branchAccess: { all: false, branchIds: [branchId] }, defaultBranchId: branchId, ...body });
+
+    const changed = await edit({});
+    expect(changed.status).toBe(200);
+    expect(changed.body.data.roles.map((r) => r.id)).toEqual([sales]);
+    const ho = (await api().get('/api/v1/auth/me').set(bearer(owner.token))).body.data.branches.find((b) => b.isHeadOffice).id;
+    expect((await edit({ branchAccess: { all: false, branchIds: [ho] }, defaultBranchId: ho })).body.error.code).toBe('BRANCH_LOGIN_PROTECTED');
+    expect((await edit({ branchAccess: { all: true, branchIds: [] } })).body.error.code).toBe('BRANCH_LOGIN_PROTECTED');
   });
 
   it('lets the branch choose its own print design, but not the organisation’s or another branch’s', async () => {

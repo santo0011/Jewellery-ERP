@@ -1,8 +1,7 @@
 import { z } from 'zod';
 import { BRANCH_STATUS } from '../enums.js';
-import { BRANCH_PERMISSIONS } from '../permissions.js';
 import { BRANCH_CODE_REGEX } from '../patterns.js';
-import { addressSchema, emailSchema, gstinSchema, listQuerySchema, mobileSchema, optional, passwordSchema, requiredText } from './common.js';
+import { addressSchema, emailSchema, gstinSchema, listQuerySchema, mobileSchema, objectIdSchema, optional, passwordSchema, requiredText } from './common.js';
 
 export const branchSchema = z.object({
   code: z
@@ -18,7 +17,10 @@ export const branchSchema = z.object({
 });
 
 // A branch's own login. It signs in with the branch email; only the password is set here.
-export const branchLoginSchema = z.object({ password: passwordSchema });
+// The branch's own login: a password (required to create it) and/or its role. Either can be changed on its own.
+export const branchLoginSchema = z
+  .object({ password: passwordSchema.optional(), roleId: objectIdSchema.optional() })
+  .refine((v) => v.password || v.roleId, { path: ['password'], message: 'Enter a password' });
 
 export const branchStatusSchema = z.object({
   status: z.enum(Object.values(BRANCH_STATUS)),
@@ -26,11 +28,6 @@ export const branchStatusSchema = z.object({
 
 export const branchListQuerySchema = listQuerySchema.extend({
   status: z.enum(Object.values(BRANCH_STATUS)).optional(),
-});
-
-export const branchPermissionsSchema = z.object({
-  permissions: z
-    .array(z.enum(BRANCH_PERMISSIONS, { error: 'Not a branch permission' }))
-    .max(BRANCH_PERMISSIONS.length)
-    .transform((list) => [...new Set(list)]),
+  // 'exclude': only the other branches (the Branches page does not list the head office).
+  headOffice: z.enum(['exclude']).optional(),
 });

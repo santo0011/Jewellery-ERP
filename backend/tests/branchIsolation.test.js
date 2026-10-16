@@ -48,8 +48,9 @@ describe('branch isolation', () => {
       expect((await api().get(url).set(bearer(bl))).status, url).toBe(403);
     }
 
-    // Its role and access cannot be widened from the Users page.
-    const login = (await api().get('/api/v1/users').set(bearer(t))).body.data.find((u) => u.email === email);
+    // Its branch cannot be widened through the users API (branch logins are not listed there; found via the branch).
+    const loginId = (await api().get('/api/v1/branches').set(bearer(t))).body.data.find((b) => b._id === kolkata).login.id;
+    const login = (await api().get(`/api/v1/users/${loginId}`).set(bearer(t))).body.data;
     expect(login).toMatchObject({ branchLogin: true, branchAccess: { all: false } });
     const widen = await api().put(`/api/v1/users/${login.id}`).set(bearer(t)).send({ name: login.name, mobile: '', roleIds: login.roles.map((r) => r.id), branchAccess: { all: true, branchIds: [] }, defaultBranchId: kolkata });
     expect(widen.status).toBe(403);
@@ -102,7 +103,6 @@ describe('branch isolation', () => {
       ['get', '/api/v1/audit-logs'],
       ['get', '/api/v1/branches'],
       ['put', `/api/v1/branches/${ho}`, { code: 'HO', name: 'Renamed', address: {} }],
-      ['put', `/api/v1/branches/${branchId}/permissions`, { allowedPermissions: [] }],
       ['get', '/api/v1/billing'],
       ['post', '/api/v1/categories', { name: 'New' }],
       ['post', '/api/v1/rates', { rates: [{ metal: 'gold', purity: 916, ratePerGramPaise: 1 }] }],

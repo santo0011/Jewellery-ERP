@@ -13,11 +13,7 @@ export async function usage(req, res) {
 
 export async function setLogin(req, res) {
   const login = await userService.setBranchLogin(req.valid.params.id, req.valid.body);
-  sendOk(res, login, { message: 'Branch login password saved' });
-}
-
-export async function setPermissions(req, res) {
-  sendOk(res, await branchService.setBranchPermissions(req.valid.params.id, req.valid.body.permissions), { message: 'Branch access updated' });
+  sendOk(res, login, { message: 'Branch login saved' });
 }
 
 export async function directory(req, res) {

@@ -568,8 +568,8 @@ export default function ProfilePage() {
         <Box>
           <Tabs value={tab} onChange={(e, v) => setTab(v)} variant="fullWidth" sx={{ mb: { xs: 2, sm: 2.5 }, borderBottom: 1, borderColor: 'divider', maxWidth: { sm: 520 }, '& .MuiTab-root': { minHeight: 44 } }}>
             <Tab value="account" label="Account" />
-            <Tab value="devices" label="Devices" />
             {showOrganisation && <Tab value="organisation" label="Organisation" />}
+            <Tab value="devices" label="Devices" />
           </Tabs>
 
           {tab === 'account' && (

@@ -148,7 +148,7 @@ export default function CustomerFormDrawer({ open, customer, onClose, onCreated 
         toast.success(`Customer ${created.code} created`);
         onClose();
         if (onCreated) onCreated(created);
-        else navigate(`/customers/${created.id}`);
+        else navigate('/customers');
       }
     } catch (err) {
       if (!applyServerErrors(err, setError)) toast.error(getErrorMessage(err));

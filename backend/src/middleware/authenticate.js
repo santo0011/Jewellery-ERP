@@ -32,10 +32,11 @@ export async function authenticate(req, res, next) {
       throw new ApiError(402, 'SUBSCRIPTION_EXPIRED', 'Your subscription has ended. Renew it under Settings → Subscription to continue.');
     }
   }
-  const { branchId, allowedPermissions } = await resolveActiveBranch(principal, req.get('x-branch-id'));
+  const { branchId } = await resolveActiveBranch(principal, req.get('x-branch-id'));
   const rolePermissions = principal.permissions;
-  // Branch-limited users never hold organisation-level permissions, whatever their role says (see isOrganisationLevel).
-  const permissions = new Set(withinBranchAccess(effectivePermissions(rolePermissions, allowedPermissions), principal.branchAccess.all));
+  // What a user may do comes from their role alone (no per-branch module limits). Branch-limited users never hold
+  // organisation-level permissions, whatever their role says (see isOrganisationLevel).
+  const permissions = new Set(withinBranchAccess(effectivePermissions(rolePermissions, null), principal.branchAccess.all));
   const fullAccess = rolePermissions.has(WILDCARD_PERMISSION) && principal.branchAccess.all;
 
   req.auth = { ...principal, permissions, rolePermissions, fullAccess, branchId };

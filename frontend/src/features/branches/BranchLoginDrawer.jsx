@@ -1,46 +1,54 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import KeyOutlinedIcon from '@mui/icons-material/KeyOutlined';
 import { Alert, Box, Chip, Stack, Typography } from '@mui/material';
-import { branchLoginSchema } from '@jerp/shared/schemas';
+import { passwordSchema } from '@jerp/shared/schemas';
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import FormDrawer from '../../components/FormDrawer.jsx';
 import PasswordField from '../../components/form/PasswordField.jsx';
+import RHFSelect from '../../components/form/RHFSelect.jsx';
+import { useRolesQuery } from '../roles/roleApi.js';
+import { z } from 'zod';
 import { tokens } from '../../theme/tokens.js';
 import { applyServerErrors, getErrorMessage } from '../../utils/errors.js';
 import { formatDateTime } from '../../utils/format.js';
 import { useSetBranchLoginMutation } from './branchApi.js';
 
-const formSchema = branchLoginSchema
-  .extend({ confirmPassword: branchLoginSchema.shape.password })
-  .refine((v) => v.password === v.confirmPassword, { path: ['confirmPassword'], message: 'Passwords do not match' });
+// Creating the login needs a password; once it exists, the password is optional (blank = keep it) and the role can change alone.
+const formSchemaFor = (existing) =>
+  z
+    .object({ roleId: z.string().min(1, 'Select a role'), password: existing ? z.union([z.literal(''), passwordSchema]) : passwordSchema, confirmPassword: z.string() })
+    .refine((v) => v.password === v.confirmPassword, { path: ['confirmPassword'], message: 'Passwords do not match' });
 
-const EMPTY = { password: '', confirmPassword: '' };
+const EMPTY = { roleId: '', password: '', confirmPassword: '' };
 // Errors on these fields show under the field; anything else (plan limit, missing branch email) shows as an alert.
 const fieldError = (error) => error?.data?.error?.details?.some((d) => d.path in EMPTY);
 
-/** Sets or changes a branch login's password. The login email is always the branch email. */
+/** Sets up a branch login, or changes its password or role. The login email is always the branch email. */
 export default function BranchLoginDrawer({ branch, onClose, onEditBranch }) {
   const existing = branch?.login ?? null;
   const hasEmail = Boolean(branch?.email);
   const [save, { isLoading, error, reset: resetMutation }] = useSetBranchLoginMutation();
-  const { control, handleSubmit, reset, setError } = useForm({ resolver: zodResolver(formSchema), defaultValues: EMPTY });
+  const { data: roles = [] } = useRolesQuery(undefined, { skip: !branch });
+  const roleOptions = roles.map((r) => ({ value: String(r.id), label: r.name }));
+  const defaultRoleId = String(existing?.role?.id ?? roles.find((r) => r.key === 'branch_manager')?.id ?? '');
+  const { control, handleSubmit, reset, setError } = useForm({ resolver: zodResolver(formSchemaFor(existing)), defaultValues: EMPTY });
 
   useEffect(() => {
     if (branch) {
-      reset(EMPTY);
+      reset({ ...EMPTY, roleId: defaultRoleId });
       resetMutation();
     }
     // Only when it opens: resetMutation changes identity once a request starts, and re-running then would
     // clear the form and the error the server is about to return.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [branch]);
+  }, [branch, defaultRoleId]);
 
-  const submitPassword = handleSubmit(async ({ password }) => {
+  const submitPassword = handleSubmit(async ({ password, roleId }) => {
     try {
-      await save({ id: branch._id, password }).unwrap();
-      toast.success(existing ? `${branch.name} password changed` : `${branch.name} can now sign in with ${branch.email}`);
+      await save({ id: branch._id, roleId, ...(password && { password }) }).unwrap();
+      toast.success(existing ? `${branch.name} login updated` : `${branch.name} can now sign in with ${branch.email}`);
       onClose();
     } catch (err) {
       applyServerErrors(err, setError);
@@ -55,12 +63,12 @@ export default function BranchLoginDrawer({ branch, onClose, onEditBranch }) {
   return (
     <FormDrawer
       open={Boolean(branch)}
-      title={existing ? 'Change branch password' : 'Set up branch login'}
+      title={existing ? 'Branch login' : 'Set up branch login'}
       subtitle={branch?.name}
       onClose={onClose}
       onSubmit={hasEmail ? submitPassword : goAddEmail}
       submitting={isLoading}
-      submitLabel={!hasEmail ? 'Add email' : existing ? 'Change password' : 'Create login'}
+      submitLabel={!hasEmail ? 'Add email' : existing ? 'Save' : 'Create login'}
       width={460}
     >
       <Stack spacing={2.5}>
@@ -92,11 +100,12 @@ export default function BranchLoginDrawer({ branch, onClose, onEditBranch }) {
           <>
             <Typography variant="body2" color="textSecondary">
               {existing
-                ? 'Enter a new password. The branch is signed out on every device and must sign in again with the new password.'
-                : 'This login opens the panel for this branch only, with Branch Manager access. The email is the branch email; change it from Edit branch.'}
+                ? 'Change the role, or enter a new password (leave it blank to keep the current one). A new password signs the branch out on every device.'
+                : 'This login opens the panel for this branch only. The email is the branch email; change it from Edit branch.'}
             </Typography>
             {error && !fieldError(error) && <Alert severity="error">{getErrorMessage(error)}</Alert>}
-            <PasswordField control={control} name="password" label={existing ? 'New password' : 'Password'} autoComplete="new-password" helperText="At least 6 characters" autoFocus />
+            <RHFSelect control={control} name="roleId" label="Role" options={roleOptions} helperText="What this login can do in its branch" />
+            <PasswordField control={control} name="password" label={existing ? 'New password (optional)' : 'Password'} autoComplete="new-password" helperText="At least 6 characters" autoFocus />
             <PasswordField control={control} name="confirmPassword" label="Confirm password" autoComplete="new-password" />
           </>
         )}
