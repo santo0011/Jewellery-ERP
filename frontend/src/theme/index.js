@@ -104,6 +104,9 @@ export const theme = createTheme({
     MuiMenuItem: { styleOverrides: { root: { [TOUCH]: { minHeight: 44 } } } },
     MuiTab: { styleOverrides: { root: { textTransform: 'none', fontWeight: 600, [PHONE]: { minWidth: 0, paddingInline: 14 } } } },
     MuiTextField: { defaultProps: { size: 'small', fullWidth: true } },
+    // Phones: field hints go (the label says enough); errors stay, and so does a hint marked <KeepOnPhone> (amounts
+    // due, limits — what the person needs to fill the field right).
+    MuiFormHelperText: { styleOverrides: { root: { [PHONE]: { '&:not(.Mui-error):not(:has(.keep-on-phone))': { display: 'none' } } } } },
     MuiOutlinedInput: {
       styleOverrides: {
         root: ({ theme }) => ({ backgroundColor: theme.vars.palette.background.paper }),

@@ -1,5 +1,5 @@
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
-import { Alert, Autocomplete, Box, Button, Card, CardContent, Divider, Grid, IconButton, InputAdornment, MenuItem, Stack, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
+import { Alert, Autocomplete, Box, Button, Card, CardContent, Dialog, DialogActions, DialogContent, DialogTitle, Divider, Grid, IconButton, InputAdornment, MenuItem, Stack, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import { decimalToScaledInt, formatINR, formatWeight, toPaise } from '@jerp/shared';
 import { useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
@@ -8,6 +8,7 @@ import { useNavigate, useSearchParams } from 'react-router';
 import PageHeader from '../../components/PageHeader.jsx';
 import { useSession } from '../../hooks/usePermission.js';
 import { getErrorMessage } from '../../utils/errors.js';
+import { formatDate } from '../../utils/format.js';
 import MetalLinesEditor, { metalLinesToPayload } from '../inventory/MetalLinesEditor.jsx';
 import ProductPicker from '../inventory/ProductPicker.jsx';
 import { purityLabel } from '../products/productForm.js';
@@ -17,6 +18,7 @@ import { useAddBillImageMutation, useCreatePurchaseMutation, usePurchaseOrderQue
 import { PAY_MODES } from './purchaseUi.jsx';
 import ItemPicker from '../items/ItemPicker.jsx';
 import MoreDetails from '../../components/MoreDetails.jsx';
+import KeepOnPhone from '../../components/KeepOnPhone.jsx';
 
 const rupee = { input: { startAdornment: <InputAdornment position="start">₹</InputAdornment> }, htmlInput: { inputMode: 'decimal' } };
 const paise = (v) => {
@@ -41,7 +43,7 @@ function Section({ title, hint, children, action }) {
               {title}
             </Typography>
             {hint && (
-              <Typography variant="caption" color="textSecondary">
+              <Typography variant="caption" color="textSecondary" sx={{ display: { xs: 'none', sm: 'block' } }}>
                 {hint}
               </Typography>
             )}
@@ -145,7 +147,9 @@ export default function PurchaseFormPage() {
   const paidNow = paidMode === 'full' ? total : paidMode === 'part' ? (paise(paidAmount) ?? 0) : 0;
   const weight = pieces.reduce((s, p) => s + p.product.grossWeightMg, 0) + fresh.reduce((s, p) => s + freshMg(p), 0) + metal.payload.reduce((s, l) => s + (l.grossWeightMg ?? 0), 0);
 
-  const submit = async () => {
+  // Save purchase: check the form, then ask before saving — saving adds stock and books the bill.
+  const [confirming, setConfirming] = useState(false);
+  const review = () => {
     const e = {};
     if (!supplier) e.supplier = 'Pick the supplier';
     if (!billNo.trim()) e.billNo = 'Enter the bill number';
@@ -168,6 +172,11 @@ export default function PurchaseFormPage() {
       toast.error('Please fill the highlighted fields');
       return;
     }
+    setConfirming(true);
+  };
+
+  const submit = async () => {
+    setConfirming(false);
     try {
       const p = await create({
         supplierId: supplier.id,
@@ -193,7 +202,7 @@ export default function PurchaseFormPage() {
           break;
         }
       }
-      navigate(`/purchases/${p.id}`, { replace: true });
+      navigate('/purchases', { replace: true });
     } catch (err) {
       const d = err?.data?.error?.details?.[0];
       const m = d?.path?.match(/^newPieces\.(\d+)\.(\w+)/);
@@ -230,7 +239,7 @@ export default function PurchaseFormPage() {
                     disabled={Boolean(order)}
                     getOptionLabel={(s) => s.companyName ?? ''}
                     isOptionEqualToValue={(a, b) => String(a.id) === String(b.id)}
-                    renderInput={(p) => <TextField {...p} label="Supplier" error={Boolean(errors.supplier)} helperText={errors.supplier ?? (suppliers?.items?.length === 0 ? 'Add a supplier first under Suppliers' : ' ')} />}
+                    renderInput={(p) => <TextField {...p} label="Supplier" error={Boolean(errors.supplier)} helperText={<KeepOnPhone>{errors.supplier ?? (suppliers?.items?.length === 0 ? 'Add a supplier first under Suppliers' : ' ')}</KeepOnPhone>} />}
                   />
                 </Grid>
                 {session.branches.length > 1 && (
@@ -412,13 +421,36 @@ export default function PurchaseFormPage() {
               )}
               <Line label="Still to pay" value={formatINR(Math.max(0, total - paidNow), { decimals: 0 })} tone={total - paidNow > 0 ? 'error.main' : 'success.main'} />
 
-              <Button fullWidth variant="contained" size="large" sx={{ mt: 2 }} onClick={submit} disabled={state.isLoading || uploadingBill || !total} loading={state.isLoading || uploadingBill}>
+              <Button fullWidth variant="contained" size="large" sx={{ mt: 2 }} onClick={review} disabled={state.isLoading || uploadingBill || !total} loading={state.isLoading || uploadingBill}>
                 Save purchase
               </Button>
             </CardContent>
           </Card>
         </Grid>
       </Grid>
+      <Dialog open={confirming} onClose={() => setConfirming(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 600 }}>Save this purchase?</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="textSecondary" sx={{ mb: 1.5 }}>
+            The pieces and metal go into stock and the bill is booked to {supplier?.companyName}. Check the amounts — a saved purchase cannot be edited.
+          </Typography>
+          <Line label="Supplier" value={supplier?.companyName ?? '—'} />
+          <Line label="Bill" value={`${billNo.trim()} · ${formatDate(billDate)}`} />
+          <Line label="Items" value={[pieceCount && `${pieceCount} piece${pieceCount === 1 ? '' : 's'}`, lines.length && `${lines.length} metal line${lines.length === 1 ? '' : 's'}`].filter(Boolean).join(' + ') || '—'} />
+          <Divider sx={{ my: 1 }} />
+          <Line label="Bill total" value={formatINR(total, { decimals: 0 })} strong />
+          <Line label="Paid now" value={paidNow ? `${formatINR(paidNow, { decimals: 0 })} · ${PAY_MODES.find((m) => m.value === payMode)?.label ?? payMode}` : 'Nothing'} />
+          <Line label="Still to pay" value={formatINR(Math.max(0, total - paidNow), { decimals: 0 })} tone={total - paidNow > 0 ? 'error.main' : 'success.main'} />
+        </DialogContent>
+        <DialogActions sx={{ px: 3, pb: 2 }}>
+          <Button color="secondary" onClick={() => setConfirming(false)}>
+            Go back
+          </Button>
+          <Button variant="contained" onClick={submit}>
+            Yes, save purchase
+          </Button>
+        </DialogActions>
+      </Dialog>
     </>
   );
 }

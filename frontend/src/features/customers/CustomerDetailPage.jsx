@@ -4,7 +4,7 @@ import CreditCardOffOutlinedIcon from '@mui/icons-material/CreditCardOffOutlined
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import ReplayRoundedIcon from '@mui/icons-material/ReplayRounded';
-import { Box, Button, Card, CardContent, Chip, Divider, Grid, Link, Stack, Tab, Tabs, Typography } from '@mui/material';
+import { Box, Button, Card, CardContent, Chip, Divider, Grid, Link, Stack, Typography } from '@mui/material';
 import CollectDueDialog from './CollectDueDialog.jsx';
 import { formatINR, formatWeight, KYC_DOC_TYPES, stateName } from '@jerp/shared';
 import { useState } from 'react';
@@ -28,6 +28,7 @@ import { formatDate, formatDateTime } from '../../utils/format.js';
 import { OrderStatusChip, paymentLabel } from '../orders/orderUi.jsx';
 import { purityLabel } from '../products/productForm.js';
 import { useCustomerActivityQuery, useCustomerHistoryQuery, useCustomerQuery, useSetCustomerStatusMutation } from './customerApi.js';
+import ViewTabs from '../../components/ViewTabs.jsx';
 
 
 export function formatAddress(a = {}) {
@@ -49,6 +50,7 @@ const PAYMENT_KIND = {
   credit: { title: 'On credit (due)', icon: CreditCardOffOutlinedIcon, tone: 'due' },
   collection: { title: 'Due collected', icon: CallReceivedRoundedIcon, tone: 'paid' },
   customer_advance: { title: 'Advance paid', icon: CallReceivedRoundedIcon, tone: 'paid' },
+  customer_advance_refund: { title: 'Advance paid back', icon: ReplayRoundedIcon, tone: 'due' },
 };
 
 const BILL_STATUS = {
@@ -70,7 +72,7 @@ function BillStatus({ status }) {
 function PaymentsTimeline({ payments, openingBalance: balance }) {
   const rows = [...payments];
   // Advances paid as money have their own rows; the opening balance row shows only what was carried over.
-  const openingBalance = balance + rows.filter((p) => p.kind === 'customer_advance').reduce((n, p) => n + p.amountPaise, 0);
+  const openingBalance = balance + rows.filter((p) => p.kind === 'customer_advance' || p.kind === 'customer_advance_refund').reduce((n, p) => n + p.amountPaise, 0);
   if (!rows.length && !openingBalance) return <EmptyState title="No payments yet" description="Advances, bill payments and credit for this customer appear here." />;
   return (
     <Card>
@@ -109,7 +111,7 @@ function PaymentsTimeline({ payments, openingBalance: balance }) {
                     {p.reference ? ` · ${p.reference}` : ''}
                   </Typography>
                 </Box>
-                <Amount paise={Math.abs(p.amountPaise)} tone={kind.tone} prefix={p.kind === 'refund' ? '− ' : p.kind === 'credit' ? '' : '+ '} sx={{ fontSize: '1rem', fontWeight: 700 }} />
+                <Amount paise={Math.abs(p.amountPaise)} tone={kind.tone} prefix={p.kind === 'refund' || p.kind === 'customer_advance_refund' ? '− ' : p.kind === 'credit' ? '' : '+ '} sx={{ fontSize: '1rem', fontWeight: 700 }} />
               </Stack>
             );
           })}
@@ -367,14 +369,18 @@ export default function CustomerDetailPage() {
         </SummaryCards>
       )}
 
-      <Tabs value={tab} onChange={(e, v) => setTab(v)} variant="scrollable" sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
-        {activity?.invoices && <Tab value="bills" label={`Bills (${activity.invoices.length})`} />}
-        {activity?.purchases && <Tab value="purchases" label={`Items bought (${activity.purchases.length})`} />}
-        <Tab value="payments" label={`Payments (${activity?.payments.length ?? 0})`} />
-        {activity?.orders && <Tab value="orders" label={`Orders (${activity.orders.length})`} />}
-        <Tab value="details" label="Details" />
-        <Tab value="history" label={history.data?.length ? `Edit history (${history.data.length})` : 'Edit history'} />
-      </Tabs>
+      <ViewTabs
+        value={tab}
+        onChange={setTab}
+        items={[
+          activity?.invoices && { value: 'bills', label: 'Bills', count: activity.invoices.length },
+          activity?.purchases && { value: 'purchases', label: 'Items bought', short: 'Items', count: activity.purchases.length },
+          { value: 'payments', label: 'Payments', count: activity?.payments.length ?? 0 },
+          activity?.orders && { value: 'orders', label: 'Orders', count: activity.orders.length },
+          { value: 'details', label: 'Details' },
+          { value: 'history', label: 'Edit history', short: 'History', count: history.data?.length || undefined },
+        ]}
+      />
 
       {loadingActivity && tab !== 'details' && tab !== 'history' && <LoadingState />}
 

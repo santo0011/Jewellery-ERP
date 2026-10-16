@@ -86,7 +86,7 @@ export async function customerActivity(id) {
     // is part of the minus opening balance, which `paidPaise` already counts — its kind keeps it out of that sum.
     ...receipts.map((r) => ({
       at: r.createdAt,
-      kind: r.kind === 'advance' ? 'customer_advance' : 'collection',
+      kind: r.kind === 'advance' ? (r.amountPaise < 0 ? 'customer_advance_refund' : 'customer_advance') : 'collection',
       mode: r.mode,
       amountPaise: r.amountPaise,
       docNo: r.receiptNo,

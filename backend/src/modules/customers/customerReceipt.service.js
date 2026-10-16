@@ -77,6 +77,7 @@ export async function advanceReceived(customerId, { session } = {}) {
 /**
  * An advance paid now, when the customer is added (or their advance raised): a receipt at the branch on today's date,
  * cash/bank debited and the customer's account credited — the same side as the minus opening balance it is part of.
+ * A minus amount is an advance paid back (the advance lowered below what was received): the same entry reversed.
  */
 export async function recordAdvanceReceipt(customer, { branchId, mode, reference }, amountPaise, { session }) {
   const { userId } = requireContext();
@@ -102,18 +103,19 @@ export async function recordAdvanceReceipt(customer, { branchId, mode, reference
     ],
     { session },
   );
+  const refund = amountPaise < 0;
+  const amount = Math.abs(amountPaise);
+  const money = { account: PAYMENT_ACCOUNT[mode], branchId: branch._id };
+  const party = { account: 'sundry_debtors', branchId: branch._id, party: { type: 'customer', id: customer._id } };
   await postJournal(
     {
       voucherType: 'customer_advance',
       date: today.now,
       businessDate: today.businessDate,
       financialYear: today.financialYear,
-      narration: `Advance received from ${customer.name} (${receiptNo})`,
+      narration: refund ? `Advance refunded to ${customer.name} (${receiptNo})` : `Advance received from ${customer.name} (${receiptNo})`,
       source: { docType: 'customer_receipt', docId: doc._id, docNo: receiptNo },
-      lines: [
-        { account: PAYMENT_ACCOUNT[mode], debit: amountPaise, branchId: branch._id },
-        { account: 'sundry_debtors', credit: amountPaise, branchId: branch._id, party: { type: 'customer', id: customer._id } },
-      ],
+      lines: refund ? [{ ...party, debit: amount }, { ...money, credit: amount }] : [{ ...money, debit: amount }, { ...party, credit: amount }],
     },
     { session },
   );

@@ -13,6 +13,7 @@ import RHFSelect from '../../components/form/RHFSelect.jsx';
 import RHFTextField from '../../components/form/RHFTextField.jsx';
 import FormDrawer from '../../components/FormDrawer.jsx';
 import MoreDetails from '../../components/MoreDetails.jsx';
+import KeepOnPhone from '../../components/KeepOnPhone.jsx';
 import { usePermission, useSession } from '../../hooks/usePermission.js';
 import { applyServerErrors, getErrorMessage } from '../../utils/errors.js';
 import { ADVANCE_MODE_OPTIONS } from '../orders/orderUi.jsx';
@@ -75,6 +76,8 @@ const toForm = (c) =>
       }
     : EMPTY;
 
+const SERVER_FIELD = { openingBalancePaise: 'openingBalance', 'advancePayment.mode': 'advanceMode', 'advancePayment.reference': 'advanceReference' };
+
 const upper = (v) => v.toUpperCase();
 const dateProps = { slotProps: { inputLabel: { shrink: true }, htmlInput: { max: new Date().toISOString().slice(0, 10) } }, type: 'date' };
 
@@ -85,7 +88,7 @@ export default function CustomerFormDrawer({ open, customer, onClose, onCreated 
   const kycEditable = usePermission('customer.viewKyc') || !editing;
   const [create, createState] = useCreateCustomerMutation();
   const [update, updateState] = useUpdateCustomerMutation();
-  const { control, handleSubmit, reset, setError, formState, watch } = useForm({ resolver: zodResolver(formSchema), defaultValues: EMPTY });
+  const { control, handleSubmit, reset, setError, setValue, formState, watch } = useForm({ resolver: zodResolver(formSchema), defaultValues: EMPTY });
   const balanceType = watch('balanceType');
   const [openingBalance, advanceMode] = watch(['openingBalance', 'advanceMode']);
   const { data: session } = useSession();
@@ -106,6 +109,17 @@ export default function CustomerFormDrawer({ open, customer, onClose, onCreated 
       return 0;
     }
   })();
+  // Lowering the advance below what was received as money pays the difference back (out of cash/bank).
+  const advanceRefund = (() => {
+    const received = editing ? (customer.advanceReceivedPaise ?? 0) : 0;
+    if (!received) return 0;
+    try {
+      const after = balanceType === 'advance' ? (toPaise(openingBalance || '0') ?? 0) + (customer.advanceUsedPaise ?? 0) : 0;
+      return Math.max(0, received - after);
+    } catch {
+      return 0;
+    }
+  })();
 
   useEffect(() => {
     if (open) {
@@ -115,6 +129,11 @@ export default function CustomerFormDrawer({ open, customer, onClose, onCreated 
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, customer, reset]);
+
+  // A refund always goes out as money — "old balance" is not a way to pay back.
+  useEffect(() => {
+    if (advanceRefund > 0 && advanceMode === 'old') setValue('advanceMode', 'cash');
+  }, [advanceRefund, advanceMode, setValue]);
 
   const onSubmit = handleSubmit(async ({ openingBalance, balanceType, advanceMode: mode, advanceReference, ...values }) => {
     const amount = toPaise(openingBalance || '0');
@@ -132,7 +151,9 @@ export default function CustomerFormDrawer({ open, customer, onClose, onCreated 
       ...values,
       openingBalancePaise: balanceType === 'advance' || (used > 0 && amount === 0) ? -(amount + used) : amount,
       // A new advance paid now is recorded as a receipt at this branch (today's collection); an old balance is not.
-      advancePayment: advanceAdded > 0 && mode !== 'old' ? { branchId: activeBranchId, mode, reference: advanceReference || null } : null,
+      // An advance paid back goes out the same way (cash/bank) — always a refund receipt, never an old balance.
+      advancePayment:
+        (advanceAdded > 0 && mode !== 'old') || advanceRefund > 0 ? { branchId: activeBranchId, mode: mode === 'old' ? 'cash' : mode, reference: advanceReference || null } : null,
     };
     if (!kycEditable) {
       delete payload.pan;
@@ -151,7 +172,9 @@ export default function CustomerFormDrawer({ open, customer, onClose, onCreated 
         else navigate('/customers');
       }
     } catch (err) {
-      if (!applyServerErrors(err, setError)) toast.error(getErrorMessage(err));
+      // The server names the saved fields; show them on the form fields they come from.
+      const toField = (path, e) => setError(SERVER_FIELD[path] ?? path, e);
+      if (!applyServerErrors(err, toField)) toast.error(getErrorMessage(err));
     }
   });
 
@@ -200,9 +223,9 @@ export default function CustomerFormDrawer({ open, customer, onClose, onCreated 
             helperText={
               balanceType === 'advance'
                 ? owes > 0
-                  ? `Cannot be more than ${formatINR(Math.max(0, advanceBefore - (customer?.advanceUsedPaise ?? 0)), { decimals: 0 })} while ${formatINR(owes, { decimals: 0 })} is due.`
+                  ? <KeepOnPhone>{`Cannot be more than ${formatINR(Math.max(0, advanceBefore - (customer?.advanceUsedPaise ?? 0)), { decimals: 0 })} while ${formatINR(owes, { decimals: 0 })} is due.`}</KeepOnPhone>
                   : customer?.advanceUsedPaise > 0
-                    ? `Advance still available. ${formatINR(customer.advanceUsedPaise, { decimals: 0 })} was already used on bills.`
+                    ? <KeepOnPhone>{`Advance still available. ${formatINR(customer.advanceUsedPaise, { decimals: 0 })} was already used on bills.`}</KeepOnPhone>
                     : 'Money they paid you in advance — used automatically on their next bills.'
                 : 'What they already owe you from before — shows in their due.'
             }
@@ -223,6 +246,24 @@ export default function CustomerFormDrawer({ open, customer, onClose, onCreated 
             {advanceMode !== 'old' && advanceMode !== 'cash' && (
               <Grid size={{ xs: 12, sm: 7 }}>
                 <RHFTextField control={control} name="advanceReference" label="Reference (optional)" placeholder="Card / UPI / bank ref. no." />
+              </Grid>
+            )}
+          </>
+        )}
+        {advanceRefund > 0 && (
+          <>
+            <Grid size={{ xs: 12, sm: 5 }}>
+              <RHFSelect
+                control={control}
+                name="advanceMode"
+                label={`${formatINR(advanceRefund, { decimals: 0 })} paid back by`}
+                options={ADVANCE_MODE_OPTIONS}
+                helperText="Paid back to the customer — goes out of today’s cash / bank"
+              />
+            </Grid>
+            {advanceMode !== 'cash' && (
+              <Grid size={{ xs: 12, sm: 7 }}>
+                <RHFTextField control={control} name="advanceReference" label="Reference (optional)" placeholder="UPI / bank ref. no." />
               </Grid>
             )}
           </>

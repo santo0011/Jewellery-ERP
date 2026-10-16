@@ -4,7 +4,8 @@ import CallOutlinedIcon from '@mui/icons-material/CallOutlined';
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
 import PendingActionsOutlinedIcon from '@mui/icons-material/PendingActionsOutlined';
 import ShoppingBagOutlinedIcon from '@mui/icons-material/ShoppingBagOutlined';
-import { Box, Button, Card, CardContent, Chip, Grid, Link, Stack, Tab, Tabs, Typography } from '@mui/material';
+import { Box, Button, Card, CardContent, Chip, Divider, Grid, Link, Stack, Typography } from '@mui/material';
+import { useState } from 'react';
 import { formatINR, formatWeight } from '@jerp/shared';
 import toast from 'react-hot-toast';
 import { useNavigate, useParams } from 'react-router';
@@ -14,19 +15,21 @@ import InfoCard from '../../components/InfoCard.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
 import RecordActions from '../../components/RecordActions.jsx';
 import RecordHistory from '../../components/RecordHistory.jsx';
-import { ErrorState, LoadingState } from '../../components/StateViews.jsx';
+import { EmptyState, ErrorState, LoadingState } from '../../components/StateViews.jsx';
 import StatusChip from '../../components/StatusChip.jsx';
 import SummaryCards, { SummaryCard } from '../../components/SummaryCards.jsx';
 import { viewColumn } from '../../components/ViewButton.jsx';
 import { usePermission } from '../../hooks/usePermission.js';
 import { useTabParam } from '../../hooks/useListParams.js';
 import { fonts, tokens } from '../../theme/tokens.js';
-import { formatDate } from '../../utils/format.js';
+import { formatDate, formatDateTime } from '../../utils/format.js';
 import { formatAddress } from '../customers/CustomerDetailPage.jsx';
 import { usePurchaseListQuery, usePurchaseOrderListQuery } from '../purchases/purchaseApi.js';
-import { OrderStatusChip, PaymentChip } from '../purchases/purchaseUi.jsx';
+import { OrderStatusChip, PaymentChip, payModeLabel } from '../purchases/purchaseUi.jsx';
+import PaySupplierDialog from './PaySupplierDialog.jsx';
 import { suppliesLabel } from './SuppliersPage.jsx';
-import { useSetSupplierStatusMutation, useSupplierQuery } from './supplierApi.js';
+import { useSetSupplierStatusMutation, useSupplierPaymentsQuery, useSupplierQuery } from './supplierApi.js';
+import ViewTabs from '../../components/ViewTabs.jsx';
 
 const signed = (value, format, positive, negative) => (value ? `${format(Math.abs(value))} ${value > 0 ? positive : negative}` : 'Nil');
 const inr = (p) => formatINR(p, { decimals: 0 });
@@ -128,12 +131,74 @@ function OrdersTab({ supplierId }) {
   );
 }
 
+/** Every payment to the supplier, newest first: on their account (old balance + bills) and on single bills. */
+function PaymentHistory({ supplierId }) {
+  const navigate = useNavigate();
+  const { data: rows, isLoading, error, refetch } = useSupplierPaymentsQuery(supplierId);
+  if (isLoading) return <LoadingState label="Loading payments" />;
+  if (error) return <ErrorState error={error} onRetry={refetch} />;
+  const total = (rows ?? []).reduce((n, r) => n + r.amountPaise, 0);
+  return (
+    <Card sx={{ mb: 2 }}>
+      <CardContent>
+        <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'baseline', mb: 1.5, gap: 1, flexWrap: 'wrap' }}>
+          <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
+            Payment history
+          </Typography>
+          {rows?.length > 0 && (
+            <Typography variant="body2" color="textSecondary">
+              {rows.length} payment{rows.length === 1 ? '' : 's'} · <Box component="strong" sx={{ color: 'success.main' }}>{inr(total)}</Box> paid
+            </Typography>
+          )}
+        </Stack>
+        {!rows?.length ? (
+          <EmptyState title="No payments yet" description="Payments to this supplier — on their account or on a bill — show here." />
+        ) : (
+          <Stack divider={<Divider flexItem />} spacing={1.5}>
+            {rows.map((r, i) => (
+              <Stack key={r.paymentNo ?? `${r.at}-${i}`} direction="row" sx={{ justifyContent: 'space-between', gap: 2 }}>
+                <Box sx={{ minWidth: 0 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    {formatDate(r.date)} · {payModeLabel(r.mode)}
+                    {r.paymentNo ? ` · ${r.paymentNo}` : ' · paid on bill'}
+                  </Typography>
+                  <Stack direction="row" sx={{ gap: 0.75, flexWrap: 'wrap', mt: 0.5 }}>
+                    {r.allocations.map((a, j) => (
+                      <Chip
+                        key={j}
+                        size="small"
+                        variant="outlined"
+                        label={`${a.purchaseId ? `Bill ${a.billNo}` : 'Old balance'} · ${inr(a.amountPaise)}`}
+                        onClick={a.purchaseId ? () => navigate(`/purchases/${a.purchaseId}`) : undefined}
+                        sx={{ height: 22 }}
+                      />
+                    ))}
+                  </Stack>
+                  <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 0.5 }}>
+                    {[r.reference, r.note, r.branch?.name, r.by && `by ${r.by.name}`, r.at && formatDateTime(r.at)].filter(Boolean).join(' · ')}
+                  </Typography>
+                </Box>
+                <Typography variant="body2" sx={{ fontWeight: 700, color: 'success.main', whiteSpace: 'nowrap' }}>
+                  {inr(r.amountPaise)}
+                </Typography>
+              </Stack>
+            ))}
+          </Stack>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function SupplierDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [tab, setTab] = useTabParam('bills');
   const canEdit = usePermission('supplier.edit');
   const canBuy = usePermission('purchase.create');
+  const canPay = usePermission('purchase.edit');
+  const canSeeBills = usePermission('purchase.view');
+  const [paying, setPaying] = useState(false);
   const { data: s, isLoading, error, refetch } = useSupplierQuery(id);
   const [setStatus] = useSetSupplierStatusMutation();
 
@@ -152,6 +217,11 @@ export default function SupplierDetailPage() {
         breadcrumbs={[{ label: 'Suppliers', to: '/suppliers' }, { label: s.code }]}
         actions={
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+            {canPay && st?.duePaise > 0 && (
+              <Button variant="outlined" color="success" startIcon={<PaymentsOutlinedIcon />} onClick={() => setPaying(true)}>
+                Payment
+              </Button>
+            )}
             {canBuy && s.status === 'active' && (
               <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => navigate(`/purchases/new?supplierId=${id}`)}>
                 New purchase
@@ -208,7 +278,7 @@ export default function SupplierDetailPage() {
       {st && (
         <SummaryCards>
           <SummaryCard icon={ShoppingBagOutlinedIcon} label="Total purchased" value={inr(st.purchasedPaise)} caption={st.bills ? `${st.bills} bill${st.bills === 1 ? '' : 's'} · last ${formatDate(st.lastBillDate)}` : 'No bills yet'} />
-          <SummaryCard icon={PaymentsOutlinedIcon} label="Paid" value={inr(st.paidPaise)} caption="Against purchase bills" tone="green" valueTone="paid" />
+          <SummaryCard icon={PaymentsOutlinedIcon} label="Paid" value={inr(st.paidPaise)} caption={st.openingPaidPaise ? `Bills ${inr(st.billPaidPaise)} · old balance ${inr(st.openingPaidPaise)}` : 'Against purchase bills'} tone="green" valueTone="paid" />
           <SummaryCard
             icon={AccountBalanceWalletOutlinedIcon}
             label="To pay"
@@ -222,12 +292,11 @@ export default function SupplierDetailPage() {
         </SummaryCards>
       )}
 
-      <Tabs value={current} onChange={(e, v) => setTab(v)} variant="scrollable" sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
-        {st && <Tab value="bills" label={`Bills (${st.bills})`} />}
-        {st && <Tab value="orders" label="Orders" />}
-        <Tab value="details" label="Details" />
-        <Tab value="history" label="History" />
-      </Tabs>
+      <ViewTabs
+        value={current}
+        onChange={setTab}
+        items={[st && { value: 'bills', label: 'Bills', count: st.bills }, st && { value: 'orders', label: 'Orders' }, { value: 'details', label: 'Details' }, { value: 'history', label: 'History' }]}
+      />
 
       {current === 'bills' && <BillsTab supplierId={id} />}
       {current === 'orders' && <OrdersTab supplierId={id} />}
@@ -272,7 +341,17 @@ export default function SupplierDetailPage() {
             <InfoCard
               title="Opening balances"
               items={[
-                { label: 'Amount', value: <BalanceAmount paise={s.openingBalancePaise} owedLabel="payable (due)" advanceLabel="receivable (advance paid)" /> },
+                {
+                  label: 'Old balance',
+                  value: s.openingBalancePaise ? (
+                    <>
+                      <BalanceAmount paise={s.openingBalancePaise} owedLabel="payable (due)" advanceLabel="receivable (advance paid)" />
+                      {s.openingDuePaidPaise > 0 && ` · ${inr(s.openingDuePaidPaise)} paid, ${inr(s.openingDuePaise)} left`}
+                    </>
+                  ) : (
+                    'Nil'
+                  ),
+                },
                 { label: 'Fine gold', value: signed(s.openingFineGoldMg, formatWeight, 'payable', 'receivable') },
                 { label: 'Fine silver', value: signed(s.openingFineSilverMg, formatWeight, 'payable', 'receivable') },
                 { label: 'Notes', value: s.notes },
@@ -281,7 +360,13 @@ export default function SupplierDetailPage() {
           </Grid>
         </Grid>
       )}
-      {current === 'history' && <RecordHistory recordId={id} />}
+      {current === 'history' && (
+        <>
+          {canSeeBills && <PaymentHistory supplierId={id} />}
+          <RecordHistory recordId={id} />
+        </>
+      )}
+      {paying && st && <PaySupplierDialog supplier={{ id, companyName: s.companyName, duePaise: st.duePaise, openingDuePaise: st.openingDuePaise }} onClose={() => setPaying(false)} />}
 
     </>
   );

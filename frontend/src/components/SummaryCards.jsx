@@ -20,9 +20,10 @@ const VALUE_TONE = { paid: MONEY_TONE.paid, due: MONEY_TONE.due };
 /**
  * One headline number: small label and icon on top, the big number, a short caption.
  * `valueTone`: 'paid' | 'due' colours the number; `onClick` turns the card into a shortcut (it lifts and shows an arrow).
- * `hideCaptionOnPhone` leaves the caption out on phones, where the cards are small.
+ * Phones leave the caption out (the cards are small and the number is what matters); `hideCaptionOnPhone={false}`
+ * keeps it where the caption carries something the number does not.
  */
-export function SummaryCard({ icon: Icon, label, value, caption, tone = 'gold', valueTone, onClick, hideCaptionOnPhone = false }) {
+export function SummaryCard({ icon: Icon, label, value, caption, tone = 'gold', valueTone, onClick, hideCaptionOnPhone = true }) {
   const t = TONE[tone] ?? TONE.gold;
   const body = (
     // A column: label on top, the number, then the caption pinned to the bottom. Label and caption keep the same

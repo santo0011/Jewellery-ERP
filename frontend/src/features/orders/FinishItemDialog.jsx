@@ -11,6 +11,7 @@ import { useSession } from '../../hooks/usePermission.js';
 import { applyServerErrors, getErrorMessage } from '../../utils/errors.js';
 import { useCategoriesQuery } from '../categories/categoryApi.js';
 import { useFinishOrderItemMutation } from './orderApi.js';
+import KeepOnPhone from '../../components/KeepOnPhone.jsx';
 
 const decimal = (label, places) => z.string().trim().regex(new RegExp(`^\\d+(\\.\\d{0,${places}})?$`), `Enter ${label}`);
 const formSchema = z.object({
@@ -107,7 +108,7 @@ export default function FinishItemDialog({ order, index, onClose, onFinished }) 
               <RHFSelect control={control} name="categoryId" label="Category" options={categories} placeholder="Custom Jewellery" />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <RHFTextField control={control} name="huid" label="HUID" placeholder="6-character hallmark ID" required={huidRequired} helperText={huidRequired ? 'Required: hallmarked gold cannot be billed without it' : 'Optional'} />
+              <RHFTextField control={control} name="huid" label="HUID" placeholder="6-character hallmark ID" required={huidRequired} helperText={<KeepOnPhone>{huidRequired ? 'Required: hallmarked gold cannot be billed without it' : 'Optional'}</KeepOnPhone>} />
             </Grid>
             <Grid size={{ xs: 12, sm: 4 }}>
               <RHFTextField control={control} name="wastage" label="Wastage" placeholder="0" slotProps={{ input: { endAdornment: <InputAdornment position="end">%</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }} />

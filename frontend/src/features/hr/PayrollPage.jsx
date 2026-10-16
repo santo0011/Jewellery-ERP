@@ -30,7 +30,6 @@ const filterSlots = { inputLabel: { shrink: true }, select: { displayEmpty: true
 const paidShare = (r) => (r.totals.netPaise ? Math.round((r.totals.paidPaise / r.totals.netPaise) * 100) : 100);
 
 function RunPayrollDialog({ open, onClose }) {
-  const navigate = useNavigate();
   const { data: session } = useSession();
   const activeBranchId = useSelector((s) => s.auth.activeBranchId);
   const [branchId, setBranchId] = useState(activeBranchId ?? session.branches[0]?.id ?? '');
@@ -42,7 +41,6 @@ function RunPayrollDialog({ open, onClose }) {
       const run = await create({ branchId, month }).unwrap();
       toast.success(`Salaries calculated for ${run.totals.employees} employee${run.totals.employees === 1 ? '' : 's'}`);
       onClose();
-      navigate(`/hr/payroll/${run.id}`);
     } catch (err) {
       toast.error(getErrorMessage(err));
     }
@@ -92,7 +90,6 @@ function SalaryMonthCard({ runs, canRun }) {
     try {
       const run = await create({ branchId, month }).unwrap();
       toast.success(`Salaries calculated for ${run.totals.employees} employee${run.totals.employees === 1 ? '' : 's'}`);
-      navigate(`/hr/payroll/${run.id}`);
     } catch (err) {
       toast.error(getErrorMessage(err));
     }

@@ -12,8 +12,8 @@ import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import ShoppingBagOutlinedIcon from '@mui/icons-material/ShoppingBagOutlined';
 import { Box, ButtonBase, Collapse, IconButton, InputBase, List, ListItemButton, Tooltip, Typography } from '@mui/material';
-import { useEffect, useMemo, useState } from 'react';
-import { matchPath, NavLink, useLocation } from 'react-router';
+import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import { Link, matchPath, useLocation } from 'react-router';
 import { DiamondMark } from '../components/Wordmark.jsx';
 import { APP_NAME } from '../config.js';
 import { usePendingApprovalsQuery } from '../features/approvals/approvalApi.js';
@@ -66,16 +66,36 @@ function NavBadge({ collapsed }) {
 }
 
 /**
+ * The menu item for the page you are on: the longest menu path the address starts with, so a page that is not in
+ * the menu itself (a New form, a detail page) lights its list's item and opens its group — /purchases/new and
+ * /purchases/:id are Purchases, /purchases/orders/:id is Purchase orders. Pinned items (Dashboard) count only on
+ * their own page, or they would match everything.
+ */
+export function activeNavPath(groups, pathname) {
+  let best = null;
+  for (const g of groups) {
+    for (const i of g.items) {
+      if (matchPath({ path: i.path, end: Boolean(g.pinned) }, pathname) && (!best || i.path.length > best.length)) best = i.path;
+    }
+  }
+  return best;
+}
+
+const ActivePath = createContext(null);
+
+/**
  * One page link. `nested` items sit on the group's tree line (small dot instead of an icon tile when the sidebar
  * is open); the active page is a soft gold pill with a glowing icon.
  */
 function NavItem({ item, collapsed, nested = false, onNavigate }) {
   const Icon = item.icon;
+  const active = useContext(ActivePath) === item.path;
   const button = (
     <ListItemButton
-      component={NavLink}
+      component={Link}
       to={item.path}
-      end={item.end}
+      className={active ? 'active' : undefined}
+      aria-current={active ? 'page' : undefined}
       onClick={onNavigate}
       sx={{
         position: 'relative',
@@ -348,7 +368,8 @@ export default function Sidebar({ collapsed = false, onToggleCollapse, onClose, 
   const storeGroups = visibleNav(usePermissions(), { allBranches: session?.user?.allBranches ?? true });
   const groups = groupsProp ?? storeGroups;
   const location = useLocation();
-  const containsActive = (group) => group.items.some((i) => matchPath({ path: i.path, end: Boolean(i.end) }, location.pathname));
+  const activePath = activeNavPath(groups, location.pathname);
+  const containsActive = (group) => group.items.some((i) => i.path === activePath);
   // Accordion: only one group is open at a time. It starts as the group of the current page (so you can see where
   // you are); clicking another group opens it and closes the rest, clicking the open one closes it.
   // Pinned groups (Dashboard) are always visible and take no part in this.
@@ -439,6 +460,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse, onClose, 
           '&::-webkit-scrollbar-thumb': { borderRadius: 3, bgcolor: 'rgba(var(--brand-rgb), 0.25)' },
         }}
       >
+        <ActivePath.Provider value={activePath}>
         {collapsed ? (
           groups.map((group, index) => (
             <Box key={group.label}>
@@ -459,6 +481,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse, onClose, 
         ) : (
           groups.map((group) => <NavGroup key={group.label} group={group} fixed={fixedGroups} open={isOpen(group)} active={containsActive(group)} onToggle={() => toggleGroup(group.label)} onNavigate={onNavigate} />)
         )}
+        </ActivePath.Provider>
       </Box>
 
       {organisationName && (

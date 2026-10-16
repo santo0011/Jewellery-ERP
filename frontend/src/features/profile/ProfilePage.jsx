@@ -15,26 +15,7 @@ import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import { DiamondMark } from '../../components/Wordmark.jsx';
 import { useOrganisationLogo } from '../../hooks/useOrganisationLogo.js';
 import {
-  Alert,
-  Avatar,
-  Box,
-  Button,
-  Card,
-  CardContent,
-  Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  Divider,
-  Grid,
-  IconButton,
-  Stack,
-  Tab,
-  Tabs,
-  TextField,
-  Tooltip,
-  Typography,
+  Alert, Avatar, Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, Grid, IconButton, Stack, TextField, Tooltip, Typography,
 } from '@mui/material';
 import { changePasswordSchema, updateOrganisationSchema, updateProfileSchema } from '@jerp/shared/schemas';
 import { useState } from 'react';
@@ -61,6 +42,7 @@ import { useSignOut } from '../auth/useSignOut.js';
 import { useOrganisationQuery, useUpdateOrganisationMutation } from '../settings/organisationApi.js';
 import { toFormValues as organisationFormValues } from '../settings/OrganisationPage.jsx';
 import LogoCard from '../settings/LogoCard.jsx';
+import ViewTabs from '../../components/ViewTabs.jsx';
 
 const passwordFormSchema = changePasswordSchema
   .and(z.object({ confirmPassword: z.string() }))
@@ -72,7 +54,7 @@ function Section({ title, description, children }) {
       <CardContent sx={{ p: { xs: 2, sm: 3 }, '&:last-child': { pb: { xs: 2, sm: 3 } } }}>
         <Typography variant="h4">{title}</Typography>
         {description && (
-          <Typography variant="body2" color="textSecondary" sx={{ mt: 0.5 }}>
+          <Typography variant="body2" color="textSecondary" sx={{ mt: 0.5, display: { xs: 'none', sm: 'block' } }}>
             {description}
           </Typography>
         )}
@@ -566,11 +548,12 @@ export default function ProfilePage() {
 
         {/* The rest in three tabs, so the page stays short (the open one is kept in the address). */}
         <Box>
-          <Tabs value={tab} onChange={(e, v) => setTab(v)} variant="fullWidth" sx={{ mb: { xs: 2, sm: 2.5 }, borderBottom: 1, borderColor: 'divider', maxWidth: { sm: 520 }, '& .MuiTab-root': { minHeight: 44 } }}>
-            <Tab value="account" label="Account" />
-            {showOrganisation && <Tab value="organisation" label="Organisation" />}
-            <Tab value="devices" label="Devices" />
-          </Tabs>
+          <ViewTabs
+            value={tab}
+            onChange={setTab}
+            sx={{ mb: { xs: 2, sm: 2.5 }, maxWidth: { sm: 520 } }}
+            items={[{ value: 'account', label: 'Account' }, showOrganisation && { value: 'organisation', label: 'Organisation' }, { value: 'devices', label: 'Devices' }]}
+          />
 
           {tab === 'account' && (
             <Grid container spacing={{ xs: 2, sm: 3 }}>

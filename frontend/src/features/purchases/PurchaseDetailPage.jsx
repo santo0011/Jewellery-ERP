@@ -15,6 +15,7 @@ import { purityLabel } from '../products/productForm.js';
 import BillPhotos from './BillPhotos.jsx';
 import { usePayPurchaseMutation, usePurchaseQuery } from './purchaseApi.js';
 import { PaymentChip, PAY_MODES, payModeLabel } from './purchaseUi.jsx';
+import KeepOnPhone from '../../components/KeepOnPhone.jsx';
 
 const kindLabel = (k) => METAL_POOL_KINDS.find((x) => x.value === k)?.label ?? k;
 
@@ -49,7 +50,7 @@ function PayDialog({ purchase, onClose }) {
             value={amount}
             onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))}
             error={!valid}
-            helperText={`Due ${formatINR(purchase.duePaise, { decimals: 0 })}`}
+            helperText={<KeepOnPhone>{`Due ${formatINR(purchase.duePaise, { decimals: 0 })}`}</KeepOnPhone>}
             slotProps={{ input: { startAdornment: <InputAdornment position="start">₹</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }}
             autoFocus
           />

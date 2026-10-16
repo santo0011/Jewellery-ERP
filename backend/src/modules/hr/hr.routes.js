@@ -4,7 +4,8 @@ import {
   payrollCreateSchema, payrollLineParamsSchema, payrollLineSchema, payrollListQuerySchema, payrollPaySchema, salaryAdvanceSchema, salaryAdvanceUpdateSchema,
 } from '@jerp/shared/schemas';
 import { authenticate } from '../../middleware/authenticate.js';
-import { authorize } from '../../middleware/authorize.js';
+import { LOOKUP_ACCESS } from '@jerp/shared';
+import { authorize, authorizeAny } from '../../middleware/authorize.js';
 import { singleImageUpload } from '../../middleware/upload.js';
 import { validate } from '../../middleware/validate.js';
 import * as c from './hr.controller.js';
@@ -12,7 +13,7 @@ import * as c from './hr.controller.js';
 const router = Router();
 router.use(authenticate);
 
-router.get('/employees', authorize('employee.view'), validate({ query: employeeListQuerySchema }), c.listEmployees);
+router.get('/employees', authorizeAny(LOOKUP_ACCESS.employee), validate({ query: employeeListQuerySchema }), c.listEmployees);
 router.post('/employees', authorize('employee.create'), validate({ body: employeeSchema }), c.createEmployee);
 router.get('/employees/:id', authorize('employee.view'), validate({ params: idParamsSchema }), c.getEmployee);
 router.put('/employees/:id', authorize('employee.edit'), validate({ params: idParamsSchema, body: employeeSchema }), c.updateEmployee);

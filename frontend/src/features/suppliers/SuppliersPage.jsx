@@ -1,5 +1,6 @@
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
-import { Box, Button, MenuItem, Stack, TextField, Typography } from '@mui/material';
+import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
+import { Box, Button, IconButton, MenuItem, Stack, TextField, Tooltip, Typography } from '@mui/material';
 import { formatINR, SUPPLIER_SUPPLIES } from '@jerp/shared';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
@@ -17,7 +18,8 @@ import SummaryCards, { SummaryCard } from '../../components/SummaryCards.jsx';
 import LocalShippingOutlinedIcon from '@mui/icons-material/LocalShippingOutlined';
 import ShoppingBagOutlinedIcon from '@mui/icons-material/ShoppingBagOutlined';
 import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined';
-import { BalanceAmount } from '../../components/Amount.jsx';
+import Amount from '../../components/Amount.jsx';
+import PaySupplierDialog from './PaySupplierDialog.jsx';
 import { useDeleteStatus } from '../../services/recordApi.js';
 
 export const suppliesLabel = (list) => list.map((v) => SUPPLIER_SUPPLIES.find((s) => s.value === v)?.label ?? v).join(', ');
@@ -26,6 +28,8 @@ export default function SuppliersPage() {
   const navigate = useNavigate();
   const canCreate = usePermission('supplier.create');
   const canEdit = usePermission('supplier.edit');
+  const canPay = usePermission('purchase.edit');
+  const [paying, setPaying] = useState(null);
   const editor = useListEditor(useSupplierQuery);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const list = useListParams({ supplies: '', status: '' });
@@ -50,15 +54,44 @@ export default function SuppliersPage() {
     { key: 'mobile', label: 'Mobile', render: (s) => s.mobile },
     { key: 'gstin', label: 'GSTIN', render: (s) => s.gstin ?? '—' },
     { key: 'supplies', label: 'Supplies', render: (s) => suppliesLabel(s.supplies) || '—' },
-    { key: 'balance', label: 'Opening payable', align: 'right', render: (s) => (s.openingBalancePaise ? <BalanceAmount paise={s.openingBalancePaise} owedLabel="payable" advanceLabel="advance" decimals={0} /> : '—') },
+    {
+      key: 'due',
+      label: 'Due',
+      align: 'right',
+      render: (s) =>
+        s.duePaise > 0 ? (
+          <Box>
+            <Amount paise={s.duePaise} tone="due" decimals={0} />
+            {s.openingDuePaise > 0 && (
+              <Typography variant="caption" color="textSecondary" sx={{ display: 'block' }}>
+                Old {formatINR(s.openingDuePaise, { decimals: 0 })}
+              </Typography>
+            )}
+          </Box>
+        ) : (
+          <Box component="span" sx={{ color: 'success.main', fontWeight: 600 }}>
+            Nil
+          </Box>
+        ),
+    },
     { key: 'status', label: 'Status', render: (s) => <StatusChip status={s.status} /> },
     {
       key: 'actions',
       label: 'Action',
       align: 'right',
-      width: actionsWidth(3),
+      width: actionsWidth(canPay ? 4 : 3),
       render: (s) => (
-        <RowActions onView={() => navigate(`/suppliers/${s.id}`)} onEdit={canEdit ? () => editor.open(s) : undefined} deleteType="supplier" deleteStatus={deleteStatus(s.id)} id={s.id} name={s.companyName} />
+        <RowActions onView={() => navigate(`/suppliers/${s.id}`)} onEdit={canEdit ? () => editor.open(s) : undefined} deleteType="supplier" deleteStatus={deleteStatus(s.id)} id={s.id} name={s.companyName}>
+          {canPay && (
+            <Tooltip title={s.duePaise > 0 ? `Payment (${formatINR(s.duePaise, { decimals: 0 })} due)` : 'Nothing due'}>
+              <span>
+                <IconButton size="small" color="success" disabled={!(s.duePaise > 0)} onClick={() => setPaying(s)} aria-label={`Payment: ${s.companyName}`}>
+                  <PaymentsOutlinedIcon fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+          )}
+        </RowActions>
       ),
     },
   ];
@@ -84,7 +117,11 @@ export default function SuppliersPage() {
             icon={AccountBalanceWalletOutlinedIcon}
             label="To pay suppliers"
             value={formatINR(data.meta.summary.duePaise, { decimals: 0 })}
-            caption={data.meta.summary.dueSuppliers ? `Owed to ${data.meta.summary.dueSuppliers} supplier${data.meta.summary.dueSuppliers === 1 ? '' : 's'}` : 'All bills paid'}
+            caption={
+              data.meta.summary.dueSuppliers
+                ? [`Owed to ${data.meta.summary.dueSuppliers} supplier${data.meta.summary.dueSuppliers === 1 ? '' : 's'}`, data.meta.summary.oldDuePaise > 0 && `old balance ${formatINR(data.meta.summary.oldDuePaise, { decimals: 0 })}`].filter(Boolean).join(' · ')
+                : 'Nothing due'
+            }
             tone={data.meta.summary.duePaise ? 'red' : 'green'}
             valueTone={data.meta.summary.duePaise ? 'due' : 'paid'}
             onClick={() => navigate('/purchases?payment=due')}
@@ -121,6 +158,7 @@ export default function SuppliersPage() {
       />
       <SupplierFormDrawer open={drawerOpen} supplier={null} onClose={() => setDrawerOpen(false)} />
       <SupplierFormDrawer open={Boolean(editor.record)} supplier={editor.record} onClose={editor.close} />
+      <PaySupplierDialog supplier={paying} onClose={() => setPaying(null)} />
     </>
   );
 }

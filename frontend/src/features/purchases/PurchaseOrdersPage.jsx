@@ -43,7 +43,6 @@ const toP = (v) => {
 const todayIso = () => new Date().toISOString().slice(0, 10);
 
 function NewOrderDrawer({ open, onClose }) {
-  const navigate = useNavigate();
   const { data: session } = useSession();
   const activeBranchId = useSelector((s) => s.auth.activeBranchId);
   const { data: suppliers } = useSupplierListQuery({ status: 'active', limit: 100 }, { skip: !open });
@@ -72,7 +71,6 @@ function NewOrderDrawer({ open, onClose }) {
       }).unwrap();
       toast.success(`Order ${order.orderNo} placed with ${order.supplier.name}`);
       onClose();
-      navigate(`/purchases/orders/${order.id}`);
     } catch (err) {
       toast.error(getErrorMessage(err));
     }

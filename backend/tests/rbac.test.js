@@ -32,6 +32,35 @@ describe('permission enforcement', () => {
     expect((await api().post('/api/v1/items').set(bearer(buyer.token)).send({})).status).toBe(403);
   });
 
+  it("a page's permission is enough to look up the records it picks, but not to change them", async () => {
+    const owner = await registerOrg();
+    const get = (t, url) => api().get(url).set(bearer(t));
+
+    // New bill alone: customers, products, today's rates and open orders can be looked up for the bill.
+    const cashier = await createStaffUser(owner.token, ['sales.create']);
+    for (const url of ['/api/v1/customers', '/api/v1/products', '/api/v1/products/lookup/NOPE1', '/api/v1/rates/current', '/api/v1/orders']) {
+      expect([200, 404]).toContain((await get(cashier.token, url)).status);
+    }
+    expect((await api().post('/api/v1/customers').set(bearer(cashier.token)).send({ name: 'X', mobile: '9876512345', address: {} })).status).toBe(403);
+    expect((await get(cashier.token, '/api/v1/suppliers')).status).toBe(403);
+
+    // Purchase entry picks a supplier and pieces; product entry picks a supplier; orders pick a customer and category.
+    const buyer = await createStaffUser(owner.token, ['purchase.create']);
+    for (const url of ['/api/v1/suppliers', '/api/v1/products', '/api/v1/categories']) expect((await get(buyer.token, url)).status).toBe(200);
+    expect((await api().post('/api/v1/suppliers').set(bearer(buyer.token)).send({ companyName: 'Nope', mobile: '9876512346', address: {} })).status).toBe(403);
+    const tagger = await createStaffUser(owner.token, ['product.create']);
+    expect((await get(tagger.token, '/api/v1/suppliers')).status).toBe(200);
+    const orders = await createStaffUser(owner.token, ['order.create']);
+    for (const url of ['/api/v1/customers', '/api/v1/categories']) expect((await get(orders.token, url)).status).toBe(200);
+
+    // Stock pages pick products; salary advances pick an employee.
+    const stock = await createStaffUser(owner.token, ['inventory.view']);
+    expect((await get(stock.token, '/api/v1/products')).status).toBe(200);
+    const payroll = await createStaffUser(owner.token, ['payroll.process']);
+    expect((await get(payroll.token, '/api/v1/hr/employees')).status).toBe(200);
+    expect((await api().post('/api/v1/hr/employees').set(bearer(payroll.token)).send({})).status).toBe(403);
+  });
+
   it('returns 403 when the user lacks the permission', async () => {
     const owner = await registerOrg();
     const { token } = await createStaffUser(owner.token, ['branch.view']);

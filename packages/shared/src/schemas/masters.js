@@ -100,7 +100,8 @@ export const supplierSchema = z.object({
     .default({}),
   supplies: z.array(z.enum(values(SUPPLIER_SUPPLIES))).max(8).default([]),
   paymentTermsDays: int('Payment terms', { max: 365 }).default(0),
-  openingBalancePaise: int('Opening balance', { min: -1e12, max: 1e12 }).default(0),
+  // Old balance: what we owe the supplier from before (never minus — a supplier we paid ahead is not kept here).
+  openingBalancePaise: z.number({ error: 'Old balance is required' }).int('Old balance must be a whole number').min(0, 'Old balance cannot be negative').max(1e12, 'Old balance is too large').default(0),
   openingFineGoldMg: int('Opening gold', { min: -1e9, max: 1e9 }).default(0),
   openingFineSilverMg: int('Opening silver', { min: -1e10, max: 1e10 }).default(0),
   notes: optionalText(1000),

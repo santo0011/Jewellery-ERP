@@ -16,7 +16,7 @@ const purchaseMetalSchema = new mongoose.Schema(
 );
 
 const supplierPaymentSchema = new mongoose.Schema(
-  { date: String, at: Date, mode: String, amountPaise: Number, reference: { type: String, default: null }, by: { type: ObjectId, ref: 'User' } },
+  { date: String, at: Date, mode: String, amountPaise: Number, reference: { type: String, default: null }, by: { type: ObjectId, ref: 'User' }, paymentNo: { type: String, default: null } }, // paymentNo: part of a payment on the supplier's account
   { _id: false },
 );
 

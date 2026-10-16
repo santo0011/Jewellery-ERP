@@ -17,7 +17,7 @@ export default function RHFSwitch({ name, control, label, description, disabled 
                 {label}
               </Typography>
               {description && (
-                <Typography variant="body2" color="textSecondary">
+                <Typography variant="body2" color="textSecondary" sx={{ display: { xs: 'none', sm: 'block' } }}>
                   {description}
                 </Typography>
               )}

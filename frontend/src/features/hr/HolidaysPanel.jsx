@@ -78,22 +78,23 @@ export default function HolidaysPanel({ branchId, branchPicker }) {
 
   return (
     <>
-      {branchPicker && <Card sx={{ mb: 2, p: 2 }}>{branchPicker}</Card>}
+      {branchPicker && <Card sx={{ mb: 2, p: { xs: 1.5, sm: 2 } }}>{branchPicker}</Card>}
       {!canEdit && (
         <Alert severity="info" sx={{ mb: 2 }}>
           You can view the holiday list. Changing it needs the “Edit attendance” permission.
         </Alert>
       )}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '5fr 7fr' }, gap: 2, alignItems: 'start' }}>
-        <Card sx={{ p: 2.5 }}>
+        <Card sx={{ p: { xs: 2, sm: 2.5 } }}>
           <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', mb: 0.5 }}>
             <EventRepeatOutlinedIcon sx={{ color: 'primary.main' }} />
             <Typography variant="h4">Weekly off</Typography>
           </Stack>
-          <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+          <Typography variant="body2" color="textSecondary" sx={{ mb: 2, display: { xs: 'none', sm: 'block' } }}>
             The shop’s closed day(s) every week. Staff not marked on these days count as on holiday (paid).
           </Typography>
-          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 0.75 }}>
+          {/* Phones: just the day — the colour says closed or open. */}
+          <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: { xs: 0.5, sm: 0.75 }, mt: { xs: 1.5, sm: 0 } }}>
             {DAYS.map((d) => {
               const on = weeklyOff.includes(d.value);
               return (
@@ -105,7 +106,8 @@ export default function HolidaysPanel({ branchId, branchPicker }) {
                   aria-label={d.label}
                   sx={{
                     flexDirection: 'column',
-                    py: 1.25,
+                    py: { xs: 1, sm: 1.25 },
+                    minWidth: 0,
                     borderRadius: 2,
                     border: 1,
                     borderColor: on ? 'primary.main' : 'divider',
@@ -116,22 +118,22 @@ export default function HolidaysPanel({ branchId, branchPicker }) {
                     '&:hover': on ? {} : { borderColor: 'primary.main' },
                   }}
                 >
-                  <Typography variant="body2" sx={{ fontWeight: 700, color: 'inherit' }}>
+                  <Typography variant="body2" sx={{ fontWeight: 700, color: 'inherit', fontSize: { xs: 12, sm: undefined } }}>
                     {d.short}
                   </Typography>
-                  <Typography variant="caption" sx={{ color: 'inherit', opacity: 0.8 }}>
+                  <Typography variant="caption" sx={{ color: 'inherit', opacity: 0.8, display: { xs: 'none', sm: 'block' } }}>
                     {on ? 'Off' : 'Open'}
                   </Typography>
                 </ButtonBase>
               );
             })}
           </Box>
-          <Typography variant="body2" sx={{ mt: 2, fontWeight: 600 }}>
+          <Typography variant="body2" sx={{ mt: { xs: 1.5, sm: 2 }, fontWeight: 600 }}>
             {weeklyOff.length ? `Closed every ${DAYS.filter((d) => weeklyOff.includes(d.value)).map((d) => d.label).join(' & ')}` : 'Open all 7 days — no weekly off'}
           </Typography>
         </Card>
 
-        <Card sx={{ p: 2.5 }}>
+        <Card sx={{ p: { xs: 2, sm: 2.5 } }}>
           <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', mb: 0.5 }}>
             <CelebrationOutlinedIcon sx={{ color: 'primary.main' }} />
             <Typography variant="h4" sx={{ flex: 1 }}>
@@ -143,16 +145,18 @@ export default function HolidaysPanel({ branchId, branchPicker }) {
               ))}
             </Stack>
           </Stack>
-          <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+          <Typography variant="body2" color="textSecondary" sx={{ mb: 2, display: { xs: 'none', sm: 'block' } }}>
             Festivals and other days the shop is closed. Unmarked staff count as on holiday.
           </Typography>
 
           {canEdit && (
             <>
-              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mb: 1.5 }}>
-                <TextField label="Date" type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} sx={{ width: { sm: 180 } }} />
-                <TextField label="Holiday name" placeholder="e.g. Durga Puja" value={newName} onChange={(e) => setNewName(e.target.value)} sx={{ flex: 1 }} slotProps={{ htmlInput: { maxLength: 60 } }} />
+              {/* Desktop: date, name and Add in one row. Phones: the name on its own row, then date and Add side by side. */}
+              <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr auto', sm: '180px 1fr auto' }, gap: 1, mb: 1.5, mt: { xs: 1.5, sm: 0 } }}>
+                <TextField label="Holiday name" placeholder="e.g. Durga Puja" value={newName} onChange={(e) => setNewName(e.target.value)} sx={{ gridColumn: { xs: '1 / -1', sm: 2 }, gridRow: { xs: 1, sm: 1 } }} slotProps={{ htmlInput: { maxLength: 60 } }} />
+                <TextField label="Date" type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} sx={{ gridColumn: { xs: 1, sm: 1 }, gridRow: { xs: 2, sm: 1 }, minWidth: 0 }} />
                 <Button
+                  sx={{ gridColumn: { xs: 2, sm: 3 }, gridRow: { xs: 2, sm: 1 } }}
                   variant="outlined"
                   color="secondary"
                   startIcon={<AddRoundedIcon />}
@@ -166,10 +170,11 @@ export default function HolidaysPanel({ branchId, branchPicker }) {
                 >
                   Add
                 </Button>
-              </Stack>
+              </Box>
               {suggestions.length > 0 && (
+                // Phones: "Quick add" on its own line, the chips wrapping under it — every one in full, none cut off.
                 <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 0.75, mb: 2, alignItems: 'center' }}>
-                  <Typography variant="caption" color="textSecondary">
+                  <Typography variant="caption" color="textSecondary" sx={{ width: { xs: '100%', sm: 'auto' }, fontWeight: { xs: 600, sm: 400 } }}>
                     Quick add:
                   </Typography>
                   {suggestions.map((sg) => (
@@ -213,9 +218,11 @@ export default function HolidaysPanel({ branchId, branchPicker }) {
       </Box>
 
       {canEdit && (
-        <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end', mt: 2 }}>
+        <Stack direction="row" spacing={1} sx={{ justifyContent: 'flex-end', mt: 2, '& > .MuiButton-root': { flex: { xs: 1, sm: 'none' } } }}>
           {dirty && (
             <Button
+              variant="outlined"
+              color="secondary"
               onClick={() => {
                 setWeeklyOff(data.weeklyOff);
                 setHolidays(data.holidays);

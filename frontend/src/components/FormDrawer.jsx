@@ -28,7 +28,7 @@ export default function FormDrawer({ open, title, subtitle, onClose, onSubmit, s
               {title}
             </Typography>
             {subtitle && (
-              <Typography variant="body2" color="textSecondary">
+              <Typography variant="body2" color="textSecondary" sx={{ display: { xs: 'none', sm: 'block' } }}>
                 {subtitle}
               </Typography>
             )}

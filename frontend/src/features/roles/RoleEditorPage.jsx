@@ -106,7 +106,7 @@ export default function RoleEditorPage() {
       if (isNew) {
         const created = await createRole(values).unwrap();
         toast.success('Role created');
-        navigate(`/settings/roles/${created.id}`, { replace: true });
+        navigate('/settings/roles', { replace: true });
       } else {
         const updated = await updateRole({ id, ...values }).unwrap();
         reset({ name: updated.name, description: updated.description ?? '', permissions: updated.permissions });

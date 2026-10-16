@@ -193,9 +193,9 @@ async function advanceUsed(customerId) {
 
 export async function getCustomer(id) {
   const c = (await findCustomer(id)).toObject();
-  const used = await advanceUsed(c._id);
+  const [used, received] = await Promise.all([advanceUsed(c._id), advanceReceived(c._id)]);
   // The edit form shows only the advance still available (what was paid before, less what bills have used).
-  return { ...serialize(c), advanceUsedPaise: used, advanceLeftPaise: Math.max(0, -(c.openingBalancePaise ?? 0) - used) };
+  return { ...serialize(c), advanceUsedPaise: used, advanceReceivedPaise: received, advanceLeftPaise: Math.max(0, -(c.openingBalancePaise ?? 0) - used) };
 }
 
 export async function createCustomer(input) {
@@ -231,11 +231,13 @@ export async function updateCustomer(id, input) {
   const advanceAfter = Math.max(0, -(input.openingBalancePaise ?? 0));
   // Advance already used on bills stays part of the record: it cannot be taken back or turned into an old due.
   const used = await advanceUsed(customer._id);
-  // Advance paid as money has a receipt and is in cash/bank: it cannot be lowered here (that would be a refund).
+  // Advance paid as money has a receipt and is in cash/bank. Lowering the advance takes off the carried-over part
+  // first; going below what was received pays the difference back (a refund out of cash/bank).
   const receivedBefore = await advanceReceived(customer._id);
-  if (receivedBefore > 0 && advanceAfter < receivedBefore) {
-    throw new ApiError(422, 'ADVANCE_RECEIVED', `${(receivedBefore / 100).toFixed(2)} of ${customer.name}'s advance was received as payment, so the advance cannot be less than that.`, [
-      { path: 'openingBalancePaise', message: 'Advance received as payment' },
+  const refundNow = receivedBefore > 0 && advanceAfter < receivedBefore ? receivedBefore - advanceAfter : 0;
+  if (refundNow && !input.advancePayment) {
+    throw new ApiError(422, 'REFUND_MODE_REQUIRED', `${(refundNow / 100).toFixed(2)} of ${customer.name}'s advance was received as payment — choose how it is paid back.`, [
+      { path: 'advancePayment.mode', message: 'Select how the advance is paid back' },
     ]);
   }
   const receivedNow = input.advancePayment && advanceAfter > advanceBefore ? advanceAfter - advanceBefore : 0;
@@ -264,13 +266,14 @@ export async function updateCustomer(id, input) {
   await withTransaction(async (session) => {
     await customer.save({ session });
     if (receivedNow) await recordAdvanceReceipt(customer, input.advancePayment, receivedNow, { session });
+    if (refundNow) await recordAdvanceReceipt(customer, input.advancePayment, -refundNow, { session });
     // The opening-balance journal holds only what was not received as payment.
     await syncOpeningBalance(
       {
         partyType: 'customer',
         partyId: customer._id,
         code: customer.code,
-        amountPaise: after.openingBalancePaise + receivedBefore + receivedNow,
+        amountPaise: after.openingBalancePaise + receivedBefore + receivedNow - refundNow,
         previousPaise: before.openingBalancePaise + receivedBefore,
       },
       { session },

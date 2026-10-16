@@ -533,7 +533,7 @@ export default function OrderFormPage() {
       const uploaded = photos.length - failed;
       toast.success(`Order ${order.orderNo} booked${uploaded ? ` with ${uploaded} photo${uploaded === 1 ? '' : 's'}` : ''}`);
       if (failed) toast.error(`${failed} photo${failed === 1 ? '' : 's'} could not be uploaded`);
-      navigate(`/orders/${order.id}`, { replace: true });
+      navigate('/orders', { replace: true });
     } catch (err) {
       const details = err?.data?.error?.details?.map((d) => ({
         ...d,

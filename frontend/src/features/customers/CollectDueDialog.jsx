@@ -10,6 +10,7 @@ import { getErrorMessage } from '../../utils/errors.js';
 import { formatDate } from '../../utils/format.js';
 import { ADVANCE_MODE_OPTIONS } from '../orders/orderUi.jsx';
 import { useCollectDueMutation, useCustomerDuesQuery } from './customerApi.js';
+import KeepOnPhone from '../../components/KeepOnPhone.jsx';
 
 const rupees = (paise) => String(paise / 100);
 const paiseOf = (v) => {
@@ -93,7 +94,7 @@ export default function CollectDueDialog({ open, onClose, customerId, saleId = n
                 value={amount}
                 onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))}
                 error={Boolean(amount) && Boolean(problem)}
-                helperText={problem ?? (paise < total ? `${formatINR(total - paise)} will still be due` : 'Clears all dues')}
+                helperText={<KeepOnPhone>{problem ?? (paise < total ? `${formatINR(total - paise)} will still be due` : 'Clears all dues')}</KeepOnPhone>}
                 slotProps={{ input: { startAdornment: <InputAdornment position="start">₹</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }}
                 autoFocus
               />

@@ -1,5 +1,5 @@
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
-import { Box, Button, Chip, Stack, Tab, Tabs, Typography } from '@mui/material';
+import { Box, Button, Chip, Typography } from '@mui/material';
 import { formatINR } from '@jerp/shared';
 import { useNavigate } from 'react-router';
 import Amount from '../../components/Amount.jsx';
@@ -18,10 +18,11 @@ import EventBusyOutlinedIcon from '@mui/icons-material/EventBusyOutlined';
 import SavingsOutlinedIcon from '@mui/icons-material/SavingsOutlined';
 import { OrderStatusChip } from './orderUi.jsx';
 import { useDeleteStatus } from '../../services/recordApi.js';
+import ViewTabs from '../../components/ViewTabs.jsx';
 
 const TABS = [
   { value: 'open', label: 'Open', count: (c) => (c.booked ?? 0) + (c.in_progress ?? 0) + (c.ready ?? 0) },
-  { value: 'ready', label: 'Ready to deliver', count: (c) => c.ready ?? 0 },
+  { value: 'ready', label: 'Ready to deliver', short: 'Ready', count: (c) => c.ready ?? 0 },
   { value: 'delivered', label: 'Delivered', count: (c) => c.delivered ?? 0 },
   { value: 'cancelled', label: 'Cancelled', count: (c) => c.cancelled ?? 0 },
   { value: '', label: 'All', count: (c) => Object.values(c).reduce((s, n) => s + n, 0) },
@@ -149,23 +150,7 @@ export default function OrdersPage() {
           <SummaryCard icon={SavingsOutlinedIcon} label="Advance held" value={formatINR(data.meta.summary.advancePaise, { decimals: 0 })} caption="Taken on open orders" tone="blue" />
         </SummaryCards>
       )}
-      <Tabs value={list.filters.status} onChange={(e, v) => list.setFilter('status', v)} variant="scrollable" sx={{ mb: 2, borderBottom: 1, borderColor: 'divider' }}>
-        {TABS.map((t) => (
-          <Tab
-            key={t.label}
-            value={t.value}
-            label={
-              <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                <span>{t.label}</span>
-                <Box component="span" sx={{ px: 0.75, minWidth: 20, borderRadius: 10, fontSize: '0.6875rem', fontWeight: 700, bgcolor: 'action.selected' }}>
-                  {t.count(counts)}
-                </Box>
-              </Stack>
-            }
-            sx={{ minHeight: 44 }}
-          />
-        ))}
-      </Tabs>
+      <ViewTabs value={list.filters.status} onChange={(v) => list.setFilter('status', v)} items={TABS.map((t) => ({ value: t.value, label: t.label, short: t.short, count: t.count(counts) }))} />
       <DataTable
         columns={columns}
         rows={data?.items}

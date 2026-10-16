@@ -1,5 +1,6 @@
 import { sendCreated, sendOk } from '../../utils/response.js';
 import * as supplierService from './supplier.service.js';
+import * as paymentService from './supplierPayment.service.js';
 
 export async function list(req, res) {
   const { items, meta } = await supplierService.listSuppliers(req.valid.query);
@@ -25,4 +26,12 @@ export async function setStatus(req, res) {
 export async function remove(req, res) {
   await supplierService.deleteSupplier(req.valid.params.id);
   sendOk(res, null, { message: 'Supplier deleted' });
+}
+
+export async function payments(req, res) {
+  sendOk(res, await paymentService.listSupplierPayments(req.valid.params.id));
+}
+
+export async function pay(req, res) {
+  sendCreated(res, await paymentService.paySupplier(req.valid.params.id, req.valid.body), { message: 'Payment recorded' });
 }

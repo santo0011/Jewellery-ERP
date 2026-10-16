@@ -24,7 +24,8 @@ const supplierSchema = new mongoose.Schema(
     },
     supplies: { type: [String], default: [] },
     paymentTermsDays: { type: Number, default: 0 },
-    openingBalancePaise: { type: Number, default: 0 },
+    openingBalancePaise: { type: Number, default: 0 }, // what we owed them when added (never minus)
+    openingDuePaidPaise: { type: Number, default: 0 }, // paid off the old balance since (supplier payments)
     openingFineGoldMg: { type: Number, default: 0 },
     openingFineSilverMg: { type: Number, default: 0 },
     notes: { type: String, default: null },

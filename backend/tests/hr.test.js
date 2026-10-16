@@ -367,4 +367,23 @@ describe('payroll for the running month', () => {
     const reg = (await api().get(`/api/v1/hr/attendance/register?branchId=${ctx.ho}&month=${month}`).set(bearer(ctx.t))).body.data;
     expect(reg.employees.find((e) => e.id === emp.id).eligibleDays).toBe(dayOfMonth);
   });
+
+  it('shows the starting salary and each increment in the salary history', async () => {
+    const ctx = await setup();
+    const emp = await ctx.hire({ name: 'Raise Staff', basicPaise: 2000000, allowancePaise: 500000 });
+    expect(emp.salaryHistory).toMatchObject([{ event: 'joined', date: '2025-01-01', grossPaise: 2500000, changePaise: null }]);
+
+    const body = { name: emp.name, mobile: emp.mobile, designation: emp.designation, branchId: ctx.ho, joiningDate: emp.joiningDate };
+    const edit = (pay) => api().put(`/api/v1/hr/employees/${emp.id}`).set(bearer(ctx.t)).send({ ...body, ...pay });
+    await edit({ basicPaise: 2200000, allowancePaise: 500000 });
+    await edit({ basicPaise: 2200000, allowancePaise: 500000, notes: 'No pay change' });
+    const res = await edit({ basicPaise: 2200000, allowancePaise: 800000 });
+
+    expect(res.body.data.salaryHistory.map((r) => [r.event, r.basicPaise, r.allowancePaise, r.changePaise])).toEqual([
+      ['joined', 2000000, 500000, null],
+      ['increment', 2200000, 500000, 200000],
+      ['increment', 2200000, 800000, 300000],
+    ]);
+    expect(res.body.data.salaryHistory[1].by.name).toBeTruthy();
+  });
 });

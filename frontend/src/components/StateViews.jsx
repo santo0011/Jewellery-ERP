@@ -8,11 +8,12 @@ import { DiamondMark } from './Wordmark.jsx';
 
 export function EmptyState({ title = 'Nothing here yet', description, action, icon: Icon = InboxOutlinedIcon }) {
   return (
-    <Stack spacing={1} sx={{ py: 6, px: 2, alignItems: 'center', textAlign: 'center' }}>
-      <Icon sx={{ fontSize: 40, color: 'primary.main', opacity: 0.8 }} />
+    // Phones: the title says it; the longer description is left out.
+    <Stack spacing={1} sx={{ py: { xs: 3.5, sm: 6 }, px: 2, alignItems: 'center', textAlign: 'center' }}>
+      <Icon sx={{ fontSize: { xs: 32, sm: 40 }, color: 'primary.main', opacity: 0.8 }} />
       <Typography variant="h5">{title}</Typography>
       {description && (
-        <Typography variant="body2" color="textSecondary" sx={{ maxWidth: 380 }}>
+        <Typography variant="body2" color="textSecondary" sx={{ maxWidth: 380, display: { xs: 'none', sm: 'block' } }}>
           {description}
         </Typography>
       )}

@@ -13,6 +13,8 @@ import { todayContext } from '../../utils/businessDate.js';
 import { Purchase, PurchaseOrder } from '../purchases/purchase.model.js';
 import { accessibleBranchFilter } from '../inventory/inventory.helpers.js';
 import { Supplier } from './supplier.model.js';
+import { SupplierPayment } from './supplierPayment.model.js';
+import { openingDueLeft } from './supplierPayment.service.js';
 
 const TRACKED = [
   'companyName', 'contactPerson', 'mobile', 'alternateMobile', 'email', 'gstin', 'pan', 'address', 'bankDetails',
@@ -34,6 +36,8 @@ const serialize = (s) => ({
   supplies: s.supplies ?? [],
   paymentTermsDays: s.paymentTermsDays ?? 0,
   openingBalancePaise: s.openingBalancePaise ?? 0,
+  openingDuePaidPaise: s.openingDuePaidPaise ?? 0,
+  openingDuePaise: openingDueLeft(s),
   openingFineGoldMg: s.openingFineGoldMg ?? 0,
   openingFineSilverMg: s.openingFineSilverMg ?? 0,
   notes: s.notes,
@@ -65,14 +69,31 @@ export async function listSuppliers({ page, limit, q, status, supplies }) {
   if (status) filter.status = status;
   if (supplies) filter.supplies = supplies;
   const { items, meta } = await paginate(Supplier.find(filter).sort({ companyName: 1 }), Supplier.countDocuments(filter), { page, limit });
-  return { items: items.map(serialize), meta: { ...meta, summary: await supplierSummary() } };
+  const billDue = await billDueBySupplier(items.map((x) => x._id));
+  return {
+    items: items.map((x) => {
+      const bills = billDue.get(String(x._id)) ?? 0;
+      return { ...serialize(x), billDuePaise: bills, duePaise: bills + openingDueLeft(x) };
+    }),
+    meta: { ...meta, summary: await supplierSummary() },
+  };
 }
 
-/** Header cards: active suppliers, bought this month, and what is still owed on purchase bills. */
+/** Still owed on purchase bills, per supplier (only the branches this user works in). */
+async function billDueBySupplier(ids) {
+  if (!ids.length) return new Map();
+  const rows = await Purchase.aggregate([
+    { $match: { supplierId: { $in: ids }, paymentStatus: { $ne: 'paid' }, ...accessibleBranchFilter() } },
+    { $group: { _id: '$supplierId', due: { $sum: { $subtract: ['$totals.totalPaise', '$paidPaise'] } } } },
+  ]);
+  return new Map(rows.map((r) => [String(r._id), r.due]));
+}
+
+/** Header cards: active suppliers, bought this month, and what is still owed to all of them (bills + old balance). */
 async function supplierSummary() {
   const today = await todayContext();
   const month = today.businessDate.slice(0, 7);
-  const [active, [bills]] = await Promise.all([
+  const [active, [bills], oldDue] = await Promise.all([
     Supplier.countDocuments({ isDeleted: false, status: 'active' }),
     // Purchase figures: only the branches this user works in.
     Purchase.aggregate([
@@ -86,13 +107,36 @@ async function supplierSummary() {
         },
       },
     ]),
+    Supplier.find({ isDeleted: false, $expr: { $gt: ['$openingBalancePaise', { $ifNull: ['$openingDuePaidPaise', 0] }] } }).select('openingBalancePaise openingDuePaidPaise').lean(),
   ]);
-  return { active, monthPaise: bills?.monthPaise ?? 0, duePaise: bills?.duePaise ?? 0, dueSuppliers: (bills?.dueSuppliers ?? []).filter(Boolean).length };
+  const owed = new Set([...(bills?.dueSuppliers ?? []).filter(Boolean).map(String), ...oldDue.map((x) => String(x._id))]);
+  const oldDuePaise = oldDue.reduce((n, x) => n + openingDueLeft(x), 0);
+  return {
+    active,
+    monthPaise: bills?.monthPaise ?? 0,
+    billDuePaise: bills?.duePaise ?? 0,
+    oldDuePaise,
+    duePaise: (bills?.duePaise ?? 0) + oldDuePaise,
+    dueSuppliers: owed.size,
+  };
 }
 
 export async function getSupplier(id) {
   const supplier = (await findSupplier(id)).toObject();
-  return { ...serialize(supplier), stats: hasPermission(requireContext().permissions, 'purchase.view') ? await supplierStats(supplier) : null };
+  return {
+    ...serialize(supplier),
+    openingBalanceLocked: await hasTransactions(supplier._id),
+    stats: hasPermission(requireContext().permissions, 'purchase.view') ? await supplierStats(supplier) : null,
+  };
+}
+
+/**
+ * Any purchase bill or payment with this supplier, in any branch. After the first one the old balance is part of the
+ * books (bills and payments are settled against it), so it can no longer be changed.
+ */
+async function hasTransactions(supplierId) {
+  const [bill, payment] = await Promise.all([Purchase.exists({ supplierId }), SupplierPayment.exists({ supplierId })]);
+  return Boolean(bill || payment);
 }
 
 /** What has been bought from this supplier, paid and still owed (bills + opening balance), and open orders. */
@@ -115,12 +159,14 @@ async function supplierStats(supplier) {
   ]);
   const purchased = bills?.purchasedPaise ?? 0;
   const paid = bills?.paidPaise ?? 0;
-  const openingDue = Math.max(0, supplier.openingBalancePaise ?? 0);
+  const openingDue = openingDueLeft(supplier);
   return {
     bills: bills?.bills ?? 0,
     lastBillDate: bills?.lastBillDate ?? null,
     purchasedPaise: purchased,
-    paidPaise: paid,
+    paidPaise: paid + (supplier.openingDuePaidPaise ?? 0),
+    billPaidPaise: paid,
+    openingPaidPaise: supplier.openingDuePaidPaise ?? 0,
     billDuePaise: purchased - paid,
     openingDuePaise: openingDue,
     duePaise: purchased - paid + openingDue,
@@ -148,6 +194,13 @@ export async function createSupplier(input) {
 export async function updateSupplier(id, input) {
   const supplier = await findSupplier(id);
   if (input.gstin !== supplier.gstin) await assertGstinFree(input.gstin, supplier._id);
+  // The old balance can be corrected only until the first purchase or payment with the supplier; after that it is
+  // part of the books and stays as it is.
+  if ((input.openingBalancePaise ?? 0) !== (supplier.openingBalancePaise ?? 0) && (await hasTransactions(supplier._id))) {
+    throw new ApiError(422, 'OLD_BALANCE_LOCKED', `${supplier.companyName} already has purchases or payments, so the old balance can no longer be changed.`, [
+      { path: 'openingBalancePaise', message: 'Locked after the first purchase or payment' },
+    ]);
+  }
   const before = serialize(supplier.toObject());
   supplier.set({ ...input, updatedBy: requireContext().userId });
   const after = serialize(supplier.toObject());

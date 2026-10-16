@@ -71,6 +71,23 @@ export function hasPermission(granted, required) {
 
 export const hasAnyPermission = (granted, required) => required.some((p) => hasPermission(granted, p));
 
+/**
+ * Who may read a module's records as a lookup (search and pick). Pages use other modules' records: a bill picks a
+ * customer and products at today's rates, a purchase picks a supplier and pieces, an order picks a customer and a
+ * category, an advance picks an employee. Holding the page's permission is enough — the role does not also need
+ * the other module's View. Changing or deleting those records still needs that module's own permissions.
+ */
+export const LOOKUP_ACCESS = Object.freeze({
+  customer: ['customer.view', 'sales.create', 'order.create', 'order.edit'],
+  customerDues: ['customer.view', 'sales.create', 'accounts.receipt'],
+  product: ['product.view', 'sales.create', 'inventory.view', 'inventory.adjust', 'inventory.transfer', 'purchase.create'],
+  rate: ['rate.view', 'sales.create'],
+  supplier: ['supplier.view', 'purchase.view', 'purchase.create', 'product.create', 'product.edit'],
+  category: ['category.view', 'product.view', 'order.create', 'order.edit', 'inventory.adjust', 'purchase.create'],
+  order: ['order.view', 'order.edit', 'sales.create'],
+  employee: ['employee.view', 'payroll.process'],
+});
+
 export function expandPermissions(granted) {
   const set = new Set(granted);
   return set.has(WILDCARD_PERMISSION) ? [...ALL_PERMISSIONS] : ALL_PERMISSIONS.filter((p) => set.has(p));

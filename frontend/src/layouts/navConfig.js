@@ -30,7 +30,7 @@ import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
 import WorkspacePremiumOutlinedIcon from '@mui/icons-material/WorkspacePremiumOutlined';
 
 /** Anyone with at least one of these sees Reports (each report checks its own permission). */
-export const REPORT_PERMISSIONS = ['report.sales', 'report.inventory', 'report.customer', 'report.finance', 'payroll.view', 'attendance.view'];
+export const REPORT_PERMISSIONS = ['report.sales', 'report.inventory', 'report.customer', 'report.finance', 'purchase.view', 'payroll.view', 'attendance.view'];
 
 /** Always first and never folded away: a `pinned` group renders without a collapsible header. */
 export const DASHBOARD_GROUP = { label: 'Dashboard', pinned: true, items: [{ label: 'Dashboard', mobileLabel: 'Home', path: '/', icon: DashboardOutlinedIcon, end: true, mobile: true }] };

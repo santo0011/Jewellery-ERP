@@ -1,3 +1,7 @@
+import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined';
+import BadgeOutlinedIcon from '@mui/icons-material/BadgeOutlined';
+import RemoveCircleOutlineRoundedIcon from '@mui/icons-material/RemoveCircleOutlineRounded';
+import TrendingUpRoundedIcon from '@mui/icons-material/TrendingUpRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
@@ -18,6 +22,7 @@ import DataTable from '../../components/DataTable.jsx';
 import FormDrawer from '../../components/FormDrawer.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
 import SearchField from '../../components/SearchField.jsx';
+import SummaryCards, { SummaryCard } from '../../components/SummaryCards.jsx';
 import { ErrorState, LoadingState } from '../../components/StateViews.jsx';
 import ViewButton from '../../components/ViewButton.jsx';
 import { usePermission } from '../../hooks/usePermission.js';
@@ -27,6 +32,7 @@ import { useDeletePayrollMutation, useFinalisePayrollMutation, usePayPayrollMuta
 import { formatDays, PAY_MODES, payModeLabel, PayrollStatusChip } from './hrUi.jsx';
 import { EmployeeAvatar } from './EmployeePhoto.jsx';
 import PayrollSteps, { stepOf } from './PayrollSteps.jsx';
+import KeepOnPhone from '../../components/KeepOnPhone.jsx';
 
 const money = { slotProps: { input: { startAdornment: <InputAdornment position="start">₹</InputAdornment> }, htmlInput: { inputMode: 'decimal' } } };
 const asPaise = (v) => {
@@ -45,24 +51,6 @@ export function daysSummary(l) {
   if (l.days.paidLeave) parts.push(`${l.days.paidLeave} leave`);
   if (l.days.holiday) parts.push(`${l.days.holiday} holiday`);
   return parts.join(' · ') || 'Full attendance';
-}
-
-function Tile({ label, children, caption }) {
-  return (
-    <Card sx={{ height: '100%' }}>
-      <CardContent>
-        <Typography variant="caption" color="textSecondary">
-          {label}
-        </Typography>
-        <Box sx={{ '& > span': { fontSize: '1.35rem' }, mt: 0.25 }}>{children}</Box>
-        {caption && (
-          <Typography variant="caption" color="textSecondary">
-            {caption}
-          </Typography>
-        )}
-      </CardContent>
-    </Card>
-  );
 }
 
 function LineDrawer({ runId, line, onClose }) {
@@ -162,7 +150,7 @@ function LineDrawer({ runId, line, onClose }) {
           onChange={set('advance')}
           disabled={!line.advanceBalancePaise}
           error={advanceTooHigh}
-          helperText={advanceTooHigh ? `Only ${formatINR(line.advanceBalancePaise, { decimals: 0 })} is due` : line.advanceBalancePaise ? `Up to ${formatINR(line.advanceBalancePaise, { decimals: 0 })} — lower it to carry the rest to next month` : line.advanceUpcomingPaise ? 'Advance is set for a later month' : 'No advance due'}
+          helperText={<KeepOnPhone>{advanceTooHigh ? `Only ${formatINR(line.advanceBalancePaise, { decimals: 0 })} is due` : line.advanceBalancePaise ? `Up to ${formatINR(line.advanceBalancePaise, { decimals: 0 })} — lower it to carry the rest to next month` : line.advanceUpcomingPaise ? 'Advance is set for a later month' : 'No advance due'}</KeepOnPhone>}
           {...money}
         />
         <TextField label="Note on payslip (optional)" value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} slotProps={{ htmlInput: { maxLength: 200 } }} />
@@ -477,30 +465,32 @@ export default function PayrollRunPage() {
         </CardContent>
       </Card>
 
-      <Grid container spacing={2} sx={{ mb: 2 }}>
-        <Grid size={{ xs: 6, md: 3 }}>
-          <Tile label="Employees" caption={`Gross ${formatINR(t.grossPaise, { decimals: 0 })}`}>
-            <Typography component="span" sx={{ fontWeight: 700 }}>
-              {t.employees}
-            </Typography>
-          </Tile>
-        </Grid>
-        <Grid size={{ xs: 6, md: 3 }}>
-          <Tile label="Earned + bonus" caption={t.bonusPaise ? `incl. ${formatINR(t.bonusPaise, { decimals: 0 })} bonus` : 'No bonus'}>
-            <Amount paise={t.earnedPaise + t.bonusPaise} decimals={0} />
-          </Tile>
-        </Grid>
-        <Grid size={{ xs: 6, md: 3 }}>
-          <Tile label="Deductions" caption={t.advanceDeductionPaise ? `incl. ${formatINR(t.advanceDeductionPaise, { decimals: 0 })} advance` : 'No advance recovery'}>
-            <Amount paise={t.otherDeductionPaise + t.advanceDeductionPaise} tone={t.otherDeductionPaise + t.advanceDeductionPaise ? 'due' : undefined} decimals={0} />
-          </Tile>
-        </Grid>
-        <Grid size={{ xs: 6, md: 3 }}>
-          <Tile label="Net payable" caption={draft ? 'Not finalised' : t.unpaidCount ? `${formatINR(t.netPaise - t.paidPaise, { decimals: 0 })} still to pay` : 'All paid'}>
-            <Amount paise={t.netPaise} tone={draft ? undefined : t.unpaidCount ? 'due' : 'paid'} decimals={0} />
-          </Tile>
-        </Grid>
-      </Grid>
+      <SummaryCards>
+        <SummaryCard icon={BadgeOutlinedIcon} label="Employees" value={t.employees} caption={`Gross ${formatINR(t.grossPaise, { decimals: 0 })}`} />
+        <SummaryCard
+          icon={TrendingUpRoundedIcon}
+          label="Earned + bonus"
+          value={formatINR(t.earnedPaise + t.bonusPaise, { decimals: 0 })}
+          caption={t.bonusPaise ? `incl. ${formatINR(t.bonusPaise, { decimals: 0 })} bonus` : 'No bonus'}
+          tone="blue"
+        />
+        <SummaryCard
+          icon={RemoveCircleOutlineRoundedIcon}
+          label="Deductions"
+          value={formatINR(t.otherDeductionPaise + t.advanceDeductionPaise, { decimals: 0 })}
+          caption={t.advanceDeductionPaise ? `incl. ${formatINR(t.advanceDeductionPaise, { decimals: 0 })} advance` : 'No advance recovery'}
+          tone={t.otherDeductionPaise + t.advanceDeductionPaise ? 'red' : 'grey'}
+          valueTone={t.otherDeductionPaise + t.advanceDeductionPaise ? 'due' : undefined}
+        />
+        <SummaryCard
+          icon={AccountBalanceWalletOutlinedIcon}
+          label="Net payable"
+          value={formatINR(t.netPaise, { decimals: 0 })}
+          caption={draft ? 'Not finalised' : t.unpaidCount ? `${formatINR(t.netPaise - t.paidPaise, { decimals: 0 })} still to pay` : 'All paid'}
+          tone={draft ? 'amber' : t.unpaidCount ? 'red' : 'green'}
+          valueTone={draft ? undefined : t.unpaidCount ? 'due' : 'paid'}
+        />
+      </SummaryCards>
 
       <DataTable
         columns={columns}

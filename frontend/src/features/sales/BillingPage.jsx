@@ -6,7 +6,7 @@ import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import RestartAltRoundedIcon from '@mui/icons-material/RestartAltRounded';
 import ShowChartRoundedIcon from '@mui/icons-material/ShowChartRounded';
 import { Alert, Autocomplete, Box, Button, Card, CardContent, Chip, Divider, Grid, IconButton, InputAdornment, MenuItem, Stack, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography } from '@mui/material';
-import { formatINR, formatWeight, PAYMENT_MODES, toPaise } from '@jerp/shared';
+import { formatINR, formatWeight, LOOKUP_ACCESS, PAYMENT_MODES, toPaise } from '@jerp/shared';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { useSelector } from 'react-redux';
@@ -27,6 +27,7 @@ import { purityLabel } from '../products/productForm.js';
 import { useCurrentRatesQuery } from '../rates/rateApi.js';
 import { billLabels } from './billLabels.js';
 import { useCreateSaleMutation, useLazyLookupProductQuery, useQuoteSaleMutation, useSetProductHuidMutation } from './saleApi.js';
+import KeepOnPhone from '../../components/KeepOnPhone.jsx';
 
 const newKey = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
 const safePaise = (v) => {
@@ -312,7 +313,7 @@ function LineCard({ product: p, discount, discountType, breakdown: b, quoting, c
                   value={discount}
                   onChange={(e) => onDiscount(e.target.value.replace(/[^\d.]/g, ''))}
                   error={discountType === 'percent' && Number(discount) > 100}
-                  helperText={discountType === 'percent' && discount && b ? (Number(discount) > 100 ? 'Up to 100%' : `= ${formatINR(b.discountPaise, { decimals: 0 })}`) : ' '}
+                  helperText={<KeepOnPhone>{discountType === 'percent' && discount && b ? (Number(discount) > 100 ? 'Up to 100%' : `= ${formatINR(b.discountPaise, { decimals: 0 })}`) : ' '}</KeepOnPhone>}
                   sx={{ width: 110 }}
                   slotProps={{
                     input: discountType === 'percent' ? { endAdornment: <InputAdornment position="end">%</InputAdornment> } : { startAdornment: <InputAdornment position="start">₹</InputAdornment> },
@@ -451,7 +452,8 @@ export default function BillingPage() {
   const activeBranchId = useSelector((s) => s.auth.activeBranchId) ?? session.branches[0]?.id;
   const branchName = session.branches.find((b) => b.id === activeBranchId)?.name ?? 'this branch';
   const canDiscount = usePermission('sales.discount');
-  const canViewOrders = usePermission('order.view');
+  // Open orders to deliver on this bill: New bill is enough to look them up (see LOOKUP_ACCESS).
+  const canViewOrders = usePermission(LOOKUP_ACCESS.order);
 
   const [lines, setLines] = useState([]); // [{ product, discount, discountType: 'amount' | 'percent' }]
   const [customer, setCustomer] = useState(null);
@@ -600,8 +602,26 @@ export default function BillingPage() {
         payments: payments.filter((p) => safePaise(p.amount) > 0).map((p) => ({ mode: p.mode, amountPaise: safePaise(p.amount), reference: p.reference || null })),
         notes: notes || null,
       }).unwrap();
-      toast.success(`Invoice ${sale.invoiceNo} created`);
-      navigate(`/sales/${sale.id}`, { replace: true });
+      // Back to the invoice list (the new bill is at the top); the invoice itself — to print — is one tap away.
+      toast.success(
+        (t) => (
+          <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
+            Invoice {sale.invoiceNo} created
+            <Button
+              size="small"
+              variant="outlined"
+              onClick={() => {
+                toast.dismiss(t.id);
+                navigate(`/sales/${sale.id}`);
+              }}
+            >
+              Open invoice
+            </Button>
+          </Box>
+        ),
+        { duration: 8000 },
+      );
+      navigate('/sales', { replace: true });
     } catch (err) {
       toast.error(getErrorMessage(err));
     }

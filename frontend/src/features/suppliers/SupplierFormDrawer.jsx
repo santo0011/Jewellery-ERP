@@ -1,6 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Alert, Grid, InputAdornment } from '@mui/material';
-import { decimalToScaledInt, fromMg, fromPaise, SUPPLIER_SUPPLIES, toPaise } from '@jerp/shared';
+import { decimalToScaledInt, formatINR, fromMg, fromPaise, SUPPLIER_SUPPLIES, toPaise } from '@jerp/shared';
 import { supplierSchema } from '@jerp/shared/schemas';
 import { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
@@ -11,6 +11,7 @@ import AddressFields from '../../components/form/AddressFields.jsx';
 import RHFMultiSelect from '../../components/form/RHFMultiSelect.jsx';
 import RHFTextField from '../../components/form/RHFTextField.jsx';
 import FormDrawer from '../../components/FormDrawer.jsx';
+import KeepOnPhone from '../../components/KeepOnPhone.jsx';
 import MoreDetails from '../../components/MoreDetails.jsx';
 import { applyServerErrors, getErrorMessage } from '../../utils/errors.js';
 import { useCreateSupplierMutation, useUpdateSupplierMutation } from './supplierApi.js';
@@ -31,9 +32,25 @@ const decimal = (scale) =>
     }
   }, 'Enter a valid number');
 
+// Old balance: what we owe the supplier from before — only a plus amount.
+const oldBalance = z
+  .string()
+  .trim()
+  .refine((v) => /^\d*(\.\d{0,2})?$/.test(v),'Enter an amount (no minus) — what you owe them')
+  .refine((v) => {
+    try {
+      return (toPaise(v || '0') ?? -1) >= 0;
+    } catch {
+      return false;
+    }
+  }, 'Enter a valid amount');
+
+// The server names the saved fields; errors on them show on the form field they come from.
+const SERVER_FIELD = { openingBalancePaise: 'openingBalance', openingFineGoldMg: 'openingGold', openingFineSilverMg: 'openingSilver' };
+
 const formSchema = supplierSchema
   .omit({ openingBalancePaise: true, openingFineGoldMg: true, openingFineSilverMg: true, paymentTermsDays: true })
-  .extend({ openingBalance: decimal(2), openingGold: decimal(3), openingSilver: decimal(3), paymentTermsDays: z.string().regex(/^\d{1,3}$/, 'Enter days (0–365)') });
+  .extend({ openingBalance: oldBalance, openingGold: decimal(3), openingSilver: decimal(3), paymentTermsDays: z.string().regex(/^\d{1,3}$/, 'Enter days (0–365)') });
 
 const blank = (v) => v ?? '';
 const blanks = (obj, empty) => ({ ...empty, ...Object.fromEntries(Object.entries(obj ?? {}).map(([k, v]) => [k, blank(v)])) });
@@ -52,7 +69,7 @@ const toForm = (s) =>
         bankDetails: blanks(s.bankDetails, EMPTY_BANK),
         supplies: s.supplies,
         paymentTermsDays: String(s.paymentTermsDays),
-        openingBalance: String(fromPaise(s.openingBalancePaise)),
+        openingBalance: String(fromPaise(Math.max(0, s.openingBalancePaise))),
         openingGold: String(fromMg(s.openingFineGoldMg)),
         openingSilver: String(fromMg(s.openingFineSilverMg)),
         notes: blank(s.notes),
@@ -60,6 +77,8 @@ const toForm = (s) =>
     : EMPTY;
 
 const upper = (v) => v.toUpperCase();
+// Digits and a decimal point only: a minus cannot be typed.
+const amountOnly = (v) => v.replace(/[^\d.]/g, '');
 const unit = (text, position = 'end') => ({ input: { [`${position}Adornment`]: <InputAdornment position={position}>{text}</InputAdornment> }, htmlInput: { inputMode: 'decimal' } });
 
 export default function SupplierFormDrawer({ open, supplier, onClose }) {
@@ -96,10 +115,10 @@ export default function SupplierFormDrawer({ open, supplier, onClose }) {
         const created = await create(payload).unwrap();
         toast.success(`Supplier ${created.code} created`);
         onClose();
-        navigate(`/suppliers/${created.id}`);
+        navigate('/suppliers');
       }
     } catch (err) {
-      if (!applyServerErrors(err, setError)) toast.error(getErrorMessage(err));
+      if (!applyServerErrors(err, (path, e) => setError(SERVER_FIELD[path] ?? path, e))) toast.error(getErrorMessage(err));
     }
   });
 
@@ -134,7 +153,20 @@ export default function SupplierFormDrawer({ open, supplier, onClose }) {
           <RHFTextField control={control} name="gstin" label="GSTIN" transform={upper} slotProps={{ htmlInput: { maxLength: 15 } }} />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
-          <RHFTextField control={control} name="openingBalance" label="Old balance (optional)" helperText="What you owe them. Minus if they owe you." slotProps={unit('₹', 'start')} />
+          <RHFTextField
+            control={control}
+            name="openingBalance"
+            label="Old balance (optional)"
+            transform={amountOnly}
+            // Locked after the first purchase or payment with them: bills and payments are already settled against it.
+            disabled={Boolean(supplier?.openingBalanceLocked)}
+            helperText={
+              supplier?.openingBalanceLocked
+                ? <KeepOnPhone>{`Locked — ${supplier.companyName} already has purchases or payments.${supplier.openingDuePaidPaise > 0 ? ` ${formatINR(supplier.openingDuePaidPaise, { decimals: 0 })} of it is paid.` : ''}`}</KeepOnPhone>
+                : 'What you owe them from before — added to their due. Can be changed until the first purchase or payment.'
+            }
+            slotProps={unit('₹', 'start')}
+          />
         </Grid>
         <Grid size={12}>
           <MoreDetails
