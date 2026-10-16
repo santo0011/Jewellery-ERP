@@ -12,7 +12,7 @@ import { ErrorState, LoadingState } from '../../components/StateViews.jsx';
 import StatusChip from '../../components/StatusChip.jsx';
 import { getErrorMessage } from '../../utils/errors.js';
 import { formatDate, formatDateTime } from '../../utils/format.js';
-import { BranchUsage, OrgStatusChip } from './AdminOrganisationsPage.jsx';
+import { BranchUsage, ExpiryCell, OrgStatusChip } from './AdminOrganisationsPage.jsx';
 import EditHistory from '../../components/EditHistory.jsx';
 import { useDeleteOrganisationMutation, useOrganisationHistoryQuery, useOrganisationQuery, useSetOrganisationStatusMutation } from './platformApi.js';
 import OrgSubscriptionPanel, { OrgPaymentsTable } from './OrgSubscriptionPanel.jsx';
@@ -191,6 +191,7 @@ export default function AdminOrganisationDetailPage() {
                 { label: 'Created', value: `${formatDateTime(org.createdAt)} · ${d.createdBy?.kind === 'admin' ? `by ${d.createdBy.name}` : d.createdBy?.name ?? ''}` },
                 { label: 'Last updated', value: d.updatedAt ? formatDateTime(d.updatedAt) : '—' },
                 { label: 'Plan', value: org.plan ?? '—' },
+                { label: 'Expires', value: <ExpiryCell subscription={org.subscription} /> },
               ]}
             />
           </Grid>
