@@ -261,6 +261,26 @@ export function EditOrganisationDrawer({ organisation, onClose }) {
   );
 }
 
+/**
+ * When the organisation's trial or paid period ends, and how close that is: green with time to spare, amber in the
+ * last week, red once it has run out (or the subscription is suspended / cancelled).
+ */
+export function ExpiryCell({ subscription: s }) {
+  if (!s?.endsAt) return <Typography variant="body2" color="textSecondary">—</Typography>;
+  const tone = s.expired ? 'error.main' : s.daysLeft <= 7 ? 'warning.main' : 'success.main';
+  const note = s.expired ? 'Expired' : s.daysLeft === 0 ? 'Expires today' : `${s.daysLeft} day${s.daysLeft === 1 ? '' : 's'} left`;
+  return (
+    <Box>
+      <Typography variant="body2" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
+        {formatDate(s.endsAt)}
+      </Typography>
+      <Typography variant="caption" sx={{ color: tone, fontWeight: 600, whiteSpace: 'nowrap' }}>
+        {s.status === 'trial' && !s.expired ? `Trial · ${note}` : note}
+      </Typography>
+    </Box>
+  );
+}
+
 const orgColumns = [
   {
     key: 'name',
@@ -275,7 +295,6 @@ const orgColumns = [
     ),
   },
   { key: 'owner', label: 'Owner', render: (o) => (o.owner ? `${o.owner.name} · ${o.owner.email}` : '—') },
-  { key: 'branches', label: 'Branches', render: (o) => <BranchUsage used={o.branchesUsed} limit={o.branchLimit} /> },
   {
     key: 'plan',
     label: 'Plan · users',
@@ -293,6 +312,7 @@ const orgColumns = [
       </Box>
     ),
   },
+  { key: 'expires', label: 'Expires', render: (o) => <ExpiryCell subscription={o.subscription} /> },
   { key: 'status', label: 'Status', render: (o) => <OrgStatusChip status={o.status} /> },
 ];
 

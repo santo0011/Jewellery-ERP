@@ -4,6 +4,7 @@ import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import CategoryOutlinedIcon from '@mui/icons-material/CategoryOutlined';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import DiamondOutlinedIcon from '@mui/icons-material/DiamondOutlined';
+import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import RestoreRoundedIcon from '@mui/icons-material/RestoreRounded';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
@@ -11,8 +12,10 @@ import VerifiedOutlinedIcon from '@mui/icons-material/VerifiedOutlined';
 import {
   Box,
   Button,
+  ButtonBase,
   Card,
   Chip,
+  Collapse,
   Dialog,
   DialogActions,
   DialogContent,
@@ -32,7 +35,6 @@ import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { z } from 'zod';
 import ConfirmDialog from '../../components/ConfirmDialog.jsx';
-import DataTable from '../../components/DataTable.jsx';
 import RHFSelect from '../../components/form/RHFSelect.jsx';
 import RHFTextField from '../../components/form/RHFTextField.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
@@ -79,8 +81,6 @@ function CategoryDialog({ state, roots, onClose }) {
     });
   }, [state, reset]);
 
-  const parentOptions = roots.filter((r) => r.id !== state?.category?.id).map((r) => ({ value: r.id, label: r.name }));
-  const hasChildren = editing && roots.find((r) => r.id === state.category.id)?.children.length > 0;
   const parentName = state?.parentId && roots.find((r) => r.id === state.parentId)?.name;
 
   const onSubmit = handleSubmit(async ({ sortOrder, ...values }) => {
@@ -107,17 +107,6 @@ function CategoryDialog({ state, roots, onClose }) {
             <Grid size={12}>
               <RHFTextField control={control} name="name" label="Name" autoFocus />
             </Grid>
-            <Grid size={12}>
-              <RHFSelect
-                control={control}
-                name="parentId"
-                label="Parent category"
-                options={parentOptions}
-                placeholder="None (top level)"
-                disabled={hasChildren}
-                helperText={hasChildren ? 'Has subcategories, so it stays top-level' : undefined}
-              />
-            </Grid>
             <Grid size={6}>
               <RHFSelect control={control} name="defaultMetal" label="Default metal" options={METAL_OPTIONS} placeholder="Any" />
             </Grid>
@@ -142,19 +131,11 @@ function CategoryDialog({ state, roots, onClose }) {
   );
 }
 
-function MetaChip({ children, look }) {
-  return (
-    <Box component="span" sx={{ px: 1, py: 0.25, borderRadius: 999, fontSize: '0.7rem', fontWeight: 600, bgcolor: look?.chip ?? 'action.hover', color: look?.chipInk ?? 'text.secondary', whiteSpace: 'nowrap' }}>
-      {children}
-    </Box>
-  );
-}
-
 function ActionIcon({ title, onClick, label, danger, disabled, children }) {
   return (
     <Tooltip title={title}>
       <span>
-        <IconButton size="small" onClick={onClick} disabled={disabled} aria-label={label} sx={{ width: 30, height: 30, color: 'text.secondary', '&:hover': { color: danger ? 'error.main' : 'primary.dark', bgcolor: danger ? 'rgba(155, 44, 44, 0.08)' : 'rgba(var(--brand-rgb), 0.10)' } }}>
+        <IconButton size="small" onClick={onClick} disabled={disabled} aria-label={label} sx={{ width: 30, height: 30, color: danger ? 'error.main' : 'text.secondary', '&:hover': { color: danger ? 'error.dark' : 'primary.dark', bgcolor: danger ? 'rgba(155, 44, 44, 0.10)' : 'rgba(var(--brand-rgb), 0.10)' }, '&.Mui-disabled': { color: danger ? 'rgba(155, 44, 44, 0.35)' : undefined } }}>
           {children}
         </IconButton>
       </span>
@@ -162,87 +143,226 @@ function ActionIcon({ title, onClick, label, danger, disabled, children }) {
   );
 }
 
-/** A category's name with its metal-coloured initial; subcategories sit indented under their parent. */
-function NameCell({ category, sub }) {
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+
+/** Edit / delete (and, for a category, add a subcategory) — a small rounded group of icon buttons. */
+function RowActions({ category, sub, canCreate, canEdit, canDelete, onEdit, onAddChild, onDelete }) {
+  const blocked = category.children?.length ? 'Remove its subcategories first' : category.productCount ? 'In use by products' : null;
+  if (!canCreate && !canEdit && !canDelete) return null;
+  return (
+    <Stack direction="row" sx={{ flexShrink: 0, alignItems: 'center', p: 0.25, borderRadius: 2, border: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
+      {canCreate && !sub && (
+        <ActionIcon title="Add subcategory" label={`Add subcategory to ${category.name}`} onClick={onAddChild}>
+          <AddRoundedIcon sx={{ fontSize: 18 }} />
+        </ActionIcon>
+      )}
+      {canEdit && (
+        <ActionIcon title="Edit" label={`Edit ${category.name}`} onClick={onEdit}>
+          <EditOutlinedIcon sx={{ fontSize: 17 }} />
+        </ActionIcon>
+      )}
+      {canDelete && (
+        <ActionIcon title={blocked ?? 'Delete'} label={`Delete ${category.name}`} onClick={onDelete} disabled={Boolean(blocked)} danger>
+          <DeleteOutlineRoundedIcon sx={{ fontSize: 17 }} />
+        </ActionIcon>
+      )}
+    </Stack>
+  );
+}
+
+/** "Gold · HSN 7113 · 12 products" — the quiet line under a name. */
+function MetaLine({ category, products }) {
   const look = lookOf(category.defaultMetal);
   return (
-    <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', minWidth: 0, pl: sub ? { xs: 0, md: 4.5 } : 0 }}>
-      {sub ? (
-        <Box sx={{ width: 8, height: 8, borderRadius: '50%', flexShrink: 0, background: look.tile, ml: { xs: 0.5, md: 0 } }} />
-      ) : (
-        <Box sx={{ width: 34, height: 34, borderRadius: 2, flexShrink: 0, display: 'grid', placeItems: 'center', background: look.tile, color: look.ink, fontFamily: fonts.display, fontSize: 16, fontWeight: 700 }}>
-          {category.name.trim().charAt(0).toUpperCase()}
-        </Box>
-      )}
-      <Box sx={{ minWidth: 0 }}>
-        <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
-          <Typography variant={sub ? 'body2' : 'subtitle2'} sx={{ fontWeight: sub ? 500 : 700 }} noWrap>
-            {category.name}
-          </Typography>
-          {category.isSystem && (
-            <Tooltip title="Standard category">
-              <VerifiedOutlinedIcon sx={{ fontSize: 15, color: 'primary.dark' }} />
-            </Tooltip>
-          )}
-        </Stack>
-        {sub && (
-          <Typography variant="caption" color="textSecondary">
-            in {sub}
-          </Typography>
-        )}
+    <Stack direction="row" sx={{ alignItems: 'center', flexWrap: 'wrap', columnGap: 1, rowGap: 0.25, color: 'text.secondary', fontSize: '0.75rem' }}>
+      <Stack direction="row" spacing={0.6} sx={{ alignItems: 'center' }}>
+        <Box sx={{ width: 8, height: 8, borderRadius: '50%', background: look.tile, boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.08)' }} />
+        <span>{look.label}</span>
+      </Stack>
+      <Box component="span" sx={{ opacity: 0.4 }}>•</Box>
+      <span>{category.hsnCode ? `HSN ${category.hsnCode}` : 'HSN from tax settings'}</span>
+      <Box component="span" sx={{ opacity: 0.4 }}>•</Box>
+      <Box component="span" sx={{ fontWeight: 600, color: products ? 'text.primary' : 'text.secondary' }}>
+        {plural(products, 'product', 'products')}
       </Box>
     </Stack>
   );
 }
 
-/** Every category as a table row, each followed by its subcategories. */
-function CategoryTable({ roots, canCreate, canEdit, canDelete, onEdit, onAddChild, onDelete }) {
-  const rows = roots.flatMap((root) => [{ ...root, parentName: null }, ...root.children.map((c) => ({ ...c, children: [], parentName: root.name }))]);
-  const columns = [
-    { key: 'name', label: 'Category', render: (c) => <NameCell category={c} sub={c.parentName} /> },
-    { key: 'metal', label: 'Default metal', render: (c) => (c.defaultMetal ? <MetaChip look={lookOf(c.defaultMetal)}>{lookOf(c.defaultMetal).label}</MetaChip> : <MetaChip look={NO_METAL}>{NO_METAL.label}</MetaChip>) },
-    { key: 'hsn', label: 'HSN', render: (c) => c.hsnCode ?? '—' },
-    { key: 'subs', label: 'Subcategories', align: 'right', render: (c) => (c.parentName ? '—' : c.children.length) },
-    {
-      key: 'products',
-      label: 'Products',
-      align: 'right',
-      render: (c) => (
-        <Typography variant="body2" sx={{ fontWeight: 600 }}>
-          {c.parentName ? c.productCount : c.productCount + c.children.reduce((n, x) => n + x.productCount, 0)}
+/** The pill that folds a category's subcategories open and shut. */
+function SubToggle({ count, open, onClick, name }) {
+  return (
+    <ButtonBase
+      onClick={onClick}
+      aria-expanded={open}
+      aria-label={`${open ? 'Hide' : 'Show'} subcategories of ${name}`}
+      sx={{
+        flexShrink: 0,
+        gap: 0.5,
+        pl: 1.25,
+        pr: 0.75,
+        py: 0.5,
+        borderRadius: 999,
+        border: 1,
+        fontSize: '0.75rem',
+        fontWeight: 700,
+        transition: 'all 200ms ease',
+        ...(open
+          ? { borderColor: 'rgba(var(--brand-rgb), 0.45)', bgcolor: 'rgba(var(--brand-rgb), 0.12)', color: 'var(--brand-strong)' }
+          : { borderColor: 'divider', bgcolor: 'background.paper', color: 'text.secondary', '&:hover': { borderColor: 'rgba(var(--brand-rgb), 0.45)', color: 'var(--brand-strong)' } }),
+      }}
+    >
+      {plural(count, 'subcategory', 'subcategories')}
+      <ExpandMoreRoundedIcon sx={{ fontSize: 18, transition: 'transform 240ms cubic-bezier(0.4, 0, 0.2, 1)', transform: open ? 'rotate(180deg)' : 'none' }} />
+    </ButtonBase>
+  );
+}
+
+/** A subcategory as a small tile inside its category's card. */
+function SubTile({ category, actions }) {
+  const look = lookOf(category.defaultMetal);
+  return (
+    <Stack
+      direction="row"
+      spacing={1.25}
+      sx={{ alignItems: 'center', minWidth: 0, pl: 1.5, pr: 0.75, py: 1, borderRadius: 2.5, border: 1, borderColor: 'divider', bgcolor: 'background.paper', transition: 'border-color 160ms, box-shadow 160ms', '&:hover': { borderColor: 'rgba(var(--brand-rgb), 0.4)', boxShadow: '0 4px 14px -8px rgba(80, 64, 20, 0.35)' } }}
+    >
+      <Box sx={{ width: 6, alignSelf: 'stretch', borderRadius: 3, background: look.tile, flexShrink: 0 }} />
+      <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Typography variant="body2" sx={{ fontWeight: 600 }} noWrap>
+          {category.name}
         </Typography>
-      ),
-    },
-    {
-      key: 'actions',
-      label: 'Action',
-      align: 'right',
-      width: 120,
-      render: (c) => {
-        const blocked = c.children.length ? 'Remove its subcategories first' : c.productCount ? 'In use by products' : null;
+        <Typography variant="caption" color="textSecondary" noWrap sx={{ display: 'block' }}>
+          {plural(category.productCount, 'product', 'products')}
+          {category.hsnCode ? ` · HSN ${category.hsnCode}` : ''}
+          {category.defaultMetal ? ` · ${look.label}` : ''}
+        </Typography>
+      </Box>
+      {actions}
+    </Stack>
+  );
+}
+
+/**
+ * Every category as a card: metal accent, initial tile, name and details, and its subcategories folded away inside
+ * (closed by default; the pill opens them with a smooth slide). `expandAll` (a search) shows them all.
+ */
+function CategoryTable({ roots, expandAll, canCreate, canEdit, canDelete, onEdit, onAddChild, onDelete }) {
+  const [open, setOpen] = useState(() => new Set());
+  const isOpen = (id) => expandAll || open.has(id);
+  const toggle = (id) =>
+    setOpen((s) => {
+      const next = new Set(s);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  const can = { canCreate, canEdit, canDelete };
+  const addTo = (root) => {
+    // Open it, so the new subcategory shows once it is saved.
+    setOpen((s) => new Set(s).add(root.id));
+    onAddChild(root);
+  };
+
+  return (
+    <Stack spacing={{ xs: 1.25, sm: 1.5 }}>
+      {roots.map((root) => {
+        const look = lookOf(root.defaultMetal);
+        const opened = isOpen(root.id);
+        const count = root.children.length;
+        const total = root.productCount + root.children.reduce((n, c) => n + c.productCount, 0);
         return (
-          <Stack direction="row" sx={{ justifyContent: 'flex-end' }}>
-            {canCreate && !c.parentName && (
-              <ActionIcon title="Add subcategory" label={`Add subcategory to ${c.name}`} onClick={() => onAddChild(c)}>
-                <AddRoundedIcon sx={{ fontSize: 18 }} />
-              </ActionIcon>
+          <Card
+            key={root.id}
+            sx={{
+              position: 'relative',
+              overflow: 'hidden',
+              transition: 'box-shadow 220ms ease, border-color 220ms ease',
+              borderColor: opened && count ? 'rgba(var(--brand-rgb), 0.35)' : undefined,
+              boxShadow: opened && count ? '0 12px 32px -18px rgba(80, 64, 20, 0.45)' : undefined,
+              '&:hover': { boxShadow: '0 10px 28px -18px rgba(80, 64, 20, 0.4)' },
+              '&::before': { content: '""', position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, background: look.tile },
+            }}
+          >
+            <Box sx={{ display: 'flex', flexWrap: { xs: 'wrap', md: 'nowrap' }, alignItems: 'center', columnGap: 2, rowGap: 1, pl: { xs: 2, sm: 2.5 }, pr: { xs: 1.25, sm: 2 }, py: { xs: 1.5, sm: 1.75 } }}>
+              <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flex: 1, minWidth: 0, order: 1 }}>
+                <Box
+                  sx={{
+                    width: { xs: 40, sm: 46 },
+                    height: { xs: 40, sm: 46 },
+                    borderRadius: 2.5,
+                    flexShrink: 0,
+                    display: 'grid',
+                    placeItems: 'center',
+                    background: look.tile,
+                    color: look.ink,
+                    fontFamily: fonts.display,
+                    fontSize: { xs: 19, sm: 22 },
+                    fontWeight: 700,
+                    boxShadow: '0 6px 16px -8px rgba(23, 23, 23, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.45)',
+                  }}
+                >
+                  {root.name.trim().charAt(0).toUpperCase()}
+                </Box>
+                <Box sx={{ minWidth: 0 }}>
+                  <Stack direction="row" spacing={0.6} sx={{ alignItems: 'center', minWidth: 0 }}>
+                    <Typography noWrap sx={{ fontFamily: fonts.display, fontSize: { xs: 17, sm: 19 }, fontWeight: 700, lineHeight: 1.2 }}>
+                      {root.name}
+                    </Typography>
+                    {root.isSystem && (
+                      <Tooltip title="Standard category">
+                        <VerifiedOutlinedIcon sx={{ fontSize: 16, color: 'primary.dark', flexShrink: 0 }} />
+                      </Tooltip>
+                    )}
+                  </Stack>
+                  <Box sx={{ mt: 0.4, display: { xs: 'none', md: 'block' } }}>
+                    <MetaLine category={root} products={total} />
+                  </Box>
+                </Box>
+              </Stack>
+              {/* Phones: details and the subcategory pill on a second line; desktop: all on one. */}
+              <Box sx={{ display: { xs: 'block', md: 'none' }, order: 3, flexBasis: '100%', pl: { xs: 6.5, sm: 7.25 } }}>
+                <MetaLine category={root} products={total} />
+              </Box>
+              {count > 0 && (
+                <Box sx={{ order: { xs: 4, md: 2 }, pl: { xs: 6.5, sm: 7.25, md: 0 } }}>
+                  <SubToggle count={count} open={opened} onClick={() => toggle(root.id)} name={root.name} />
+                </Box>
+              )}
+              <Box sx={{ order: { xs: 2, md: 3 } }}>
+                <RowActions category={root} {...can} onEdit={() => onEdit(root)} onDelete={() => onDelete(root)} onAddChild={() => addTo(root)} />
+              </Box>
+            </Box>
+
+            {count > 0 && (
+              <Collapse in={opened} timeout={280} easing={{ enter: 'cubic-bezier(0.4, 0, 0.2, 1)', exit: 'cubic-bezier(0.4, 0, 0.6, 1)' }} unmountOnExit>
+                <Box sx={{ borderTop: 1, borderColor: 'divider', bgcolor: 'rgba(var(--brand-rgb), 0.035)', px: { xs: 1.5, sm: 2.5 }, py: { xs: 1.5, sm: 2 } }}>
+                  <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))' }, gap: 1 }}>
+                    {root.children.map((child) => (
+                      <SubTile
+                        key={child.id}
+                        category={child}
+                        actions={<RowActions category={{ ...child, children: [] }} sub {...can} onEdit={() => onEdit(child)} onDelete={() => onDelete(child)} />}
+                      />
+                    ))}
+                    {canCreate && (
+                      <ButtonBase
+                        onClick={() => addTo(root)}
+                        sx={{ minHeight: 52, gap: 0.75, borderRadius: 2.5, border: '1px dashed', borderColor: 'rgba(var(--brand-rgb), 0.45)', color: 'var(--brand-strong)', fontSize: '0.8125rem', fontWeight: 700, transition: 'background-color 160ms', '&:hover': { bgcolor: 'rgba(var(--brand-rgb), 0.08)' } }}
+                      >
+                        <AddRoundedIcon sx={{ fontSize: 18 }} />
+                        Add subcategory
+                      </ButtonBase>
+                    )}
+                  </Box>
+                </Box>
+              </Collapse>
             )}
-            {canEdit && (
-              <ActionIcon title="Edit" label={`Edit ${c.name}`} onClick={() => onEdit(c)}>
-                <EditOutlinedIcon sx={{ fontSize: 17 }} />
-              </ActionIcon>
-            )}
-            {canDelete && (
-              <ActionIcon title={blocked ?? 'Delete'} label={`Delete ${c.name}`} onClick={() => onDelete(c)} disabled={Boolean(blocked)} danger>
-                <DeleteOutlineRoundedIcon sx={{ fontSize: 17 }} />
-              </ActionIcon>
-            )}
-          </Stack>
+          </Card>
         );
-      },
-    },
-  ];
-  return <DataTable columns={columns} rows={rows} getRowId={(c) => c.id} />;
+      })}
+    </Stack>
+  );
 }
 
 export default function CategoriesPage() {
@@ -354,6 +474,7 @@ export default function CategoriesPage() {
           {shown.length ? (
             <CategoryTable
               roots={shown}
+              expandAll={Boolean(q)}
               canCreate={canCreate}
               canEdit={canEdit}
               canDelete={canDelete}
