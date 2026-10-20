@@ -45,9 +45,26 @@ export function clearSignOutReason() {
 
 const withCrossTabLock = (fn) => (navigator.locks?.request ? navigator.locks.request('jerp-token-refresh', fn) : fn());
 
+// While the API restarts the proxy answers 502/503/504: wait and try again rather than signing the person out.
+const REFRESH_RETRY_DELAYS = [600, 1200, 2000, 3000];
+async function postRefresh() {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await axios.post(`${BASE_URL}/auth/refresh`, null, { withCredentials: true });
+    } catch (err) {
+      const status = err?.response?.status;
+      if ([502, 503, 504].includes(status) && !err.response.data?.error && attempt < REFRESH_RETRY_DELAYS.length) {
+        await new Promise((resolve) => setTimeout(resolve, REFRESH_RETRY_DELAYS[attempt]));
+        continue;
+      }
+      throw err;
+    }
+  }
+}
+
 export function refreshAccessToken() {
   if (!refreshing) {
-    refreshing = withCrossTabLock(() => axios.post(`${BASE_URL}/auth/refresh`, null, { withCredentials: true }))
+    refreshing = withCrossTabLock(postRefresh)
       .then((res) => {
         const token = res.data.data.accessToken;
         store.dispatch(signedIn(token));
