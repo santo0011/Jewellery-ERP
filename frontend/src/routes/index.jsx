@@ -34,6 +34,9 @@ const ApprovalsPage = lazyPage(() => import('../features/approvals/ApprovalsPage
 const StockEntriesPage = lazyPage(() => import('../features/inventory/StockEntriesPage.jsx'));
 const StockLedgerPage = lazyPage(() => import('../features/inventory/StockLedgerPage.jsx'));
 const StockSummaryPage = lazyPage(() => import('../features/inventory/StockSummaryPage.jsx'));
+const RawMaterialsPage = lazyPage(() => import('../features/inventory/RawMaterialsPage.jsx'));
+const ExpensesPage = lazyPage(() => import('../features/finance/ExpensesPage.jsx'));
+const ProfitPage = lazyPage(() => import('../features/finance/ProfitPage.jsx'));
 const TransfersPage = lazyPage(() => import('../features/inventory/TransfersPage.jsx'));
 const PurchaseDetailPage = lazyPage(() => import('../features/purchases/PurchaseDetailPage.jsx'));
 const PurchaseFormPage = lazyPage(() => import('../features/purchases/PurchaseFormPage.jsx'));
@@ -159,6 +162,9 @@ export const router = createBrowserRouter([
           { path: 'orders/:id/edit', element: guard('order.edit', <OrderFormPage />) },
           { path: 'approvals', element: guard('inventory.approve', <ApprovalsPage />) },
           { path: 'inventory', element: guard('inventory.view', <StockSummaryPage />) },
+          { path: 'inventory/raw-materials', element: guard('inventory.view', <RawMaterialsPage />) },
+          { path: 'expenses', element: guard('expense.view', <ExpensesPage />) },
+          { path: 'finance', element: guard('report.finance', <ProfitPage />) },
           { path: 'inventory/opening', element: guard('inventory.view', <StockEntriesPage key="opening" mode="opening" />) },
           { path: 'inventory/adjustments', element: guard('inventory.view', <StockEntriesPage key="adjustment" mode="adjustment" />) },
           { path: 'inventory/transfers', element: guard('inventory.view', <TransfersPage />) },

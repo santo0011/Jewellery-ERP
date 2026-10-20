@@ -85,6 +85,7 @@ export const movementListQuerySchema = listQuerySchema.extend({
   branchId: objectIdSchema.optional(),
   productId: objectIdSchema.optional(),
   type: z.string().max(30).optional(),
+  stock: z.enum(['raw', 'products']).optional(), // raw = the metal stock only; products = finished pieces only
   metal: z.enum(values(METAL_OPTIONS)).optional(),
   from: isoDate.optional(),
   to: isoDate.optional(),

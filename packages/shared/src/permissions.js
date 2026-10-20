@@ -41,8 +41,9 @@ const PERMISSION_SET = new Set(ALL_PERMISSIONS);
  * matter once the feature arrives) but the role editor does not offer them: ticking them would change nothing today.
  */
 const UPCOMING = new Set([
-  ...['repair', 'loyalty', 'oldgold', 'karigar', 'leave', 'expense', 'ai'].flatMap((mod) => ALL_PERMISSIONS.filter((p) => p.startsWith(`${mod}.`))),
+  ...['repair', 'loyalty', 'oldgold', 'karigar', 'leave', 'ai'].flatMap((mod) => ALL_PERMISSIONS.filter((p) => p.startsWith(`${mod}.`))),
   'branch.viewAll',
+  'expense.approve',
   'customer.export',
   'order.approve', 'order.print',
   'sales.edit', 'sales.approve', 'sales.export',

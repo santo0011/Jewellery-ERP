@@ -28,6 +28,9 @@ import StorefrontOutlinedIcon from '@mui/icons-material/StorefrontOutlined';
 import PrintOutlinedIcon from '@mui/icons-material/PrintOutlined';
 import TuneRoundedIcon from '@mui/icons-material/TuneRounded';
 import WorkspacePremiumOutlinedIcon from '@mui/icons-material/WorkspacePremiumOutlined';
+import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined';
+import ScaleOutlinedIcon from '@mui/icons-material/ScaleOutlined';
+import TrendingUpRoundedIcon from '@mui/icons-material/TrendingUpRounded';
 
 /** Anyone with at least one of these sees Reports (each report checks its own permission). */
 export const REPORT_PERMISSIONS = ['report.sales', 'report.inventory', 'report.customer', 'report.finance', 'purchase.view', 'payroll.view', 'attendance.view'];
@@ -60,6 +63,8 @@ export const NAV_GROUPS = [
     items: [
       { label: 'Stock summary', path: '/inventory', icon: Inventory2OutlinedIcon, permission: 'inventory.view', end: true },
       { label: 'Products', path: '/products', icon: DiamondOutlinedIcon, permission: 'product.view', mobile: true },
+      // Metal held by weight (bullion, old gold, scrap) — apart from Products until made into jewellery.
+      { label: 'Raw materials', path: '/inventory/raw-materials', icon: ScaleOutlinedIcon, permission: 'inventory.view' },
       { label: 'Opening stock', path: '/inventory/opening', icon: PlaylistAddRoundedIcon, permission: 'inventory.view' },
       { label: 'Adjustments', path: '/inventory/adjustments', icon: RuleRoundedIcon, permission: 'inventory.view' },
       { label: 'Transfers', path: '/inventory/transfers', icon: SyncAltRoundedIcon, permission: 'inventory.view' },
@@ -74,6 +79,14 @@ export const NAV_GROUPS = [
       { label: 'Items', path: '/items', icon: CategoryOutlinedIcon, permission: 'purchase.view' },
       { label: 'Purchase orders', path: '/purchases/orders', icon: PendingActionsOutlinedIcon, permission: 'purchase.view' },
       { label: 'Suppliers', path: '/suppliers', icon: LocalShippingOutlinedIcon, permission: 'supplier.view' },
+    ],
+  },
+  {
+    // Money: what the shop spends, and what is left after everything.
+    label: 'Accounts',
+    items: [
+      { label: 'Profit & loss', path: '/finance', icon: TrendingUpRoundedIcon, permission: 'report.finance' },
+      { label: 'Expenses', path: '/expenses', icon: AccountBalanceWalletOutlinedIcon, permission: 'expense.view' },
     ],
   },
   {

@@ -15,3 +15,4 @@ export * from './hr.js';
 export * from './purchase.js';
 export * from './item.js';
 export * from './billing.js';
+export * from './finance.js';

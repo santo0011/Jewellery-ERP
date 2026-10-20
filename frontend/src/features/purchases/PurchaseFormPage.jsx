@@ -280,7 +280,7 @@ export default function PurchaseFormPage() {
               </Grid>
             </Section>
 
-            <Section title="2. Pieces" hint="Search a saved item, then enter each piece’s weight, HUID and cost. Not saved yet? Type its name and add it.">
+            <Section title="2. Ready-to-sell jewellery" hint="Rings, chains, earrings… each piece goes into Products, ready to bill. Search a saved item, then enter its weight, HUID and cost.">
               <ItemPicker onPick={(item) => setFresh((list) => [...list, { key: `${item.id}-${Date.now()}`, item, weight: '', huid: '', cost: '' }])} label="Add a piece — search items" />
               {errors.items && (
                 <Typography variant="caption" color="error">
@@ -347,7 +347,7 @@ export default function PurchaseFormPage() {
               </Box>
             </Section>
 
-            <Section title="3. Loose metal" hint="Bullion, old gold or scrap bought by weight (optional).">
+            <Section title="3. Raw material (by weight)" hint="Bullion, old gold or scrap — goes to Raw materials, not Products, until it is made into jewellery (optional).">
               <MetalLinesEditor lines={lines} onChange={setLines} errors={errors.lines} showValue />
             </Section>
 

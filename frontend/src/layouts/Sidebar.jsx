@@ -1,4 +1,5 @@
 import AdminPanelSettingsOutlinedIcon from '@mui/icons-material/AdminPanelSettingsOutlined';
+import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined';
 import BadgeOutlinedIcon from '@mui/icons-material/BadgeOutlined';
 import ChevronLeftRoundedIcon from '@mui/icons-material/ChevronLeftRounded';
 import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
@@ -30,6 +31,7 @@ const GROUP_ICON = {
   Sales: PointOfSaleOutlinedIcon,
   Stock: Inventory2OutlinedIcon,
   Purchase: ShoppingBagOutlinedIcon,
+  Accounts: AccountBalanceWalletOutlinedIcon,
   'HR & Payroll': BadgeOutlinedIcon,
   Settings: SettingsOutlinedIcon,
   'Users & access': AdminPanelSettingsOutlinedIcon,

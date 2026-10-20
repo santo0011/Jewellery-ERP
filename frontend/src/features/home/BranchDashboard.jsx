@@ -15,6 +15,10 @@ import { purityLabel } from '../products/productForm.js';
 import { BarList } from './charts.jsx';
 import { AreaChart, ShareBars, StackedBar } from './shareCharts.jsx';
 import { useBranchDashboardQuery } from './dashboardApi.js';
+import { useNavigate } from 'react-router';
+import { usePermission } from '../../hooks/usePermission.js';
+import { useFinanceSummaryQuery } from '../finance/financeApi.js';
+import { ProfitSnapshot } from '../finance/ProfitPage.jsx';
 
 // The same three periods on every dashboard; all time (since the branch's first bill) is the default.
 const PERIODS = [
@@ -70,7 +74,20 @@ const shortDay = (ymd, bucket) => {
 const hourLabel = (h) => `${h % 12 || 12} ${h < 12 ? 'am' : 'pm'}`;
 
 /** The branch at a glance: today, the period's sales trend and mix, collections, orders and stock. */
+/** This month's sales against expenses, day by day, and the net profit so far — opens Profit & loss. */
+function MonthProfit({ branchId }) {
+  const navigate = useNavigate();
+  const { data } = useFinanceSummaryQuery({ branchId }, { skip: !branchId });
+  if (!data) return null;
+  return (
+    <Box sx={{ mb: ROW_GAP }}>
+      <ProfitSnapshot data={data} onOpen={() => navigate('/finance')} />
+    </Box>
+  );
+}
+
 export default function BranchDashboard({ branchId }) {
+  const canSeeProfit = usePermission('report.finance');
   const [period, setPeriod] = useState('today');
   const { data, isLoading, isFetching, error, refetch } = useBranchDashboardQuery({ branchId, period }, { skip: !branchId });
   const phone = useMediaQuery((theme) => theme.breakpoints.down('sm'));
@@ -109,6 +126,8 @@ export default function BranchDashboard({ branchId }) {
           <SummaryCard hideCaptionOnPhone icon={DiamondOutlinedIcon} label="Items sold" value={sales.period.items} caption={`${formatWeight(sales.period.grossWeightMg)} gross${sales.period.discountPaise ? ` · ${formatINR(sales.period.discountPaise, { decimals: 0 })} discount` : ''}`} tone="amber" />
         </SummaryCards>
       )}
+
+      {canSeeProfit && <MonthProfit branchId={branchId} />}
 
       {sales && (
         <Grid container spacing={GAP} sx={{ mb: ROW_GAP }}>

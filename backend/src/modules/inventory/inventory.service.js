@@ -219,12 +219,14 @@ export async function stockSummary({ branchId: chosen }) {
   };
 }
 
-export async function listMovements({ page, limit, branchId: chosen, productId, type, metal, from, to }) {
+export async function listMovements({ page, limit, branchId: chosen, productId, type, stock, metal, from, to }) {
   const branchId = chosen ?? (productId ? null : await viewBranchFor('inventory')); // navbar filter (one product's history: all)
   const filter = { ...accessibleBranchFilter() };
   if (branchId) filter.branchId = oid(branchId);
   if (productId) filter.productId = oid(productId);
   if (type) filter.type = type;
+  if (stock === 'raw') filter.metalStockId = { $ne: null };
+  else if (stock === 'products') filter.productId = { $ne: null };
   if (metal) filter.metal = metal;
   if (from || to) filter.createdAt = dayRange(from, to, (await todayContext()).timezone);
 

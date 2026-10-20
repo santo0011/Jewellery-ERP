@@ -21,7 +21,7 @@ export function foldRows(rows, keep = MAX_SLOTS - 1) {
   const rest = rows.slice(keep);
   return [...rows.slice(0, keep), { key: '__other', label: `Other (${rest.length})`, value: rest.reduce((s, r) => s + r.value, 0) }];
 }
-const seriesSx = (i, prop) => (theme) => ({ [prop]: SERIES_LIGHT[i], ...theme.applyStyles('dark', { [prop]: SERIES_DARK[i] }) });
+export const seriesSx = (i, prop) => (theme) => ({ [prop]: SERIES_LIGHT[i], ...theme.applyStyles('dark', { [prop]: SERIES_DARK[i] }) });
 
 function Legend({ rows, total, formatValue }) {
   return (
