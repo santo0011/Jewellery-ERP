@@ -99,7 +99,7 @@ async function billsByCustomer() {
   const paid = new Map();
   if (!hasPermission(requireContext().permissions, 'sales.view')) return { credit, paid };
   const sales = await Sale.find({ status: SALE_STATUS.COMPLETED, customerId: { $ne: null }, ...accessibleBranchFilter() })
-    .select('customerId payments duePaidPaise returnCreditPaise advanceAdjustedPaise customerAdvancePaise')
+    .select('customerId payments duePaidPaise returnCreditPaise advanceAdjustedPaise customerAdvancePaise oldGoldPaise')
     .lean();
   const add = (map, key, amount) => amount && map.set(key, (map.get(key) ?? 0) + amount);
   for (const s of sales) {
@@ -108,8 +108,9 @@ async function billsByCustomer() {
     // Credit still owed on the bill; what was collected later counts as paid.
     add(credit, key, billDue(s));
     add(paid, key, s.duePaidPaise ?? 0);
-    // Advances used on the bill (order advance, advance paid before) are money already received.
-    add(paid, key, (s.advanceAdjustedPaise ?? 0) + (s.customerAdvancePaise ?? 0));
+    // Advances used on the bill (order advance, advance paid before) are money already received; old gold handed
+    // over paid for part of it too.
+    add(paid, key, (s.advanceAdjustedPaise ?? 0) + (s.customerAdvancePaise ?? 0) + (s.oldGoldPaise ?? 0));
   }
   return { credit, paid };
 }

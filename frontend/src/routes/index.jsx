@@ -61,6 +61,7 @@ const ReportsPage = lazyPage(() => import('../features/reports/ReportsPage.jsx')
 const ReportViewPage = lazyPage(() => import('../features/reports/ReportViewPage.jsx'));
 const InvoicePage = lazyPage(() => import('../features/sales/InvoicePage.jsx'));
 const InvoicesPage = lazyPage(() => import('../features/sales/InvoicesPage.jsx'));
+const OldGoldPage = lazyPage(() => import('../features/oldgold/OldGoldPage.jsx'));
 const EmailSettingsPage = lazyPage(() => import('../features/platform/EmailSettingsPage.jsx'));
 const AdminLayout = lazyPage(() => import('../features/platform/AdminLayout.jsx'));
 const AdminOrganisationDetailPage = lazyPage(() => import('../features/platform/AdminOrganisationDetailPage.jsx'));
@@ -156,6 +157,7 @@ export const router = createBrowserRouter([
           { path: 'billing', element: guard('sales.create', <BillingPage />) },
           { path: 'sales', element: guard('sales.view', <InvoicesPage />) },
           { path: 'sales/:id', element: guard('sales.view', <InvoicePage />) },
+          { path: 'old-gold', element: guard('oldgold.view', <OldGoldPage />) },
           { path: 'orders', element: guard('order.view', <OrdersPage />) },
           { path: 'orders/new', element: guard('order.create', <OrderFormPage />) },
           { path: 'orders/:id', element: guard('order.view', <OrderDetailPage />) },

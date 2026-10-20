@@ -17,6 +17,7 @@ const LABELS = {
   JournalEntry: ['ledger entry', 'ledger entries'],
   MetalRate: ['metal rate', 'metal rates'],
   MetalStock: ['metal stock record', 'metal stock records'],
+  OldGold: ['old gold record', 'old gold records'],
   Order: ['customer order', 'customer orders'],
   Organisation: ['organisation', 'organisations'],
   PayrollRun: ['payroll run', 'payroll runs'],

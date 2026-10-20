@@ -22,7 +22,8 @@ export function invoiceData(sale) {
   const paidNow = sale.payments.filter((p) => p.mode !== 'credit').reduce((s, p) => s + p.amountPaise, 0);
   const duePaise = sale.duePaise ?? 0;
   const collectedLater = sale.collectedLaterPaise ?? 0;
-  const advances = (sale.advanceAdjustedPaise ?? 0) + (sale.customerAdvancePaise ?? 0);
+  const advances = (sale.advanceAdjustedPaise ?? 0) + (sale.customerAdvancePaise ?? 0) + (sale.oldGoldPaise ?? 0);
+  const oldGoldNet = (sale.oldGold?.lines ?? []).reduce((s, l) => s + l.netWeightMg, 0);
 
   const items = sale.items.map((i, n) => {
     const b = i.breakdown;
@@ -76,6 +77,7 @@ export function invoiceData(sale) {
   const settlement = [
     sale.advanceAdjustedPaise > 0 && { label: 'Order advance', value: formatINR(sale.advanceAdjustedPaise) },
     sale.customerAdvancePaise > 0 && { label: 'Advance paid earlier', value: formatINR(sale.customerAdvancePaise) },
+    sale.oldGoldPaise > 0 && { label: `Old gold ${sale.oldGold.docNo} (${formatWeight(oldGoldNet)} net)`, value: formatINR(sale.oldGoldPaise) },
     { label: advances > 0 ? 'Paid now' : 'Paid', value: formatINR(paidNow) },
     collectedLater > 0 && { label: 'Collected later', value: formatINR(collectedLater) },
   ].filter(Boolean);

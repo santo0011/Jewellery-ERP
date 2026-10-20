@@ -16,6 +16,7 @@ import SyncAltRoundedIcon from '@mui/icons-material/SyncAltRounded';
 import PointOfSaleOutlinedIcon from '@mui/icons-material/PointOfSaleOutlined';
 import AssignmentOutlinedIcon from '@mui/icons-material/AssignmentOutlined';
 import ReceiptOutlinedIcon from '@mui/icons-material/ReceiptOutlined';
+import RecyclingRoundedIcon from '@mui/icons-material/RecyclingRounded';
 import BadgeOutlinedIcon from '@mui/icons-material/BadgeOutlined';
 import EventAvailableOutlinedIcon from '@mui/icons-material/EventAvailableOutlined';
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
@@ -54,6 +55,8 @@ export const NAV_GROUPS = [
       { label: 'New bill', path: '/billing', icon: PointOfSaleOutlinedIcon, permission: 'sales.create', mobile: true },
       { label: 'Orders', path: '/orders', icon: AssignmentOutlinedIcon, permission: 'order.view', mobile: true },
       { label: 'Invoices', path: '/sales', icon: ReceiptOutlinedIcon, permission: 'sales.view' },
+      // Old gold taken in exchange on bills, or bought for money.
+      { label: 'Old gold', path: '/old-gold', icon: RecyclingRoundedIcon, permission: 'oldgold.view' },
       { label: 'Customers', path: '/customers', icon: PeopleAltOutlinedIcon, permission: 'customer.view', mobile: true },
     ],
   },
@@ -139,6 +142,7 @@ export function visibleNav(permissions, { allBranches = true } = {}) {
  */
 export const BRANCH_FILTER_PAGES = [
   { path: '/sales', module: 'sales' },
+  { path: '/old-gold', module: 'oldgold' },
   { path: '/orders', module: 'order' },
   { path: '/products', module: 'product' },
   { path: '/inventory', module: 'inventory' },

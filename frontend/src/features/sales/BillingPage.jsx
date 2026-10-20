@@ -2,6 +2,7 @@ import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import AssignmentOutlinedIcon from '@mui/icons-material/AssignmentOutlined';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import QrCodeScannerRoundedIcon from '@mui/icons-material/QrCodeScannerRounded';
+import RecyclingRoundedIcon from '@mui/icons-material/RecyclingRounded';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import RestartAltRoundedIcon from '@mui/icons-material/RestartAltRounded';
 import ShowChartRoundedIcon from '@mui/icons-material/ShowChartRounded';
@@ -20,6 +21,7 @@ import { useDebounce } from '../../hooks/useDebounce.js';
 import { usePermission, useSession } from '../../hooks/usePermission.js';
 import { getErrorMessage } from '../../utils/errors.js';
 import { fonts, tokens } from '../../theme/tokens.js';
+import OldGoldLinesEditor, { oldGoldPayload } from '../oldgold/OldGoldLinesEditor.jsx';
 import FinishItemDialog from '../orders/FinishItemDialog.jsx';
 import { useOrderQuery, useOrdersQuery } from '../orders/orderApi.js';
 import { useProductListQuery } from '../products/productApi.js';
@@ -460,6 +462,10 @@ export default function BillingPage() {
   const [orderId, setOrderId] = useState(params.get('orderId'));
   const [payments, setPayments] = useState([{ mode: 'cash', amount: '', reference: '' }]);
   const [notes, setNotes] = useState('');
+  // Old gold the customer hands over: its value comes off what they pay (null while a piece is incomplete).
+  const canTakeOldGold = usePermission('oldgold.create');
+  const [oldGoldRows, setOldGoldRows] = useState([]);
+  const oldGoldLines = useMemo(() => oldGoldPayload(oldGoldRows), [oldGoldRows]);
   const idempotencyKey = useRef(newKey());
 
   const { data: linkedOrder } = useOrderQuery(orderId, { skip: !orderId });
@@ -493,8 +499,9 @@ export default function BillingPage() {
       customerId: customer?.id ?? null,
       orderId: orderId ?? null,
       items: lines.map((l) => ({ productId: l.product.id, discountPaise: discountPaise(l) })),
+      oldGold: oldGoldLines ?? [],
     };
-  }, [activeBranchId, customer, orderId, lines, subtotalKey]);
+  }, [activeBranchId, customer, orderId, lines, subtotalKey, oldGoldLines]);
   const debounced = useDebounce(request, 300);
   useEffect(() => {
     if (debounced.items.length) quoteSale(debounced);
@@ -552,6 +559,7 @@ export default function BillingPage() {
     setLines([]);
     setPayments([{ mode: 'cash', amount: '', reference: '' }]);
     setNotes('');
+    setOldGoldRows([]);
   };
 
   const pickOrder = (id) => {
@@ -577,6 +585,7 @@ export default function BillingPage() {
   const problems = [];
   if (!lines.length) problems.push('Add at least one item');
   if (quoteError) problems.push(getErrorMessage(quoteError));
+  if (oldGoldLines === null) problems.push('Complete each old gold piece (description, weight and rate), or remove it.');
   // A customer may pay part now: the rest stays due on their account. A walk-in pays in full.
   if (quote && remaining < 0) problems.push(`Payment is ${formatINR(-remaining)} more than the bill — lower the amount.`);
   if (quote && remaining > 0 && !customer) problems.push(`${formatINR(remaining)} is unpaid — select the customer to keep it as due (a walk-in pays in full).`);
@@ -589,7 +598,8 @@ export default function BillingPage() {
     .filter((p) => safePaise(p.amount) > 0)
     .map((p) => `${PAYMENT_MODES.find((m) => m.value === p.mode)?.label ?? p.mode} ${formatINR(safePaise(p.amount))}`)
     .join(', ');
-  const confirmMessage = `${lines.length} item${lines.length === 1 ? '' : 's'}${customer ? ` for ${customer.name}` : ' (walk-in)'}. Bill total ${formatINR(payable)}. Paid now: ${paidBy || 'nothing'}.${
+  const oldGoldText = quote?.oldGoldPaise > 0 ? ` Old gold taken: ${formatINR(quote.oldGoldPaise)}.` : '';
+  const confirmMessage = `${lines.length} item${lines.length === 1 ? '' : 's'}${customer ? ` for ${customer.name}` : ' (walk-in)'}.${oldGoldText} To collect ${formatINR(payable)}. Paid now: ${paidBy || 'nothing'}.${
     remaining > 0 ? ` ${formatINR(remaining)} stays due.` : ''
   } Once generated, the bill can only be cancelled or returned.`;
 
@@ -723,6 +733,23 @@ export default function BillingPage() {
               )}
             </CardContent>
           </Card>
+          {canTakeOldGold && (
+            <Card sx={{ mt: 2.5 }}>
+              <CardContent>
+                <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.5 }}>
+                  <RecyclingRoundedIcon fontSize="small" sx={{ color: tokens.brand.strong }} />
+                  <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                    Old gold exchange
+                  </Typography>
+                  {quote?.oldGoldPaise > 0 && <Chip size="small" color="success" label={`− ${formatINR(quote.oldGoldPaise)}`} sx={{ fontWeight: 700 }} />}
+                </Stack>
+                <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mb: 1.5 }}>
+                  Old gold the customer hands over: test its purity, weigh it, and its value comes off this bill. It goes to Raw materials.
+                </Typography>
+                <OldGoldLinesEditor rows={oldGoldRows} onChange={setOldGoldRows} dense />
+              </CardContent>
+            </Card>
+          )}
         </Grid>
 
         <Grid size={{ xs: 12, md: 5, xl: 4.5 }} id="bill-payment" sx={{ scrollMarginTop: 72 }}>
@@ -762,10 +789,11 @@ export default function BillingPage() {
                     </>
                   ))}
                 {totals?.roundOffPaise ? <Money light label="Round off" value={formatINR(totals.roundOffPaise)} /> : null}
-                {(quote?.advancePaise > 0 || quote?.customerAdvancePaise > 0) && (
+                {(quote?.advancePaise > 0 || quote?.customerAdvancePaise > 0 || quote?.oldGoldPaise > 0) && (
                   <>
                     <Money light label="Bill total" value={formatINR(totals.grandTotalPaise)} strong />
                     {quote.advancePaise > 0 && <Money light label={`Advance ${quote.order.orderNo}`} value={formatINR(quote.advancePaise)} negative />}
+                    {quote.oldGoldPaise > 0 && <Money light label="Old gold" value={formatINR(quote.oldGoldPaise)} negative />}
                     {quote.customerAdvancePaise > 0 && <Money light label="Advance paid earlier" value={formatINR(quote.customerAdvancePaise)} negative />}
                   </>
                 )}

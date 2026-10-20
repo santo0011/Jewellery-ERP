@@ -268,6 +268,8 @@ export const MOVEMENT_TYPE_LABELS = Object.freeze({
   sales_return: 'Sales return',
   production: 'Made from raw material',
   production_use: 'Used to make jewellery',
+  old_gold: 'Old gold taken in',
+  old_gold_cancel: 'Old gold cancelled',
 });
 
 /**

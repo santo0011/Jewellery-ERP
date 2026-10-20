@@ -1,4 +1,4 @@
-const MODULE_LABELS = { auth: 'Sign-in & security', organisation: 'Organisation', branch: 'Branches', role: 'Roles', user: 'Users', settings: 'Settings', customer: 'Customers', supplier: 'Suppliers', category: 'Categories', product: 'Products', rate: 'Metal rates', inventory: 'Inventory', approval: 'Approvals' };
+const MODULE_LABELS = { auth: 'Sign-in & security', organisation: 'Organisation', branch: 'Branches', role: 'Roles', user: 'Users', settings: 'Settings', customer: 'Customers', supplier: 'Suppliers', category: 'Categories', product: 'Products', rate: 'Metal rates', inventory: 'Inventory', approval: 'Approvals', oldgold: 'Old gold' };
 
 export const moduleLabel = (module) => MODULE_LABELS[module] ?? module;
 
@@ -34,7 +34,7 @@ export function describeEntry(e) {
   }
 }
 
-const RECORD_LABELS = { User: 'User', Branch: 'Branch', Role: 'Role', Organisation: 'Organisation', Settings: 'Settings', Session: 'Session', Customer: 'Customer', Supplier: 'Supplier', Category: 'Category', Product: 'Product', MetalRate: 'Metal rates', StockEntry: 'Stock entry', StockTransfer: 'Transfer', ApprovalRequest: 'Approval' };
+const RECORD_LABELS = { User: 'User', Branch: 'Branch', Role: 'Role', Organisation: 'Organisation', Settings: 'Settings', Session: 'Session', Customer: 'Customer', Supplier: 'Supplier', Category: 'Category', Product: 'Product', MetalRate: 'Metal rates', StockEntry: 'Stock entry', StockTransfer: 'Transfer', ApprovalRequest: 'Approval', OldGold: 'Old gold' };
 
 export const recordLabel = (e) => RECORD_LABELS[e.recordType] ?? moduleLabel(e.module);
 

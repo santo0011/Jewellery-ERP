@@ -431,8 +431,10 @@ export default function OrderDetailPage() {
                   <>
                     <MoneyRow label={`Bill total (${invoice.invoiceNo})`} value={formatINR(invoice.grandTotalPaise)} />
                     <MoneyRow label="Advance" value={formatINR(invoice.advanceAdjustedPaise)} tone="paid" />
+                    {invoice.customerAdvancePaise > 0 && <MoneyRow label="Advance paid earlier" value={formatINR(invoice.customerAdvancePaise)} tone="paid" />}
+                    {invoice.oldGoldPaise > 0 && <MoneyRow label="Old gold exchanged" value={formatINR(invoice.oldGoldPaise)} tone="paid" />}
                     <MoneyRow label="Paid at delivery" value={formatINR(invoice.paidPaise)} tone="paid" />
-                    <MoneyRow label="Total paid" value={formatINR(invoice.advanceAdjustedPaise + invoice.paidPaise)} strong tone="paid" />
+                    <MoneyRow label="Total paid" value={formatINR(invoice.advanceAdjustedPaise + invoice.customerAdvancePaise + invoice.oldGoldPaise + invoice.paidPaise)} strong tone="paid" />
                     <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', p: 1.25, borderRadius: 1.5, bgcolor: invoice.duePaise ? 'rgba(155, 44, 44, 0.08)' : 'rgba(46, 107, 79, 0.08)' }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>
                         Due

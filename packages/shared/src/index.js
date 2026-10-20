@@ -5,3 +5,4 @@ export * from './units.js';
 export * from './patterns.js';
 export * from './weights.js';
 export * from './words.js';
+export * from './oldGold.js';
