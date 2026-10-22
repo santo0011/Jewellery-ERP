@@ -189,6 +189,10 @@ describe('super admin', () => {
     expect(list.body.data[0]).toMatchObject({ status: 'suspended', branchLimit: 2, activeUsers: 1 });
     const dash = (await api().get('/api/v1/platform/dashboard').set(bearer(sa.token))).body.data;
     expect(dash.suspended).toBeGreaterThanOrEqual(1);
+    // Twelve months of sign-ups; the running total ends at today's count.
+    expect(dash.signups).toHaveLength(12);
+    expect(dash.signups[11].total).toBe(dash.organisations);
+    expect(dash.signups[11].count).toBeGreaterThanOrEqual(1);
   });
 
   it('deactivating signs everyone out with a clear message, and reactivating lets them back in', async () => {

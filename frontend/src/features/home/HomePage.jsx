@@ -5,6 +5,7 @@ import PeopleAltOutlinedIcon from "@mui/icons-material/PeopleAltOutlined";
 import PointOfSaleOutlinedIcon from "@mui/icons-material/PointOfSaleOutlined";
 import { Alert, Box, Button, Stack, Typography } from "@mui/material";
 import { stateName } from "@jerp/shared";
+import { useEffect, useState } from "react";
 import { useSelector } from "react-redux";
 import { Link as RouterLink } from "react-router";
 import { usePermissions, useSession } from "../../hooks/usePermission.js";
@@ -26,10 +27,21 @@ function greeting() {
   return "Good evening";
 }
 
+/** The greeting for the time of day, kept current while the page stays open (checked once a minute). */
+function useGreeting() {
+  const [text, setText] = useState(greeting);
+  useEffect(() => {
+    const timer = setInterval(() => setText(greeting()), 60 * 1000);
+    return () => clearInterval(timer);
+  }, []);
+  return text;
+}
+
 export default function HomePage() {
   const { data: session } = useSession();
   const permissions = usePermissions();
   const activeBranchId = useSelector((s) => s.auth.activeBranchId);
+  const hello = useGreeting();
   const { user, organisation, branches } = session;
   // Dashboard → View, and something to show on it (sales figures also need View financial figures).
   const showDashboard = permissions.has("dashboard.view") && ["sales.view", "order.view", "inventory.view"].some((p) => permissions.has(p));
@@ -44,7 +56,7 @@ export default function HomePage() {
             {organisation.stateCode && ` · ${stateName(organisation.stateCode)}`}
           </Typography>
           <Typography sx={{ fontFamily: fonts.display, fontSize: { xs: 24, sm: 30, md: 36 }, fontWeight: 600, lineHeight: 1.15, mt: { xs: 0.25, sm: 0.5 } }}>
-            {greeting()}, {user.name.split(" ")[0]}
+            {hello}, {user.name.split(" ")[0]}
           </Typography>
         </Box>
         {actions.length > 0 && (
