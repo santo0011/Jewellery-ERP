@@ -199,40 +199,53 @@ function RateStrip({ enabled }) {
   const stale = wanted.filter((w) => !rates.find((r) => r.metal === w.metal && r.purity === w.purity)?.isToday);
   return (
     <Card sx={{ mb: 2.5 }}>
-      <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5} sx={{ px: 2, py: 1.25, alignItems: { md: 'center' } }}>
-        <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexShrink: 0 }}>
+      <Box
+        sx={{
+          px: { xs: 1.5, sm: 2 },
+          py: { xs: 1.5, md: 1.25 },
+          display: 'grid',
+          gap: { xs: 1.25, md: 1.5 },
+          alignItems: 'center',
+          // Phones: title and button on one line, rates in two equal columns below. Larger screens: one row.
+          gridTemplateColumns: { xs: '1fr auto', md: 'auto 1fr auto' },
+          gridTemplateAreas: { xs: '"title action" "rates rates"', md: '"title rates action"' },
+        }}
+      >
+        <Stack direction="row" spacing={1} sx={{ gridArea: 'title', alignItems: 'center', minWidth: 0 }}>
           <ShowChartRoundedIcon fontSize="small" sx={{ color: tokens.brand.strong }} />
-          <Typography variant="overline" sx={{ color: 'text.secondary', lineHeight: 1 }}>
+          <Typography variant="overline" noWrap sx={{ color: 'text.secondary', lineHeight: 1 }}>
             Today&apos;s rates
           </Typography>
         </Stack>
-        <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 1, flex: 1 }}>
+        <Box sx={{ gridArea: 'rates', display: { xs: 'grid', md: 'flex' }, gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(4, minmax(0, 1fr))' }, flexWrap: 'wrap', gap: 1 }}>
           {wanted.map(({ metal, purity }) => {
             const rate = rates.find((r) => r.metal === metal && r.purity === purity);
             const today = rate?.isToday;
             return (
-              <Box key={`${metal}${purity}`} sx={{ px: 1.25, py: 0.5, borderRadius: 1.5, border: 1, borderColor: today ? 'divider' : 'warning.main', bgcolor: today ? 'transparent' : 'rgba(183, 121, 31, 0.08)' }}>
-                <Typography variant="caption" color="textSecondary" sx={{ display: 'block', lineHeight: 1.2 }}>
+              <Box key={`${metal}${purity}`} sx={{ minWidth: 0, px: 1.25, py: 0.75, borderRadius: 1.5, border: 1, borderColor: today ? 'divider' : 'warning.main', bgcolor: today ? 'transparent' : 'rgba(183, 121, 31, 0.08)' }}>
+                <Typography variant="caption" color="textSecondary" noWrap sx={{ display: 'block', lineHeight: 1.2 }}>
                   {purityLabel(metal, purity)}
                 </Typography>
-                <Typography variant="body2" sx={{ fontWeight: 700, color: today ? 'text.primary' : 'warning.main' }}>
-                  {rate ? `${formatINR(rate.ratePerGramPaise, { decimals: 0 })}/g` : 'Not set'}
+                <Stack direction="row" sx={{ alignItems: 'baseline', columnGap: 0.5, flexWrap: 'wrap' }}>
+                  <Typography variant="body2" sx={{ fontWeight: 700, whiteSpace: 'nowrap', color: today ? 'text.primary' : 'warning.main' }}>
+                    {rate ? `${formatINR(rate.ratePerGramPaise, { decimals: 0 })}/g` : 'Not set'}
+                  </Typography>
                   {rate && !today && (
-                    <Typography component="span" variant="caption" sx={{ ml: 0.5, fontWeight: 600 }}>
+                    <Typography component="span" variant="caption" sx={{ fontWeight: 600, color: 'warning.main' }}>
                       · old
                     </Typography>
                   )}
-                </Typography>
+                </Stack>
               </Box>
             );
           })}
-        </Stack>
+        </Box>
         {stale.length > 0 && (
-          <Button size="small" color="warning" variant="outlined" onClick={() => navigate('/rates')} sx={{ flexShrink: 0 }}>
+          <Button size="small" color="warning" variant="outlined" onClick={() => navigate('/rates')} sx={{ gridArea: 'action', flexShrink: 0, whiteSpace: 'nowrap' }}>
             Update {stale.length} rate{stale.length === 1 ? '' : 's'}
           </Button>
         )}
-      </Stack>
+      </Box>
     </Card>
   );
 }
@@ -248,87 +261,88 @@ function LineCard({ product: p, discount, discountType, breakdown: b, quoting, c
       ].filter(([, v]) => v > 0)
     : [];
   return (
-    <Box sx={{ p: 2, borderRadius: 2.5, border: 1, borderColor: 'divider', bgcolor: 'background.paper', transition: 'border-color 160ms ease, box-shadow 160ms ease', '&:hover': { borderColor: 'rgba(var(--brand-rgb), 0.45)', boxShadow: '0 4px 18px rgba(120, 104, 60, 0.10)' } }}>
-      <Stack direction="row" spacing={2} sx={{ alignItems: 'flex-start' }}>
-        <Box sx={{ position: 'relative' }}>
-          <AuthImage fileId={p.images?.[0]} alt={p.name} size={56} sx={{ borderRadius: 2 }} />
+    <Box sx={{ p: { xs: 1.5, sm: 2 }, borderRadius: 2.5, border: 1, borderColor: 'divider', bgcolor: 'background.paper', transition: 'border-color 160ms ease, box-shadow 160ms ease', '&:hover': { borderColor: 'rgba(var(--brand-rgb), 0.45)', boxShadow: '0 4px 18px rgba(120, 104, 60, 0.10)' } }}>
+      <Stack direction="row" spacing={{ xs: 1.5, sm: 2 }} sx={{ alignItems: 'flex-start' }}>
+        <Box sx={{ position: 'relative', flexShrink: 0 }}>
+          <AuthImage fileId={p.images?.[0]} alt={p.name} size={56} sx={{ borderRadius: 2, width: { xs: 44, sm: 56 }, height: { xs: 44, sm: 56 } }} />
           <Box sx={{ position: 'absolute', top: -8, left: -8, width: 22, height: 22, borderRadius: '50%', display: 'grid', placeItems: 'center', background: tokens.sidebar.goldGradient, color: 'var(--brand-contrast)', fontSize: 11, fontWeight: 800 }}>{index + 1}</Box>
         </Box>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
-          <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start', justifyContent: 'space-between' }}>
-            <Box sx={{ minWidth: 0 }}>
-              <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, lineHeight: 1.3 }}>
-                {p.name}
+        <Stack direction="row" spacing={1} sx={{ flex: 1, minWidth: 0, alignItems: 'flex-start', justifyContent: 'space-between' }}>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography sx={{ fontSize: '0.875rem', fontWeight: 600, lineHeight: 1.3, overflowWrap: 'anywhere' }}>
+              {p.name}
+            </Typography>
+            <Typography color="textSecondary" sx={{ fontSize: '0.6875rem', overflowWrap: 'anywhere' }}>
+              {p.sku} · {purityLabel(p.metal, p.purity)}
+              {p.huid ? ` · HUID ${p.huid}` : ''}
+            </Typography>
+          </Box>
+          <Stack direction="row" spacing={0.25} sx={{ alignItems: 'flex-start', flexShrink: 0, mr: { xs: -0.75, sm: 0 }, mt: { xs: -0.5, sm: 0 } }}>
+            <Box sx={{ textAlign: 'right', pt: { xs: 0.5, sm: 0 } }}>
+              <Typography component="p" sx={{ fontSize: '0.96875rem', fontWeight: 700, lineHeight: 1.3, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
+                {b ? formatINR(b.totalPaise) : quoting ? '…' : '—'}
               </Typography>
-              <Typography color="textSecondary" sx={{ fontSize: '0.6875rem' }}>
-                {p.sku} · {purityLabel(p.metal, p.purity)}
-                {p.huid ? ` · HUID ${p.huid}` : ''}
-              </Typography>
-            </Box>
-            <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', flexShrink: 0 }}>
-              <Box sx={{ textAlign: 'right' }}>
-                <Typography component="p" sx={{ fontSize: '0.96875rem', fontWeight: 700, lineHeight: 1.3, fontVariantNumeric: 'tabular-nums' }}>
-                  {b ? formatINR(b.totalPaise) : quoting ? '…' : '—'}
+              {b?.discountPaise > 0 && (
+                <Typography color="success.main" sx={{ fontSize: '0.6875rem', fontWeight: 600, whiteSpace: 'nowrap' }}>
+                  {formatINR(b.discountPaise)} off
                 </Typography>
-                {b?.discountPaise > 0 && (
-                  <Typography color="success.main" sx={{ fontSize: '0.6875rem', fontWeight: 600 }}>
-                    {formatINR(b.discountPaise)} off
-                  </Typography>
-                )}
-              </Box>
-              <Tooltip title="Remove from bill">
-                <IconButton size="small" onClick={onRemove} aria-label={`Remove ${p.sku}`}>
-                  <CloseRoundedIcon fontSize="small" />
-                </IconButton>
-              </Tooltip>
-            </Stack>
+              )}
+            </Box>
+            <Tooltip title="Remove from bill">
+              <IconButton size="small" onClick={onRemove} aria-label={`Remove ${p.sku}`}>
+                <CloseRoundedIcon fontSize="small" />
+              </IconButton>
+            </Tooltip>
           </Stack>
-
-          <Stack direction="row" sx={{ mt: 1, flexWrap: 'wrap', columnGap: 1.75, rowGap: 1 }}>
-            <Fact label="Gross" value={formatWeight(p.grossWeightMg)} />
-            <Fact label="Net" value={formatWeight(p.netWeightMg)} />
-            {b?.ratePerGramPaise != null && <Fact label="Rate" value={`${formatINR(b.ratePerGramPaise, { decimals: 0 })}/g`} />}
-            {parts.map(([label, value]) => (
-              <Fact key={label} label={label} value={formatINR(value, { decimals: 0 })} />
-            ))}
-            {b && <Fact label="GST" value={formatINR(b.gstPaise, { decimals: 0 })} />}
-            {canDiscount && (
-              <Stack direction="row" spacing={0.75} sx={{ ml: 'auto', alignItems: 'flex-start' }}>
-                <ToggleButtonGroup
-                  exclusive
-                  size="small"
-                  value={discountType}
-                  onChange={(e, v) => v && onDiscountType(v)}
-                  aria-label="Discount type"
-                  sx={{ height: 36, '& .MuiToggleButton-root': { px: 1, fontWeight: 700, fontSize: '0.8125rem' }, '& .Mui-selected': { bgcolor: 'rgba(var(--brand-rgb), 0.16) !important', color: tokens.brand.strong } }}
-                >
-                  <ToggleButton value="percent" aria-label="Discount in percent">
-                    %
-                  </ToggleButton>
-                  <ToggleButton value="amount" aria-label="Discount in rupees">
-                    ₹
-                  </ToggleButton>
-                </ToggleButtonGroup>
-                <TextField
-                  size="small"
-                  label="Discount"
-                  value={discount}
-                  onChange={(e) => onDiscount(e.target.value.replace(/[^\d.]/g, ''))}
-                  error={discountType === 'percent' && Number(discount) > 100}
-                  helperText={<KeepOnPhone>{discountType === 'percent' && discount && b ? (Number(discount) > 100 ? 'Up to 100%' : `= ${formatINR(b.discountPaise, { decimals: 0 })}`) : ' '}</KeepOnPhone>}
-                  sx={{ width: 110 }}
-                  slotProps={{
-                    input: discountType === 'percent' ? { endAdornment: <InputAdornment position="end">%</InputAdornment> } : { startAdornment: <InputAdornment position="start">₹</InputAdornment> },
-                    htmlInput: { inputMode: 'decimal' },
-                    formHelperText: { sx: { mx: 0.5, whiteSpace: 'nowrap' } },
-                  }}
-                />
-              </Stack>
-            )}
-          </Stack>
-          {huidMissing && <MissingHuid product={p} onSaved={onHuidSaved} />}
-        </Box>
+        </Stack>
       </Stack>
+
+      {/* Below the photo on phones (full width); lined up under the name on larger screens. */}
+      <Box sx={{ ml: { xs: 0, sm: '72px' } }}>
+        <Stack direction="row" sx={{ mt: { xs: 1.25, sm: 1 }, flexWrap: 'wrap', columnGap: 1.75, rowGap: 1 }}>
+          <Fact label="Gross" value={formatWeight(p.grossWeightMg)} />
+          <Fact label="Net" value={formatWeight(p.netWeightMg)} />
+          {b?.ratePerGramPaise != null && <Fact label="Rate" value={`${formatINR(b.ratePerGramPaise, { decimals: 0 })}/g`} />}
+          {parts.map(([label, value]) => (
+            <Fact key={label} label={label} value={formatINR(value, { decimals: 0 })} />
+          ))}
+          {b && <Fact label="GST" value={formatINR(b.gstPaise, { decimals: 0 })} />}
+          {canDiscount && (
+            <Stack direction="row" spacing={0.75} sx={{ ml: { xs: 0, sm: 'auto' }, width: { xs: '100%', sm: 'auto' }, pt: { xs: 1, sm: 0 }, borderTop: { xs: 1, sm: 0 }, borderColor: { xs: 'divider' }, alignItems: 'flex-start' }}>
+              <ToggleButtonGroup
+                exclusive
+                size="small"
+                value={discountType}
+                onChange={(e, v) => v && onDiscountType(v)}
+                aria-label="Discount type"
+                sx={{ height: 36, '& .MuiToggleButton-root': { px: 1, fontWeight: 700, fontSize: '0.8125rem' }, '& .Mui-selected': { bgcolor: 'rgba(var(--brand-rgb), 0.16) !important', color: tokens.brand.strong } }}
+              >
+                <ToggleButton value="percent" aria-label="Discount in percent">
+                  %
+                </ToggleButton>
+                <ToggleButton value="amount" aria-label="Discount in rupees">
+                  ₹
+                </ToggleButton>
+              </ToggleButtonGroup>
+              <TextField
+                size="small"
+                label="Discount"
+                value={discount}
+                onChange={(e) => onDiscount(e.target.value.replace(/[^\d.]/g, ''))}
+                error={discountType === 'percent' && Number(discount) > 100}
+                helperText={<KeepOnPhone>{discountType === 'percent' && discount && b ? (Number(discount) > 100 ? 'Up to 100%' : `= ${formatINR(b.discountPaise, { decimals: 0 })}`) : ' '}</KeepOnPhone>}
+                sx={{ width: { xs: 'auto', sm: 110 }, flex: { xs: 1, sm: 'none' } }}
+                slotProps={{
+                  input: discountType === 'percent' ? { endAdornment: <InputAdornment position="end">%</InputAdornment> } : { startAdornment: <InputAdornment position="start">₹</InputAdornment> },
+                  htmlInput: { inputMode: 'decimal' },
+                  formHelperText: { sx: { mx: 0.5, whiteSpace: 'nowrap' } },
+                }}
+              />
+            </Stack>
+          )}
+        </Stack>
+        {huidMissing && <MissingHuid product={p} onSaved={onHuidSaved} />}
+      </Box>
     </Box>
   );
 }
@@ -362,7 +376,7 @@ function MissingHuid({ product, onSaved }) {
           onKeyDown={(e) => e.key === 'Enter' && valid && submit()}
           error={Boolean(error) || (huid.length > 0 && !valid)}
           helperText={error ? getErrorMessage(error) : huid && !valid ? '6 letters or digits' : ' '}
-          sx={{ width: 150, bgcolor: 'background.paper', '& .MuiFormHelperText-root': { bgcolor: 'transparent' } }}
+          sx={{ width: { xs: '100%', sm: 150 }, bgcolor: 'background.paper', '& .MuiFormHelperText-root': { bgcolor: 'transparent' } }}
           slotProps={{ htmlInput: { maxLength: 6 } }}
         />
         <Button variant="contained" size="small" disabled={!valid} loading={isLoading} onClick={submit} sx={{ alignSelf: { sm: 'flex-start' }, mt: { sm: 0.25 } }}>
