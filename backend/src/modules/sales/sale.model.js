@@ -55,6 +55,9 @@ const saleSchema = new mongoose.Schema(
     advanceAdjustedPaise: { type: Number, default: 0 },
     // The customer's own advance (a minus opening balance) used on this bill.
     customerAdvancePaise: { type: Number, default: 0 },
+    // Old gold the customer handed over against this bill (OldGold, type exchange): taken off what they paid.
+    oldGoldPaise: { type: Number, default: 0 },
+    oldGold: { type: Mixed, default: null }, // { id, docNo, lines } snapshot for the invoice
     // Collected later against this bill's due (Customers → Collect payment).
     duePaidPaise: { type: Number, default: 0 },
     // Items returned with the refund kept on the customer's account: taken off this bill's due.

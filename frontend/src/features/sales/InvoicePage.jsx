@@ -283,6 +283,19 @@ export default function InvoicePage() {
                 Advance paid earlier <Amount paise={sale.customerAdvancePaise} tone="paid" />
               </Typography>
             )}
+            {sale.oldGoldPaise > 0 && (
+              <Box sx={{ mb: 0.5 }}>
+                <Typography variant="body2">
+                  Old gold {sale.oldGold?.docNo} <Amount paise={sale.oldGoldPaise} tone="paid" />
+                </Typography>
+                {(sale.oldGold?.lines ?? []).map((l, n) => (
+                  <Typography key={n} variant="caption" sx={{ display: 'block', color: '#555' }}>
+                    {l.description} · {purityLabel(l.metal, l.purity)} · {formatWeight(l.netWeightMg)} net @ {formatINR(l.ratePerGramPaise, { decimals: 0 })}/g
+                    {l.deductionBps ? ` less ${l.deductionBps / 100}%` : ''} = {formatINR(l.valuePaise)}
+                  </Typography>
+                ))}
+              </Box>
+            )}
             {sale.payments.map((p, n) => (
               <Typography key={n} variant="body2">
                 {p.mode === 'credit' ? 'Left due at billing' : paymentLabel(p.mode)} <Amount paise={p.amountPaise} tone={p.mode === 'credit' ? 'due' : 'paid'} />
@@ -311,10 +324,11 @@ export default function InvoicePage() {
             <Line label="Invoice total" value={formatINR(totals.grandTotalPaise)} strong />
             {sale.advanceAdjustedPaise > 0 && <Line label="Order advance" value={formatINR(sale.advanceAdjustedPaise)} tone="paid" />}
             {sale.customerAdvancePaise > 0 && <Line label="Advance paid earlier" value={formatINR(sale.customerAdvancePaise)} tone="paid" />}
-            <Line label={sale.advanceAdjustedPaise > 0 || sale.customerAdvancePaise > 0 ? 'Paid now' : 'Paid'} value={formatINR(paidNow)} tone="paid" strong />
+            {sale.oldGoldPaise > 0 && <Line label="Old gold" value={formatINR(sale.oldGoldPaise)} tone="paid" />}
+            <Line label={sale.advanceAdjustedPaise > 0 || sale.customerAdvancePaise > 0 || sale.oldGoldPaise > 0 ? 'Paid now' : 'Paid'} value={formatINR(paidNow)} tone="paid" strong />
             {collectedLater > 0 && <Line label="Collected later" value={formatINR(collectedLater)} tone="paid" />}
             {duePaise > 0 ? (
-              <Line label={paidNow > 0 || collectedLater > 0 || sale.advanceAdjustedPaise > 0 || sale.customerAdvancePaise > 0 ? 'Due (partly paid)' : 'Due'} value={formatINR(duePaise)} tone="due" strong />
+              <Line label={paidNow > 0 || collectedLater > 0 || sale.advanceAdjustedPaise > 0 || sale.customerAdvancePaise > 0 || sale.oldGoldPaise > 0 ? 'Due (partly paid)' : 'Due'} value={formatINR(duePaise)} tone="due" strong />
             ) : (
               <Line label="Due" value="Fully paid" tone="paid" />
             )}

@@ -19,10 +19,12 @@ import itemRoutes from '../modules/items/item.routes.js';
 import billingRoutes from '../modules/billing/billing.routes.js';
 import rateRoutes from '../modules/rates/rate.routes.js';
 import saleRoutes from '../modules/sales/sale.routes.js';
+import oldGoldRoutes from '../modules/oldgold/oldGold.routes.js';
 import orderRoutes from '../modules/orders/order.routes.js';
 import dashboardRoutes from '../modules/dashboard/dashboard.routes.js';
 import hrRoutes from '../modules/hr/hr.routes.js';
 import reportRoutes from '../modules/reports/report.routes.js';
+import expenseRoutes, { financeRoutes } from '../modules/expenses/expense.routes.js';
 import recordRoutes from '../modules/records/record.routes.js';
 import platformRoutes from '../modules/platform/platform.routes.js';
 import { env } from '../config/env.js';
@@ -55,9 +57,12 @@ router.use('/items', itemRoutes);
 router.use('/billing', billingRoutes);
 router.use('/approvals', approvalRoutes);
 router.use('/sales', saleRoutes);
+router.use('/old-gold', oldGoldRoutes);
 router.use('/orders', orderRoutes);
 router.use('/dashboard', dashboardRoutes);
 router.use('/hr', hrRoutes);
+router.use('/expenses', expenseRoutes);
+router.use('/finance', financeRoutes);
 router.use('/reports', reportRoutes);
 router.use('/records', recordRoutes); // shared delete check + delete for every deletable record
 

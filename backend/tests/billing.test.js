@@ -74,6 +74,14 @@ describe('subscriptions & billing', () => {
 
     const dash = (await api().get('/api/v1/platform/billing/dashboard').set(bearer(sa))).body.data;
     expect(dash.revenue.totalPaise).toBeGreaterThanOrEqual(999900);
+    // Twelve months, this one last, split online / manual; the yearly plan adds 999900 / 12 to monthly recurring revenue.
+    expect(dash.revenue.months).toHaveLength(12);
+    expect(dash.revenue.months[11].manualPaise).toBeGreaterThanOrEqual(999900);
+    expect(dash.revenue.months[11].totalPaise).toBe(dash.revenue.months[11].manualPaise + dash.revenue.months[11].onlinePaise);
+    expect(dash.revenue.mrrPaise).toBeGreaterThanOrEqual(83325);
+    expect(dash.revenue.byPlan.find((p) => p.label === 'Gold Yearly').value).toBeGreaterThanOrEqual(999900);
+    expect(dash.conversion.paying).toBeGreaterThanOrEqual(1);
+    expect(dash.conversion.organisations).toBeGreaterThanOrEqual(dash.conversion.paying);
     // The period filter: today's payment counts for today and all time; an unknown period is refused.
     const today = (await api().get('/api/v1/platform/billing/dashboard?period=today').set(bearer(sa))).body.data.period;
     expect(today).toMatchObject({ key: 'today' });

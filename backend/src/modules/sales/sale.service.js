@@ -1,3 +1,4 @@
+import mongoose from 'mongoose';
 import { hasPermission, OPEN_ORDER_STATUSES, ORDER_STATUS, PRODUCT_STATUS, SALE_STATUS } from '@jerp/shared';
 import { withTransaction } from '../../config/db.js';
 import { AUDIT_ACTIONS, recordAudit } from '../../core/audit/audit.service.js';
@@ -13,6 +14,7 @@ import { maskTail } from '../../utils/mask.js';
 import { searchFilter } from '../../utils/pagination.js';
 import { Customer } from '../customers/customer.model.js';
 import { accessibleBranchFilter, nameMaps, oid, pick, requireBranch, viewBranchFor } from '../inventory/inventory.helpers.js';
+import { assertCanTakeOldGold, cancelExchangeFor, priceOldGold, recordOldGold } from '../oldgold/oldGold.service.js';
 import { Order } from '../orders/order.model.js';
 import { orderForBilling } from '../orders/order.service.js';
 import { Organisation } from '../organisations/organisation.model.js';
@@ -56,11 +58,13 @@ export function billBalance(s) {
   return { paidPaise: paid, duePaise: due, collectedLaterPaise: s.duePaidPaise ?? 0, paymentStatus: due <= 0 ? 'paid' : paid > 0 ? 'partly_paid' : 'due' };
 }
 
-async function buildQuote({ branchId, customerId: requestedCustomerId, orderId: requestedOrderId, items, useCustomerAdvance = true }) {
+async function buildQuote({ branchId, customerId: requestedCustomerId, orderId: requestedOrderId, items, useCustomerAdvance = true, oldGold: oldGoldInput = [] }) {
   const { permissions } = requireContext();
   if (items.some((i) => i.discountPaise > 0) && !hasPermission(permissions, 'sales.discount')) {
     throw ApiError.forbidden('You are not allowed to give discounts', 'DISCOUNT_FORBIDDEN');
   }
+  if (oldGoldInput.length) assertCanTakeOldGold();
+  const oldGold = oldGoldInput.length ? priceOldGold(oldGoldInput) : null;
   const branch = await requireBranch(branchId);
   // A piece made for this customer's open order bills against that order even when the order was not picked,
   // so its advance is deducted and the order is delivered (otherwise the advance would be left hanging).
@@ -144,9 +148,21 @@ async function buildQuote({ branchId, customerId: requestedCustomerId, orderId: 
     throw problem(`The advance on ${order.orderNo} (${(advancePaise / 100).toFixed(2)}) is more than this bill (${(totals.grandTotalPaise / 100).toFixed(2)}). Add the remaining items or refund part of the advance.`, [{ path: 'orderId', message: 'Advance exceeds the bill' }], 'ADVANCE_EXCEEDS_BILL');
   }
 
+  // Old gold handed over now comes off next. More than the bill would mean paying the customer out: that is an
+  // old-gold purchase, not an exchange.
+  const oldGoldPaise = oldGold?.totalPaise ?? 0;
+  if (oldGoldPaise > totals.grandTotalPaise - advancePaise) {
+    const left = totals.grandTotalPaise - advancePaise;
+    throw problem(
+      `The old gold (${(oldGoldPaise / 100).toFixed(2)}) is worth more than ${advancePaise ? 'the bill after the order advance' : 'the bill'} (${(left / 100).toFixed(2)}). Add items to the bill, or buy the old gold separately under Old gold.`,
+      [{ path: 'oldGold', message: 'Old gold is more than the bill' }],
+      'OLD_GOLD_EXCEEDS_BILL',
+    );
+  }
+
   // The customer's own advance (from before) is used next, as far as the bill needs it.
   const customerAdvanceLeftPaise = customer ? Math.max(0, await customerAdvanceLeft(customer)) : 0;
-  const customerAdvancePaise = useCustomerAdvance ? Math.min(customerAdvanceLeftPaise, totals.grandTotalPaise - advancePaise) : 0;
+  const customerAdvancePaise = useCustomerAdvance ? Math.min(customerAdvanceLeftPaise, totals.grandTotalPaise - advancePaise - oldGoldPaise) : 0;
 
   const panRequired = totals.grandTotalPaise > settings.jewellery.panRequiredAbovePaise;
   return {
@@ -154,7 +170,9 @@ async function buildQuote({ branchId, customerId: requestedCustomerId, orderId: 
     advancePaise,
     customerAdvancePaise,
     customerAdvanceLeftPaise,
-    payablePaise: totals.grandTotalPaise - advancePaise - customerAdvancePaise,
+    oldGold,
+    oldGoldPaise,
+    payablePaise: totals.grandTotalPaise - advancePaise - oldGoldPaise - customerAdvancePaise,
     branch,
     org,
     customer,
@@ -198,6 +216,8 @@ export async function quote(input) {
     advancePaise: q.advancePaise,
     customerAdvancePaise: q.customerAdvancePaise,
     customerAdvanceLeftPaise: q.customerAdvanceLeftPaise,
+    oldGold: q.oldGold,
+    oldGoldPaise: q.oldGoldPaise,
     payablePaise: q.payablePaise,
   };
 }
@@ -215,7 +235,9 @@ function settlePayments(q, input) {
   const payable = q.payablePaise;
   const rupeesOf = (v) => (v / 100).toFixed(2);
   if (received + asked > payable || (!q.customer && received !== payable)) {
-    const what = q.advancePaise || q.customerAdvancePaise ? `the amount due after the advance (${rupeesOf(payable)})` : `the invoice total (${rupeesOf(payable)})`;
+    const advance = q.advancePaise || q.customerAdvancePaise;
+    const after = advance && q.oldGoldPaise ? 'the advance and old gold' : advance ? 'the advance' : 'the old gold';
+    const what = advance || q.oldGoldPaise ? `the amount due after ${after} (${rupeesOf(payable)})` : `the invoice total (${rupeesOf(payable)})`;
     const message = received + asked > payable ? `Payments (${rupeesOf(received + asked)}) are more than ${what}` : `Payments (${rupeesOf(received)}) must equal ${what}. Select the customer to keep the rest as due.`;
     throw ApiError.badRequest(message, [{ path: 'payments', message: 'Payments do not match the total' }], 'PAYMENT_MISMATCH');
   }
@@ -260,6 +282,9 @@ export async function createSale({ payments: requested, notes, ...input }, idemp
 
   const sale = await withTransaction(async (session) => {
     const invoiceNo = await nextDocumentNo({ prefix: settings.invoice.invoicePrefix, branchCode: branch.code, financialYear: today.financialYear }, { session });
+    // Old gold handed over goes into the old-gold pool under its own number, linked to this bill.
+    const saleId = new mongoose.Types.ObjectId();
+    const oldGold = q.oldGold ? await recordOldGold({ type: 'exchange', branch, customer: q.customer, priced: q.oldGold, today, saleId, invoiceNo }, { session }) : null;
     const items = q.lines.map((l) => ({
       productId: l.product._id,
       sku: l.product.sku,
@@ -282,6 +307,7 @@ export async function createSale({ payments: requested, notes, ...input }, idemp
     const [doc] = await Sale.create(
       [
         {
+          _id: saleId,
           invoiceNo,
           branchId: branch._id,
           businessDate: today.businessDate,
@@ -299,6 +325,8 @@ export async function createSale({ payments: requested, notes, ...input }, idemp
           orderNo: q.order?.orderNo ?? null,
           advanceAdjustedPaise: q.advancePaise,
           customerAdvancePaise: q.customerAdvancePaise,
+          oldGoldPaise: q.oldGoldPaise,
+          oldGold: oldGold && { id: oldGold._id, docNo: oldGold.docNo, lines: q.oldGold.lines },
           idempotencyKey: idempotencyKey ?? null,
           createdBy: userId,
         },
@@ -329,6 +357,8 @@ export async function createSale({ payments: requested, notes, ...input }, idemp
     if (q.advancePaise) debits.push({ account: 'customer_advances', debit: q.advancePaise, branchId: branch._id, party });
     // The customer's own advance sits as a credit on their account (opening balance): using it debits that account.
     if (q.customerAdvancePaise) debits.push({ account: 'sundry_debtors', debit: q.customerAdvancePaise, branchId: branch._id, party });
+    // Old gold taken in place of money is stock (in the old-gold pool) at its value.
+    if (q.oldGoldPaise) debits.push({ account: 'inventory', debit: q.oldGoldPaise, branchId: branch._id });
     const { taxablePaise, gstPaise, roundOffPaise } = q.totals;
     await postJournal(
       {
@@ -351,7 +381,7 @@ export async function createSale({ payments: requested, notes, ...input }, idemp
       { session },
     );
     await recordAudit(
-      { action: AUDIT_ACTIONS.CREATE, module: 'sales', recordType: 'Sale', recordId: doc._id, meta: { name: invoiceNo, invoiceNo, total: q.totals.grandTotalPaise, items: items.length } },
+      { action: AUDIT_ACTIONS.CREATE, module: 'sales', recordType: 'Sale', recordId: doc._id, meta: { name: invoiceNo, invoiceNo, total: q.totals.grandTotalPaise, items: items.length, ...(oldGold && { oldGold: oldGold.docNo, oldGoldValue: q.oldGoldPaise }) } },
       { session },
     );
     return doc;
@@ -389,6 +419,8 @@ async function serializeSale(s, returns) {
     order: s.orderId ? { id: s.orderId, orderNo: s.orderNo } : null,
     advanceAdjustedPaise: s.advanceAdjustedPaise ?? 0,
     customerAdvancePaise: s.customerAdvancePaise ?? 0,
+    oldGoldPaise: s.oldGoldPaise ?? 0,
+    oldGold: s.oldGold ?? null,
     ...billBalance(s),
     createdBy: pick(maps.users, s.createdBy),
     cancelledAt: s.cancelledAt,
@@ -434,6 +466,7 @@ export async function listSales({ page, limit, q, status, branchId: chosen, cust
       ...billBalance(s),
       paymentModes: [...new Set(s.payments.map((p) => p.mode))],
       advanceUsed: Boolean(s.advanceAdjustedPaise || s.customerAdvancePaise),
+      oldGoldPaise: s.oldGoldPaise ?? 0,
       orderNo: s.orderNo ?? null,
       createdBy: pick(maps.users, s.createdBy),
     })),
@@ -494,6 +527,8 @@ export async function cancelSale(id, reason) {
     const source = { docType: 'sale', docId: sale._id, docNo: sale.invoiceNo };
     await moveProducts({ type: 'sale_cancel', productIds: sale.items.map((i) => i.productId), branchId: sale.branchId, source, businessDate: today.businessDate, note: reason }, { session });
     await reverseJournalsFor(source, { date: today.now, businessDate: today.businessDate, financialYear: today.financialYear, narration: `Cancellation of ${sale.invoiceNo}` }, { session });
+    // The old gold goes back to the customer (the journal above already took it off stock).
+    if (sale.oldGoldPaise) await cancelExchangeFor(sale._id, today, reason, { session });
     if (sale.orderId) {
       // The advance is back in customer advances (journal reversed), so the order is ready to bill again.
       await Order.updateOne(

@@ -82,21 +82,22 @@ export async function platformDashboard({ period = 'month' } = {}) {
   const now = new Date();
   const from = periodStart(period, now);
   const joinedInPeriod = from ? { createdAt: { $gte: from } } : {};
-  const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
-  const [organisations, active, suspended, branches, users, recent, joined, newInPeriod] = await Promise.all([
+  const yearAgo = new Date(now.getFullYear(), now.getMonth() - 11, 1);
+  const [organisations, active, suspended, branches, users, recent, joined, newInPeriod, before] = await Promise.all([
     Organisation.countDocuments({}),
     Organisation.countDocuments({ status: ORG_STATUS.ACTIVE }),
     Organisation.countDocuments({ status: ORG_STATUS.SUSPENDED }),
     Branch.countDocuments({ status: BRANCH_STATUS.ACTIVE }).setOptions(SKIP),
     User.countDocuments({ status: USER_STATUS.ACTIVE }).setOptions(SKIP),
     Organisation.find(joinedInPeriod).sort({ createdAt: -1 }).limit(5).lean(),
-    Organisation.find({ createdAt: { $gte: sixMonthsAgo } }).select('createdAt').lean(),
+    Organisation.find({ createdAt: { $gte: yearAgo } }).select('createdAt').lean(),
     Organisation.countDocuments(joinedInPeriod),
+    Organisation.countDocuments({ createdAt: { $lt: yearAgo } }),
   ]);
-  // Sign-ups in each of the last six months (oldest first).
-  const signups = Array.from({ length: 6 }, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1);
-    return { key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, count: 0 };
+  // Sign-ups in each of the last twelve months (oldest first), and how many organisations there were by its end.
+  const signups = Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - 11 + i, 1);
+    return { key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, count: 0, total: 0 };
   });
   const byKey = new Map(signups.map((m) => [m.key, m]));
   for (const o of joined) {
@@ -104,7 +105,9 @@ export async function platformDashboard({ period = 'month' } = {}) {
     const m = byKey.get(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
     if (m) m.count += 1;
   }
-  return { organisations, active, suspended, branches, users, newThisMonth: signups[5].count, newInPeriod, signups, recent: await serializeMany(recent) };
+  let running = before;
+  for (const m of signups) m.total = running += m.count;
+  return { organisations, active, suspended, branches, users, newThisMonth: signups[11].count, newInPeriod, signups, recent: await serializeMany(recent) };
 }
 
 export async function listOrganisations({ page, limit, q, status }) {

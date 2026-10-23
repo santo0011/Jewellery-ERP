@@ -34,6 +34,9 @@ const ApprovalsPage = lazyPage(() => import('../features/approvals/ApprovalsPage
 const StockEntriesPage = lazyPage(() => import('../features/inventory/StockEntriesPage.jsx'));
 const StockLedgerPage = lazyPage(() => import('../features/inventory/StockLedgerPage.jsx'));
 const StockSummaryPage = lazyPage(() => import('../features/inventory/StockSummaryPage.jsx'));
+const RawMaterialsPage = lazyPage(() => import('../features/inventory/RawMaterialsPage.jsx'));
+const ExpensesPage = lazyPage(() => import('../features/finance/ExpensesPage.jsx'));
+const ProfitPage = lazyPage(() => import('../features/finance/ProfitPage.jsx'));
 const TransfersPage = lazyPage(() => import('../features/inventory/TransfersPage.jsx'));
 const PurchaseDetailPage = lazyPage(() => import('../features/purchases/PurchaseDetailPage.jsx'));
 const PurchaseFormPage = lazyPage(() => import('../features/purchases/PurchaseFormPage.jsx'));
@@ -58,6 +61,7 @@ const ReportsPage = lazyPage(() => import('../features/reports/ReportsPage.jsx')
 const ReportViewPage = lazyPage(() => import('../features/reports/ReportViewPage.jsx'));
 const InvoicePage = lazyPage(() => import('../features/sales/InvoicePage.jsx'));
 const InvoicesPage = lazyPage(() => import('../features/sales/InvoicesPage.jsx'));
+const OldGoldPage = lazyPage(() => import('../features/oldgold/OldGoldPage.jsx'));
 const EmailSettingsPage = lazyPage(() => import('../features/platform/EmailSettingsPage.jsx'));
 const AdminLayout = lazyPage(() => import('../features/platform/AdminLayout.jsx'));
 const AdminOrganisationDetailPage = lazyPage(() => import('../features/platform/AdminOrganisationDetailPage.jsx'));
@@ -153,12 +157,16 @@ export const router = createBrowserRouter([
           { path: 'billing', element: guard('sales.create', <BillingPage />) },
           { path: 'sales', element: guard('sales.view', <InvoicesPage />) },
           { path: 'sales/:id', element: guard('sales.view', <InvoicePage />) },
+          { path: 'old-gold', element: guard('oldgold.view', <OldGoldPage />) },
           { path: 'orders', element: guard('order.view', <OrdersPage />) },
           { path: 'orders/new', element: guard('order.create', <OrderFormPage />) },
           { path: 'orders/:id', element: guard('order.view', <OrderDetailPage />) },
           { path: 'orders/:id/edit', element: guard('order.edit', <OrderFormPage />) },
           { path: 'approvals', element: guard('inventory.approve', <ApprovalsPage />) },
           { path: 'inventory', element: guard('inventory.view', <StockSummaryPage />) },
+          { path: 'inventory/raw-materials', element: guard('inventory.view', <RawMaterialsPage />) },
+          { path: 'expenses', element: guard('expense.view', <ExpensesPage />) },
+          { path: 'finance', element: guard('report.finance', <ProfitPage />) },
           { path: 'inventory/opening', element: guard('inventory.view', <StockEntriesPage key="opening" mode="opening" />) },
           { path: 'inventory/adjustments', element: guard('inventory.view', <StockEntriesPage key="adjustment" mode="adjustment" />) },
           { path: 'inventory/transfers', element: guard('inventory.view', <TransfersPage />) },

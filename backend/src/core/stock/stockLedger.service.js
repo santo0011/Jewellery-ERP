@@ -13,6 +13,7 @@ import { StockMovement } from './stockMovement.model.js';
 const PRODUCT_TRANSITIONS = {
   opening: { from: ['draft'], to: 'in_stock', direction: 1 },
   purchase: { from: ['draft'], to: 'in_stock', direction: 1 },
+  production: { from: ['draft'], to: 'in_stock', direction: 1 }, // made from the metal stock
   adjustment_out: { from: ['in_stock'], direction: -1 },
   transfer_out: { from: ['in_stock'], to: 'in_transit', direction: -1 },
   transfer_in: { from: ['in_transit'], to: 'in_stock', direction: 1 },

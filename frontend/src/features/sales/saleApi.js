@@ -13,12 +13,12 @@ export const saleApi = baseApi.injectEndpoints({
     createSale: build.mutation({
       query: ({ idempotencyKey, ...data }) => ({ url: '/sales', method: 'post', data, headers: { 'Idempotency-Key': idempotencyKey } }),
       transformResponse: unwrapData,
-      invalidatesTags: [{ type: 'Sale', id: 'LIST' }, { type: 'Order', id: 'LIST' }, 'Order', 'Product', 'Stock', 'Audit'],
+      invalidatesTags: [{ type: 'Sale', id: 'LIST' }, { type: 'Order', id: 'LIST' }, 'Order', 'Product', 'Stock', 'OldGold', 'Audit'],
     }),
     cancelSale: build.mutation({
       query: ({ id, reason }) => ({ url: `/sales/${id}/cancel`, method: 'post', data: { reason } }),
       transformResponse: unwrapData,
-      invalidatesTags: (r, e, { id }) => [{ type: 'Sale', id }, { type: 'Sale', id: 'LIST' }, 'Order', 'Product', 'Stock', 'Audit'],
+      invalidatesTags: (r, e, { id }) => [{ type: 'Sale', id }, { type: 'Sale', id: 'LIST' }, 'Order', 'Product', 'Stock', 'OldGold', 'Audit'],
     }),
     setProductHuid: build.mutation({
       query: ({ id, huid }) => ({ url: `/products/${id}/huid`, method: 'patch', data: { huid } }),

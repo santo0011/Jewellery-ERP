@@ -41,8 +41,10 @@ const PERMISSION_SET = new Set(ALL_PERMISSIONS);
  * matter once the feature arrives) but the role editor does not offer them: ticking them would change nothing today.
  */
 const UPCOMING = new Set([
-  ...['repair', 'loyalty', 'oldgold', 'karigar', 'leave', 'expense', 'ai'].flatMap((mod) => ALL_PERMISSIONS.filter((p) => p.startsWith(`${mod}.`))),
+  ...['repair', 'loyalty', 'karigar', 'leave', 'ai'].flatMap((mod) => ALL_PERMISSIONS.filter((p) => p.startsWith(`${mod}.`))),
+  'oldgold.approve', 'oldgold.print',
   'branch.viewAll',
+  'expense.approve',
   'customer.export',
   'order.approve', 'order.print',
   'sales.edit', 'sales.approve', 'sales.export',
@@ -78,10 +80,10 @@ export const hasAnyPermission = (granted, required) => required.some((p) => hasP
  * the other module's View. Changing or deleting those records still needs that module's own permissions.
  */
 export const LOOKUP_ACCESS = Object.freeze({
-  customer: ['customer.view', 'sales.create', 'order.create', 'order.edit'],
+  customer: ['customer.view', 'sales.create', 'order.create', 'order.edit', 'oldgold.create'],
   customerDues: ['customer.view', 'sales.create', 'accounts.receipt'],
   product: ['product.view', 'sales.create', 'inventory.view', 'inventory.adjust', 'inventory.transfer', 'purchase.create'],
-  rate: ['rate.view', 'sales.create'],
+  rate: ['rate.view', 'sales.create', 'oldgold.create'],
   supplier: ['supplier.view', 'purchase.view', 'purchase.create', 'product.create', 'product.edit'],
   category: ['category.view', 'product.view', 'order.create', 'order.edit', 'inventory.adjust', 'purchase.create'],
   order: ['order.view', 'order.edit', 'sales.create'],

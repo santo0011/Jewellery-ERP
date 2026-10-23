@@ -263,7 +263,7 @@ async function orderSummary(branchId, today) {
 export async function getOrder(id) {
   const o = (await findOrder(id)).toObject();
   const userIds = [o.createdBy, ...o.advances.map((a) => a.by), ...o.timeline.map((t) => t.by)];
-  const sale = o.saleId ? await Sale.findById(o.saleId).select('invoiceNo status createdAt totals payments advanceAdjustedPaise customerAdvancePaise duePaidPaise returnCreditPaise').lean() : null;
+  const sale = o.saleId ? await Sale.findById(o.saleId).select('invoiceNo status createdAt totals payments advanceAdjustedPaise customerAdvancePaise oldGoldPaise duePaidPaise returnCreditPaise').lean() : null;
   const [maps, categories, products] = await Promise.all([
     nameMaps({ branchIds: [o.branchId], userIds }),
     Category.find({ _id: { $in: o.items.map((i) => i.categoryId).filter(Boolean) } }).select('name').lean(),
@@ -303,6 +303,7 @@ export async function getOrder(id) {
       advanceAdjustedPaise: sale.advanceAdjustedPaise ?? 0,
       payments: sale.payments.map((p) => ({ mode: p.mode, amountPaise: p.amountPaise, reference: p.reference })),
       customerAdvancePaise: sale.customerAdvancePaise ?? 0,
+      oldGoldPaise: sale.oldGoldPaise ?? 0,
       paidPaise: sale.payments.filter((p) => p.mode !== 'credit').reduce((sum, p) => sum + p.amountPaise, 0),
       duePaise: billDue(sale),
       collectedLaterPaise: sale.duePaidPaise ?? 0,

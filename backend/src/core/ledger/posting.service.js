@@ -22,6 +22,7 @@ export const SYSTEM_ACCOUNTS = Object.freeze([
   { systemKey: 'cogs', code: '5100', name: 'Cost of goods sold', group: 'expense', subGroup: 'cost_of_goods' },
   { systemKey: 'stock_loss', code: '5900', name: 'Stock loss & write-off', group: 'expense', subGroup: 'other_expense' },
   { systemKey: 'salaries', code: '6000', name: 'Salaries & wages', group: 'expense', subGroup: 'staff' },
+  { systemKey: 'shop_expenses', code: '6100', name: 'Shop expenses', group: 'expense', subGroup: 'operating' },
 ]);
 
 export async function ensureSystemAccounts({ session } = {}) {

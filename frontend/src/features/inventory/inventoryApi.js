@@ -13,6 +13,9 @@ export const inventoryApi = baseApi.injectEndpoints({
     createAdjustment: build.mutation({ query: (data) => ({ url: '/inventory/adjustments', method: 'post', data }), transformResponse: unwrapData, invalidatesTags: stockChange }),
     createTransfer: build.mutation({ query: (data) => ({ url: '/inventory/transfers', method: 'post', data }), transformResponse: unwrapData, invalidatesTags: stockChange }),
     receiveTransfer: build.mutation({ query: (id) => ({ url: `/inventory/transfers/${id}/receive`, method: 'post' }), transformResponse: unwrapData, invalidatesTags: stockChange }),
+    // Jewellery made from the raw metal stock.
+    productions: build.query({ query: (params) => ({ url: '/inventory/production', params }), transformResponse: unwrapList, providesTags: ['Stock'] }),
+    createProduction: build.mutation({ query: (data) => ({ url: '/inventory/production', method: 'post', data }), transformResponse: unwrapData, invalidatesTags: [...stockChange, 'Item', 'Finance'] }),
     rejectTransfer: build.mutation({
       query: ({ id, reason }) => ({ url: `/inventory/transfers/${id}/reject`, method: 'post', data: { reason } }),
       transformResponse: unwrapData,
@@ -23,6 +26,8 @@ export const inventoryApi = baseApi.injectEndpoints({
 
 export const {
   useStockSummaryQuery,
+  useProductionsQuery,
+  useCreateProductionMutation,
   useStockMovementsQuery,
   useOpeningEntriesQuery,
   useAdjustmentsQuery,

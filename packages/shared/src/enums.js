@@ -266,7 +266,35 @@ export const MOVEMENT_TYPE_LABELS = Object.freeze({
   sale: 'Sale',
   sale_cancel: 'Sale cancelled',
   sales_return: 'Sales return',
+  production: 'Made from raw material',
+  production_use: 'Used to make jewellery',
+  old_gold: 'Old gold taken in',
+  old_gold_cancel: 'Old gold cancelled',
 });
+
+/**
+ * Shop expense heads every organisation starts with (more can be added). Salary is not one of them: it is booked by
+ * Payroll, so entering it here too would count it twice.
+ */
+export const DEFAULT_EXPENSE_CATEGORIES = Object.freeze([
+  'Electricity',
+  'Shop rent',
+  'Transport',
+  'Repair & maintenance',
+  'Packaging',
+  'Marketing',
+  'Internet & phone',
+  'Daily shopping',
+  'Other',
+]);
+
+/** How a shop expense was paid. */
+export const EXPENSE_PAY_MODES = Object.freeze([
+  { value: 'cash', label: 'Cash' },
+  { value: 'upi', label: 'UPI' },
+  { value: 'bank', label: 'Bank' },
+  { value: 'card', label: 'Card' },
+]);
 
 export const APPROVAL_STATUS = Object.freeze({ PENDING: 'pending', APPROVED: 'approved', REJECTED: 'rejected' });
 

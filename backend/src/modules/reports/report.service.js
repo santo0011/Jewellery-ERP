@@ -27,10 +27,10 @@ const metalPurity = (metal, purity) => {
   const p = purityText(metal, purity);
   return p.toLowerCase().includes(metalLabel(metal).toLowerCase()) ? p : `${metalLabel(metal)} ${p}`;
 };
-const modeLabel = (m) => (m === 'advance' ? 'Order advance adjusted' : m === 'credit' ? 'On credit (due)' : (PAYMENT_MODES.find((x) => x.value === m)?.label ?? m));
+const modeLabel = (m) => (m === 'advance' ? 'Order advance adjusted' : m === 'old_gold' ? 'Old gold exchanged' : m === 'credit' ? 'On credit (due)' : (PAYMENT_MODES.find((x) => x.value === m)?.label ?? m));
 const pct = (part, whole) => (whole ? Math.round((part / whole) * 1000) / 10 : 0);
 const daysBetween = (a, b) => Math.round((Date.parse(`${b}T00:00:00Z`) - Date.parse(`${a}T00:00:00Z`)) / 86400000);
-const received = (s) => sum(s.payments.filter((p) => p.mode !== 'credit'), (p) => p.amountPaise) + (s.advanceAdjustedPaise ?? 0) + (s.customerAdvancePaise ?? 0);
+const received = (s) => sum(s.payments.filter((p) => p.mode !== 'credit'), (p) => p.amountPaise) + (s.advanceAdjustedPaise ?? 0) + (s.customerAdvancePaise ?? 0) + (s.oldGoldPaise ?? 0);
 const credit = (s) => sum(s.payments.filter((p) => p.mode === 'credit'), (p) => p.amountPaise);
 
 // ---------------------------------------------------------------- GST helpers
@@ -438,12 +438,12 @@ const REPORTS = [
     key: 'sales-payment',
     group: 'Sales',
     title: 'Payment mode summary',
-    description: 'How customers paid: cash, card, UPI, bank, advance and credit.',
+    description: 'How customers paid: cash, card, UPI, bank, advance, old gold and credit.',
     permission: 'report.sales',
     filters: ['range', 'branch'],
     async run(p) {
       const sales = await completedSales(p);
-      const entries = sales.flatMap((s) => [...s.payments.map((x) => ({ mode: x.mode, amount: x.amountPaise })), ...(s.advanceAdjustedPaise ? [{ mode: 'advance', amount: s.advanceAdjustedPaise }] : [])]);
+      const entries = sales.flatMap((s) => [...s.payments.map((x) => ({ mode: x.mode, amount: x.amountPaise })), ...(s.advanceAdjustedPaise ? [{ mode: 'advance', amount: s.advanceAdjustedPaise }] : []), ...(s.oldGoldPaise ? [{ mode: 'old_gold', amount: s.oldGoldPaise }] : [])]);
       const rows = groupBy(
         entries,
         (e) => e.mode,

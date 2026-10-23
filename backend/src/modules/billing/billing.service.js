@@ -355,14 +355,19 @@ export async function billingDashboard({ period = 'month' } = {}) {
   const from = periodStart(period, now);
   const inPeriod = from ? { paidAt: { $gte: from } } : {};
   const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
-  const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+  const yearAgo = new Date(now.getFullYear(), now.getMonth() - 11, 1);
   const lastMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const [subs, orgs, paidRows, recent] = await Promise.all([
+  const [subs, orgs, paidRows, recent, plans, everPaid] = await Promise.all([
     Subscription.find({}).setOptions(SKIP).lean(),
     Organisation.find({}).select('name status').lean(),
-    SubscriptionPayment.find({ status: 'paid', paidAt: { $gte: sixMonthsAgo } }).select('amountPaise paidAt').lean(),
+    SubscriptionPayment.find({ status: 'paid', amountPaise: { $gt: 0 }, paidAt: { $gte: yearAgo } }).select('amountPaise paidAt source planName').lean(),
     SubscriptionPayment.find({ amountPaise: { $gt: 0 }, ...(from && { createdAt: { $gte: from } }) }).sort({ createdAt: -1 }).limit(6).lean(),
+    Plan.find({}).select('pricePaise durationMonths').lean(),
+    SubscriptionPayment.distinct('organisationId', { status: 'paid', amountPaise: { $gt: 0 } }),
   ]);
+  const planById = new Map(plans.map((p) => [String(p._id), p]));
+  // Monthly recurring revenue: each paying organisation's plan price spread over its months.
+  let mrrPaise = 0;
   // Money in during the chosen period: total, number of payments and how many organisations paid.
   const periodPaid = await SubscriptionPayment.find({ status: 'paid', amountPaise: { $gt: 0 }, ...inPeriod }).select('amountPaise organisationId').lean();
   const orgName = new Map(orgs.map((o) => [String(o._id), o.name]));
@@ -378,21 +383,28 @@ export async function billingDashboard({ period = 'month' } = {}) {
       counts.active += 1;
       const name = sub.planName ?? sub.plan ?? 'Plan';
       byPlan.set(name, (byPlan.get(name) ?? 0) + 1);
+      const plan = sub.planId && planById.get(String(sub.planId));
+      if (plan?.pricePaise && plan.durationMonths) mrrPaise += Math.round(plan.pricePaise / plan.durationMonths);
     }
     if (!eff.expired && eff.daysLeft <= 7) expiring.push({ organisationId: sub.organisationId, name: orgName.get(String(sub.organisationId)) ?? '—', planName: sub.planName ?? sub.plan, status: eff.status, endsAt: eff.endsAt, daysLeft: eff.daysLeft });
   }
-  const months = Array.from({ length: 6 }, (_, i) => {
-    const d = new Date(now.getFullYear(), now.getMonth() - 5 + i, 1);
-    return { key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, totalPaise: 0, count: 0 };
+  // The last twelve months (oldest first), split by how the money came: online (Cashfree) or entered manually.
+  const months = Array.from({ length: 12 }, (_, i) => {
+    const d = new Date(now.getFullYear(), now.getMonth() - 11 + i, 1);
+    return { key: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, totalPaise: 0, onlinePaise: 0, manualPaise: 0, count: 0 };
   });
   const byKey = new Map(months.map((m) => [m.key, m]));
+  const revenueByPlan = new Map();
   for (const p of paidRows) {
     const d = new Date(p.paidAt);
     const m = byKey.get(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
     if (m) {
       m.totalPaise += p.amountPaise;
+      m[p.source === 'cashfree' ? 'onlinePaise' : 'manualPaise'] += p.amountPaise;
       m.count += 1;
     }
+    const plan = p.planName ?? 'Plan';
+    revenueByPlan.set(plan, (revenueByPlan.get(plan) ?? 0) + p.amountPaise);
   }
   const [all] = await SubscriptionPayment.aggregate([{ $match: { status: 'paid' } }, { $group: { _id: null, total: { $sum: '$amountPaise' } } }]);
   return {
@@ -400,8 +412,13 @@ export async function billingDashboard({ period = 'month' } = {}) {
       totalPaise: all?.total ?? 0,
       monthPaise: paidRows.filter((p) => new Date(p.paidAt) >= monthStart).reduce((s, p) => s + p.amountPaise, 0),
       lastMonthPaise: paidRows.filter((p) => new Date(p.paidAt) >= lastMonthStart && new Date(p.paidAt) < monthStart).reduce((s, p) => s + p.amountPaise, 0),
+      mrrPaise,
       months,
+      // Last twelve months, largest plan first.
+      byPlan: [...revenueByPlan].map(([label, value]) => ({ key: label, label, value })).sort((a, b) => b.value - a.value),
     },
+    // Organisations that have ever paid real money, out of all of them (trial → paid conversion).
+    conversion: { paying: everPaid.length, organisations: orgs.length },
     period: {
       key: period,
       from,

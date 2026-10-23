@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { PAYMENT_MODES } from '../enums.js';
 import { HUID_REGEX } from '../patterns.js';
 import { listQuerySchema, objectIdSchema, optional, optionalText } from './common.js';
+import { oldGoldLinesSchema } from './oldGold.js';
 
 const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Use YYYY-MM-DD');
 const paise = (label) => z.number({ error: `${label} is required` }).int().min(0, `${label} cannot be negative`).max(1e12);
@@ -18,6 +19,8 @@ export const quoteSchema = z.object({
   orderId: optional(objectIdSchema),
   // A customer's advance from before (minus old due) is used on the bill unless this is false.
   useCustomerAdvance: z.boolean().default(true),
+  // Old gold the customer hands over in exchange: its value is taken off what they pay now.
+  oldGold: oldGoldLinesSchema.default([]),
   items: z
     .array(lineSchema)
     .min(1, 'Add at least one item')
