@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { USER_STATUS } from '@jerp/shared';
+import { LANGUAGES, USER_STATUS } from '@jerp/shared';
 import { tenantPlugin } from '../../core/tenancy/tenantPlugin.js';
 
 const userSchema = new mongoose.Schema(
@@ -22,6 +22,8 @@ const userSchema = new mongoose.Schema(
     failedLoginCount: { type: Number, default: 0 },
     lockedUntil: { type: Date, default: null },
     lastLoginAt: { type: Date, default: null },
+    // The language this user sees the app in (en, bn, hi); null until they pick one.
+    language: { type: String, enum: LANGUAGES, default: null },
     passwordReset: {
       // Forgot password: the emailed 6-digit code (hashed), when it expires, wrong tries so far, when it was sent.
       type: new mongoose.Schema({ tokenHash: String, expiresAt: Date, attempts: { type: Number, default: 0 }, sentAt: Date }, { _id: false }),

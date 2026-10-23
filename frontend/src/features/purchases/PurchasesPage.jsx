@@ -16,6 +16,7 @@ import SummaryCards, { SummaryCard } from '../../components/SummaryCards.jsx';
 import ShoppingBagOutlinedIcon from '@mui/icons-material/ShoppingBagOutlined';
 import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined';
 import PendingActionsOutlinedIcon from '@mui/icons-material/PendingActionsOutlined';
+import { t } from '../../i18n/index.js';
 
 export default function PurchasesPage() {
   const navigate = useNavigate();
@@ -28,7 +29,7 @@ export default function PurchasesPage() {
   const columns = [
     {
       key: 'bill',
-      label: 'Bill',
+      label: t('Bill'),
       render: (p) => (
         <Box>
           <Typography variant="subtitle2">{p.billNo}</Typography>
@@ -38,13 +39,13 @@ export default function PurchasesPage() {
         </Box>
       ),
     },
-    { key: 'supplier', label: 'Supplier', render: (p) => <Typography variant="body2" sx={{ fontWeight: 500 }}>{p.supplier.name}</Typography> },
+    { key: 'supplier', label: t('Supplier'), render: (p) => <Typography variant="body2" sx={{ fontWeight: 500 }}>{p.supplier.name}</Typography> },
     {
       key: 'items',
-      label: 'Items',
+      label: t('Items'),
       render: (p) => (
         <Typography variant="body2">
-          {[p.totals.pieces ? `${p.totals.pieces} pcs` : null, p.metalLines.length ? `${p.metalLines.length} metal` : null].filter(Boolean).join(' + ')}
+          {[p.totals.pieces ? t('{{pieces}} pcs', { pieces: p.totals.pieces }) : null, p.metalLines.length ? t('{{count}} metal', { count: p.metalLines.length }) : null].filter(Boolean).join(' + ')}
           <Typography component="span" variant="caption" color="textSecondary">
             {' '}
             · {formatWeight(p.totals.grossMg)}
@@ -52,16 +53,16 @@ export default function PurchasesPage() {
         </Typography>
       ),
     },
-    { key: 'total', label: 'Amount', align: 'right', render: (p) => <Amount paise={p.totals.totalPaise} decimals={0} sx={{ fontWeight: 600 }} /> },
+    { key: 'total', label: t('Amount'), align: 'right', render: (p) => <Amount paise={p.totals.totalPaise} decimals={0} sx={{ fontWeight: 600 }} /> },
     {
       key: 'payment',
-      label: 'Payment',
+      label: t('Payment'),
       render: (p) => (
         <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
           <PaymentChip status={p.paymentStatus} />
           {p.duePaise > 0 && (
             <Typography variant="caption" sx={{ color: 'error.main', fontWeight: 600 }}>
-              {formatINR(p.duePaise, { decimals: 0 })} due
+              {t('{{due}} due', { due: formatINR(p.duePaise, { decimals: 0 }) })}
             </Typography>
           )}
         </Stack>
@@ -72,53 +73,53 @@ export default function PurchasesPage() {
   return (
     <>
       <PageHeader
-        title="Purchases"
-        subtitle="Supplier bills — stock received, what it cost and what is still to pay."
+        title={t('Purchases')}
+        subtitle={t('Supplier bills — stock received, what it cost and what is still to pay.')}
         actions={
           canCreate && (
             <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => navigate('/purchases/new')}>
-              New purchase
+              {t('New purchase')}
             </Button>
           )
         }
       />
       <SummaryCards>
-        <SummaryCard icon={ShoppingBagOutlinedIcon} label="Bought this month" value={formatINR(meta?.monthPaise ?? 0, { decimals: 0 })} caption={`${meta?.monthBills ?? 0} bill${meta?.monthBills === 1 ? '' : 's'}`} />
+        <SummaryCard icon={ShoppingBagOutlinedIcon} label={t('Bought this month')} value={formatINR(meta?.monthPaise ?? 0, { decimals: 0 })} caption={(meta?.monthBills === 1 ? t('{{value}} bill', { value: meta?.monthBills ?? 0 }) : t('{{value}} bills', { value: meta?.monthBills ?? 0 }))} />
         <SummaryCard
           icon={AccountBalanceWalletOutlinedIcon}
-          label="To pay suppliers"
+          label={t('To pay suppliers')}
           value={formatINR(meta?.duePaise ?? 0, { decimals: 0 })}
-          caption={meta?.dueBills ? `${meta.dueBills} bill${meta.dueBills === 1 ? '' : 's'} unpaid — tap to see` : 'All bills paid'}
+          caption={meta?.dueBills ? (meta.dueBills === 1 ? t('{{dueBills}} bill unpaid — tap to see', { dueBills: meta.dueBills }) : t('{{dueBills}} bills unpaid — tap to see', { dueBills: meta.dueBills })) : t('All bills paid')}
           tone={meta?.duePaise ? 'red' : 'green'}
           valueTone={meta?.duePaise ? 'due' : 'paid'}
           onClick={meta?.dueBills ? () => list.setFilter('payment', 'due') : undefined}
         />
         <SummaryCard
           icon={PendingActionsOutlinedIcon}
-          label="Open orders"
+          label={t('Open orders')}
           value={orders?.meta?.open ?? 0}
-          caption={orders?.meta?.overdue ? `${orders.meta.overdue} overdue` : 'Waiting for delivery'}
+          caption={orders?.meta?.overdue ? t('{{overdue}} overdue', { overdue: orders.meta.overdue }) : t('Waiting for delivery')}
           tone={orders?.meta?.overdue ? 'red' : 'blue'}
           onClick={() => navigate('/purchases/orders')}
         />
       </SummaryCards>
       <DataTable
-        columns={[...columns, viewColumn((p) => navigate(`/purchases/${p.id}`), { name: (p) => p.billNo, deleteDisabled: 'A purchase bill has moved stock and is in the accounts, so it cannot be deleted.' })]}
+        columns={[...columns, viewColumn((p) => navigate(`/purchases/${p.id}`), { name: (p) => p.billNo, deleteDisabled: t('A purchase bill has moved stock and is in the accounts, so it cannot be deleted.') })]}
         rows={data?.items}
         loading={isLoading}
         fetching={isFetching}
         error={error}
         onRetry={refetch}
-        empty={list.filtered ? { title: 'No matching bills', description: 'Try another bill number, supplier or filter.' } : { title: 'No purchases yet', description: 'Enter a supplier’s bill to bring stock in at its real cost.' }}
+        empty={list.filtered ? { title: t('No matching bills'), description: t('Try another bill number, supplier or filter.') } : { title: t('No purchases yet'), description: t('Enter a supplier’s bill to bring stock in at its real cost.') }}
         pagination={list.pagination(meta)}
         toolbar={
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: { sm: 'center' } }}>
-            <SearchField value={list.search} onChange={list.setSearch} placeholder="Search bill no., supplier or order" />
+            <SearchField value={list.search} onChange={list.setSearch} placeholder={t('Search bill no., supplier or order')} />
             <ToggleButtonGroup exclusive size="small" value={list.filters.payment} onChange={(e, v) => v !== null && list.setFilter('payment', v)} sx={{ height: 40, flexShrink: 0 }}>
-              <ToggleButton value="">All</ToggleButton>
-              <ToggleButton value="due">Due</ToggleButton>
-              <ToggleButton value="partly_paid">Partly paid</ToggleButton>
-              <ToggleButton value="paid">Paid</ToggleButton>
+              <ToggleButton value="">{t('All')}</ToggleButton>
+              <ToggleButton value="due">{t('Due')}</ToggleButton>
+              <ToggleButton value="partly_paid">{t('Partly paid')}</ToggleButton>
+              <ToggleButton value="paid">{t('Paid')}</ToggleButton>
             </ToggleButtonGroup>
           </Stack>
         }

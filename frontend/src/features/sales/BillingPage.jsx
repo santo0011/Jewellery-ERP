@@ -30,6 +30,7 @@ import { useCurrentRatesQuery } from '../rates/rateApi.js';
 import { billLabels } from './billLabels.js';
 import { useCreateSaleMutation, useLazyLookupProductQuery, useQuoteSaleMutation, useSetProductHuidMutation } from './saleApi.js';
 import KeepOnPhone from '../../components/KeepOnPhone.jsx';
+import { t } from '../../i18n/index.js';
 
 const newKey = () => (crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`);
 const safePaise = (v) => {
@@ -46,23 +47,23 @@ function notSellableReason(p, branchName) {
   const item = `${p.sku} (${p.name})`;
   switch (p.status) {
     case 'in_stock':
-      return `${item} is in stock at ${p.branch?.name ?? 'another branch'}, not ${branchName}. Transfer it here, or bill it from that branch.`;
+      return t('{{item}} is in stock at {{branch}}, not {{branchName}}. Transfer it here, or bill it from that branch.', { item, branch: p.branch?.name ?? t('another branch'), branchName });
     case 'in_transit':
-      return `${item} is in transit between branches. It can be billed once the receiving branch accepts it under Stock → Transfers.`;
+      return t('{{item}} is in transit between branches. It can be billed once the receiving branch accepts it under Stock → Transfers.', { item });
     case 'sold':
-      return `${item} is already sold.`;
+      return t('{{item}} is already sold.', { item });
     case 'draft':
-      return `${item} has not been added to stock yet. Add it through Opening stock first.`;
+      return t('{{item}} has not been added to stock yet. Add it through Opening stock first.', { item });
     case 'reserved':
-      return `${item} is reserved.`;
+      return t('{{item}} is reserved.', { item });
     case 'with_karigar':
     case 'in_repair':
-      return `${item} is with the karigar / in repair.`;
+      return t('{{item}} is with the karigar / in repair.', { item });
     case 'melted':
     case 'written_off':
-      return `${item} was ${p.status.replace('_', ' ')} and is no longer in stock.`;
+      return t('{{item}} was {{status}} and is no longer in stock.', { item, status: p.status.replace('_', ' ') });
     default:
-      return `${item} is ${p.status.replace('_', ' ')}.`;
+      return t('{{item}} is {{status}}.', { item, status: p.status.replace('_', ' ') });
   }
 }
 
@@ -78,7 +79,7 @@ function ItemSearch({ branchId, branchName, exclude, onAdd }) {
   const code = q.toUpperCase();
   const match = explain ? ((anywhere?.items ?? []).find((p) => [p.sku, p.barcode, p.huid].includes(code)) ?? anywhere?.items?.[0]) : null;
   const onBill = match && exclude.has(String(match.id));
-  const searchReason = !explain || !anywhere ? null : onBill ? `${match.sku} is already on this bill.` : match ? notSellableReason(match, branchName) : `No item matches “${q}”. Check the tag, or search by name.`;
+  const searchReason = !explain || !anywhere ? null : onBill ? t('{{sku}} is already on this bill.', { sku: match.sku }) : match ? notSellableReason(match, branchName) : t('No item matches “{{q}}”. Check the tag, or search by name.', { q });
   const [scanReason, setScanReason] = useState(null);
   const reason = scanReason ?? searchReason;
 
@@ -101,11 +102,11 @@ function ItemSearch({ branchId, branchName, exclude, onAdd }) {
     if (local) return add(local);
     try {
       const p = await lookup(typed).unwrap();
-      if (exclude.has(String(p.id))) setScanReason(`${p.sku} is already on this bill.`);
+      if (exclude.has(String(p.id))) setScanReason(t('{{sku}} is already on this bill.', { sku: p.sku }));
       else if (p.status === 'in_stock' && String(p.branch?.id) === String(branchId)) add(p);
       else setScanReason(notSellableReason(p, branchName));
     } catch {
-      setScanReason(`No item with tag “${typed}”. Check the code, or search by name and pick from the list.`);
+      setScanReason(t('No item with tag “{{typed}}”. Check the code, or search by name and pick from the list.', { typed }));
     }
     return undefined;
   };
@@ -135,7 +136,7 @@ function ItemSearch({ branchId, branchName, exclude, onAdd }) {
       filterOptions={(x) => x}
       getOptionLabel={(p) => `${p.sku} ${p.name}`}
       isOptionEqualToValue={(a, b) => a.id === b.id}
-      noOptionsText={q ? (reason ?? 'Searching…') : 'Scan a tag or type SKU, HUID or name'}
+      noOptionsText={q ? (reason ?? t('Searching…')) : t('Scan a tag or type SKU, HUID or name')}
       renderOption={({ key, ...props }, p) => (
         <Box component="li" key={key} {...props}>
           <Box sx={{ minWidth: 0 }}>
@@ -143,7 +144,7 @@ function ItemSearch({ branchId, branchName, exclude, onAdd }) {
               {p.sku} · {p.name}
             </Typography>
             <Typography variant="caption" color="textSecondary">
-              {purityLabel(p.metal, p.purity)} · {formatWeight(p.grossWeightMg)} gross{p.huid ? ` · HUID ${p.huid}` : ''}
+              {t('{{metal}} · {{grossWeight}} gross', { metal: purityLabel(p.metal, p.purity), grossWeight: formatWeight(p.grossWeightMg) })}{p.huid ? t(' · HUID {{huid}}', { huid: p.huid }) : ''}
             </Typography>
           </Box>
         </Box>
@@ -152,7 +153,7 @@ function ItemSearch({ branchId, branchName, exclude, onAdd }) {
         <TextField
           {...params}
           autoFocus
-          placeholder="Scan tag or search SKU, HUID, name"
+          placeholder={t('Scan tag or search SKU, HUID, name')}
           slotProps={{
             ...params.slotProps,
             input: {
@@ -214,7 +215,7 @@ function RateStrip({ enabled }) {
         <Stack direction="row" spacing={1} sx={{ gridArea: 'title', alignItems: 'center', minWidth: 0 }}>
           <ShowChartRoundedIcon fontSize="small" sx={{ color: tokens.brand.strong }} />
           <Typography variant="overline" noWrap sx={{ color: 'text.secondary', lineHeight: 1 }}>
-            Today&apos;s rates
+            {t('Today\'s rates')}
           </Typography>
         </Stack>
         <Box sx={{ gridArea: 'rates', display: { xs: 'grid', md: 'flex' }, gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(4, minmax(0, 1fr))' }, flexWrap: 'wrap', gap: 1 }}>
@@ -228,11 +229,11 @@ function RateStrip({ enabled }) {
                 </Typography>
                 <Stack direction="row" sx={{ alignItems: 'baseline', columnGap: 0.5, flexWrap: 'wrap' }}>
                   <Typography variant="body2" sx={{ fontWeight: 700, whiteSpace: 'nowrap', color: today ? 'text.primary' : 'warning.main' }}>
-                    {rate ? `${formatINR(rate.ratePerGramPaise, { decimals: 0 })}/g` : 'Not set'}
+                    {rate ? t('{{ratePerGram}}/g', { ratePerGram: formatINR(rate.ratePerGramPaise, { decimals: 0 }) }) : t('Not set')}
                   </Typography>
                   {rate && !today && (
                     <Typography component="span" variant="caption" sx={{ fontWeight: 600, color: 'warning.main' }}>
-                      · old
+                      {t('· old')}
                     </Typography>
                   )}
                 </Stack>
@@ -242,7 +243,7 @@ function RateStrip({ enabled }) {
         </Box>
         {stale.length > 0 && (
           <Button size="small" color="warning" variant="outlined" onClick={() => navigate('/rates')} sx={{ gridArea: 'action', flexShrink: 0, whiteSpace: 'nowrap' }}>
-            Update {stale.length} rate{stale.length === 1 ? '' : 's'}
+            {(stale.length === 1 ? t('Update {{count}} rate', { count: stale.length }) : t('Update {{count}} rates', { count: stale.length }))}
           </Button>
         )}
       </Box>
@@ -253,11 +254,11 @@ function RateStrip({ enabled }) {
 function LineCard({ product: p, discount, discountType, breakdown: b, quoting, canDiscount, onDiscount, onDiscountType, onRemove, index, huidMissing, onHuidSaved }) {
   const parts = b
     ? [
-        ['Metal', b.metalPaise],
-        ['Wastage', b.wastagePaise],
-        ['Making', b.makingPaise],
-        ['Stones', b.stonePaise],
-        ['Other', b.otherPaise],
+        [t('Metal'), b.metalPaise],
+        [t('Wastage'), b.wastagePaise],
+        [t('Making'), b.makingPaise],
+        [t('Stones'), b.stonePaise],
+        [t('Other'), b.otherPaise],
       ].filter(([, v]) => v > 0)
     : [];
   return (
@@ -274,7 +275,7 @@ function LineCard({ product: p, discount, discountType, breakdown: b, quoting, c
             </Typography>
             <Typography color="textSecondary" sx={{ fontSize: '0.6875rem', overflowWrap: 'anywhere' }}>
               {p.sku} · {purityLabel(p.metal, p.purity)}
-              {p.huid ? ` · HUID ${p.huid}` : ''}
+              {p.huid ? t(' · HUID {{huid}}', { huid: p.huid }) : ''}
             </Typography>
           </Box>
           <Stack direction="row" spacing={0.25} sx={{ alignItems: 'flex-start', flexShrink: 0, mr: { xs: -0.75, sm: 0 }, mt: { xs: -0.5, sm: 0 } }}>
@@ -284,12 +285,12 @@ function LineCard({ product: p, discount, discountType, breakdown: b, quoting, c
               </Typography>
               {b?.discountPaise > 0 && (
                 <Typography color="success.main" sx={{ fontSize: '0.6875rem', fontWeight: 600, whiteSpace: 'nowrap' }}>
-                  {formatINR(b.discountPaise)} off
+                  {t('{{discount}} off', { discount: formatINR(b.discountPaise) })}
                 </Typography>
               )}
             </Box>
-            <Tooltip title="Remove from bill">
-              <IconButton size="small" onClick={onRemove} aria-label={`Remove ${p.sku}`}>
+            <Tooltip title={t('Remove from bill')}>
+              <IconButton size="small" onClick={onRemove} aria-label={t('Remove {{sku}}', { sku: p.sku })}>
                 <CloseRoundedIcon fontSize="small" />
               </IconButton>
             </Tooltip>
@@ -300,13 +301,13 @@ function LineCard({ product: p, discount, discountType, breakdown: b, quoting, c
       {/* Below the photo on phones (full width); lined up under the name on larger screens. */}
       <Box sx={{ ml: { xs: 0, sm: '72px' } }}>
         <Stack direction="row" sx={{ mt: { xs: 1.25, sm: 1 }, flexWrap: 'wrap', columnGap: 1.75, rowGap: 1 }}>
-          <Fact label="Gross" value={formatWeight(p.grossWeightMg)} />
-          <Fact label="Net" value={formatWeight(p.netWeightMg)} />
-          {b?.ratePerGramPaise != null && <Fact label="Rate" value={`${formatINR(b.ratePerGramPaise, { decimals: 0 })}/g`} />}
+          <Fact label={t('Gross')} value={formatWeight(p.grossWeightMg)} />
+          <Fact label={t('Net')} value={formatWeight(p.netWeightMg)} />
+          {b?.ratePerGramPaise != null && <Fact label={t('Rate')} value={t('{{ratePerGram}}/g', { ratePerGram: formatINR(b.ratePerGramPaise, { decimals: 0 }) })} />}
           {parts.map(([label, value]) => (
             <Fact key={label} label={label} value={formatINR(value, { decimals: 0 })} />
           ))}
-          {b && <Fact label="GST" value={formatINR(b.gstPaise, { decimals: 0 })} />}
+          {b && <Fact label={t('GST')} value={formatINR(b.gstPaise, { decimals: 0 })} />}
           {canDiscount && (
             <Stack direction="row" spacing={0.75} sx={{ ml: { xs: 0, sm: 'auto' }, width: { xs: '100%', sm: 'auto' }, pt: { xs: 1, sm: 0 }, borderTop: { xs: 1, sm: 0 }, borderColor: { xs: 'divider' }, alignItems: 'flex-start' }}>
               <ToggleButtonGroup
@@ -314,23 +315,23 @@ function LineCard({ product: p, discount, discountType, breakdown: b, quoting, c
                 size="small"
                 value={discountType}
                 onChange={(e, v) => v && onDiscountType(v)}
-                aria-label="Discount type"
+                aria-label={t('Discount type')}
                 sx={{ height: 36, '& .MuiToggleButton-root': { px: 1, fontWeight: 700, fontSize: '0.8125rem' }, '& .Mui-selected': { bgcolor: 'rgba(var(--brand-rgb), 0.16) !important', color: tokens.brand.strong } }}
               >
-                <ToggleButton value="percent" aria-label="Discount in percent">
+                <ToggleButton value="percent" aria-label={t('Discount in percent')}>
                   %
                 </ToggleButton>
-                <ToggleButton value="amount" aria-label="Discount in rupees">
+                <ToggleButton value="amount" aria-label={t('Discount in rupees')}>
                   ₹
                 </ToggleButton>
               </ToggleButtonGroup>
               <TextField
                 size="small"
-                label="Discount"
+                label={t('Discount')}
                 value={discount}
                 onChange={(e) => onDiscount(e.target.value.replace(/[^\d.]/g, ''))}
                 error={discountType === 'percent' && Number(discount) > 100}
-                helperText={<KeepOnPhone>{discountType === 'percent' && discount && b ? (Number(discount) > 100 ? 'Up to 100%' : `= ${formatINR(b.discountPaise, { decimals: 0 })}`) : ' '}</KeepOnPhone>}
+                helperText={<KeepOnPhone>{discountType === 'percent' && discount && b ? (Number(discount) > 100 ? t('Up to 100%') : `= ${formatINR(b.discountPaise, { decimals: 0 })}`) : ' '}</KeepOnPhone>}
                 sx={{ width: { xs: 'auto', sm: 110 }, flex: { xs: 1, sm: 'none' } }}
                 slotProps={{
                   input: discountType === 'percent' ? { endAdornment: <InputAdornment position="end">%</InputAdornment> } : { startAdornment: <InputAdornment position="start">₹</InputAdornment> },
@@ -356,7 +357,7 @@ function MissingHuid({ product, onSaved }) {
   const submit = async () => {
     try {
       const updated = await save({ id: product.id, huid: value }).unwrap();
-      toast.success(`HUID saved on ${product.sku}`);
+      toast.success(t('HUID saved on {{sku}}', { sku: product.sku }));
       onSaved(updated);
     } catch {
       /* shown below */
@@ -366,21 +367,21 @@ function MissingHuid({ product, onSaved }) {
     <Alert severity="warning" sx={{ mt: 1.5, alignItems: 'center', '& .MuiAlert-message': { flex: 1 } }}>
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: { sm: 'center' } }}>
         <Typography variant="body2" sx={{ flex: 1 }}>
-          <strong>No HUID.</strong> Hallmarked gold cannot be billed without it. Enter the 6-character HUID engraved on the piece.
+          <strong>{t('No HUID.')}</strong> {t('Hallmarked gold cannot be billed without it. Enter the 6-character HUID engraved on the piece.')}
         </Typography>
         <TextField
           size="small"
-          placeholder="e.g. AB12CD"
+          placeholder={t('e.g. AB12CD')}
           value={huid}
           onChange={(e) => setHuid(e.target.value.toUpperCase())}
           onKeyDown={(e) => e.key === 'Enter' && valid && submit()}
           error={Boolean(error) || (huid.length > 0 && !valid)}
-          helperText={error ? getErrorMessage(error) : huid && !valid ? '6 letters or digits' : ' '}
+          helperText={error ? getErrorMessage(error) : huid && !valid ? t('6 letters or digits') : ' '}
           sx={{ width: { xs: '100%', sm: 150 }, bgcolor: 'background.paper', '& .MuiFormHelperText-root': { bgcolor: 'transparent' } }}
           slotProps={{ htmlInput: { maxLength: 6 } }}
         />
         <Button variant="contained" size="small" disabled={!valid} loading={isLoading} onClick={submit} sx={{ alignSelf: { sm: 'flex-start' }, mt: { sm: 0.25 } }}>
-          Save HUID
+          {t('Save HUID')}
         </Button>
       </Stack>
     </Alert>
@@ -400,7 +401,7 @@ const Fact = ({ label, value }) => (
 
 const QUICK_MODES = PAYMENT_MODES.filter((m) => m.value !== 'credit');
 // Shorter names for the payment chips, so every mode fits on one line.
-const SHORT_MODE_LABEL = { bank: 'Bank' };
+const SHORT_MODE_LABEL = { bank: t('Bank') };
 
 /** The order being delivered: each line shows its finished piece (on the bill, or ready to add), or how to finish it. */
 function OrderPanel({ order, onBill, canFinish, onFinish, onAdd }) {
@@ -409,10 +410,10 @@ function OrderPanel({ order, onBill, canFinish, onFinish, onAdd }) {
       <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 1.5, flexWrap: 'wrap' }}>
         <AssignmentOutlinedIcon fontSize="small" sx={{ color: tokens.brand.strong }} />
         <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-          Delivering order {order.orderNo}
+          {t('Delivering order {{orderNo}}', { orderNo: order.orderNo })}
         </Typography>
         <Typography variant="body2" color="textSecondary">
-          · {order.customer.name} · advance {formatINR(order.advancePaise, { decimals: 0 })}
+          {t('· {{name}} · advance {{advance}}', { name: order.customer.name, advance: formatINR(order.advancePaise, { decimals: 0 }) })}
         </Typography>
       </Stack>
       <Stack spacing={1}>
@@ -426,26 +427,26 @@ function OrderPanel({ order, onBill, canFinish, onFinish, onAdd }) {
                   {item.description}
                 </Typography>
                 <Typography variant="caption" color="textSecondary">
-                  {[item.purity ? purityLabel(item.metal, item.purity) : item.metal, item.approxWeightMg && `~${formatWeight(item.approxWeightMg)} ordered`, item.size && `size ${item.size}`, item.quantity > 1 && `qty ${item.quantity}`].filter(Boolean).join(' · ')}
+                  {[item.purity ? purityLabel(item.metal, item.purity) : item.metal, item.approxWeightMg && t('~{{approxWeight}} ordered', { approxWeight: formatWeight(item.approxWeightMg) }), item.size && t('size {{size}}', { size: item.size }), item.quantity > 1 && t('qty {{quantity}}', { quantity: item.quantity })].filter(Boolean).join(' · ')}
                 </Typography>
               </Box>
               {piece ? (
                 onThisBill ? (
-                  <Chip size="small" color="success" label={`On bill · ${piece.sku}`} />
+                  <Chip size="small" color="success" label={t('On bill · {{sku}}', { sku: piece.sku })} />
                 ) : piece.status === 'in_stock' ? (
                   <Button size="small" variant="outlined" startIcon={<AddRoundedIcon />} onClick={() => onAdd(piece)}>
-                    Add {piece.sku}
+                    {t('Add {{sku}}', { sku: piece.sku })}
                   </Button>
                 ) : (
                   <Chip size="small" variant="outlined" label={`${piece.sku} · ${piece.status.replace('_', ' ')}`} />
                 )
               ) : canFinish ? (
                 <Button size="small" variant="contained" onClick={() => onFinish(n)}>
-                  Finish item
+                  {t('Finish item')}
                 </Button>
               ) : (
                 <Typography variant="caption" color="warning.main" sx={{ fontWeight: 600 }}>
-                  Not made yet: finish it on the order first
+                  {t('Not made yet: finish it on the order first')}
                 </Typography>
               )}
             </Stack>
@@ -454,7 +455,7 @@ function OrderPanel({ order, onBill, canFinish, onFinish, onAdd }) {
       </Stack>
       {order.items.some((i) => !i.product) && (
         <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 1.25 }}>
-          A bill needs the finished piece. Finish item records its real weight and charges, tags it and puts it in stock; it then joins this bill.
+          {t('A bill needs the finished piece. Finish item records its real weight and charges, tags it and puts it in stock; it then joins this bill.')}
         </Typography>
       )}
     </Box>
@@ -466,7 +467,7 @@ export default function BillingPage() {
   const [params, setParams] = useSearchParams();
   const { data: session } = useSession();
   const activeBranchId = useSelector((s) => s.auth.activeBranchId) ?? session.branches[0]?.id;
-  const branchName = session.branches.find((b) => b.id === activeBranchId)?.name ?? 'this branch';
+  const branchName = session.branches.find((b) => b.id === activeBranchId)?.name ?? t('this branch');
   const canDiscount = usePermission('sales.discount');
   // Open orders to deliver on this bill: New bill is enough to look them up (see LOOKUP_ACCESS).
   const canViewOrders = usePermission(LOOKUP_ACCESS.order);
@@ -534,7 +535,7 @@ export default function BillingPage() {
 
   const addProduct = (p) => {
     setLines((ls) => (ls.some((l) => l.product.id === p.id) ? ls : [...ls, { product: p, discount: '', discountType: 'percent' }]));
-    toast.success(`${p.sku} added`, { duration: 1200 });
+    toast.success(t('{{sku}} added', { sku: p.sku }), { duration: 1200 });
   };
 
   // Delivering an order: its finished pieces go on the bill by themselves (once each; the cashier may remove them).
@@ -544,7 +545,7 @@ export default function BillingPage() {
     try {
       const p = await lookupProduct(piece.sku).unwrap();
       if (p.status === 'in_stock' && String(p.branch?.id) === String(activeBranchId)) addProduct(p);
-      else toast.error(`${p.sku} is not in stock at ${branchName}`);
+      else toast.error(t('{{sku}} is not in stock at {{branchName}}', { sku: p.sku, branchName }));
     } catch (err) {
       toast.error(getErrorMessage(err));
     }
@@ -597,25 +598,34 @@ export default function BillingPage() {
   const cashPaid = payments.filter((p) => p.mode === 'cash').reduce((s, p) => s + safePaise(p.amount), 0);
   const cashOver = compliance && cashPaid > compliance.cashLimitPaise;
   const problems = [];
-  if (!lines.length) problems.push('Add at least one item');
+  if (!lines.length) problems.push(t('Add at least one item'));
   if (quoteError) problems.push(getErrorMessage(quoteError));
-  if (oldGoldLines === null) problems.push('Complete each old gold piece (description, weight and rate), or remove it.');
+  if (oldGoldLines === null) problems.push(t('Complete each old gold piece (description, weight and rate), or remove it.'));
   // A customer may pay part now: the rest stays due on their account. A walk-in pays in full.
-  if (quote && remaining < 0) problems.push(`Payment is ${formatINR(-remaining)} more than the bill — lower the amount.`);
-  if (quote && remaining > 0 && !customer) problems.push(`${formatINR(remaining)} is unpaid — select the customer to keep it as due (a walk-in pays in full).`);
-  if (compliance?.panMissing) problems.push(customer ? `Bills above ₹2 lakh need the customer's PAN — add PAN to ${customer.name}.` : 'Bills above ₹2 lakh need a customer with PAN — select the customer.');
-  if (cashOver && compliance.cashLimitAction === 'block') problems.push(`Cash cannot be more than ${formatINR(compliance.cashLimitPaise, { decimals: 0 })} (Section 269ST) — take the rest by card, UPI or bank (use Split).`);
+  if (quote && remaining < 0) problems.push(t('Payment is {{formatINR}} more than the bill — lower the amount.', { formatINR: formatINR(-remaining) }));
+  if (quote && remaining > 0 && !customer) problems.push(t('{{remaining}} is unpaid — select the customer to keep it as due (a walk-in pays in full).', { remaining: formatINR(remaining) }));
+  if (compliance?.panMissing) problems.push(customer ? t('Bills above ₹2 lakh need the customer\'s PAN — add PAN to {{name}}.', { name: customer.name }) : t('Bills above ₹2 lakh need a customer with PAN — select the customer.'));
+  if (cashOver && compliance.cashLimitAction === 'block') problems.push(t('Cash cannot be more than {{cashLimit}} (Section 269ST) — take the rest by card, UPI or bank (use Split).', { cashLimit: formatINR(compliance.cashLimitPaise, { decimals: 0 }) }));
 
   // A bill cannot be undone casually, so "Generate bill" asks first and only the dialog's button saves it.
   const [confirming, setConfirming] = useState(false);
   const paidBy = payments
     .filter((p) => safePaise(p.amount) > 0)
-    .map((p) => `${PAYMENT_MODES.find((m) => m.value === p.mode)?.label ?? p.mode} ${formatINR(safePaise(p.amount))}`)
+    .map((p) => `${t(PAYMENT_MODES.find((m) => m.value === p.mode)?.label ?? p.mode)} ${formatINR(safePaise(p.amount))}`)
     .join(', ');
-  const oldGoldText = quote?.oldGoldPaise > 0 ? ` Old gold taken: ${formatINR(quote.oldGoldPaise)}.` : '';
-  const confirmMessage = `${lines.length} item${lines.length === 1 ? '' : 's'}${customer ? ` for ${customer.name}` : ' (walk-in)'}.${oldGoldText} To collect ${formatINR(payable)}. Paid now: ${paidBy || 'nothing'}.${
-    remaining > 0 ? ` ${formatINR(remaining)} stays due.` : ''
-  } Once generated, the bill can only be cancelled or returned.`;
+  const n = lines.length;
+  const confirmMessage = [
+    customer
+      ? t(n === 1 ? '{{n}} item for {{name}}.' : '{{n}} items for {{name}}.', { n, name: customer.name })
+      : t(n === 1 ? '{{n}} item (walk-in).' : '{{n}} items (walk-in).', { n }),
+    quote?.oldGoldPaise > 0 && t('Old gold taken: {{oldGold}}.', { oldGold: formatINR(quote.oldGoldPaise) }),
+    t('To collect {{payable}}.', { payable: formatINR(payable) }),
+    t('Paid now: {{paidBy}}.', { paidBy: paidBy || t('nothing') }),
+    remaining > 0 && t('{{remaining}} stays due.', { remaining: formatINR(remaining) }),
+    t('Once generated, the bill can only be cancelled or returned.'),
+  ]
+    .filter(Boolean)
+    .join(' ');
 
   const generate = async () => {
     setConfirming(false);
@@ -628,18 +638,18 @@ export default function BillingPage() {
       }).unwrap();
       // Back to the invoice list (the new bill is at the top); the invoice itself — to print — is one tap away.
       toast.success(
-        (t) => (
+        (toastItem) => (
           <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 1, flexWrap: 'wrap' }}>
-            Invoice {sale.invoiceNo} created
+            {t('Invoice {{invoiceNo}} created', { invoiceNo: sale.invoiceNo })}
             <Button
               size="small"
               variant="outlined"
               onClick={() => {
-                toast.dismiss(t.id);
+                toast.dismiss(toastItem.id);
                 navigate(`/sales/${sale.id}`);
               }}
             >
-              Open invoice
+              {t('Open invoice')}
             </Button>
           </Box>
         ),
@@ -658,12 +668,12 @@ export default function BillingPage() {
   return (
     <>
       <PageHeader
-        title="New bill"
-        subtitle={`${branchName} · prices use today's metal rates`}
+        title={t('New bill')}
+        subtitle={t('{{branchName}} · prices use today\'s metal rates', { branchName })}
         actions={
           lines.length > 0 && (
             <Button color="secondary" startIcon={<RestartAltRoundedIcon />} onClick={clearBill}>
-              Clear bill
+              {t('Clear bill')}
             </Button>
           )
         }
@@ -692,7 +702,7 @@ export default function BillingPage() {
               )}
               <ItemSearch branchId={activeBranchId} branchName={branchName} exclude={exclude} onAdd={addProduct} />
               <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 0.75 }}>
-                Scan the tag barcode and the item is added at once, or type SKU, HUID or name and press Enter.
+                {t('Scan the tag barcode and the item is added at once, or type SKU, HUID or name and press Enter.')}
               </Typography>
 
               {lines.length === 0 ? (
@@ -701,21 +711,21 @@ export default function BillingPage() {
                     <QrCodeScannerRoundedIcon />
                   </Box>
                   <Typography variant="subtitle1" sx={{ fontWeight: 600 }}>
-                    Scan an item to start the bill
+                    {t('Scan an item to start the bill')}
                   </Typography>
                   <Typography variant="body2" color="textSecondary">
-                    Only items in stock at {branchName} can be billed here.
+                    {t('Only items in stock at {{branchName}} can be billed here.', { branchName })}
                   </Typography>
                 </Box>
               ) : (
                 <>
                   <Stack direction="row" sx={{ mt: 2.5, mb: 1.5, alignItems: 'center', justifyContent: 'space-between' }}>
                     <Typography variant="overline" color="textSecondary">
-                      {lines.length} item{lines.length === 1 ? '' : 's'} · {formatWeight(grossTotal)} gross
+                      {(lines.length === 1 ? t('{{count}} item · {{grossTotal}} gross', { count: lines.length, grossTotal: formatWeight(grossTotal) }) : t('{{count}} items · {{grossTotal}} gross', { count: lines.length, grossTotal: formatWeight(grossTotal) }))}
                     </Typography>
                     {quoting && (
                       <Typography variant="caption" color="textSecondary">
-                        Updating prices…
+                        {t('Updating prices…')}
                       </Typography>
                     )}
                   </Stack>
@@ -753,12 +763,12 @@ export default function BillingPage() {
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center', mb: 0.5 }}>
                   <RecyclingRoundedIcon fontSize="small" sx={{ color: tokens.brand.strong }} />
                   <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                    Old gold exchange
+                    {t('Old gold exchange')}
                   </Typography>
                   {quote?.oldGoldPaise > 0 && <Chip size="small" color="success" label={`− ${formatINR(quote.oldGoldPaise)}`} sx={{ fontWeight: 700 }} />}
                 </Stack>
                 <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mb: 1.5 }}>
-                  Old gold the customer hands over: test its purity, weigh it, and its value comes off this bill. It goes to Raw materials.
+                  {t('Old gold the customer hands over: test its purity, weigh it, and its value comes off this bill. It goes to Raw materials.')}
                 </Typography>
                 <OldGoldLinesEditor rows={oldGoldRows} onChange={setOldGoldRows} dense />
               </CardContent>
@@ -771,17 +781,17 @@ export default function BillingPage() {
             <Card>
               <CardContent>
                 <Typography variant="overline" color="textSecondary" sx={{ display: 'block', mb: 1 }}>
-                  Customer
+                  {t('Customer')}
                 </Typography>
-                <CustomerPicker value={customer} onChange={changeCustomer} label="Customer (optional for walk-in)" />
+                <CustomerPicker value={customer} onChange={changeCustomer} label={t('Customer (optional for walk-in)')} />
                 {customer && canViewOrders && (customerOrders?.items?.length ?? 0) > 0 && (
-                  <TextField select label="Deliver an order" value={orderId ?? ''} onChange={(e) => pickOrder(e.target.value || null)} helperText="Its advance is deducted from this bill" sx={{ mt: 2 }}>
+                  <TextField select slotProps={{ inputLabel: { shrink: true }, select: { displayEmpty: true } }} label={t('Deliver an order')} value={orderId ?? ''} onChange={(e) => pickOrder(e.target.value || null)} helperText={t('Its advance is deducted from this bill')} sx={{ mt: 2 }}>
                     <MenuItem value="">
-                      <em>No order</em>
+                      <em>{t('No order')}</em>
                     </MenuItem>
                     {customerOrders.items.map((o) => (
                       <MenuItem key={o.id} value={o.id}>
-                        {o.orderNo} · advance {formatINR(o.advancePaise, { decimals: 0 })}
+                        {t('{{orderNo}} · advance {{advance}}', { orderNo: o.orderNo, advance: formatINR(o.advancePaise, { decimals: 0 }) })}
                       </MenuItem>
                     ))}
                   </TextField>
@@ -791,7 +801,7 @@ export default function BillingPage() {
 
             <Card sx={{ overflow: 'hidden' }}>
               <Box sx={{ p: 2.5, background: `${tokens.sidebar.glow}, ${tokens.sidebar.surface}`, color: '#F7F3E8' }}>
-                <Money light label="Taxable value" value={totals ? formatINR(totals.taxablePaise) : '—'} />
+                <Money light label={t('Taxable value')} value={totals ? formatINR(totals.taxablePaise) : '—'} />
                 {totals?.discountPaise > 0 && <Money light label={billLabels(totals).discount} value={formatINR(totals.discountPaise)} negative />}
                 {totals &&
                   (quote.interState ? (
@@ -802,18 +812,18 @@ export default function BillingPage() {
                       <Money light label={billLabels(totals).sgst} value={formatINR(totals.sgstPaise)} />
                     </>
                   ))}
-                {totals?.roundOffPaise ? <Money light label="Round off" value={formatINR(totals.roundOffPaise)} /> : null}
+                {totals?.roundOffPaise ? <Money light label={t('Round off')} value={formatINR(totals.roundOffPaise)} /> : null}
                 {(quote?.advancePaise > 0 || quote?.customerAdvancePaise > 0 || quote?.oldGoldPaise > 0) && (
                   <>
-                    <Money light label="Bill total" value={formatINR(totals.grandTotalPaise)} strong />
-                    {quote.advancePaise > 0 && <Money light label={`Advance ${quote.order.orderNo}`} value={formatINR(quote.advancePaise)} negative />}
-                    {quote.oldGoldPaise > 0 && <Money light label="Old gold" value={formatINR(quote.oldGoldPaise)} negative />}
-                    {quote.customerAdvancePaise > 0 && <Money light label="Advance paid earlier" value={formatINR(quote.customerAdvancePaise)} negative />}
+                    <Money light label={t('Bill total')} value={formatINR(totals.grandTotalPaise)} strong />
+                    {quote.advancePaise > 0 && <Money light label={t('Advance {{orderNo}}', { orderNo: quote.order.orderNo })} value={formatINR(quote.advancePaise)} negative />}
+                    {quote.oldGoldPaise > 0 && <Money light label={t('Old gold')} value={formatINR(quote.oldGoldPaise)} negative />}
+                    {quote.customerAdvancePaise > 0 && <Money light label={t('Advance paid earlier')} value={formatINR(quote.customerAdvancePaise)} negative />}
                   </>
                 )}
                 <Divider sx={{ my: 1.5, borderColor: 'rgba(var(--brand-rgb), 0.3)' }} />
                 <Typography variant="overline" sx={{ color: 'rgba(247, 243, 232, 0.6)' }}>
-                  To collect
+                  {t('To collect')}
                 </Typography>
                 <Typography sx={{ fontFamily: fonts.display, fontSize: 40, fontWeight: 700, lineHeight: 1.1, color: '#F4A09A' }}>{quote ? formatINR(payable) : '—'}</Typography>
               </Box>
@@ -821,10 +831,10 @@ export default function BillingPage() {
               <CardContent>
                 <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 1.25 }}>
                   <Typography variant="overline" color="textSecondary">
-                    Payment
+                    {t('Payment')}
                   </Typography>
                   <Button size="small" startIcon={<AddRoundedIcon />} onClick={() => setPayments((rows) => [...rows, { mode: 'upi', amount: remaining > 0 ? rupees(remaining) : '', reference: '' }])}>
-                    Split
+                    {t('Split')}
                   </Button>
                 </Stack>
                 <Stack spacing={2}>
@@ -835,8 +845,8 @@ export default function BillingPage() {
                         {QUICK_MODES.map((m) => (
                           <Chip
                             key={m.value}
-                            label={SHORT_MODE_LABEL[m.value] ?? m.label}
-                            title={m.label}
+                            label={SHORT_MODE_LABEL[m.value] ?? t(m.label)}
+                            title={t(m.label)}
                             onClick={() => setPayment(n, { mode: m.value })}
                             color={p.mode === m.value ? 'primary' : 'default'}
                             variant={p.mode === m.value ? 'filled' : 'outlined'}
@@ -844,26 +854,26 @@ export default function BillingPage() {
                           />
                         ))}
                         {payments.length > 1 && (
-                          <IconButton size="small" onClick={() => setPayments((rows) => rows.filter((_, i) => i !== n))} aria-label="Remove payment" sx={{ ml: 'auto', flexShrink: 0 }}>
+                          <IconButton size="small" onClick={() => setPayments((rows) => rows.filter((_, i) => i !== n))} aria-label={t('Remove payment')} sx={{ ml: 'auto', flexShrink: 0 }}>
                             <CloseRoundedIcon fontSize="small" />
                           </IconButton>
                         )}
                       </Stack>
                       <Stack direction="row" spacing={1}>
                         <TextField
-                          placeholder="Amount"
+                          placeholder={t('Amount')}
                           value={p.amount}
                           onChange={(e) => setPayment(n, { amount: e.target.value.replace(/[^\d.]/g, '') })}
                           slotProps={{ input: { startAdornment: <InputAdornment position="start">₹</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }}
                         />
                         {remaining !== 0 && quote && (
                           <Button variant="outlined" onClick={() => setPayment(n, { amount: rupees(safePaise(p.amount) + remaining) })} sx={{ flexShrink: 0 }}>
-                            Exact
+                            {t('Exact')}
                           </Button>
                         )}
                       </Stack>
                       {p.mode !== 'cash' && p.mode !== 'credit' && (
-                        <TextField placeholder="Reference (card / UPI no.)" value={p.reference} onChange={(e) => setPayment(n, { reference: e.target.value })} sx={{ mt: 1 }} />
+                        <TextField placeholder={t('Reference (card / UPI no.)')} value={p.reference} onChange={(e) => setPayment(n, { reference: e.target.value })} sx={{ mt: 1 }} />
                       )}
                     </Box>
                   ))}
@@ -873,14 +883,14 @@ export default function BillingPage() {
                   <Stack direction="row" sx={{ mt: 2, p: 1.25, borderRadius: 1.5, bgcolor: 'action.hover', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
                     <Box>
                       <Typography variant="caption" color="textSecondary" sx={{ display: 'block' }}>
-                        Paid now
+                        {t('Paid now')}
                       </Typography>
                       <Amount paise={paid} tone="paid" sx={{ fontSize: '1rem', fontWeight: 700 }} />
                     </Box>
-                    <Chip size="small" color={remaining === 0 ? 'success' : remaining < 0 ? 'error' : 'warning'} label={remaining === 0 ? 'Fully paid' : remaining < 0 ? 'Too much' : paid > 0 ? 'Partly paid' : 'Unpaid'} sx={{ fontWeight: 700 }} />
+                    <Chip size="small" color={remaining === 0 ? 'success' : remaining < 0 ? 'error' : 'warning'} label={remaining === 0 ? t('Fully paid') : remaining < 0 ? t('Too much') : paid > 0 ? t('Partly paid') : t('Unpaid')} sx={{ fontWeight: 700 }} />
                     <Box sx={{ textAlign: 'right' }}>
                       <Typography variant="caption" color="textSecondary" sx={{ display: 'block' }}>
-                        {remaining < 0 ? 'Paid more than due' : 'Due'}
+                        {remaining < 0 ? t('Paid more than due') : t('Due')}
                       </Typography>
                       <Amount paise={Math.abs(remaining)} tone={remaining === 0 ? 'paid' : 'due'} sx={{ fontSize: '1rem', fontWeight: 700 }} />
                     </Box>
@@ -888,17 +898,17 @@ export default function BillingPage() {
                 )}
                 {quote && remaining > 0 && customer && (
                   <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 0.75 }}>
-                    {formatINR(remaining)} stays due on {customer.name}&apos;s account.
+                    {t('{{remaining}} stays due on {{name}}\'s account.', { remaining: formatINR(remaining), name: customer.name })}
                   </Typography>
                 )}
 
                 <Stack spacing={1.5} sx={{ mt: 2 }}>
-                  <TextField label="Note on bill (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} />
+                  <TextField label={t('Note on bill (optional)')} value={notes} onChange={(e) => setNotes(e.target.value)} />
                   {/* Everything that stops the bill, each with what to do — right above the button. */}
                   {problems.length > 0 && lines.length > 0 && quote && (
                     <Alert severity="warning" sx={{ '& .MuiAlert-message': { width: '100%' } }}>
                       <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>
-                        To generate this bill
+                        {t('To generate this bill')}
                       </Typography>
                       <Box component="ul" sx={{ m: 0, pl: 2.25, '& li': { fontSize: '0.8125rem', lineHeight: 1.5 } }}>
                         {problems.map((p) => (
@@ -907,9 +917,9 @@ export default function BillingPage() {
                       </Box>
                     </Alert>
                   )}
-                  {cashOver && compliance.cashLimitAction !== 'block' && <Alert severity="info">Cash above {formatINR(compliance.cashLimitPaise, { decimals: 0 })} (Section 269ST) — allowed by your settings.</Alert>}
+                  {cashOver && compliance.cashLimitAction !== 'block' && <Alert severity="info">{t('Cash above {{cashLimit}} (Section 269ST) — allowed by your settings.', { cashLimit: formatINR(compliance.cashLimitPaise, { decimals: 0 }) })}</Alert>}
                   <Button variant="contained" size="large" disabled={problems.length > 0 || quoting} loading={saving} onClick={() => setConfirming(true)} startIcon={<ReceiptLongOutlinedIcon />} sx={{ py: 0.9, fontSize: '1rem' }}>
-                    Generate bill {quote ? (remaining > 0 && paid > 0 ? `· ${formatINR(remaining, { decimals: 0 })} due` : `· ${formatINR(payable, { decimals: 0 })}`) : ''}
+                    {t('Generate bill')} {quote ? (remaining > 0 && paid > 0 ? t('· {{remaining}} due', { remaining: formatINR(remaining, { decimals: 0 }) }) : `· ${formatINR(payable, { decimals: 0 })}`) : ''}
                   </Button>
                 </Stack>
               </CardContent>
@@ -919,9 +929,9 @@ export default function BillingPage() {
       </Grid>
       <ConfirmDialog
         open={confirming && problems.length === 0}
-        title="Generate this bill?"
+        title={t('Generate this bill?')}
         message={confirmMessage}
-        confirmLabel="Yes, generate bill"
+        confirmLabel={t('Yes, generate bill')}
         onConfirm={generate}
         onClose={() => setConfirming(false)}
       />
@@ -929,17 +939,17 @@ export default function BillingPage() {
       {/* Phones: the amount to collect stays in view above the bottom bar, one tap from the payment section. */}
       {lines.length > 0 && quote && <Box sx={{ display: { xs: 'block', md: 'none' }, height: 72 }} />}
       {lines.length > 0 && quote && (
-        <Box sx={{ display: { xs: 'flex', md: 'none' }, position: 'fixed', left: 12, right: 12, bottom: 'calc(84px + env(safe-area-inset-bottom))', zIndex: (t) => t.zIndex.appBar - 1, alignItems: 'center', gap: 1.5, pl: 2, pr: 1, py: 1, borderRadius: 3, bgcolor: '#171717', color: '#F7F3E8', boxShadow: '0 12px 30px -10px rgba(0, 0, 0, 0.5)' }}>
+        <Box sx={{ display: { xs: 'flex', md: 'none' }, position: 'fixed', left: 12, right: 12, bottom: 'calc(84px + env(safe-area-inset-bottom))', zIndex: (theme) => theme.zIndex.appBar - 1, alignItems: 'center', gap: 1.5, pl: 2, pr: 1, py: 1, borderRadius: 3, bgcolor: '#171717', color: '#F7F3E8', boxShadow: '0 12px 30px -10px rgba(0, 0, 0, 0.5)' }}>
           <Box sx={{ flex: 1, minWidth: 0 }}>
             <Typography sx={{ fontSize: '0.625rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'rgba(247, 243, 232, 0.6)' }}>
-              To collect · {lines.length} item{lines.length === 1 ? '' : 's'}
+              {(lines.length === 1 ? t('To collect · {{count}} item', { count: lines.length }) : t('To collect · {{count}} items', { count: lines.length }))}
             </Typography>
             <Typography noWrap sx={{ fontWeight: 800, fontSize: '1.125rem', color: '#F4A09A' }}>
               {formatINR(payable)}
             </Typography>
           </Box>
           <Button variant="contained" onClick={() => document.getElementById('bill-payment')?.scrollIntoView({ behavior: 'smooth', block: 'start' })} sx={{ flexShrink: 0 }}>
-            Payment
+            {t('Payment')}
           </Button>
         </Box>
       )}

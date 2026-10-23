@@ -1,5 +1,6 @@
 import { Chip } from '@mui/material';
 import { ORDER_STATUS_LABELS, PAYMENT_MODES } from '@jerp/shared';
+import { t } from '../../i18n/index.js';
 
 const STATUS_STYLE = {
   booked: { color: 'info', variant: 'outlined' },
@@ -20,6 +21,6 @@ export const ADVANCE_MODE_OPTIONS = PAYMENT_MODES.filter((m) => m.value !== 'cre
 
 /** Next step in the workshop flow, shown as the main action on an open order. */
 export const NEXT_STEP = {
-  booked: { status: 'in_progress', label: 'Start work' },
-  in_progress: { status: 'ready', label: 'Mark ready' },
+  booked: { status: 'in_progress', label: t('Start work') },
+  in_progress: { status: 'ready', label: t('Mark ready') },
 };

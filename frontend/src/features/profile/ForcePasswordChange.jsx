@@ -4,6 +4,7 @@ import { useDispatch } from 'react-redux';
 import { useLogoutMutation } from '../auth/authApi.js';
 import { sessionEnded } from '../../store/authSlice.js';
 import { ChangePasswordForm } from './ProfilePage.jsx';
+import { t } from '../../i18n/index.js';
 
 export default function ForcePasswordChange({ user }) {
   const dispatch = useDispatch();
@@ -20,14 +21,14 @@ export default function ForcePasswordChange({ user }) {
         <CardContent sx={{ p: { xs: 3, sm: 4 } }}>
           <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', mb: 1 }}>
             <LockResetRoundedIcon color="accent" />
-            <Typography variant="h3">Set your own password</Typography>
+            <Typography variant="h3">{t('Set your own password')}</Typography>
           </Stack>
           <Typography variant="body2" color="textSecondary" sx={{ mb: 3 }}>
-            Welcome, {user.name.split(' ')[0]}. Your account was created with a temporary password. Choose a new one to continue.
+            {t('Welcome, {{name}}. Your account was created with a temporary password. Choose a new one to continue.', { name: user.name.split(' ')[0] })}
           </Typography>
           <ChangePasswordForm firstLogin />
           <Button color="secondary" size="small" onClick={signOut} sx={{ mt: 2 }}>
-            Sign out
+            {t('Sign out')}
           </Button>
         </CardContent>
       </Card>

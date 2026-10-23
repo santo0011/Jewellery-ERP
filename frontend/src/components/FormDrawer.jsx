@@ -1,11 +1,12 @@
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import { Box, Button, Divider, Drawer, IconButton, Stack, Typography, useMediaQuery } from '@mui/material';
+import { t } from '../i18n/index.js';
 
 /**
  * A form that slides in from the right on tablets and desktops. On a phone it fills the screen like an app page:
  * a compact header, the form scrolling in between, and full-width Cancel / Save buttons always within thumb reach.
  */
-export default function FormDrawer({ open, title, subtitle, onClose, onSubmit, submitLabel = 'Save', submitting = false, children, width = 520 }) {
+export default function FormDrawer({ open, title, subtitle, onClose, onSubmit, submitLabel = t('Save'), submitting = false, children, width = 520 }) {
   const fullScreen = useMediaQuery((theme) => theme.breakpoints.down('sm'));
 
   return (
@@ -33,7 +34,7 @@ export default function FormDrawer({ open, title, subtitle, onClose, onSubmit, s
               </Typography>
             )}
           </Box>
-          <IconButton onClick={onClose} disabled={submitting} aria-label="Close" edge="end" sx={{ flexShrink: 0, bgcolor: fullScreen ? 'action.hover' : 'transparent' }}>
+          <IconButton onClick={onClose} disabled={submitting} aria-label={t('Close')} edge="end" sx={{ flexShrink: 0, bgcolor: fullScreen ? 'action.hover' : 'transparent' }}>
             <CloseRoundedIcon />
           </IconButton>
         </Stack>
@@ -42,7 +43,7 @@ export default function FormDrawer({ open, title, subtitle, onClose, onSubmit, s
         <Divider />
         <Stack direction="row" spacing={1} sx={{ px: { xs: 2, sm: 3 }, py: { xs: 1.5, sm: 2 }, justifyContent: 'flex-end', pb: 'max(16px, env(safe-area-inset-bottom))', bgcolor: 'background.paper' }}>
           <Button color="secondary" onClick={onClose} disabled={submitting} sx={{ flex: { xs: 1, sm: 'none' } }} variant={fullScreen ? 'outlined' : 'text'}>
-            Cancel
+            {t('Cancel')}
           </Button>
           <Button type="submit" variant="contained" loading={submitting} sx={{ flex: { xs: 2, sm: 'none' } }}>
             {submitLabel}

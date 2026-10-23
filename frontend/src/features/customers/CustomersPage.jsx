@@ -23,6 +23,7 @@ import PersonAddAltOutlinedIcon from '@mui/icons-material/PersonAddAltOutlined';
 import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined';
 import NotificationsActiveOutlinedIcon from '@mui/icons-material/NotificationsActiveOutlined';
 import { useDeleteStatus } from '../../services/recordApi.js';
+import { t } from '../../i18n/index.js';
 
 export const segmentLabel = (v) => CUSTOMER_SEGMENTS.find((s) => s.value === v)?.label ?? v;
 const SEGMENT_COLORS = { vip: 'primary', high_value: 'accent', inactive: 'default', regular: 'default', new: 'info' };
@@ -63,19 +64,19 @@ function BalanceLine({ paise, tone, label, hint }) {
  * advance you hold for them (green). Settled when there is nothing either way; a dash before their first bill.
  */
 function BalanceCell({ c }) {
-  const advanceHint = [c.advanceLeftPaise > 0 && 'next bills', c.orderAdvancePaise > 0 && 'orders'].filter(Boolean).join(' + ');
+  const advanceHint = [c.advanceLeftPaise > 0 && t('next bills'), c.orderAdvancePaise > 0 && t('orders')].filter(Boolean).join(' + ');
   if (c.duePaise > 0 || c.advancePaise > 0) {
     return (
       <Stack spacing={0.75}>
-        {c.duePaise > 0 && <BalanceLine paise={c.duePaise} tone="due" label={c.paymentStatus === 'partly_paid' ? 'Partly paid' : 'Due'} />}
-        {c.advancePaise > 0 && <BalanceLine paise={c.advancePaise} tone="paid" label="Advance" hint={advanceHint && `for ${advanceHint}`} />}
+        {c.duePaise > 0 && <BalanceLine paise={c.duePaise} tone="due" label={c.paymentStatus === 'partly_paid' ? t('Partly paid') : t('Due')} />}
+        {c.advancePaise > 0 && <BalanceLine paise={c.advancePaise} tone="paid" label={t('Advance')} hint={advanceHint && t('for {{advanceHint}}', { advanceHint })} />}
       </Stack>
     );
   }
   if (c.paymentStatus === 'paid') {
     return (
       <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, px: 1, py: 0.25, borderRadius: 999, fontSize: '0.75rem', fontWeight: 700, color: MONEY_TONE.paid, bgcolor: 'rgba(46, 107, 79, 0.10)' }}>
-        <CheckRoundedIcon sx={{ fontSize: 14 }} /> Settled
+        <CheckRoundedIcon sx={{ fontSize: 14 }} /> {t('Settled')}
       </Box>
     );
   }
@@ -105,7 +106,7 @@ export default function CustomersPage() {
   const columns = [
     {
       key: 'name',
-      label: 'Customer',
+      label: t('Customer'),
       render: (c) => (
         <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', minWidth: 0 }}>
           <Box sx={{ width: 38, height: 38, flexShrink: 0, borderRadius: '50%', display: 'grid', placeItems: 'center', fontSize: '0.8125rem', fontWeight: 800, color: 'var(--brand-strong)', background: 'linear-gradient(145deg, rgba(var(--brand-rgb), 0.20), rgba(var(--brand-rgb), 0.06))', border: '1px solid rgba(var(--brand-rgb), 0.3)' }}>
@@ -122,18 +123,18 @@ export default function CustomersPage() {
         </Stack>
       ),
     },
-    { key: 'balance', label: 'Balance', align: 'right', render: (c) => <BalanceCell c={c} /> },
-    { key: 'status', label: 'Status', render: (c) => <StatusChip status={c.status} /> },
+    { key: 'balance', label: t('Balance'), align: 'right', render: (c) => <BalanceCell c={c} /> },
+    { key: 'status', label: t('Status'), render: (c) => <StatusChip status={c.status} /> },
     {
       key: 'actions',
-      label: 'Action',
+      label: t('Action'),
       align: 'right',
       width: actionsWidth(4),
       render: (c) => (
         <RowActions onView={() => navigate(`/customers/${c.id}`)} onEdit={canEdit ? () => editor.open(c) : undefined} deleteType="customer" deleteStatus={deleteStatus(c.id)} id={c.id} name={c.name}>
           {canCollect && c.duePaise > 0 && (
-            <Tooltip title={`Collect payment (${formatINR(c.duePaise, { decimals: 0 })} due)`}>
-              <IconButton size="small" color="success" onClick={() => setCollectFor(c.id)} aria-label={`Collect payment: ${c.name}`}>
+            <Tooltip title={t('Collect payment ({{due}} due)', { due: formatINR(c.duePaise, { decimals: 0 }) })}>
+              <IconButton size="small" color="success" onClick={() => setCollectFor(c.id)} aria-label={t('Collect payment: {{name}}', { name: c.name })}>
                 <PaymentsOutlinedIcon fontSize="small" />
               </IconButton>
             </Tooltip>
@@ -146,22 +147,22 @@ export default function CustomersPage() {
   return (
     <>
       <PageHeader
-        title="Customers"
-        subtitle="Your customers, their contact details and what they owe."
+        title={t('Customers')}
+        subtitle={t('Your customers, their contact details and what they owe.')}
         actions={
           canCreate && (
             <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setDrawerOpen(true)}>
-              New customer
+              {t('New customer')}
             </Button>
           )
         }
       />
       {data?.meta?.summary && (
         <SummaryCards>
-          <SummaryCard icon={PeopleAltOutlinedIcon} label="Customers" value={data.meta.summary.total} caption="On your books" />
-          <SummaryCard icon={PersonAddAltOutlinedIcon} label="New this month" value={data.meta.summary.newThisMonth} caption="Added since the 1st" tone="blue" />
-          <SummaryCard icon={AccountBalanceWalletOutlinedIcon} label="Due from customers" value={formatINR(data.meta.summary.duePaise, { decimals: 0 })} caption="Credit on bills + old dues" tone={data.meta.summary.duePaise ? 'red' : 'green'} valueTone={data.meta.summary.duePaise ? 'due' : 'paid'} />
-          <SummaryCard icon={NotificationsActiveOutlinedIcon} label="Customers with dues" value={data.meta.summary.owing} caption={data.meta.summary.owing ? 'Tap to see who owes' : 'Nobody owes'} tone={data.meta.summary.owing ? 'amber' : 'green'} onClick={data.meta.summary.owing ? () => list.setFilter('due', 'due') : undefined} />
+          <SummaryCard icon={PeopleAltOutlinedIcon} label={t('Customers')} value={data.meta.summary.total} caption={t('On your books')} />
+          <SummaryCard icon={PersonAddAltOutlinedIcon} label={t('New this month')} value={data.meta.summary.newThisMonth} caption={t('Added since the 1st')} tone="blue" />
+          <SummaryCard icon={AccountBalanceWalletOutlinedIcon} label={t('Due from customers')} value={formatINR(data.meta.summary.duePaise, { decimals: 0 })} caption={t('Credit on bills + old dues')} tone={data.meta.summary.duePaise ? 'red' : 'green'} valueTone={data.meta.summary.duePaise ? 'due' : 'paid'} />
+          <SummaryCard icon={NotificationsActiveOutlinedIcon} label={t('Customers with dues')} value={data.meta.summary.owing} caption={data.meta.summary.owing ? t('Tap to see who owes') : t('Nobody owes')} tone={data.meta.summary.owing ? 'amber' : 'green'} onClick={data.meta.summary.owing ? () => list.setFilter('due', 'due') : undefined} />
         </SummaryCards>
       )}
       <DataTable
@@ -173,22 +174,22 @@ export default function CustomersPage() {
         onRetry={refetch}
         empty={
           list.filtered
-            ? { title: 'No matching customers', description: 'Try another name, mobile or filter.' }
-            : { title: 'No customers yet', description: 'Add your first customer to start building purchase history.' }
+            ? { title: t('No matching customers'), description: t('Try another name, mobile or filter.') }
+            : { title: t('No customers yet'), description: t('Add your first customer to start building purchase history.') }
         }
         pagination={list.pagination(data?.meta)}
         toolbar={
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-            <SearchField value={list.search} onChange={list.setSearch} placeholder="Search name, mobile or code" />
-            <TextField select label="Due" value={list.filters.due} onChange={(e) => list.setFilter('due', e.target.value)} slotProps={filterSlots} sx={{ width: { sm: 200 }, flexShrink: 0 }}>
-              <MenuItem value="">All customers</MenuItem>
-              <MenuItem value="due">Has due</MenuItem>
-              <MenuItem value="clear">No due</MenuItem>
+            <SearchField value={list.search} onChange={list.setSearch} placeholder={t('Search name, mobile or code')} />
+            <TextField select label={t('Due')} value={list.filters.due} onChange={(e) => list.setFilter('due', e.target.value)} slotProps={filterSlots} sx={{ width: { sm: 200 }, flexShrink: 0 }}>
+              <MenuItem value="">{t('All customers')}</MenuItem>
+              <MenuItem value="due">{t('Has due')}</MenuItem>
+              <MenuItem value="clear">{t('No due')}</MenuItem>
             </TextField>
-            <TextField select label="Status" value={list.filters.status} onChange={(e) => list.setFilter('status', e.target.value)} slotProps={filterSlots} sx={{ width: { sm: 150 }, flexShrink: 0 }}>
-              <MenuItem value="">All statuses</MenuItem>
-              <MenuItem value="active">Active</MenuItem>
-              <MenuItem value="inactive">Inactive</MenuItem>
+            <TextField select label={t('Status')} value={list.filters.status} onChange={(e) => list.setFilter('status', e.target.value)} slotProps={filterSlots} sx={{ width: { sm: 150 }, flexShrink: 0 }}>
+              <MenuItem value="">{t('All statuses')}</MenuItem>
+              <MenuItem value="active">{t('Active')}</MenuItem>
+              <MenuItem value="inactive">{t('Inactive')}</MenuItem>
             </TextField>
           </Stack>
         }

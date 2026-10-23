@@ -3,6 +3,7 @@ import { formatINR } from '@jerp/shared';
 import { useState } from 'react';
 import { compactINR, niceMax, useWidth } from '../home/charts.jsx';
 import { seriesSx } from '../home/shareCharts.jsx';
+import { t } from '../../i18n/index.js';
 
 const inr = (p) => formatINR(p, { decimals: 0 });
 const AXIS = { fontSize: 11, fill: 'var(--mui-palette-text-secondary)', fontVariantNumeric: 'tabular-nums' };
@@ -18,7 +19,7 @@ const roundedTop = (x, top, w, h, base) => {
  * a column for its exact figures.
  * series: [{ key, label }] · data: [{ key, label, [series.key]: value, detail }]
  */
-export function StackedColumnChart({ series, data, height = 240, formatValue = inr, formatAxis = compactINR, emptyLabel = 'Nothing yet' }) {
+export function StackedColumnChart({ series, data, height = 240, formatValue = inr, formatAxis = compactINR, emptyLabel = t('Nothing yet') }) {
   const [ref, width] = useWidth();
   const [active, setActive] = useState(null);
   const pad = { top: 12, right: 8, bottom: 26, left: 52 };
@@ -52,12 +53,12 @@ export function StackedColumnChart({ series, data, height = 240, formatValue = i
         ))}
       </Stack>
       <Box ref={ref} sx={{ position: 'relative', width: '100%' }} onMouseLeave={() => setActive(null)}>
-        <Box component="svg" width={width} height={height} role="img" aria-label={`${series.map((s) => s.label).join(' and ')} by month`} sx={{ display: 'block', overflow: 'visible' }}>
-          {ticks.map((t) => (
-            <g key={t}>
-              <Box component="line" x1={pad.left} x2={width - pad.right} y1={base - scale(t)} y2={base - scale(t)} sx={{ stroke: t === 0 ? 'var(--mui-palette-text-disabled)' : 'var(--mui-palette-divider)', strokeWidth: 1 }} />
-              <Box component="text" x={pad.left - 8} y={base - scale(t)} dy="0.32em" textAnchor="end" sx={AXIS}>
-                {formatAxis(t)}
+        <Box component="svg" width={width} height={height} role="img" aria-label={t('{{series}} by month', { series: series.map((s) => s.label).join(' · ') })} sx={{ display: 'block', overflow: 'visible' }}>
+          {ticks.map((tick) => (
+            <g key={tick}>
+              <Box component="line" x1={pad.left} x2={width - pad.right} y1={base - scale(tick)} y2={base - scale(tick)} sx={{ stroke: tick === 0 ? 'var(--mui-palette-text-disabled)' : 'var(--mui-palette-divider)', strokeWidth: 1 }} />
+              <Box component="text" x={pad.left - 8} y={base - scale(tick)} dy="0.32em" textAnchor="end" sx={AXIS}>
+                {formatAxis(tick)}
               </Box>
             </g>
           ))}
@@ -139,7 +140,7 @@ export function StackedColumnChart({ series, data, height = 240, formatValue = i
             ))}
             <Stack direction="row" sx={{ justifyContent: 'space-between', mt: 0.5, pt: 0.5, borderTop: 1, borderColor: 'divider' }}>
               <Typography variant="caption" sx={{ fontWeight: 700 }}>
-                Total
+                {t('Total')}
               </Typography>
               <Typography variant="caption" sx={{ fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
                 {formatValue(totalOf(hovered))}

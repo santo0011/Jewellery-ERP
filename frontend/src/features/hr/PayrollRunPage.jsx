@@ -33,6 +33,7 @@ import { formatDays, PAY_MODES, payModeLabel, PayrollStatusChip } from './hrUi.j
 import { EmployeeAvatar } from './EmployeePhoto.jsx';
 import PayrollSteps, { stepOf } from './PayrollSteps.jsx';
 import KeepOnPhone from '../../components/KeepOnPhone.jsx';
+import { t } from '../../i18n/index.js';
 
 const money = { slotProps: { input: { startAdornment: <InputAdornment position="start">₹</InputAdornment> }, htmlInput: { inputMode: 'decimal' } } };
 const asPaise = (v) => {
@@ -46,11 +47,11 @@ const toText = (p) => (p ? String(fromPaise(p)) : '');
 
 export function daysSummary(l) {
   const parts = [];
-  if (l.days.absent) parts.push(`${l.days.absent} absent`);
-  if (l.days.halfDay) parts.push(`${l.days.halfDay} half day`);
-  if (l.days.paidLeave) parts.push(`${l.days.paidLeave} leave`);
-  if (l.days.holiday) parts.push(`${l.days.holiday} holiday`);
-  return parts.join(' · ') || 'Full attendance';
+  if (l.days.absent) parts.push(t('{{absent}} absent', { absent: l.days.absent }));
+  if (l.days.halfDay) parts.push(t('{{halfDay}} half day', { halfDay: l.days.halfDay }));
+  if (l.days.paidLeave) parts.push(t('{{paidLeave}} leave', { paidLeave: l.days.paidLeave }));
+  if (l.days.holiday) parts.push(t('{{holiday}} holiday', { holiday: l.days.holiday }));
+  return parts.join(' · ') || t('Full attendance');
 }
 
 function LineDrawer({ runId, line, onClose }) {
@@ -74,7 +75,7 @@ function LineDrawer({ runId, line, onClose }) {
     if (invalid) return;
     try {
       await update({ id: runId, employeeId: line.employeeId, bonusPaise: bonus, otherDeductionPaise: other, advanceDeductionPaise: advance, note: form.note || null }).unwrap();
-      toast.success(`${line.name}’s salary updated`);
+      toast.success(t('{{name}}’s salary updated', { name: line.name }));
       onClose();
     } catch (err) {
       toast.error(getErrorMessage(err));
@@ -82,16 +83,16 @@ function LineDrawer({ runId, line, onClose }) {
   };
 
   return (
-    <FormDrawer open title={line.name} subtitle={`${line.code} · ${line.designation}`} onClose={onClose} onSubmit={onSubmit} submitting={state.isLoading} submitLabel="Save">
+    <FormDrawer open title={line.name} subtitle={`${line.code} · ${line.designation}`} onClose={onClose} onSubmit={onSubmit} submitting={state.isLoading} submitLabel={t('Save')}>
       <Stack spacing={2}>
         <Box sx={{ p: 2, borderRadius: 2, bgcolor: 'action.hover' }}>
           <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
-            <Typography variant="body2">Gross monthly salary</Typography>
+            <Typography variant="body2">{t('Gross monthly salary')}</Typography>
             <Typography variant="body2">{formatINR(line.grossPaise, { decimals: 0 })}</Typography>
           </Stack>
           <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
             <Typography variant="body2">
-              Paid days ({daysSummary(line)})
+              {t('Paid days ({{daysSummary}})', { daysSummary: daysSummary(line) })}
             </Typography>
             <Typography variant="body2">
               {formatDays(line.payableDays)} / {line.daysInMonth}
@@ -100,30 +101,30 @@ function LineDrawer({ runId, line, onClose }) {
           <Divider sx={{ my: 1 }} />
           <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
             <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              Earned for the month
+              {t('Earned for the month')}
             </Typography>
             <Typography variant="body2" sx={{ fontWeight: 600 }}>
               {formatINR(line.earnedPaise)}
             </Typography>
           </Stack>
         </Box>
-        <TextField label="Bonus / incentive" value={form.bonus} onChange={set('bonus')} {...money} autoFocus />
-        <TextField label="Other deduction" value={form.other} onChange={set('other')} helperText="Fine, damage, canteen, etc." {...money} />
+        <TextField label={t('Bonus / incentive')} value={form.bonus} onChange={set('bonus')} {...money} autoFocus />
+        <TextField label={t('Other deduction')} value={form.other} onChange={set('other')} helperText={t('Fine, damage, canteen, etc.')} {...money} />
         {line.advances?.length > 0 && (
           <Box sx={{ p: 1.5, borderRadius: 2, border: '1px solid rgba(var(--brand-rgb), 0.35)', bgcolor: 'rgba(var(--brand-rgb), 0.05)' }}>
             <Typography variant="subtitle2" sx={{ mb: 0.75 }}>
-              Advances due this month
+              {t('Advances due this month')}
             </Typography>
             <Stack spacing={0.75}>
               {line.advances.map((a) => (
                 <Stack key={a.advanceNo} direction="row" sx={{ justifyContent: 'space-between', gap: 1 }}>
                   <Box sx={{ minWidth: 0 }}>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      {formatINR(a.amountPaise, { decimals: 0 })} given {formatDate(a.givenOn)}
+                      {t('{{amount}} given {{givenOn}}', { amount: formatINR(a.amountPaise, { decimals: 0 }), givenOn: formatDate(a.givenOn) })}
                     </Typography>
                     <Typography variant="caption" color="textSecondary">
                       {a.advanceNo}
-                      {a.recoveredPaise > 0 ? ` · ${formatINR(a.recoveredPaise, { decimals: 0 })} already recovered` : ''}
+                      {a.recoveredPaise > 0 ? t(' · {{recovered}} already recovered', { recovered: formatINR(a.recoveredPaise, { decimals: 0 }) }) : ''}
                     </Typography>
                   </Box>
                   <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
@@ -131,7 +132,7 @@ function LineDrawer({ runId, line, onClose }) {
                       {formatINR(a.balancePaise, { decimals: 0 })}
                     </Typography>
                     <Typography variant="caption" color="textSecondary">
-                      due · {formatINR(a.duePaise, { decimals: 0 })} this month
+                      {t('due · {{due}} this month', { due: formatINR(a.duePaise, { decimals: 0 }) })}
                     </Typography>
                   </Box>
                 </Stack>
@@ -139,23 +140,23 @@ function LineDrawer({ runId, line, onClose }) {
             </Stack>
             {line.advanceUpcomingPaise > 0 && (
               <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 1 }}>
-                {formatINR(line.advanceUpcomingPaise, { decimals: 0 })} more is set for a later month.
+                {t('{{advanceUpcoming}} more is set for a later month.', { advanceUpcoming: formatINR(line.advanceUpcomingPaise, { decimals: 0 }) })}
               </Typography>
             )}
           </Box>
         )}
         <TextField
-          label="Advance to cut this month"
+          label={t('Advance to cut this month')}
           value={form.advance}
           onChange={set('advance')}
           disabled={!line.advanceBalancePaise}
           error={advanceTooHigh}
-          helperText={<KeepOnPhone>{advanceTooHigh ? `Only ${formatINR(line.advanceBalancePaise, { decimals: 0 })} is due` : line.advanceBalancePaise ? `Up to ${formatINR(line.advanceBalancePaise, { decimals: 0 })} — lower it to carry the rest to next month` : line.advanceUpcomingPaise ? 'Advance is set for a later month' : 'No advance due'}</KeepOnPhone>}
+          helperText={<KeepOnPhone>{advanceTooHigh ? t('Only {{advanceBalance}} is due', { advanceBalance: formatINR(line.advanceBalancePaise, { decimals: 0 }) }) : line.advanceBalancePaise ? t('Up to {{advanceBalance}} — lower it to carry the rest to next month', { advanceBalance: formatINR(line.advanceBalancePaise, { decimals: 0 }) }) : line.advanceUpcomingPaise ? t('Advance is set for a later month') : t('No advance due')}</KeepOnPhone>}
           {...money}
         />
-        <TextField label="Note on payslip (optional)" value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} slotProps={{ htmlInput: { maxLength: 200 } }} />
+        <TextField label={t('Note on payslip (optional)')} value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} slotProps={{ htmlInput: { maxLength: 200 } }} />
         <Alert severity={net !== null && net < 0 ? 'error' : 'success'} icon={false}>
-          {net === null ? 'Enter valid amounts' : net < 0 ? 'Deductions are more than the salary' : <>Net pay <strong>{formatINR(net)}</strong></>}
+          {net === null ? t('Enter valid amounts') : net < 0 ? t('Deductions are more than the salary') : <>{t('Net pay')} <strong>{formatINR(net)}</strong></>}
         </Alert>
       </Stack>
     </FormDrawer>
@@ -180,7 +181,7 @@ function PayDialog({ run, only, onClose }) {
   const onPay = async () => {
     try {
       await pay({ id: run.id, employeeIds: [...selected], mode, reference: reference || null }).unwrap();
-      toast.success(`Salary of ${formatINR(total, { decimals: 0 })} paid to ${selected.size} employee${selected.size > 1 ? 's' : ''}`);
+      toast.success((selected.size > 1 ? t('Salary of {{total}} paid to {{size}} employees', { total: formatINR(total, { decimals: 0 }), size: selected.size }) : t('Salary of {{total}} paid to {{size}} employee', { total: formatINR(total, { decimals: 0 }), size: selected.size })));
       onClose();
     } catch (err) {
       toast.error(getErrorMessage(err));
@@ -189,7 +190,7 @@ function PayDialog({ run, only, onClose }) {
 
   return (
     <Dialog open onClose={state.isLoading ? undefined : onClose} maxWidth="sm" fullWidth>
-      <DialogTitle sx={{ fontWeight: 600 }}>Pay salaries · {run.monthLabel}</DialogTitle>
+      <DialogTitle sx={{ fontWeight: 600 }}>{t('Pay salaries · {{monthLabel}}', { monthLabel: run.monthLabel })}</DialogTitle>
       <DialogContent>
         <Stack divider={<Divider flexItem />} sx={{ mb: 2, border: 1, borderColor: 'divider', borderRadius: 2, px: 1.5, maxHeight: 320, overflowY: 'auto' }}>
           {unpaid.map((l) => (
@@ -213,7 +214,7 @@ function PayDialog({ run, only, onClose }) {
         </Stack>
         <Grid container spacing={2}>
           <Grid size={{ xs: 12, sm: 6 }}>
-            <TextField select label="Paid by" value={mode} onChange={(e) => setMode(e.target.value)}>
+            <TextField select label={t('Paid by')} value={mode} onChange={(e) => setMode(e.target.value)}>
               {PAY_MODES.map((m) => (
                 <MenuItem key={m.value} value={m.value}>
                   {m.label}
@@ -222,16 +223,16 @@ function PayDialog({ run, only, onClose }) {
             </TextField>
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
-            <TextField label="Reference (optional)" value={reference} onChange={(e) => setReference(e.target.value)} helperText="Cheque / NEFT / UPI ref." slotProps={{ htmlInput: { maxLength: 60 } }} />
+            <TextField label={t('Reference (optional)')} value={reference} onChange={(e) => setReference(e.target.value)} helperText={t('Cheque / NEFT / UPI ref.')} slotProps={{ htmlInput: { maxLength: 60 } }} />
           </Grid>
         </Grid>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} disabled={state.isLoading}>
-          Cancel
+          {t('Cancel')}
         </Button>
         <Button variant="contained" onClick={onPay} disabled={!selected.size || state.isLoading}>
-          Pay {formatINR(total, { decimals: 0 })}
+          {t('Pay {{total}}', { total: formatINR(total, { decimals: 0 }) })}
         </Button>
       </DialogActions>
     </Dialog>
@@ -257,7 +258,7 @@ export default function PayrollRunPage() {
   if (error) return <ErrorState error={error} onRetry={refetch} />;
 
   const draft = run.status === 'draft';
-  const t = run.totals;
+  const totals = run.totals;
   const act = async (fn, msg, after) => {
     try {
       await fn().unwrap();
@@ -272,30 +273,30 @@ export default function PayrollRunPage() {
   // One clear next action for the stage this payroll is at.
   const next = {
     draft: {
-      title: 'Step 2 · Review salaries',
-      text: 'Check paid days and use Adjust to add a bonus or deduction. Attendance changed? Recalculate keeps your adjustments.',
+      title: t('Step 2 · Review salaries'),
+      text: t('Check paid days and use Adjust to add a bonus or deduction. Attendance changed? Recalculate keeps your adjustments.'),
       action: canApprove ? (
         <Button variant="contained" startIcon={<TaskAltRoundedIcon />} onClick={() => setConfirm('finalise')} sx={{ flexShrink: 0 }}>
-          Finalise payroll
+          {t('Finalise payroll')}
         </Button>
       ) : (
         <Typography variant="body2" color="textSecondary">
-          A manager finalises the payroll.
+          {t('A manager finalises the payroll.')}
         </Typography>
       ),
     },
     finalised: {
-      title: 'Step 4 · Pay salaries',
-      text: `${formatINR(t.netPaise - t.paidPaise, { decimals: 0 })} still to pay to ${t.unpaidCount} staff — pay everyone at once, or one by one with Pay on each row.`,
+      title: t('Step 4 · Pay salaries'),
+      text: t('{{formatINR}} still to pay to {{unpaidCount}} staff — pay everyone at once, or one by one with Pay on each row.', { formatINR: formatINR(totals.netPaise - totals.paidPaise, { decimals: 0 }), unpaidCount: totals.unpaidCount }),
       action: canApprove && (
         <Button variant="contained" startIcon={<PaymentsOutlinedIcon />} onClick={() => setPaying('all')} sx={{ flexShrink: 0 }}>
-          Pay {formatINR(t.netPaise - t.paidPaise, { decimals: 0 })}
+          {t('Pay {{formatINR}}', { formatINR: formatINR(totals.netPaise - totals.paidPaise, { decimals: 0 }) })}
         </Button>
       ),
     },
     paid: {
-      title: 'All done',
-      text: `Everyone is paid — ${formatINR(t.paidPaise, { decimals: 0 })} in total. Payslips are ready to view and print.`,
+      title: t('All done'),
+      text: t('Everyone is paid — {{paid}} in total. Payslips are ready to view and print.', { paid: formatINR(totals.paidPaise, { decimals: 0 }) }),
       action: <CheckCircleRoundedIcon sx={{ color: 'success.main', fontSize: 32 }} />,
     },
   }[run.status];
@@ -306,7 +307,7 @@ export default function PayrollRunPage() {
   const columns = [
     {
       key: 'employee',
-      label: 'Employee',
+      label: t('Employee'),
       render: (l) => (
         <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center' }}>
           <EmployeeAvatar employee={l} size={36} />
@@ -321,7 +322,7 @@ export default function PayrollRunPage() {
     },
     {
       key: 'days',
-      label: 'Paid days',
+      label: t('Paid days'),
       render: (l) => (
         <Box>
           <Typography variant="body2" sx={{ fontWeight: 600 }}>
@@ -335,32 +336,32 @@ export default function PayrollRunPage() {
     },
     {
       key: 'earned',
-      label: 'Earned',
+      label: t('Earned'),
       align: 'right',
       render: (l) => (
         <Box>
           <Typography variant="body2">{formatINR(l.earnedPaise, { decimals: 0 })}</Typography>
           <Typography variant="caption" color="textSecondary">
-            of {formatINR(l.grossPaise, { decimals: 0 })}
+            {t('of {{gross}}', { gross: formatINR(l.grossPaise, { decimals: 0 }) })}
           </Typography>
         </Box>
       ),
     },
     {
       key: 'advance',
-      label: 'Advance cut',
+      label: t('Advance cut'),
       align: 'right',
       render: (l) => {
         if (!l.advanceDeductionPaise && !l.advanceBalancePaise && !l.advanceUpcomingPaise) return <Typography variant="body2" color="textSecondary">—</Typography>;
         const left = l.advanceBalancePaise - l.advanceDeductionPaise;
-        const given = (l.advances ?? []).map((a) => `${a.advanceNo} · given ${formatDate(a.givenOn)} · ${formatINR(a.amountPaise, { decimals: 0 })}`).join('\n');
+        const given = (l.advances ?? []).map((a) => t('{{advanceNo}} · given {{givenOn}} · {{amount}}', { advanceNo: a.advanceNo, givenOn: formatDate(a.givenOn), amount: formatINR(a.amountPaise, { decimals: 0 }) })).join('\n');
         return (
           <Tooltip title={given ? <Box sx={{ whiteSpace: 'pre-line' }}>{given}</Box> : ''} placement="left">
             <Box>
-              {l.advanceDeductionPaise > 0 ? <Amount paise={l.advanceDeductionPaise} tone="due" decimals={0} prefix="− " sx={{ display: 'block' }} /> : <Typography variant="body2" color="textSecondary">Nothing cut</Typography>}
+              {l.advanceDeductionPaise > 0 ? <Amount paise={l.advanceDeductionPaise} tone="due" decimals={0} prefix="− " sx={{ display: 'block' }} /> : <Typography variant="body2" color="textSecondary">{t('Nothing cut')}</Typography>}
               <Typography variant="caption" color="textSecondary" sx={{ display: 'block' }}>
-                {left > 0 ? `${formatINR(left, { decimals: 0 })} still due` : l.advanceBalancePaise ? 'Fully recovered' : ''}
-                {l.advanceUpcomingPaise > 0 ? `${left > 0 || l.advanceBalancePaise ? ' · ' : ''}${formatINR(l.advanceUpcomingPaise, { decimals: 0 })} later` : ''}
+                {left > 0 ? t('{{left}} still due', { left: formatINR(left, { decimals: 0 }) }) : l.advanceBalancePaise ? t('Fully recovered') : ''}
+                {l.advanceUpcomingPaise > 0 ? (left > 0 || l.advanceBalancePaise ? t('· {{advanceUpcoming}} later', { advanceUpcoming: formatINR(l.advanceUpcomingPaise, { decimals: 0 }) }) : t('{{advanceUpcoming}} later', { advanceUpcoming: formatINR(l.advanceUpcomingPaise, { decimals: 0 }) })) : ''}
               </Typography>
             </Box>
           </Tooltip>
@@ -369,7 +370,7 @@ export default function PayrollRunPage() {
     },
     {
       key: 'adjust',
-      label: 'Bonus / other',
+      label: t('Bonus / other'),
       align: 'right',
       render: (l) => {
         if (!l.bonusPaise && !l.otherDeductionPaise) return <Typography variant="body2" color="textSecondary">—</Typography>;
@@ -383,14 +384,14 @@ export default function PayrollRunPage() {
     },
     {
       key: 'net',
-      label: 'Net pay',
+      label: t('Net pay'),
       align: 'right',
       render: (l) => (
         <Box>
           <Amount paise={l.netPaise} tone={draft ? undefined : l.paid ? 'paid' : 'due'} decimals={0} sx={{ fontSize: '0.95rem' }} />
           {!draft && (
             <Typography variant="caption" color="textSecondary" sx={{ display: 'block' }}>
-              {l.paid ? (l.paid.mode ? `Paid · ${payModeLabel(l.paid.mode)}` : 'Nothing payable') : 'Unpaid'}
+              {l.paid ? (l.paid.mode ? t('Paid · {{payModeLabel}}', { payModeLabel: payModeLabel(l.paid.mode) }) : t('Nothing payable')) : t('Unpaid')}
             </Typography>
           )}
         </Box>
@@ -398,22 +399,22 @@ export default function PayrollRunPage() {
     },
     {
       key: 'actions',
-      label: 'Action',
+      label: t('Action'),
       align: 'right',
       width: 150,
       render: (l) => (
         <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end', alignItems: 'center' }}>
           {draft && canProcess && (
-            <Button size="small" variant="outlined" startIcon={<EditOutlinedIcon />} onClick={() => setEditing(l)} aria-label={`Adjust ${l.name}`}>
-              Adjust
+            <Button size="small" variant="outlined" startIcon={<EditOutlinedIcon />} onClick={() => setEditing(l)} aria-label={t('Adjust {{name}}', { name: l.name })}>
+              {t('Adjust')}
             </Button>
           )}
           {run.status === 'finalised' && !l.paid && canApprove && (
-            <Button size="small" variant="contained" startIcon={<PaymentsOutlinedIcon />} onClick={() => setPaying(String(l.employeeId))} aria-label={`Pay ${l.name}`}>
-              Pay
+            <Button size="small" variant="contained" startIcon={<PaymentsOutlinedIcon />} onClick={() => setPaying(String(l.employeeId))} aria-label={t('Pay {{name}}', { name: l.name })}>
+              {t('Pay')}
             </Button>
           )}
-          <ViewButton title="Payslip" icon={ReceiptLongOutlinedIcon} onClick={() => navigate(`/hr/payroll/${run.id}/payslip/${l.employeeId}`)} name={l.name} />
+          <ViewButton title={t('Payslip')} icon={ReceiptLongOutlinedIcon} onClick={() => navigate(`/hr/payroll/${run.id}/payslip/${l.employeeId}`)} name={l.name} />
         </Stack>
       ),
     },
@@ -422,19 +423,19 @@ export default function PayrollRunPage() {
   return (
     <>
       <PageHeader
-        title={`Payroll · ${run.monthLabel}`}
-        subtitle={`${run.runNo} · ${run.branch?.name ?? ''}${run.finalisedAt ? ` · finalised ${formatDateTime(run.finalisedAt)}${run.finalisedBy ? ` by ${run.finalisedBy.name}` : ''}` : ''}`}
-        back={{ to: '/hr/payroll', label: 'Payroll' }}
+        title={t('Payroll · {{monthLabel}}', { monthLabel: run.monthLabel })}
+        subtitle={`${run.runNo} · ${run.branch?.name ?? ''}${run.finalisedAt ? (run.finalisedBy ? t(' · finalised {{finalisedAt}} by {{name}}', { finalisedAt: formatDateTime(run.finalisedAt), name: run.finalisedBy.name }) : t(' · finalised {{finalisedAt}}', { finalisedAt: formatDateTime(run.finalisedAt) })) : ''}`}
+        back={{ to: '/hr/payroll', label: t('Payroll') }}
         actions={
           <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1, alignItems: 'center' }}>
             <PayrollStatusChip status={run.status} />
             {draft && canProcess && (
               <>
                 <Button color="error" startIcon={<DeleteOutlineRoundedIcon />} onClick={() => setConfirm('delete')}>
-                  Delete draft
+                  {t('Delete draft')}
                 </Button>
-                <Button startIcon={<RefreshRoundedIcon />} disabled={recalcState.isLoading} onClick={() => act(() => recalc(run.id), 'Recalculated from latest attendance and advances')}>
-                  Recalculate
+                <Button startIcon={<RefreshRoundedIcon />} disabled={recalcState.isLoading} onClick={() => act(() => recalc(run.id), t('Recalculated from latest attendance and advances'))}>
+                  {t('Recalculate')}
                 </Button>
               </>
             )}
@@ -444,8 +445,8 @@ export default function PayrollRunPage() {
 
       {run.upTo && (
         <Alert severity="info" sx={{ mb: 2 }}>
-          {run.monthLabel} is still running, so attendance and salary are counted only up to <strong>{formatDate(run.upTo)}</strong>. Days after that are not included.
-          {draft && ' Press Recalculate on a later day to count up to that day, or wait for the month to end for the full salary.'}
+          {t('{{monthLabel}} is still running, so attendance and salary are counted only up to {{date}}. Days after that are not included.', { monthLabel: run.monthLabel, date: <strong>{formatDate(run.upTo)}</strong> })}
+          {draft && t(' Press Recalculate on a later day to count up to that day, or wait for the month to end for the full salary.')}
         </Alert>
       )}
 
@@ -466,29 +467,29 @@ export default function PayrollRunPage() {
       </Card>
 
       <SummaryCards>
-        <SummaryCard icon={BadgeOutlinedIcon} label="Employees" value={t.employees} caption={`Gross ${formatINR(t.grossPaise, { decimals: 0 })}`} />
+        <SummaryCard icon={BadgeOutlinedIcon} label={t('Employees')} value={totals.employees} caption={t('Gross {{gross}}', { gross: formatINR(totals.grossPaise, { decimals: 0 }) })} />
         <SummaryCard
           icon={TrendingUpRoundedIcon}
-          label="Earned + bonus"
-          value={formatINR(t.earnedPaise + t.bonusPaise, { decimals: 0 })}
-          caption={t.bonusPaise ? `incl. ${formatINR(t.bonusPaise, { decimals: 0 })} bonus` : 'No bonus'}
+          label={t('Earned + bonus')}
+          value={formatINR(totals.earnedPaise + totals.bonusPaise, { decimals: 0 })}
+          caption={totals.bonusPaise ? t('incl. {{bonus}} bonus', { bonus: formatINR(totals.bonusPaise, { decimals: 0 }) }) : t('No bonus')}
           tone="blue"
         />
         <SummaryCard
           icon={RemoveCircleOutlineRoundedIcon}
-          label="Deductions"
-          value={formatINR(t.otherDeductionPaise + t.advanceDeductionPaise, { decimals: 0 })}
-          caption={t.advanceDeductionPaise ? `incl. ${formatINR(t.advanceDeductionPaise, { decimals: 0 })} advance` : 'No advance recovery'}
-          tone={t.otherDeductionPaise + t.advanceDeductionPaise ? 'red' : 'grey'}
-          valueTone={t.otherDeductionPaise + t.advanceDeductionPaise ? 'due' : undefined}
+          label={t('Deductions')}
+          value={formatINR(totals.otherDeductionPaise + totals.advanceDeductionPaise, { decimals: 0 })}
+          caption={totals.advanceDeductionPaise ? t('incl. {{advanceDeduction}} advance', { advanceDeduction: formatINR(totals.advanceDeductionPaise, { decimals: 0 }) }) : t('No advance recovery')}
+          tone={totals.otherDeductionPaise + totals.advanceDeductionPaise ? 'red' : 'grey'}
+          valueTone={totals.otherDeductionPaise + totals.advanceDeductionPaise ? 'due' : undefined}
         />
         <SummaryCard
           icon={AccountBalanceWalletOutlinedIcon}
-          label="Net payable"
-          value={formatINR(t.netPaise, { decimals: 0 })}
-          caption={draft ? 'Not finalised' : t.unpaidCount ? `${formatINR(t.netPaise - t.paidPaise, { decimals: 0 })} still to pay` : 'All paid'}
-          tone={draft ? 'amber' : t.unpaidCount ? 'red' : 'green'}
-          valueTone={draft ? undefined : t.unpaidCount ? 'due' : 'paid'}
+          label={t('Net payable')}
+          value={formatINR(totals.netPaise, { decimals: 0 })}
+          caption={draft ? t('Not finalised') : totals.unpaidCount ? t('{{formatINR}} still to pay', { formatINR: formatINR(totals.netPaise - totals.paidPaise, { decimals: 0 }) }) : t('All paid')}
+          tone={draft ? 'amber' : totals.unpaidCount ? 'red' : 'green'}
+          valueTone={draft ? undefined : totals.unpaidCount ? 'due' : 'paid'}
         />
       </SummaryCards>
 
@@ -496,15 +497,15 @@ export default function PayrollRunPage() {
         columns={columns}
         rows={lines}
         getRowId={(l) => String(l.employeeId)}
-        empty={{ title: 'Nobody here', description: q ? 'No employee matches your search.' : show === 'unpaid' ? 'Everyone has been paid.' : 'No one has been paid yet.' }}
+        empty={{ title: t('Nobody here'), description: q ? t('No employee matches your search.') : show === 'unpaid' ? t('Everyone has been paid.') : t('No one has been paid yet.') }}
         toolbar={
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: { sm: 'center' } }}>
-            <SearchField value={q} onChange={setQ} placeholder="Search name or code" />
+            <SearchField value={q} onChange={setQ} placeholder={t('Search name or code')} />
             {!draft && (
-              <ToggleButtonGroup exclusive size="small" value={show} onChange={(e, v) => v && setShow(v)} aria-label="Show">
-                <ToggleButton value="all">All · {run.lines.length}</ToggleButton>
-                <ToggleButton value="unpaid">Unpaid · {t.unpaidCount}</ToggleButton>
-                <ToggleButton value="paid">Paid · {run.lines.length - t.unpaidCount}</ToggleButton>
+              <ToggleButtonGroup exclusive size="small" value={show} onChange={(e, v) => v && setShow(v)} aria-label={t('Show')}>
+                <ToggleButton value="all">{t('All · {{count}}', { count: run.lines.length })}</ToggleButton>
+                <ToggleButton value="unpaid">{t('Unpaid · {{unpaidCount}}', { unpaidCount: totals.unpaidCount })}</ToggleButton>
+                <ToggleButton value="paid">{t('Paid · {{value}}', { value: run.lines.length - totals.unpaidCount })}</ToggleButton>
               </ToggleButtonGroup>
             )}
           </Stack>
@@ -515,21 +516,21 @@ export default function PayrollRunPage() {
       {paying && <PayDialog run={run} only={paying === 'all' ? null : paying} onClose={() => setPaying(null)} />}
       <ConfirmDialog
         open={confirm === 'finalise'}
-        title={`Finalise payroll for ${run.monthLabel}?`}
-        message={`Net salary ${formatINR(t.netPaise, { decimals: 0 })} for ${t.employees} employees is booked in the accounts, ${t.advanceDeductionPaise ? `${formatINR(t.advanceDeductionPaise, { decimals: 0 })} of advances is recovered, ` : ''}and this month’s attendance is locked. ${run.upTo ? `Salary is paid only up to ${formatDate(run.upTo)}: the rest of ${run.monthLabel} will not be paid by this or any later payroll. ` : ''}This cannot be undone.`}
-        confirmLabel="Finalise"
+        title={t('Finalise payroll for {{monthLabel}}?', { monthLabel: run.monthLabel })}
+        message={(totals.advanceDeductionPaise ? (run.upTo ? t('Net salary {{net}} for {{employees}} employees is booked in the accounts, {{advanceDeduction}} of advances is recovered, and this month’s attendance is locked. Salary is paid only up to {{upTo}}: the rest of {{monthLabel}} will not be paid by this or any later payroll. This cannot be undone.', { net: formatINR(totals.netPaise, { decimals: 0 }), employees: totals.employees, advanceDeduction: formatINR(totals.advanceDeductionPaise, { decimals: 0 }), upTo: formatDate(run.upTo), monthLabel: run.monthLabel }) : t('Net salary {{net}} for {{employees}} employees is booked in the accounts, {{advanceDeduction}} of advances is recovered, and this month’s attendance is locked. This cannot be undone.', { net: formatINR(totals.netPaise, { decimals: 0 }), employees: totals.employees, advanceDeduction: formatINR(totals.advanceDeductionPaise, { decimals: 0 }) })) : (run.upTo ? t('Net salary {{net}} for {{employees}} employees is booked in the accounts, and this month’s attendance is locked. Salary is paid only up to {{upTo}}: the rest of {{monthLabel}} will not be paid by this or any later payroll. This cannot be undone.', { net: formatINR(totals.netPaise, { decimals: 0 }), employees: totals.employees, upTo: formatDate(run.upTo), monthLabel: run.monthLabel }) : t('Net salary {{net}} for {{employees}} employees is booked in the accounts, and this month’s attendance is locked. This cannot be undone.', { net: formatINR(totals.netPaise, { decimals: 0 }), employees: totals.employees })))}
+        confirmLabel={t('Finalise')}
         loading={finaliseState.isLoading}
-        onConfirm={() => act(() => finalise(run.id), 'Payroll finalised — salaries booked')}
+        onConfirm={() => act(() => finalise(run.id), t('Payroll finalised — salaries booked'))}
         onClose={() => setConfirm(null)}
       />
       <ConfirmDialog
         open={confirm === 'delete'}
-        title="Delete this draft?"
-        message="Nothing has been booked yet. You can run payroll for this month again later."
-        confirmLabel="Delete"
+        title={t('Delete this draft?')}
+        message={t('Nothing has been booked yet. You can run payroll for this month again later.')}
+        confirmLabel={t('Delete')}
         danger
         loading={removeState.isLoading}
-        onConfirm={() => act(() => remove(run.id), 'Draft payroll deleted', () => navigate('/hr/payroll', { replace: true }))}
+        onConfirm={() => act(() => remove(run.id), t('Draft payroll deleted'), () => navigate('/hr/payroll', { replace: true }))}
         onClose={() => setConfirm(null)}
       />
     </>

@@ -7,16 +7,17 @@ import { tokens } from '../../theme/tokens.js';
 import { formatDate } from '../../utils/format.js';
 import { useAttendanceRegisterQuery } from './hrApi.js';
 import { formatDays, monthLabel, thisMonth } from './hrUi.jsx';
+import { t } from '../../i18n/index.js';
 
 /** Colours per day: soft fill + strong text, matching the attendance page. */
 const LOOK = {
-  present: { label: 'Present', short: 'P', bg: 'rgba(46, 125, 50, 0.12)', fg: 'success.main', dot: 'success.main' },
-  absent: { label: 'Absent', short: 'A', bg: 'rgba(198, 40, 40, 0.14)', fg: 'error.main', dot: 'error.main' },
-  half_day: { label: 'Half day', short: 'H', bg: 'rgba(237, 108, 2, 0.16)', fg: 'warning.dark', dot: 'warning.main' },
-  paid_leave: { label: 'Paid leave', short: 'L', bg: 'rgba(2, 136, 209, 0.13)', fg: 'info.main', dot: 'info.main' },
-  holiday: { label: 'Holiday / off', short: 'O', bg: 'action.hover', fg: 'text.secondary', dot: 'text.disabled' },
+  present: { label: t('Present'), short: 'P', bg: 'rgba(46, 125, 50, 0.12)', fg: 'success.main', dot: 'success.main' },
+  absent: { label: t('Absent'), short: 'A', bg: 'rgba(198, 40, 40, 0.14)', fg: 'error.main', dot: 'error.main' },
+  half_day: { label: t('Half day'), short: 'H', bg: 'rgba(237, 108, 2, 0.16)', fg: 'warning.dark', dot: 'warning.main' },
+  paid_leave: { label: t('Paid leave'), short: 'L', bg: 'rgba(2, 136, 209, 0.13)', fg: 'info.main', dot: 'info.main' },
+  holiday: { label: t('Holiday / off'), short: 'O', bg: 'action.hover', fg: 'text.secondary', dot: 'text.disabled' },
 };
-const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const WEEKDAYS = [t('Mon'), t('Tue'), t('Wed'), t('Thu'), t('Fri'), t('Sat'), t('Sun')];
 
 const shiftMonth = (month, n) => {
   const [y, m] = month.split('-').map(Number);
@@ -69,18 +70,18 @@ export default function EmployeeAttendance({ employee }) {
       <CardContent sx={{ p: 2, '&:last-child': { pb: 2 } }}>
         {/* Month switcher */}
         <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
-          <IconButton size="small" onClick={() => setMonth((m) => shiftMonth(m, -1))} disabled={month <= earliest} aria-label="Previous month">
+          <IconButton size="small" onClick={() => setMonth((m) => shiftMonth(m, -1))} disabled={month <= earliest} aria-label={t('Previous month')}>
             <ChevronLeftRoundedIcon />
           </IconButton>
           <Box sx={{ textAlign: 'center' }}>
             <Typography sx={{ fontWeight: 700, fontSize: '1rem' }}>{monthLabel(month)}</Typography>
             {data?.locked && (
               <Typography variant="caption" color="textSecondary">
-                Locked · salary finalised ({data.lockedBy})
+                {t('Locked · salary finalised ({{lockedBy}})', { lockedBy: data.lockedBy })}
               </Typography>
             )}
           </Box>
-          <IconButton size="small" onClick={() => setMonth((m) => shiftMonth(m, 1))} disabled={month >= latest} aria-label="Next month">
+          <IconButton size="small" onClick={() => setMonth((m) => shiftMonth(m, 1))} disabled={month >= latest} aria-label={t('Next month')}>
             <ChevronRightRoundedIcon />
           </IconButton>
         </Stack>
@@ -92,7 +93,7 @@ export default function EmployeeAttendance({ employee }) {
           <Skeleton variant="rounded" height={280} />
         ) : !me || !view ? (
           <Typography color="textSecondary" sx={{ textAlign: 'center', py: 6 }}>
-            {employee.name} was not on {employee.branch?.name ?? 'this branch'}’s rolls in {monthLabel(month)}.
+            {t('{{name}} was not on the rolls of {{branch}} in {{monthLabel}}.', { name: employee.name, branch: employee.branch?.name ?? t('this branch'), monthLabel: monthLabel(month) })}
           </Typography>
         ) : (
           <>
@@ -112,7 +113,7 @@ export default function EmployeeAttendance({ employee }) {
                   </Box>
                 </Typography>
                 <Typography sx={{ fontSize: '0.6875rem', color: 'text.secondary', fontWeight: 500 }}>
-                  Paid days
+                  {t('Paid days')}
                 </Typography>
               </Box>
             </Stack>
@@ -130,10 +131,10 @@ export default function EmployeeAttendance({ employee }) {
               {view.cells.map((c) => {
                 const look = c.status ? LOOK[c.status] : null;
                 const tip = c.offRoll
-                  ? 'Not on the rolls'
+                  ? t('Not on the rolls')
                   : c.future
-                    ? 'Upcoming'
-                    : `${formatDate(c.iso)} · ${look.label}${c.off ? ` · ${c.off}` : ''}${c.marked || c.status === 'holiday' ? '' : ' (not marked)'}`;
+                    ? t('Upcoming')
+                    : `${formatDate(c.iso)} · ${look.label}${c.off ? ` · ${c.off}` : ''}${c.marked || c.status === 'holiday' ? '' : t(' (not marked)')}`;
                 return (
                   <Tooltip key={c.iso} title={tip} arrow>
                     <Box
@@ -178,7 +179,7 @@ export default function EmployeeAttendance({ employee }) {
               ))}
             </Stack>
             <Typography color="textSecondary" sx={{ display: 'block', textAlign: 'center', mt: 0.5, fontSize: '0.6875rem' }}>
-              Faded letters are days nobody marked — they count as present, the same way payroll counts them.
+              {t('Faded letters are days nobody marked — they count as present, the same way payroll counts them.')}
             </Typography>
           </>
         )}

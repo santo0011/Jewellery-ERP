@@ -20,31 +20,32 @@ import { getErrorMessage } from '../../utils/errors.js';
 import { useCheckoutMutation, useStartUpiMutation, useVerifyPaymentMutation } from './billingApi.js';
 import { inr, periodText } from './billingUi.jsx';
 import { openCashfreeCheckout } from './cashfreeSdk.js';
+import { t } from '../../i18n/index.js';
 
 /** Every way to pay. UPI ones run on this screen; the rest open Cashfree's secure page showing only that kind. */
 const METHODS = [
-  { key: 'qr', upi: true, icon: QrCode2RoundedIcon, title: 'Scan QR code', sub: 'Scan with your phone — any UPI app' },
-  { key: 'apps', upi: true, icon: PhoneIphoneRoundedIcon, title: 'UPI apps', sub: 'PhonePe, Google Pay, Paytm, BHIM' },
-  { key: 'upi_id', upi: true, icon: AlternateEmailRoundedIcon, title: 'UPI ID', sub: 'Get a payment request in your app' },
-  { key: 'cards', icon: CreditCardOutlinedIcon, title: 'Debit / Credit card', sub: 'Visa, Mastercard, RuPay, Amex' },
-  { key: 'netbanking', icon: AccountBalanceOutlinedIcon, title: 'Net banking', sub: 'All major banks' },
-  { key: 'wallets', icon: AccountBalanceWalletOutlinedIcon, title: 'Wallets', sub: 'PhonePe, Paytm, Amazon Pay & more' },
-  { key: 'paylater', icon: ScheduleRoundedIcon, title: 'Pay later & EMI', sub: 'Pay later apps and card EMI' },
+  { key: 'qr', upi: true, icon: QrCode2RoundedIcon, title: t('Scan QR code'), sub: t('Scan with your phone — any UPI app') },
+  { key: 'apps', upi: true, icon: PhoneIphoneRoundedIcon, title: t('UPI apps'), sub: t('PhonePe, Google Pay, Paytm, BHIM') },
+  { key: 'upi_id', upi: true, icon: AlternateEmailRoundedIcon, title: t('UPI ID'), sub: t('Get a payment request in your app') },
+  { key: 'cards', icon: CreditCardOutlinedIcon, title: t('Debit / Credit card'), sub: t('Visa, Mastercard, RuPay, Amex') },
+  { key: 'netbanking', icon: AccountBalanceOutlinedIcon, title: t('Net banking'), sub: t('All major banks') },
+  { key: 'wallets', icon: AccountBalanceWalletOutlinedIcon, title: t('Wallets'), sub: t('PhonePe, Paytm, Amazon Pay & more') },
+  { key: 'paylater', icon: ScheduleRoundedIcon, title: t('Pay later & EMI'), sub: t('Pay later apps and card EMI') },
 ];
 
 const APPS = [
-  { key: 'phonepe', label: 'PhonePe', color: '#5F259F' },
-  { key: 'gpay', label: 'Google Pay', color: '#1A73E8' },
-  { key: 'paytm', label: 'Paytm', color: '#00B9F1' },
-  { key: 'bhim', label: 'BHIM', color: '#F37021' },
-  { key: 'other', label: 'Other UPI app', color: '#4A4A4A' },
+  { key: 'phonepe', label: t('PhonePe'), color: '#5F259F' },
+  { key: 'gpay', label: t('Google Pay'), color: '#1A73E8' },
+  { key: 'paytm', label: t('Paytm'), color: '#00B9F1' },
+  { key: 'bhim', label: t('BHIM'), color: '#F37021' },
+  { key: 'other', label: t('Other UPI app'), color: '#4A4A4A' },
 ];
 
 const HOSTED_COPY = {
-  cards: 'Enter your card on Cashfree’s secure page. Your card details are never sent to or stored by us.',
-  netbanking: 'Pick your bank on Cashfree’s secure page and sign in to your net banking to approve.',
-  wallets: 'Pick your wallet on Cashfree’s secure page and approve the payment there.',
-  paylater: 'Choose a pay-later app or EMI option on Cashfree’s secure page.',
+  cards: t('Enter your card on Cashfree’s secure page. Your card details are never sent to or stored by us.'),
+  netbanking: t('Pick your bank on Cashfree’s secure page and sign in to your net banking to approve.'),
+  wallets: t('Pick your wallet on Cashfree’s secure page and approve the payment there.'),
+  paylater: t('Choose a pay-later app or EMI option on Cashfree’s secure page.'),
 };
 
 function Waiting({ attempt }) {
@@ -53,12 +54,12 @@ function Waiting({ attempt }) {
       <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
         <CircularProgress size={16} />
         <Typography variant="body2" color="textSecondary">
-          Waiting for payment… this screen updates by itself
+          {t('Waiting for payment… this screen updates by itself')}
         </Typography>
       </Stack>
       {attempt?.status === 'FAILED' && (
         <Alert severity="warning" sx={{ width: '100%' }}>
-          The last try did not go through{attempt.message ? ` (${attempt.message})` : ''}. You can try again.
+          {attempt.message ? t('The last try did not go through ({{message}}). You can try again.', { message: attempt.message }) : t('The last try did not go through. You can try again.')}
         </Alert>
       )}
     </Stack>
@@ -70,7 +71,7 @@ function Waiting({ attempt }) {
  * UPI (QR / apps / UPI ID) is paid here and confirmed by polling; other methods go to Cashfree and come back.
  */
 export default function PayDialog({ plan, mode, onClose, onPaid }) {
-  const phone = useMediaQuery((t) => t.breakpoints.down('md'));
+  const phone = useMediaQuery((theme) => theme.breakpoints.down('md'));
   const [method, setMethod] = useState(phone ? 'apps' : 'qr');
   const [checkout] = useCheckoutMutation();
   const [startUpi] = useStartUpiMutation();
@@ -147,7 +148,7 @@ export default function PayDialog({ plan, mode, onClose, onPaid }) {
       const res = await checkout({ planId: plan.id, methods: method }).unwrap();
       await openCashfreeCheckout({ paymentSessionId: res.paymentSessionId, mode: res.mode });
     } catch (err) {
-      setError(err?.message && !err?.data ? err.message : getErrorMessage(err));
+      setError(err?.message && !err?.data ? t(err.message) : getErrorMessage(err));
       setBusy(false);
     }
   };
@@ -157,12 +158,12 @@ export default function PayDialog({ plan, mode, onClose, onPaid }) {
       return (
         <Stack spacing={1.5} sx={{ alignItems: 'center', textAlign: 'center', py: 4 }}>
           <CheckCircleRoundedIcon sx={{ fontSize: 72, color: 'success.main' }} />
-          <Typography variant="h3">Payment received</Typography>
+          <Typography variant="h3">{t('Payment received')}</Typography>
           <Typography color="textSecondary">
-            {paid.plan.name} is active until <strong>{formatDate(paid.periodEnd)}</strong>.
+            {t('{{name}} is active until {{date}}.', { name: paid.plan.name, date: <strong>{formatDate(paid.periodEnd)}</strong> })}
           </Typography>
           <Button variant="contained" onClick={onClose} sx={{ mt: 1 }}>
-            Done
+            {t('Done')}
           </Button>
         </Stack>
       );
@@ -172,13 +173,13 @@ export default function PayDialog({ plan, mode, onClose, onPaid }) {
       return (
         <Stack sx={{ alignItems: 'center', textAlign: 'center' }}>
           <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-            Scan to pay {inr(plan.pricePaise)}
+            {t('Scan to pay {{inr}}', { inr: inr(plan.pricePaise) })}
           </Typography>
           <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-            Open PhonePe, Google Pay, Paytm, BHIM or any UPI app on your phone and scan
+            {t('Open PhonePe, Google Pay, Paytm, BHIM or any UPI app on your phone and scan')}
           </Typography>
           <Box sx={{ p: 1.5, borderRadius: 3, border: '2px solid', borderColor: tokens.brand.main, bgcolor: '#fff', lineHeight: 0 }}>
-            {qr ? <Box component="img" src={qr} alt="UPI QR code" sx={{ width: 220, height: 220, imageRendering: 'pixelated' }} /> : <Skeleton variant="rectangular" width={220} height={220} />}
+            {qr ? <Box component="img" src={qr} alt={t('UPI QR code')} sx={{ width: 220, height: 220, imageRendering: 'pixelated' }} /> : <Skeleton variant="rectangular" width={220} height={220} />}
           </Box>
           <Stack direction="row" sx={{ gap: 0.75, mt: 1.5, flexWrap: 'wrap', justifyContent: 'center' }}>
             {APPS.slice(0, 4).map((a) => (
@@ -186,7 +187,7 @@ export default function PayDialog({ plan, mode, onClose, onPaid }) {
             ))}
           </Stack>
           <Button size="small" startIcon={<RefreshRoundedIcon />} onClick={() => runUpi('qr')} disabled={busy} sx={{ mt: 1 }}>
-            New QR code
+            {t('New QR code')}
           </Button>
           {order && <Waiting attempt={attempt} />}
         </Stack>
@@ -197,10 +198,10 @@ export default function PayDialog({ plan, mode, onClose, onPaid }) {
       return (
         <Box>
           <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-            Pay {inr(plan.pricePaise)} with a UPI app
+            {t('Pay {{inr}} with a UPI app', { inr: inr(plan.pricePaise) })}
           </Typography>
           <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-            {phone ? 'Tap your app — it opens with the amount filled in. Approve with your UPI PIN, then come back here.' : 'These open the app on a phone. On a laptop, scanning the QR code is easier.'}
+            {phone ? t('Tap your app — it opens with the amount filled in. Approve with your UPI PIN, then come back here.') : t('These open the app on a phone. On a laptop, scanning the QR code is easier.')}
           </Typography>
           <Stack spacing={1}>
             {APPS.map((a) => (
@@ -233,20 +234,20 @@ export default function PayDialog({ plan, mode, onClose, onPaid }) {
       return (
         <Box>
           <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-            Get a request in your UPI app
+            {t('Get a request in your UPI app')}
           </Typography>
           <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-            We send a {inr(plan.pricePaise)} request to your UPI ID. Open the app and approve it with your PIN.
+            {t('We send a {{inr}} request to your UPI ID. Open the app and approve it with your PIN.', { inr: inr(plan.pricePaise) })}
           </Typography>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
-            <TextField label="UPI ID" placeholder="name@okhdfcbank" value={upiId} onChange={(e) => setUpiId(e.target.value.trim())} slotProps={{ htmlInput: { autoCapitalize: 'none', spellCheck: false } }} />
+            <TextField label={t('UPI ID')} placeholder={t('name@okhdfcbank')} value={upiId} onChange={(e) => setUpiId(e.target.value.trim())} slotProps={{ htmlInput: { autoCapitalize: 'none', spellCheck: false } }} />
             <Button variant="contained" onClick={() => runUpi('upi_id', { upiId })} disabled={busy || !/^[^@\s]+@[^@\s]+$/.test(upiId)} sx={{ flexShrink: 0, height: 56 }}>
-              {sent ? 'Send again' : 'Send request'}
+              {sent ? t('Send again') : t('Send request')}
             </Button>
           </Stack>
           {sent && (
             <Alert severity="info" sx={{ mt: 2 }}>
-              Request sent to <strong>{sent}</strong>. Approve it in your UPI app within a few minutes.
+              {t('Request sent to {{upi}}. Approve it in your UPI app within a few minutes.', { upi: <strong>{sent}</strong> })}
             </Alert>
           )}
           {sent && <Waiting attempt={attempt} />}
@@ -265,10 +266,10 @@ export default function PayDialog({ plan, mode, onClose, onPaid }) {
         </Box>
         <Box sx={{ p: 2, borderRadius: 2, bgcolor: 'action.hover', display: 'flex', alignItems: 'center', gap: 1.5 }}>
           <LockOutlinedIcon color="success" />
-          <Typography variant="body2">You will come back here automatically once it is done.</Typography>
+          <Typography variant="body2">{t('You will come back here automatically once it is done.')}</Typography>
         </Box>
         <Button variant="contained" size="large" onClick={hosted} disabled={busy} endIcon={busy ? <CircularProgress size={16} color="inherit" /> : <OpenInNewRoundedIcon />}>
-          Continue to pay {inr(plan.pricePaise)}
+          {t('Continue to pay {{inr}}', { inr: inr(plan.pricePaise) })}
         </Button>
       </Stack>
     );
@@ -283,8 +284,8 @@ export default function PayDialog({ plan, mode, onClose, onPaid }) {
           </Typography>
           <Typography sx={{ fontSize: '1.6rem', fontWeight: 800, lineHeight: 1.1 }}>{inr(plan.pricePaise)}</Typography>
         </Box>
-        <Chip icon={<LockOutlinedIcon />} label="Secured by Cashfree" size="small" variant="outlined" color="success" />
-        <IconButton onClick={onClose} aria-label="Close">
+        <Chip icon={<LockOutlinedIcon />} label={t('Secured by Cashfree')} size="small" variant="outlined" color="success" />
+        <IconButton onClick={onClose} aria-label={t('Close')}>
           <CloseRoundedIcon />
         </IconButton>
       </Box>
@@ -319,7 +320,7 @@ export default function PayDialog({ plan, mode, onClose, onPaid }) {
             {panel()}
             {sandbox && !paid && (
               <Alert severity="warning" icon={false} sx={{ mt: 3, fontSize: '0.8125rem' }}>
-                <strong>Test mode — no real money.</strong> A real UPI app cannot pay a test QR. To try a payment, use <em>UPI apps</em> — it opens Cashfree’s test page where you can mark the payment as successful — or a card / net banking test option.
+                <strong>{t('Test mode — no real money.')}</strong> {t('A real UPI app cannot pay a test QR. To try a payment, use {{option}} — it opens Cashfree’s test page where you can mark the payment as successful — or a card / net banking test option.', { option: <em>{t('UPI apps')}</em> })}
               </Alert>
             )}
           </Box>

@@ -16,6 +16,7 @@ import {
 } from '@mui/material';
 import { Fragment } from 'react';
 import { EmptyState, ErrorState } from './StateViews.jsx';
+import { t } from '../i18n/index.js';
 
 const cellValue = (column, row) => (column.render ? column.render(row) : (row[column.key] ?? '—'));
 
@@ -141,7 +142,7 @@ export default function DataTable({
             rowsPerPageOptions={mobile ? [] : [10, 20, 50, 100]}
             onPageChange={(e, page) => pagination.onPageChange(page + 1)}
             onRowsPerPageChange={(e) => pagination.onLimitChange(Number(e.target.value))}
-            labelRowsPerPage="Rows per page"
+            labelRowsPerPage={t('Rows per page')}
             sx={{ bgcolor: 'background.paper', '& .MuiTablePagination-toolbar': { px: { xs: 1.5, sm: 2 } } }}
           />
         </>

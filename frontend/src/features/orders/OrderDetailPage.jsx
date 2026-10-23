@@ -23,11 +23,12 @@ import FinishItemDialog from './FinishItemDialog.jsx';
 import OrderPhotos from './OrderPhotos.jsx';
 import { ADVANCE_MODE_OPTIONS, NEXT_STEP, OrderStatusChip, paymentLabel } from './orderUi.jsx';
 import { MONEY_TONE } from '../../components/Amount.jsx';
+import { t } from '../../i18n/index.js';
 
 const STEPS = ['booked', 'in_progress', 'ready', 'delivered'];
 
 const advanceForm = z.object({
-  amount: z.string().trim().regex(/^\d+(\.\d{0,2})?$/, 'Enter the amount').refine((v) => Number(v) > 0, 'Amount must be more than zero'),
+  amount: z.string().trim().regex(/^\d+(\.\d{0,2})?$/, t('Enter the amount')).refine((v) => Number(v) > 0, t('Amount must be more than zero')),
   mode: z.string().min(1, 'Select how it was paid'),
   reference: z.string().trim().max(60),
 });
@@ -47,7 +48,7 @@ function AdvanceDialog({ order, open, onClose }) {
   const onSubmit = handleSubmit(async (v) => {
     try {
       await add({ id: order.id, mode: v.mode, amountPaise: toPaise(v.amount), reference: v.reference || null }).unwrap();
-      toast.success('Advance received');
+      toast.success(t('Advance received'));
       onClose();
     } catch (err) {
       applyServerErrors({ data: { error: { details: err?.data?.error?.details?.map((d) => ({ ...d, path: d.path === 'amountPaise' ? 'amount' : d.path })) } } }, setError);
@@ -57,21 +58,21 @@ function AdvanceDialog({ order, open, onClose }) {
   return (
     <Dialog open={open} onClose={isLoading ? undefined : onClose} maxWidth="xs" fullWidth>
       <form noValidate onSubmit={onSubmit}>
-        <DialogTitle sx={{ fontWeight: 600 }}>Receive advance</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 600 }}>{t('Receive advance')}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 0.5 }}>
             {error && !error.data?.error?.details && <Alert severity="error">{getErrorMessage(error)}</Alert>}
-            <RHFTextField control={control} name="amount" label="Amount (₹)" autoFocus slotProps={{ htmlInput: { inputMode: 'decimal' } }} />
-            <RHFSelect control={control} name="mode" label="Paid by" options={ADVANCE_MODE_OPTIONS} />
-            <RHFTextField control={control} name="reference" label="Reference (optional)" />
+            <RHFTextField control={control} name="amount" label={t('Amount (₹)')} autoFocus slotProps={{ htmlInput: { inputMode: 'decimal' } }} />
+            <RHFSelect control={control} name="mode" label={t('Paid by')} options={ADVANCE_MODE_OPTIONS} />
+            <RHFTextField control={control} name="reference" label={t('Reference (optional)')} />
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button color="secondary" onClick={onClose} disabled={isLoading}>
-            Cancel
+            {t('Cancel')}
           </Button>
           <Button type="submit" variant="contained" loading={isLoading}>
-            Save receipt
+            {t('Save receipt')}
           </Button>
         </DialogActions>
       </form>
@@ -79,7 +80,7 @@ function AdvanceDialog({ order, open, onClose }) {
   );
 }
 
-const cancelForm = z.object({ reason: z.string().trim().min(5, 'Give a reason (at least 5 characters)').max(300), refundMode: z.string() });
+const cancelForm = z.object({ reason: z.string().trim().min(5, t('Give a reason (at least 5 characters)')).max(300), refundMode: z.string() });
 
 function CancelDialog({ order, open, onClose }) {
   const [cancel, { isLoading, error, reset: resetMutation }] = useCancelOrderMutation();
@@ -95,7 +96,7 @@ function CancelDialog({ order, open, onClose }) {
   const onSubmit = handleSubmit(async (v) => {
     try {
       await cancel({ id: order.id, reason: v.reason, ...(order.advancePaise > 0 && { refundMode: v.refundMode }) }).unwrap();
-      toast.success(`Order ${order.orderNo} cancelled`);
+      toast.success(t('Order {{orderNo}} cancelled', { orderNo: order.orderNo }));
       onClose();
     } catch (err) {
       applyServerErrors(err, setError);
@@ -105,25 +106,25 @@ function CancelDialog({ order, open, onClose }) {
   return (
     <Dialog open={open} onClose={isLoading ? undefined : onClose} maxWidth="xs" fullWidth>
       <form noValidate onSubmit={onSubmit}>
-        <DialogTitle sx={{ fontWeight: 600 }}>Cancel order?</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 600 }}>{t('Cancel order?')}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 0.5 }}>
             {order.advancePaise > 0 && (
               <Alert severity="warning">
-                The advance of <strong>{formatINR(order.advancePaise)}</strong> will be refunded to {order.customer.name}.
+                {t('The advance of {{amount}} will be refunded to {{name}}.', { amount: <strong>{formatINR(order.advancePaise)}</strong>, name: order.customer.name })}
               </Alert>
             )}
             {error && !error.data?.error?.details && <Alert severity="error">{getErrorMessage(error)}</Alert>}
-            <RHFTextField control={control} name="reason" label="Reason" autoFocus multiline minRows={2} />
-            {order.advancePaise > 0 && <RHFSelect control={control} name="refundMode" label="Refund by" options={ADVANCE_MODE_OPTIONS} />}
+            <RHFTextField control={control} name="reason" label={t('Reason')} autoFocus multiline minRows={2} />
+            {order.advancePaise > 0 && <RHFSelect control={control} name="refundMode" label={t('Refund by')} options={ADVANCE_MODE_OPTIONS} />}
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button color="secondary" onClick={onClose} disabled={isLoading}>
-            Keep order
+            {t('Keep order')}
           </Button>
           <Button type="submit" variant="contained" color="error" loading={isLoading}>
-            Cancel order
+            {t('Cancel order')}
           </Button>
         </DialogActions>
       </form>
@@ -131,8 +132,8 @@ function CancelDialog({ order, open, onClose }) {
   );
 }
 
-const typeLabel = (v) => JEWELLERY_TYPES.find((t) => t.value === v)?.label;
-const stoneLabel = (v) => STONE_TYPES.find((t) => t.value === v)?.label ?? v;
+const typeLabel = (v) => JEWELLERY_TYPES.find((type) => type.value === v)?.label;
+const stoneLabel = (v) => STONE_TYPES.find((type) => type.value === v)?.label ?? v;
 const makingText = (m) => (m.type === 'percent' ? `${m.value / 100}%` : m.type === 'per_gram' ? `${formatINR(m.value, { decimals: 0 })}/g` : formatINR(m.value, { decimals: 0 }));
 
 /** The agreed specification of an order line, as small chips. */
@@ -140,11 +141,11 @@ function ItemSpecs({ item: i }) {
   const chips = [
     i.jewelleryType && typeLabel(i.jewelleryType),
     ...(i.stones ?? []).map((s) => `${s.count} ${stoneLabel(s.type)}${s.name ? ` (${s.name})` : ''} · ${s.weight / 1000} ${s.weightUnit}`),
-    i.pricingMode === 'fixed' ? `Fixed price ${formatINR(i.fixedPricePaise, { decimals: 0 })}` : null,
-    i.pricingMode !== 'fixed' && i.wastage?.mode === 'percent' && i.wastage.value ? `Wastage ${i.wastage.value / 100}%` : null,
-    i.pricingMode !== 'fixed' && i.making?.value ? `Making ${makingText(i.making)}` : null,
-    i.otherChargePaise ? `Other ${formatINR(i.otherChargePaise, { decimals: 0 })}` : null,
-    i.huid && `HUID ${i.huid}`,
+    i.pricingMode === 'fixed' ? t('Fixed price {{fixedPrice}}', { fixedPrice: formatINR(i.fixedPricePaise, { decimals: 0 }) }) : null,
+    i.pricingMode !== 'fixed' && i.wastage?.mode === 'percent' && i.wastage.value ? t('Wastage {{value}}%', { value: i.wastage.value / 100 }) : null,
+    i.pricingMode !== 'fixed' && i.making?.value ? t('Making {{makingText}}', { makingText: makingText(i.making) }) : null,
+    i.otherChargePaise ? t('Other {{otherCharge}}', { otherCharge: formatINR(i.otherChargePaise, { decimals: 0 }) }) : null,
+    i.huid && t('HUID {{huid}}', { huid: i.huid }),
   ].filter(Boolean);
   if (!chips.length) return null;
   return (
@@ -203,10 +204,10 @@ export default function OrderDetailPage() {
   // Every rupee for this order in one list: advances and refunds, then what was paid on the delivery bill.
   const invoice = order.invoice?.status === 'completed' ? order.invoice : null;
   const payments = [
-    ...order.advances.map((a) => ({ key: a.id, title: a.amountPaise < 0 ? 'Refund' : 'Advance', mode: a.mode, amountPaise: a.amountPaise, doc: a.receiptNo, at: a.at, by: a.by?.name, reference: a.reference })),
+    ...order.advances.map((a) => ({ key: a.id, title: a.amountPaise < 0 ? t('Refund') : t('Advance'), mode: a.mode, amountPaise: a.amountPaise, doc: a.receiptNo, at: a.at, by: a.by?.name, reference: a.reference })),
     ...(invoice?.payments ?? []).map((p, n) => ({
       key: `inv${n}`,
-      title: p.mode === 'credit' ? 'On credit (due)' : 'Paid at delivery',
+      title: p.mode === 'credit' ? t('On credit (due)') : t('Paid at delivery'),
       mode: p.mode,
       amountPaise: p.amountPaise,
       doc: invoice.invoiceNo,
@@ -222,7 +223,7 @@ export default function OrderDetailPage() {
   const move = async (status) => {
     try {
       await setStatus({ id: order.id, status }).unwrap();
-      toast.success(`Order marked ${ORDER_STATUS_LABELS[status].toLowerCase()}`);
+      toast.success(t('Order marked {{ORDER_STATUS_LABELS}}', { ORDER_STATUS_LABELS: ORDER_STATUS_LABELS[status].toLowerCase() }));
     } catch (err) {
       toast.error(getErrorMessage(err));
     }
@@ -234,28 +235,28 @@ export default function OrderDetailPage() {
         title={order.orderNo}
         subtitle={
           <Stack component="span" direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
-            {order.priority === 'urgent' && <Chip size="small" color="error" label="Urgent" sx={{ height: 22, fontWeight: 700 }} />}
+            {order.priority === 'urgent' && <Chip size="small" color="error" label={t('Urgent')} sx={{ height: 22, fontWeight: 700 }} />}
             <span>
-              Booked {formatDate(order.createdAt)} at {order.branch?.name ?? ''}
+              {t('Booked {{createdAt}} at {{value}}', { createdAt: formatDate(order.createdAt), value: order.branch?.name ?? '' })}
             </span>
           </Stack>
         }
-        back={{ to: '/orders', label: 'Orders' }}
+        back={{ to: '/orders', label: t('Orders') }}
         actions={
           <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
             {open && canCancel && (
               <Button color="error" startIcon={<BlockRoundedIcon />} onClick={() => setDialog('cancel')}>
-                Cancel order
+                {t('Cancel order')}
               </Button>
             )}
             {canEdit && ['booked', 'in_progress'].includes(order.status) && (
               <Button variant="outlined" startIcon={<EditOutlinedIcon />} onClick={() => navigate(`/orders/${order.id}/edit`)}>
-                Edit order
+                {t('Edit order')}
               </Button>
             )}
             {open && canEdit && (
               <Button variant="outlined" startIcon={<AddCardOutlinedIcon />} onClick={() => setDialog('advance')}>
-                Add advance
+                {t('Add advance')}
               </Button>
             )}
             {open && canEdit && next && (
@@ -265,12 +266,12 @@ export default function OrderDetailPage() {
             )}
             {open && canBill && (
               <Button variant="contained" startIcon={<ReceiptLongOutlinedIcon />} onClick={() => navigate(`/billing?orderId=${order.id}`)}>
-                Create bill
+                {t('Create bill')}
               </Button>
             )}
             {order.saleId && (
               <Button variant="contained" startIcon={<ReceiptLongOutlinedIcon />} onClick={() => navigate(`/sales/${order.saleId}`)}>
-                View invoice {order.invoiceNo}
+                {t('View invoice {{invoiceNo}}', { invoiceNo: order.invoiceNo })}
               </Button>
             )}
           </Stack>
@@ -283,7 +284,7 @@ export default function OrderDetailPage() {
             <OrderStatusChip status={order.status} size="medium" />
             {order.status === 'cancelled' ? (
               <Typography variant="body2" color="error">
-                Cancelled {formatDateTime(order.cancelledAt)} · {order.cancelReason}
+                {t('Cancelled {{cancelledAt}} · {{cancelReason}}', { cancelledAt: formatDateTime(order.cancelledAt), cancelReason: order.cancelReason })}
               </Typography>
             ) : (
               <Stepper activeStep={step} alternativeLabel sx={{ flex: 1 }}>
@@ -297,7 +298,7 @@ export default function OrderDetailPage() {
           </Stack>
           {order.overdue && (
             <Alert severity="error" sx={{ mt: 2 }}>
-              Delivery was due {formatDate(order.expectedDate)}.
+              {t('Delivery was due {{expectedDate}}.', { expectedDate: formatDate(order.expectedDate) })}
             </Alert>
           )}
         </CardContent>
@@ -309,7 +310,7 @@ export default function OrderDetailPage() {
           <Card sx={{ mb: 3 }}>
             <CardContent>
               <Typography variant="h4" sx={{ mb: 2 }}>
-                Items
+                {t('Items')}
               </Typography>
               {/* Fits the card on wider screens (metal and weight share a column, text wraps); on a phone it keeps a
                   readable width and scrolls sideways inside the card. */}
@@ -317,11 +318,11 @@ export default function OrderDetailPage() {
                 <Table size="small" sx={{ width: '100%', minWidth: { xs: 560, sm: 0 }, '& th, & td': { px: 1 }, '& th:first-of-type, & td:first-of-type': { pl: 0 }, '& th:last-of-type, & td:last-of-type': { pr: 0 }, '& th': { whiteSpace: 'nowrap' } }}>
                   <TableHead>
                     <TableRow>
-                      <TableCell>Item</TableCell>
-                      <TableCell>Metal · wt</TableCell>
-                      <TableCell align="right">Qty</TableCell>
-                      <TableCell align="right">Estimate</TableCell>
-                      <TableCell align="right">Finished piece</TableCell>
+                      <TableCell>{t('Item')}</TableCell>
+                      <TableCell>{t('Metal · wt')}</TableCell>
+                      <TableCell align="right">{t('Qty')}</TableCell>
+                      <TableCell align="right">{t('Estimate')}</TableCell>
+                      <TableCell align="right">{t('Finished piece')}</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -332,7 +333,7 @@ export default function OrderDetailPage() {
                             {i.description}
                           </Typography>
                           <Typography variant="caption" color="textSecondary">
-                            {[i.categoryName, i.size && `Size ${i.size}`, i.notes].filter(Boolean).join(' · ') || '—'}
+                            {[i.categoryName, i.size && t('Size {{size}}', { size: i.size }), i.notes].filter(Boolean).join(' · ') || '—'}
                           </Typography>
                           <ItemSpecs item={i} />
                         </TableCell>
@@ -341,7 +342,7 @@ export default function OrderDetailPage() {
                             {i.purity ? purityLabel(i.metal, i.purity) : i.metal}
                           </Typography>
                           <Typography variant="caption" color="textSecondary" sx={{ whiteSpace: 'nowrap' }}>
-                            {i.approxWeightMg ? `~${formatWeight(i.approxWeightMg)}` : 'Weight —'}
+                            {i.approxWeightMg ? `~${formatWeight(i.approxWeightMg)}` : t('Weight —')}
                           </Typography>
                         </TableCell>
                         <TableCell align="right">{i.quantity}</TableCell>
@@ -353,11 +354,11 @@ export default function OrderDetailPage() {
                             <Chip size="small" label={`${i.product.sku} · ${formatWeight(i.product.grossWeightMg)}`} color={i.product.status === 'in_stock' ? 'success' : 'default'} variant="outlined" onClick={() => navigate(`/products/${i.product.id}`)} />
                           ) : open && canFinish ? (
                             <Button size="small" variant="outlined" onClick={() => setFinishing(n)}>
-                              Finish item
+                              {t('Finish item')}
                             </Button>
                           ) : (
                             <Typography variant="caption" color="textSecondary">
-                              Not made yet
+                              {t('Not made yet')}
                             </Typography>
                           )}
                         </TableCell>
@@ -368,7 +369,7 @@ export default function OrderDetailPage() {
               </Box>
               {order.notes && (
                 <Typography variant="body2" color="textSecondary" sx={{ mt: 2 }}>
-                  Notes: {order.notes}
+                  {t('Notes: {{notes}}', { notes: order.notes })}
                 </Typography>
               )}
             </CardContent>
@@ -377,11 +378,11 @@ export default function OrderDetailPage() {
           <Card>
             <CardContent>
               <Typography variant="h4" sx={{ mb: 2 }}>
-                Payments
+                {t('Payments')}
               </Typography>
               {payments.length === 0 ? (
                 <Typography variant="body2" color="textSecondary">
-                  No payment received yet.
+                  {t('No payment received yet.')}
                 </Typography>
               ) : (
                 <Stack divider={<Divider flexItem />} spacing={1.25}>
@@ -403,7 +404,7 @@ export default function OrderDetailPage() {
                   ))}
                   <Stack direction="row" sx={{ justifyContent: 'space-between', pt: 0.5 }}>
                     <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                      Total received
+                      {t('Total received')}
                     </Typography>
                     <Typography variant="body2" sx={{ fontWeight: 800, color: MONEY_TONE.paid }}>
                       {formatINR(totalReceived)}
@@ -419,40 +420,40 @@ export default function OrderDetailPage() {
           <Card sx={{ mb: 3 }}>
             <CardContent>
               <Typography variant="h4" sx={{ mb: 2 }}>
-                Summary
+                {t('Summary')}
               </Typography>
               <Stack spacing={1.5}>
-                <Fact label="Customer">
+                <Fact label={t('Customer')}>
                   {order.customer.name} · {order.customer.mobile}
                 </Fact>
-                <Fact label="Delivery date">{order.expectedDate ? formatDate(order.expectedDate) : 'Not set'}</Fact>
+                <Fact label={t('Delivery date')}>{order.expectedDate ? formatDate(order.expectedDate) : t('Not set')}</Fact>
                 <Divider />
                 {invoice ? (
                   <>
-                    <MoneyRow label={`Bill total (${invoice.invoiceNo})`} value={formatINR(invoice.grandTotalPaise)} />
-                    <MoneyRow label="Advance" value={formatINR(invoice.advanceAdjustedPaise)} tone="paid" />
-                    {invoice.customerAdvancePaise > 0 && <MoneyRow label="Advance paid earlier" value={formatINR(invoice.customerAdvancePaise)} tone="paid" />}
-                    {invoice.oldGoldPaise > 0 && <MoneyRow label="Old gold exchanged" value={formatINR(invoice.oldGoldPaise)} tone="paid" />}
-                    <MoneyRow label="Paid at delivery" value={formatINR(invoice.paidPaise)} tone="paid" />
-                    <MoneyRow label="Total paid" value={formatINR(invoice.advanceAdjustedPaise + invoice.customerAdvancePaise + invoice.oldGoldPaise + invoice.paidPaise)} strong tone="paid" />
+                    <MoneyRow label={t('Bill total ({{invoiceNo}})', { invoiceNo: invoice.invoiceNo })} value={formatINR(invoice.grandTotalPaise)} />
+                    <MoneyRow label={t('Advance')} value={formatINR(invoice.advanceAdjustedPaise)} tone="paid" />
+                    {invoice.customerAdvancePaise > 0 && <MoneyRow label={t('Advance paid earlier')} value={formatINR(invoice.customerAdvancePaise)} tone="paid" />}
+                    {invoice.oldGoldPaise > 0 && <MoneyRow label={t('Old gold exchanged')} value={formatINR(invoice.oldGoldPaise)} tone="paid" />}
+                    <MoneyRow label={t('Paid at delivery')} value={formatINR(invoice.paidPaise)} tone="paid" />
+                    <MoneyRow label={t('Total paid')} value={formatINR(invoice.advanceAdjustedPaise + invoice.customerAdvancePaise + invoice.oldGoldPaise + invoice.paidPaise)} strong tone="paid" />
                     <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', p: 1.25, borderRadius: 1.5, bgcolor: invoice.duePaise ? 'rgba(155, 44, 44, 0.08)' : 'rgba(46, 107, 79, 0.08)' }}>
                       <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                        Due
+                        {t('Due')}
                       </Typography>
                       {invoice.duePaise ? (
                         <Typography variant="subtitle1" sx={{ fontWeight: 800, color: 'error.main' }}>
                           {formatINR(invoice.duePaise)}
                         </Typography>
                       ) : (
-                        <Chip size="small" color="success" label="Fully paid · ₹0" sx={{ fontWeight: 700 }} />
+                        <Chip size="small" color="success" label={t('Fully paid · ₹0')} sx={{ fontWeight: 700 }} />
                       )}
                     </Stack>
                   </>
                 ) : (
                   <>
-                    <MoneyRow label="Estimated total" value={order.estimatedPaise ? formatINR(order.estimatedPaise) : '—'} />
-                    <MoneyRow label="Advance received" value={formatINR(order.advancePaise)} tone="paid" />
-                    {open && <MoneyRow label="Due at delivery (estimate)" value={order.estimatedPaise ? formatINR(order.balancePaise) : 'Billed at delivery'} strong tone={order.estimatedPaise && order.balancePaise ? 'due' : undefined} />}
+                    <MoneyRow label={t('Estimated total')} value={order.estimatedPaise ? formatINR(order.estimatedPaise) : '—'} />
+                    <MoneyRow label={t('Advance received')} value={formatINR(order.advancePaise)} tone="paid" />
+                    {open && <MoneyRow label={t('Due at delivery (estimate)')} value={order.estimatedPaise ? formatINR(order.balancePaise) : t('Billed at delivery')} strong tone={order.estimatedPaise && order.balancePaise ? 'due' : undefined} />}
                   </>
                 )}
               </Stack>
@@ -462,20 +463,20 @@ export default function OrderDetailPage() {
           <Card>
             <CardContent>
               <Typography variant="h4" sx={{ mb: 2 }}>
-                Timeline
+                {t('Timeline')}
               </Typography>
               <Stack spacing={1.5}>
-                {[...order.timeline].reverse().map((t, n) => (
+                {[...order.timeline].reverse().map((event, n) => (
                   <Stack key={n} direction="row" spacing={1.5}>
                     <Box sx={{ mt: 0.75, width: 8, height: 8, borderRadius: '50%', flexShrink: 0, bgcolor: n === 0 ? 'primary.main' : 'divider' }} />
                     <Box>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        {ORDER_STATUS_LABELS[t.status] ?? t.status}
+                        {ORDER_STATUS_LABELS[event.status] ?? event.status}
                       </Typography>
                       <Typography variant="caption" color="textSecondary">
-                        {formatDateTime(t.at)}
-                        {t.by ? ` · ${t.by.name}` : ''}
-                        {t.note ? ` · ${t.note}` : ''}
+                        {formatDateTime(event.at)}
+                        {event.by ? ` · ${event.by.name}` : ''}
+                        {event.note ? ` · ${event.note}` : ''}
                       </Typography>
                     </Box>
                   </Stack>

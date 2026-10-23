@@ -17,6 +17,7 @@ import { clearSignOutReason, readSignOutReason } from '../../services/http.js';
 import { applyServerErrors, getErrorMessage } from '../../utils/errors.js';
 import { useAuthConfigQuery, useLoginMutation } from './authApi.js';
 import AuthCard from './AuthCard.jsx';
+import { t } from '../../i18n/index.js';
 
 export default function LoginPage() {
   const dispatch = useDispatch();
@@ -47,15 +48,15 @@ export default function LoginPage() {
 
   return (
     <AuthCard
-      eyebrow="Welcome back"
-      title="Sign in"
-      subtitle="Manage your store, stock and sales in one place."
+      eyebrow={t('Welcome back')}
+      title={t('Sign in')}
+      subtitle={t('Manage your store, stock and sales in one place.')}
       footer={
         config?.publicSignup && (
           <>
-            New to the platform?{' '}
+            {t('New to the platform?')}{' '}
             <Link component={RouterLink} to="/register" color="accent" sx={{ fontWeight: 600 }}>
-              Create your business account
+              {t('Create your business account')}
             </Link>
           </>
         )
@@ -66,13 +67,13 @@ export default function LoginPage() {
         <RHFTextField
           control={control}
           name="email"
-          label="Email"
+          label={t('Email')}
           type="email"
           autoComplete="email"
           autoFocus
           slotProps={{ input: { startAdornment: <InputAdornment position="start"><MailOutlineRoundedIcon fontSize="small" sx={{ color: 'text.secondary' }} /></InputAdornment> } }}
         />
-        <PasswordField control={control} name="password" label="Password" autoComplete="current-password" startIcon={LockOutlinedIcon} />
+        <PasswordField control={control} name="password" label={t('Password')} autoComplete="current-password" startIcon={LockOutlinedIcon} />
         <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
           <Controller
             name="rememberMe"
@@ -80,13 +81,13 @@ export default function LoginPage() {
             render={({ field }) => (
               <FormControlLabel
                 control={<Checkbox checked={field.value} onChange={(e) => field.onChange(e.target.checked)} size="small" />}
-                label="Keep me signed in"
+                label={t('Keep me signed in')}
                 slotProps={{ typography: { variant: 'body2' } }}
               />
             )}
           />
           <Link component={RouterLink} to="/forgot-password" variant="body2" color="accent">
-            Forgot password?
+            {t('Forgot password?')}
           </Link>
         </Stack>
         <Button
@@ -109,11 +110,11 @@ export default function LoginPage() {
             '&:hover .MuiButton-endIcon': { transform: 'translateX(3px)' },
           }}
         >
-          Sign in
+          {t('Sign in')}
         </Button>
         <Stack direction="row" spacing={0.75} sx={{ justifyContent: 'center', alignItems: 'center', color: 'text.secondary', pt: 0.5 }}>
           <VerifiedUserOutlinedIcon sx={{ fontSize: 15, color: 'var(--brand-strong)' }} />
-          <Typography variant="caption">Encrypted, secure sign-in</Typography>
+          <Typography variant="caption">{t('Encrypted, secure sign-in')}</Typography>
         </Stack>
       </Stack>
     </AuthCard>

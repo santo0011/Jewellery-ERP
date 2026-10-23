@@ -348,3 +348,6 @@ export const EMPLOYMENT_STATUS = Object.freeze({ ACTIVE: 'active', LEFT: 'left' 
 export const PAYROLL_STATUS = Object.freeze({ DRAFT: 'draft', FINALISED: 'finalised', PAID: 'paid' });
 
 export const SALARY_PAYMENT_MODES = Object.freeze(['cash', 'bank', 'upi']);
+
+/** Languages the app can be shown in. English is the default. */
+export const LANGUAGES = Object.freeze(['en', 'bn', 'hi']);

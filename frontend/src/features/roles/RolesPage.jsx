@@ -14,6 +14,7 @@ import { usePermission } from '../../hooks/usePermission.js';
 import { getErrorMessage } from '../../utils/errors.js';
 import { useDeleteRoleMutation, useDuplicateRoleMutation, useRolesQuery } from './roleApi.js';
 import ViewButton from '../../components/ViewButton.jsx';
+import { t } from '../../i18n/index.js';
 
 export default function RolesPage() {
   const navigate = useNavigate();
@@ -27,7 +28,7 @@ export default function RolesPage() {
   const duplicate = async (role) => {
     try {
       const copy = await duplicateRole(role.id).unwrap();
-      toast.success(`Created "${copy.name}"`);
+      toast.success(t('Created "{{name}}"', { name: copy.name }));
       navigate(`/settings/roles/${copy.id}`);
     } catch (err) {
       toast.error(getErrorMessage(err));
@@ -37,7 +38,7 @@ export default function RolesPage() {
   const remove = async () => {
     try {
       await deleteRole(toDelete.id).unwrap();
-      toast.success('Role deleted');
+      toast.success(t('Role deleted'));
       setToDelete(null);
     } catch (err) {
       toast.error(getErrorMessage(err));
@@ -48,16 +49,16 @@ export default function RolesPage() {
   const columns = [
     {
       key: 'name',
-      label: 'Role',
+      label: t('Role'),
       render: (r) => (
         <Box>
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-            <Typography variant="subtitle2">{r.name}</Typography>
-            {r.isSystem && <Chip size="small" label={r.customised ? 'Default · edited' : 'Default'} variant="outlined" sx={{ height: 20, fontSize: '0.6875rem' }} />}
+            <Typography variant="subtitle2">{r.isSystem ? t(r.name) : r.name}</Typography>
+            {r.isSystem && <Chip size="small" label={r.customised ? t('Default · edited') : t('Default')} variant="outlined" sx={{ height: 20, fontSize: '0.6875rem' }} />}
           </Stack>
           {r.description && (
             <Typography variant="body2" color="textSecondary" sx={{ maxWidth: 520 }}>
-              {r.description}
+              {r.isSystem ? t(r.description) : r.description}
             </Typography>
           )}
         </Box>
@@ -65,35 +66,35 @@ export default function RolesPage() {
     },
     {
       key: 'permissions',
-      label: 'Permissions',
-      render: (r) => (r.fullAccess ? <Typography variant="body2" color="accent" sx={{ fontWeight: 600 }}>Full access</Typography> : `${r.permissions.filter((p) => !isUpcomingPermission(p)).length} of ${AVAILABLE_PERMISSIONS.length}`),
+      label: t('Permissions'),
+      render: (r) => (r.fullAccess ? <Typography variant="body2" color="accent" sx={{ fontWeight: 600 }}>{t('Full access')}</Typography> : t('{{count}} of {{count2}}', { count: r.permissions.filter((p) => !isUpcomingPermission(p)).length, count2: AVAILABLE_PERMISSIONS.length })),
     },
-    { key: 'userCount', label: 'Users', align: 'right', render: (r) => r.userCount },
+    { key: 'userCount', label: t('Users'), align: 'right', render: (r) => r.userCount },
     {
       key: 'actions',
-      label: 'Action',
+      label: t('Action'),
       align: 'right',
       width: 132,
       render: (r) => (
         <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
-          <ViewButton onClick={() => navigate(`/settings/roles/${r.id}`)} title="View permissions" name={r.name} />
+          <ViewButton onClick={() => navigate(`/settings/roles/${r.id}`)} title={t('View permissions')} name={r.isSystem ? t(r.name) : r.name} />
           {canCreate && (
-            <Tooltip title="Duplicate">
-              <IconButton size="small" onClick={() => duplicate(r)} disabled={duplicating && duplicatingId === r.id} aria-label={`Duplicate ${r.name}`}>
+            <Tooltip title={t('Duplicate')}>
+              <IconButton size="small" onClick={() => duplicate(r)} disabled={duplicating && duplicatingId === r.id} aria-label={t('Duplicate {{name}}', { name: r.isSystem ? t(r.name) : r.name })}>
                 <ContentCopyRoundedIcon fontSize="small" />
               </IconButton>
             </Tooltip>
           )}
           {/* Delete is always shown; disabled with the reason when the role cannot go. */}
           {!canDelete ? (
-            <DisabledDelete reason="You do not have permission to delete roles." />
+            <DisabledDelete reason={t('You do not have permission to delete roles.')} />
           ) : r.isSystem ? (
-            <DisabledDelete reason="Default roles cannot be deleted. You can change their permissions instead." />
+            <DisabledDelete reason={t('Default roles cannot be deleted. You can change their permissions instead.')} />
           ) : r.userCount ? (
-            <DisabledDelete reason={`Assigned to ${r.userCount} user${r.userCount === 1 ? '' : 's'}. Give them another role first.`} />
+            <DisabledDelete reason={(r.userCount === 1 ? t('Assigned to {{userCount}} user. Give them another role first.', { userCount: r.userCount }) : t('Assigned to {{userCount}} users. Give them another role first.', { userCount: r.userCount }))} />
           ) : (
-            <Tooltip title="Delete">
-              <IconButton size="small" color="error" onClick={() => setToDelete(r)} aria-label={`Delete ${r.name}`}>
+            <Tooltip title={t('Delete')}>
+              <IconButton size="small" color="error" onClick={() => setToDelete(r)} aria-label={t('Delete {{name}}', { name: r.name })}>
                 <DeleteOutlineRoundedIcon fontSize="small" />
               </IconButton>
             </Tooltip>
@@ -106,13 +107,13 @@ export default function RolesPage() {
   return (
     <>
       <PageHeader
-        title="Roles & permissions"
-        subtitle="System roles cover common jewellery-shop jobs. Duplicate one to customise it."
-        breadcrumbs={[{ label: 'Settings' }, { label: 'Roles & permissions' }]}
+        title={t('Roles & permissions')}
+        subtitle={t('System roles cover common jewellery-shop jobs. Duplicate one to customise it.')}
+        breadcrumbs={[{ label: t('Settings') }, { label: t('Roles & permissions') }]}
         actions={
           canCreate && (
             <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => navigate('/settings/roles/new')}>
-              New role
+              {t('New role')}
             </Button>
           )
         }
@@ -125,13 +126,13 @@ export default function RolesPage() {
         fetching={isFetching}
         error={error}
         onRetry={refetch}
-        empty={{ title: 'No roles found' }}
+        empty={{ title: t('No roles found') }}
       />
       <ConfirmDialog
         open={Boolean(toDelete)}
-        title="Delete role?"
-        message={`"${toDelete?.name}" will be permanently removed.`}
-        confirmLabel="Delete"
+        title={t('Delete role?')}
+        message={t('"{{name}}" will be permanently removed.', { name: toDelete?.name })}
+        confirmLabel={t('Delete')}
         danger
         loading={deleting}
         onConfirm={remove}

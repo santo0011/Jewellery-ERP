@@ -12,19 +12,20 @@ import { applyServerErrors, getErrorMessage } from '../../utils/errors.js';
 import { useCategoriesQuery } from '../categories/categoryApi.js';
 import { useFinishOrderItemMutation } from './orderApi.js';
 import KeepOnPhone from '../../components/KeepOnPhone.jsx';
+import { t } from '../../i18n/index.js';
 
-const decimal = (label, places) => z.string().trim().regex(new RegExp(`^\\d+(\\.\\d{0,${places}})?$`), `Enter ${label}`);
+const decimal = (label, places) => z.string().trim().regex(new RegExp(`^\\d+(\\.\\d{0,${places}})?$`), t('Enter {{label}}', { label }));
 const formSchema = z.object({
-  weight: decimal('the final weight', 3).refine((v) => Number(v) > 0, 'Weight must be more than zero'),
-  purity: z.string().min(1, 'Select the purity'),
+  weight: decimal(t('the final weight'), 3).refine((v) => Number(v) > 0, t('Weight must be more than zero')),
+  purity: z.string().min(1, t('Select the purity')),
   categoryId: z.string(),
-  huid: z.string().trim().toUpperCase().refine((v) => v === '' || /^[A-Z0-9]{6}$/.test(v), 'HUID is 6 letters or digits'),
-  wastage: z.string().trim().refine((v) => v === '' || /^\d+(\.\d{0,2})?$/.test(v), 'Enter a number'),
+  huid: z.string().trim().toUpperCase().refine((v) => v === '' || /^[A-Z0-9]{6}$/.test(v), t('HUID is 6 letters or digits')),
+  wastage: z.string().trim().refine((v) => v === '' || /^\d+(\.\d{0,2})?$/.test(v), t('Enter a number')),
   makingType: z.enum(['per_gram', 'percent', 'fixed']),
-  making: z.string().trim().refine((v) => v === '' || /^\d+(\.\d{0,2})?$/.test(v), 'Enter a number'),
+  making: z.string().trim().refine((v) => v === '' || /^\d+(\.\d{0,2})?$/.test(v), t('Enter a number')),
 });
 
-const MAKING_LABEL = { per_gram: 'Making (₹ per gram)', percent: 'Making (% of metal)', fixed: 'Making (₹ for the piece)' };
+const MAKING_LABEL = { per_gram: t('Making (₹ per gram)'), percent: t('Making (% of metal)'), fixed: t('Making (₹ for the piece)') };
 
 /** The karigar has delivered the piece: record its real weight and charges; it is tagged and put in stock. */
 export default function FinishItemDialog({ order, index, onClose, onFinished }) {
@@ -56,7 +57,7 @@ export default function FinishItemDialog({ order, index, onClose, onFinished }) 
 
   const huidRequired = item?.metal === 'gold' && Boolean(session?.catalog?.huidMandatory);
   const onSubmit = handleSubmit(async (v) => {
-    if (huidRequired && !v.huid) return setError('huid', { message: 'HUID is required to bill hallmarked gold' });
+    if (huidRequired && !v.huid) return setError('huid', { message: t('HUID is required to bill hallmarked gold') });
     const makingValue = v.making ? (v.makingType === 'percent' ? Math.round(Number(v.making) * 100) : toPaise(v.making)) : 0;
     try {
       const updated = await finish({
@@ -70,7 +71,7 @@ export default function FinishItemDialog({ order, index, onClose, onFinished }) 
         making: { type: v.makingType, value: makingValue },
       }).unwrap();
       const product = updated.items[index].product;
-      toast.success(`Tagged as ${product.sku} and added to stock`);
+      toast.success(t('Tagged as {{sku}} and added to stock', { sku: product.sku }));
       onFinished?.(product, updated);
       onClose();
     } catch (err) {
@@ -85,12 +86,14 @@ export default function FinishItemDialog({ order, index, onClose, onFinished }) 
   return (
     <Dialog open onClose={isLoading ? undefined : onClose} maxWidth="sm" fullWidth>
       <form noValidate onSubmit={onSubmit}>
-        <DialogTitle sx={{ fontWeight: 600 }}>Finish item</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 600 }}>{t('Finish item')}</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
             <strong>{item.description}</strong>
-            {item.approxWeightMg ? ` · ordered ~${formatWeight(item.approxWeightMg)}` : ''}
-            {item.size ? ` · size ${item.size}` : ''}. Enter the finished piece&apos;s real details: it gets a tag, goes into stock at {order.branch?.name ?? 'the branch'}, and can be billed.
+            {item.approxWeightMg ? t(' · ordered ~{{approxWeight}}', { approxWeight: formatWeight(item.approxWeightMg) }) : ''}
+            {item.size ? t(' · size {{size}}', { size: item.size }) : ''}
+            {'. '}
+            {t('Enter the finished piece\'s real details: it gets a tag, goes into stock at {{branch}}, and can be billed.', { branch: order.branch?.name ?? t('the branch') })}
           </Typography>
           {error && !error.data?.error?.details && (
             <Alert severity="error" sx={{ mb: 2 }}>
@@ -99,19 +102,19 @@ export default function FinishItemDialog({ order, index, onClose, onFinished }) 
           )}
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <RHFTextField control={control} name="weight" label="Final gross weight" autoFocus slotProps={{ input: { endAdornment: <InputAdornment position="end">g</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }} />
+              <RHFTextField control={control} name="weight" label={t('Final gross weight')} autoFocus slotProps={{ input: { endAdornment: <InputAdornment position="end">{t('g')}</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }} />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <RHFSelect control={control} name="purity" label="Purity" options={purities} placeholder="Select purity" />
+              <RHFSelect control={control} name="purity" label={t('Purity')} options={purities} placeholder={t('Select purity')} />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <RHFSelect control={control} name="categoryId" label="Category" options={categories} placeholder="Custom Jewellery" />
+              <RHFSelect control={control} name="categoryId" label={t('Category')} options={categories} placeholder={t('Custom Jewellery')} />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <RHFTextField control={control} name="huid" label="HUID" placeholder="6-character hallmark ID" required={huidRequired} helperText={<KeepOnPhone>{huidRequired ? 'Required: hallmarked gold cannot be billed without it' : 'Optional'}</KeepOnPhone>} />
+              <RHFTextField control={control} name="huid" label={t('HUID')} placeholder={t('6-character hallmark ID')} required={huidRequired} helperText={<KeepOnPhone>{huidRequired ? t('Required: hallmarked gold cannot be billed without it') : t('Optional')}</KeepOnPhone>} />
             </Grid>
             <Grid size={{ xs: 12, sm: 4 }}>
-              <RHFTextField control={control} name="wastage" label="Wastage" placeholder="0" slotProps={{ input: { endAdornment: <InputAdornment position="end">%</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }} />
+              <RHFTextField control={control} name="wastage" label={t('Wastage')} placeholder="0" slotProps={{ input: { endAdornment: <InputAdornment position="end">%</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }} />
             </Grid>
             <Grid size={{ xs: 12, sm: 8 }}>
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
@@ -119,24 +122,24 @@ export default function FinishItemDialog({ order, index, onClose, onFinished }) 
                   control={control}
                   name="makingType"
                   render={({ field }) => (
-                    <ToggleButtonGroup exclusive size="small" value={field.value} onChange={(e, v) => v && field.onChange(v)} aria-label="Making charge type" sx={{ height: 41, flexShrink: 0, width: { xs: '100%', sm: 'auto' }, '& .MuiToggleButton-root': { flex: { xs: 1, sm: 'none' }, minWidth: 44, fontWeight: 700 } }}>
-                      <ToggleButton value="per_gram">₹/g</ToggleButton>
+                    <ToggleButtonGroup exclusive size="small" value={field.value} onChange={(e, v) => v && field.onChange(v)} aria-label={t('Making charge type')} sx={{ height: 41, flexShrink: 0, width: { xs: '100%', sm: 'auto' }, '& .MuiToggleButton-root': { flex: { xs: 1, sm: 'none' }, minWidth: 44, fontWeight: 700 } }}>
+                      <ToggleButton value="per_gram">{t('₹/g')}</ToggleButton>
                       <ToggleButton value="percent">%</ToggleButton>
                       <ToggleButton value="fixed">₹</ToggleButton>
                     </ToggleButtonGroup>
                   )}
                 />
-                <RHFTextField control={control} name="making" label={MAKING_LABEL[makingType] ?? 'Making'} placeholder="0" slotProps={{ htmlInput: { inputMode: 'decimal' } }} />
+                <RHFTextField control={control} name="making" label={MAKING_LABEL[makingType] ?? t('Making')} placeholder="0" slotProps={{ htmlInput: { inputMode: 'decimal' } }} />
               </Stack>
             </Grid>
           </Grid>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button color="secondary" onClick={onClose} disabled={isLoading}>
-            Cancel
+            {t('Cancel')}
           </Button>
           <Button type="submit" variant="contained" loading={isLoading}>
-            Tag &amp; add to stock
+            {t('Tag & add to stock')}
           </Button>
         </DialogActions>
       </form>

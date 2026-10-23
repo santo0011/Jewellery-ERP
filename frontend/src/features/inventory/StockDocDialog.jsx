@@ -4,6 +4,7 @@ import { formatDateTime } from '../../utils/format.js';
 import { purityLabel } from '../products/productForm.js';
 import { SelectedProducts } from './ProductPicker.jsx';
 import { DocStatusChip } from './stockUi.jsx';
+import { t } from '../../i18n/index.js';
 
 const label = (list, v) => list.find((o) => o.value === v)?.label ?? v;
 
@@ -21,13 +22,13 @@ export default function StockDocDialog({ doc, onClose, actions }) {
       <DialogContent>
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'auto 1fr' }, columnGap: 2, rowGap: 0.5, mb: 2 }}>
           {[
-            isTransfer ? ['Route', `${doc.fromBranch?.name} → ${doc.toBranch?.name}`] : ['Branch', doc.branch?.name],
-            doc.reason && ['Reason', label(ADJUSTMENT_REASONS, doc.reason)],
-            ['Created', `${formatDateTime(doc.createdAt ?? doc.dispatchedAt)} by ${(doc.createdBy ?? doc.dispatchedBy)?.name ?? '—'}`],
-            doc.closedAt && [doc.status === 'received' ? 'Received' : 'Closed', `${formatDateTime(doc.closedAt)} by ${doc.closedBy?.name ?? '—'}`],
-            doc.postedAt && ['Posted', formatDateTime(doc.postedAt)],
-            doc.note && ['Note', doc.note],
-            doc.rejectionReason && ['Rejection reason', doc.rejectionReason],
+            isTransfer ? [t('Route'), `${doc.fromBranch?.name} → ${doc.toBranch?.name}`] : [t('Branch'), doc.branch?.name],
+            doc.reason && [t('Reason'), label(ADJUSTMENT_REASONS, doc.reason)],
+            [t('Created'), t('{{formatDateTime}} by {{value}}', { formatDateTime: formatDateTime(doc.createdAt ?? doc.dispatchedAt), value: (doc.createdBy ?? doc.dispatchedBy)?.name ?? '—' })],
+            doc.closedAt && [doc.status === 'received' ? t('Received') : t('Closed'), t('{{closedAt}} by {{value}}', { closedAt: formatDateTime(doc.closedAt), value: doc.closedBy?.name ?? '—' })],
+            doc.postedAt && [t('Posted'), formatDateTime(doc.postedAt)],
+            doc.note && [t('Note'), doc.note],
+            doc.rejectionReason && [t('Rejection reason'), doc.rejectionReason],
           ]
             .filter(Boolean)
             .map(([k, v]) => (
@@ -46,11 +47,11 @@ export default function StockDocDialog({ doc, onClose, actions }) {
           <Table size="small" sx={{ mt: 2 }}>
             <TableHead>
               <TableRow>
-                <TableCell>Metal</TableCell>
-                <TableCell>Type</TableCell>
-                <TableCell align="right">Gross</TableCell>
-                <TableCell align="right">Fine</TableCell>
-                {doc.totals?.valuePaise !== undefined && <TableCell align="right">Value</TableCell>}
+                <TableCell>{t('Metal')}</TableCell>
+                <TableCell>{t('Type')}</TableCell>
+                <TableCell align="right">{t('Gross')}</TableCell>
+                <TableCell align="right">{t('Fine')}</TableCell>
+                {doc.totals?.valuePaise !== undefined && <TableCell align="right">{t('Value')}</TableCell>}
               </TableRow>
             </TableHead>
             <TableBody>
@@ -73,7 +74,7 @@ export default function StockDocDialog({ doc, onClose, actions }) {
       <DialogActions sx={{ px: 3, pb: 2 }}>
         {actions}
         <Button color="secondary" onClick={onClose}>
-          Close
+          {t('Close')}
         </Button>
       </DialogActions>
     </Dialog>

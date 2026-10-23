@@ -19,6 +19,7 @@ import { applyServerErrors, getErrorMessage } from '../../utils/errors.js';
 import { formatDate, formatDateTime } from '../../utils/format.js';
 import { useChangePlatformPasswordMutation, usePlatformProfileQuery, useUpdatePlatformProfileMutation } from './platformApi.js';
 import { platformSignedIn } from './platformSlice.js';
+import { t } from '../../i18n/index.js';
 
 const s = tokens.sidebar;
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -42,7 +43,7 @@ function strengthOf(pw = '') {
   if (/[^A-Za-z0-9]/.test(pw)) score += 0.5;
   return Math.max(1, Math.min(4, Math.round(score)));
 }
-const STRENGTH = [null, { label: 'Weak', color: '#B42318' }, { label: 'Fair', color: '#B7791F' }, { label: 'Good', color: '#2F7D6D' }, { label: 'Strong', color: '#2E6B4F' }];
+const STRENGTH = [null, { label: t('Weak'), color: '#B42318' }, { label: t('Fair'), color: '#B7791F' }, { label: t('Good'), color: '#2F7D6D' }, { label: t('Strong'), color: '#2E6B4F' }];
 
 function StrengthBar({ value }) {
   const score = strengthOf(value);
@@ -72,7 +73,7 @@ function StrengthBar({ value }) {
           fontWeight: 600,
         }}
       >
-        {meta ? `${meta.label} password` : 'Use 8 or more characters with upper and lower case letters, a number and a symbol.'}
+        {meta ? t('{{label}} password', { label: meta.label }) : t('Use 8 or more characters with upper and lower case letters, a number and a symbol.')}
       </Typography>
     </Box>
   );
@@ -92,7 +93,7 @@ function PasswordField({ label, error, helperText, autoComplete, registration })
         input: {
           endAdornment: (
             <InputAdornment position="end">
-              <IconButton onClick={() => setShown((v) => !v)} edge="end" aria-label={shown ? 'Hide password' : 'Show password'} size="small">
+              <IconButton onClick={() => setShown((v) => !v)} edge="end" aria-label={shown ? t('Hide password') : t('Show password')} size="small">
                 {shown ? <VisibilityOffOutlinedIcon fontSize="small" /> : <VisibilityOutlinedIcon fontSize="small" />}
               </IconButton>
             </InputAdornment>
@@ -172,13 +173,13 @@ function IdentityCard({ profile }) {
             {profile.email}
           </Typography>
           <Box component="span" sx={{ mt: { xs: 0.75, sm: 1 }, display: 'inline-flex', alignItems: 'center', gap: 0.5, px: 1.25, py: 0.375, borderRadius: 999, fontSize: '0.6875rem', fontWeight: 800, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--brand-contrast)', background: s.goldGradient }}>
-            <ShieldOutlinedIcon sx={{ fontSize: 14 }} /> Super Admin
+            <ShieldOutlinedIcon sx={{ fontSize: 14 }} /> {t('Super Admin')}
           </Box>
         </Stack>
         <Box sx={{ mt: { xs: 1.5, sm: 2 }, pt: 1, borderTop: 1, borderColor: 'divider' }}>
-          <InfoRow icon={LoginRoundedIcon} label="Last sign-in" value={profile.lastLoginAt ? formatDateTime(profile.lastLoginAt) : 'This session'} />
-          <InfoRow icon={KeyRoundedIcon} label="Password changed" value={profile.passwordChangedAt ? formatDateTime(profile.passwordChangedAt) : 'Not changed yet'} />
-          <InfoRow icon={EventAvailableOutlinedIcon} label="Account created" value={formatDate(profile.createdAt)} />
+          <InfoRow icon={LoginRoundedIcon} label={t('Last sign-in')} value={profile.lastLoginAt ? formatDateTime(profile.lastLoginAt) : t('This session')} />
+          <InfoRow icon={KeyRoundedIcon} label={t('Password changed')} value={profile.passwordChangedAt ? formatDateTime(profile.passwordChangedAt) : t('Not changed yet')} />
+          <InfoRow icon={EventAvailableOutlinedIcon} label={t('Account created')} value={formatDate(profile.createdAt)} />
         </Box>
       </CardContent>
     </Card>
@@ -207,35 +208,35 @@ function DetailsForm({ profile }) {
         email: values.email.trim().toLowerCase(),
         ...(needsPassword && { currentPassword: values.currentPassword }),
       }).unwrap();
-      toast.success(emailChanged ? 'Saved. Sign in with your new email from now on.' : 'Profile saved');
+      toast.success(emailChanged ? t('Saved. Sign in with your new email from now on.') : t('Profile saved'));
     } catch (err) {
       if (!applyServerErrors(err, setError)) toast.error(getErrorMessage(err));
     }
   });
 
   return (
-    <Section icon={PersonOutlineRoundedIcon} title="Account details" subtitle="Your name and the email you sign in with.">
+    <Section icon={PersonOutlineRoundedIcon} title={t('Account details')} subtitle={t('Your name and the email you sign in with.')}>
       <Box component="form" onSubmit={onSubmit} noValidate>
         <Grid container spacing={2}>
           <Grid size={{ xs: 12, md: 6 }}>
             <TextField
-              label="Full name"
+              label={t('Full name')}
               autoComplete="name"
               error={Boolean(e.name)}
-              helperText={e.name?.message}
+              helperText={t(e.name?.message)}
               {...register('name', {
                 required: 'Enter your name',
-                minLength: { value: 2, message: 'Enter your name' },
+                minLength: { value: 2, message: t('Enter your name') },
               })}
             />
           </Grid>
           <Grid size={{ xs: 12, md: 6 }}>
             <TextField
-              label="Email (sign-in)"
+              label={t('Email (sign-in)')}
               type="email"
               autoComplete="email"
               error={Boolean(e.email)}
-              helperText={e.email?.message ?? (emailChanged ? 'You will sign in with this email.' : undefined)}
+              helperText={t(e.email?.message) ?? (emailChanged ? t('You will sign in with this email.') : undefined)}
               slotProps={{
                 input: {
                   startAdornment: (
@@ -247,7 +248,7 @@ function DetailsForm({ profile }) {
               }}
               {...register('email', {
                 required: 'Enter your email',
-                pattern: { value: EMAIL, message: 'Enter a valid email' },
+                pattern: { value: EMAIL, message: t('Enter a valid email') },
               })}
             />
           </Grid>
@@ -255,14 +256,14 @@ function DetailsForm({ profile }) {
         <Collapse in={needsPassword} unmountOnExit>
           <Box sx={{ pt: 2 }}>
             <Alert severity="info" icon={<KeyRoundedIcon fontSize="small" />} sx={{ mb: 2 }}>
-              To change your sign-in email, confirm it is you with your current password.
+              {t('To change your sign-in email, confirm it is you with your current password.')}
             </Alert>
             <Box sx={{ maxWidth: { md: 'calc(50% - 8px)' } }}>
               <PasswordField
-                label="Current password"
+                label={t('Current password')}
                 autoComplete="current-password"
                 error={Boolean(e.currentPassword)}
-                helperText={e.currentPassword?.message}
+                helperText={t(e.currentPassword?.message)}
                 registration={register('currentPassword', {
                   validate: (v) => !needsPassword || Boolean(v) || 'Enter your current password',
                 })}
@@ -282,10 +283,10 @@ function DetailsForm({ profile }) {
             }
             disabled={!formState.isDirty || isLoading}
           >
-            Discard
+            {t('Discard')}
           </Button>
           <Button type="submit" variant="contained" loading={isLoading} disabled={!formState.isDirty}>
-            Save changes
+            {t('Save changes')}
           </Button>
         </Stack>
       </Box>
@@ -309,17 +310,17 @@ function PasswordForm({ profile }) {
       }).unwrap();
       dispatch(platformSignedIn(res.accessToken)); // this device stays signed in
       reset();
-      toast.success('Password changed. Other devices have been signed out.');
+      toast.success(t('Password changed. Other devices have been signed out.'));
     } catch (err) {
       if (!applyServerErrors(err, setError)) toast.error(getErrorMessage(err));
     }
   });
 
   return (
-    <Section icon={LockResetRoundedIcon} title="Change password" subtitle="Every other device is signed out; this one stays signed in.">
+    <Section icon={LockResetRoundedIcon} title={t('Change password')} subtitle={t('Every other device is signed out; this one stays signed in.')}>
       {viaCode && (
         <Alert severity="success" sx={{ mb: 2 }}>
-          You signed in with a code from your email, so your current password is not needed. Set a new one now.
+          {t('You signed in with a code from your email, so your current password is not needed. Set a new one now.')}
         </Alert>
       )}
       <Box component="form" onSubmit={onSubmit} noValidate>
@@ -327,10 +328,10 @@ function PasswordForm({ profile }) {
           {!viaCode && (
             <Grid size={{ xs: 12, md: 6 }}>
               <PasswordField
-                label="Current password"
+                label={t('Current password')}
                 autoComplete="current-password"
                 error={Boolean(e.currentPassword)}
-                helperText={e.currentPassword?.message}
+                helperText={t(e.currentPassword?.message)}
                 registration={register('currentPassword', {
                   required: 'Enter your current password',
                 })}
@@ -340,23 +341,23 @@ function PasswordForm({ profile }) {
           {!viaCode && <Grid size={{ xs: 0, md: 6 }} sx={{ display: { xs: 'none', md: 'block' } }} />}
           <Grid size={{ xs: 12, md: 6 }}>
             <PasswordField
-              label="New password"
+              label={t('New password')}
               autoComplete="new-password"
               error={Boolean(e.newPassword)}
-              helperText={e.newPassword?.message}
+              helperText={t(e.newPassword?.message)}
               registration={register('newPassword', {
                 required: 'Enter a new password',
-                minLength: { value: 6, message: 'At least 6 characters' },
+                minLength: { value: 6, message: t('At least 6 characters') },
               })}
             />
             <StrengthBar value={next} />
           </Grid>
           <Grid size={{ xs: 12, md: 6 }}>
             <PasswordField
-              label="Confirm new password"
+              label={t('Confirm new password')}
               autoComplete="new-password"
               error={Boolean(e.confirm)}
-              helperText={e.confirm?.message}
+              helperText={t(e.confirm?.message)}
               registration={register('confirm', {
                 validate: (v) => v === next || 'Passwords do not match',
               })}
@@ -365,7 +366,7 @@ function PasswordForm({ profile }) {
         </Grid>
         <Stack direction="row" sx={{ mt: 2.5, justifyContent: 'flex-end' }}>
           <Button type="submit" variant="contained" loading={isLoading} startIcon={<KeyRoundedIcon />}>
-            Update password
+            {t('Update password')}
           </Button>
         </Stack>
       </Box>
@@ -380,7 +381,7 @@ export default function AdminProfilePage() {
   if (error) return <ErrorState error={error} onRetry={refetch} />;
   return (
     <>
-      <PageHeader title="My profile" subtitle="Your Super Admin account — name, sign-in email and password." />
+      <PageHeader title={t('My profile')} subtitle={t('Your Super Admin account — name, sign-in email and password.')} />
       <Grid container spacing={2.5}>
         <Grid size={{ xs: 12, lg: 4 }}>
           <Box sx={{ position: { lg: 'sticky' }, top: { lg: 96 } }}>

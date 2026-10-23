@@ -7,6 +7,7 @@ import { useAuthImage } from '../../hooks/useAuthImage.js';
 import { fonts, tokens } from '../../theme/tokens.js';
 import { getErrorMessage } from '../../utils/errors.js';
 import { useRemoveEmployeePhotoMutation, useSetEmployeePhotoMutation } from './hrApi.js';
+import { t } from '../../i18n/index.js';
 
 export const PHOTO_MAX_BYTES = 2 * 1024 * 1024;
 const ACCEPT = 'image/png,image/jpeg,image/webp';
@@ -49,7 +50,7 @@ export function EmployeeAvatar({ employee, name, size = 40, src: override, sx })
 
 const tooBig = (file) => {
   if (file.size <= PHOTO_MAX_BYTES) return false;
-  toast.error('Photo must be 2 MB or smaller');
+  toast.error(t('Photo must be 2 MB or smaller'));
   return true;
 };
 
@@ -77,24 +78,24 @@ export function PhotoPicker({ employee, name, file, onChange, removed, onRemove 
 
   return (
     <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }}>
-      <ButtonBase onClick={() => input.current?.click()} aria-label="Choose photo" sx={{ borderRadius: '50%', position: 'relative', '&:hover .photo-overlay': { opacity: 1 } }}>
+      <ButtonBase onClick={() => input.current?.click()} aria-label={t('Choose photo')} sx={{ borderRadius: '50%', position: 'relative', '&:hover .photo-overlay': { opacity: 1 } }}>
         <EmployeeAvatar employee={removed ? null : employee} name={name || employee?.name} size={72} src={preview ?? undefined} />
         <Box className="photo-overlay" sx={{ position: 'absolute', inset: 0, borderRadius: '50%', display: 'grid', placeItems: 'center', bgcolor: 'rgba(23, 23, 23, 0.45)', color: '#fff', opacity: 0, transition: 'opacity 160ms ease' }}>
           <CameraAltOutlinedIcon fontSize="small" />
         </Box>
       </ButtonBase>
       <Box>
-        <Typography variant="subtitle2">Photo</Typography>
+        <Typography variant="subtitle2">{t('Photo')}</Typography>
         <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mb: 0.75 }}>
-          PNG, JPEG or WebP, up to 2 MB.
+          {t('PNG, JPEG or WebP, up to 2 MB.')}
         </Typography>
         <Stack direction="row" spacing={1}>
           <Button size="small" variant="outlined" startIcon={<CameraAltOutlinedIcon />} onClick={() => input.current?.click()}>
-            {hasPhoto ? 'Change' : 'Upload'}
+            {hasPhoto ? t('Change') : t('Upload')}
           </Button>
           {hasPhoto && (
             <Button size="small" color="error" startIcon={<DeleteOutlineRoundedIcon />} onClick={() => (file ? onChange(null) : onRemove())}>
-              Remove
+              {t('Remove')}
             </Button>
           )}
         </Stack>
@@ -117,7 +118,7 @@ export function EmployeePhotoEditor({ employee, canEdit, size = 96 }) {
     if (!file || tooBig(file)) return;
     try {
       await setPhoto({ id: employee.id, file }).unwrap();
-      toast.success('Photo updated');
+      toast.success(t('Photo updated'));
     } catch (err) {
       toast.error(getErrorMessage(err));
     }
@@ -125,7 +126,7 @@ export function EmployeePhotoEditor({ employee, canEdit, size = 96 }) {
   const remove = async () => {
     try {
       await removePhoto(employee.id).unwrap();
-      toast.success('Photo removed');
+      toast.success(t('Photo removed'));
     } catch (err) {
       toast.error(getErrorMessage(err));
     }
@@ -143,7 +144,7 @@ export function EmployeePhotoEditor({ employee, canEdit, size = 96 }) {
         {canEdit && !busy && (
           <ButtonBase
             onClick={() => input.current?.click()}
-            aria-label={employee.photoFileId ? 'Change photo' : 'Upload photo'}
+            aria-label={employee.photoFileId ? t('Change photo') : t('Upload photo')}
             sx={{ position: 'absolute', right: 0, bottom: 0, width: 32, height: 32, borderRadius: '50%', background: tokens.sidebar.goldGradient, color: 'var(--brand-contrast)', boxShadow: '0 2px 8px rgba(23, 23, 23, 0.25)', border: '2px solid', borderColor: 'background.paper' }}
           >
             <CameraAltOutlinedIcon sx={{ fontSize: 16 }} />
@@ -152,7 +153,7 @@ export function EmployeePhotoEditor({ employee, canEdit, size = 96 }) {
       </Box>
       {canEdit && employee.photoFileId && (
         <Button size="small" color="error" onClick={remove} disabled={busy} sx={{ minHeight: 0, py: 0.25 }}>
-          Remove photo
+          {t('Remove photo')}
         </Button>
       )}
       <input ref={input} type="file" accept={ACCEPT} hidden onChange={pick} />

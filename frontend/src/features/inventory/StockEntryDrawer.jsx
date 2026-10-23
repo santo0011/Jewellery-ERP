@@ -9,21 +9,22 @@ import { getErrorMessage } from '../../utils/errors.js';
 import { useCreateAdjustmentMutation, useCreateOpeningMutation } from './inventoryApi.js';
 import MetalLinesEditor, { metalLinesToPayload } from './MetalLinesEditor.jsx';
 import ProductPicker, { SelectedProducts } from './ProductPicker.jsx';
+import { t } from '../../i18n/index.js';
 
 const COPY = {
   opening: {
-    title: 'Opening stock',
-    subtitle: 'Bring draft products and existing metal into stock.',
+    title: t('Opening stock'),
+    subtitle: t('Bring draft products and existing metal into stock.'),
     status: 'draft',
-    submit: 'Post opening stock',
-    pickerLabel: 'Add draft item by SKU or name',
+    submit: t('Post opening stock'),
+    pickerLabel: t('Add draft item by SKU or name'),
   },
   adjustment: {
-    title: 'Stock adjustment',
-    subtitle: 'Write off items or correct metal balances. Usually needs approval.',
+    title: t('Stock adjustment'),
+    subtitle: t('Write off items or correct metal balances. Usually needs approval.'),
     status: 'in_stock',
-    submit: 'Submit adjustment',
-    pickerLabel: 'Add in-stock item to write off',
+    submit: t('Submit adjustment'),
+    pickerLabel: t('Add in-stock item to write off'),
   },
 };
 
@@ -57,15 +58,15 @@ export default function StockEntryDrawer({ mode, open, onClose, initialProducts 
     e.preventDefault();
     const { payload: metalLines, errors: lineErrors } = metalLinesToPayload(lines, { includeValue: showCost });
     const next = { lines: lineErrors };
-    if (!products.length && !lines.length) next.products = 'Add at least one item or metal line';
-    if (mode === 'adjustment' && note.trim().length < 5) next.note = 'Explain the adjustment in a few words';
+    if (!products.length && !lines.length) next.products = t('Add at least one item or metal line');
+    if (mode === 'adjustment' && note.trim().length < 5) next.note = t('Explain the adjustment in a few words');
     setErrors(next);
     if (next.products || next.note || Object.keys(lineErrors).length) return;
 
     const body = { branchId, productIds: products.map((p) => p.id), metalLines, note: note.trim() || undefined };
     try {
       const entry = mode === 'opening' ? await createOpening(body).unwrap() : await createAdjustment({ ...body, reason, note: note.trim() }).unwrap();
-      toast.success(entry.status === 'posted' ? `${entry.docNo} posted` : `${entry.docNo} sent for approval`);
+      toast.success(entry.status === 'posted' ? t('{{docNo}} posted', { docNo: entry.docNo }) : t('{{docNo}} sent for approval', { docNo: entry.docNo }));
       onClose();
     } catch (err) {
       setErrors({ server: getErrorMessage(err) });
@@ -83,7 +84,7 @@ export default function StockEntryDrawer({ mode, open, onClose, initialProducts 
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             select
-            label="Branch"
+            label={t('Branch')}
             value={branchId}
             onChange={(e) => {
               setBranchId(e.target.value);
@@ -99,7 +100,7 @@ export default function StockEntryDrawer({ mode, open, onClose, initialProducts 
         </Grid>
         {mode === 'adjustment' && (
           <Grid size={{ xs: 12, sm: 6 }}>
-            <TextField select label="Reason" value={reason} onChange={(e) => setReason(e.target.value)}>
+            <TextField select label={t('Reason')} value={reason} onChange={(e) => setReason(e.target.value)}>
               {ADJUSTMENT_REASONS.map((r) => (
                 <MenuItem key={r.value} value={r.value}>
                   {r.label}
@@ -110,7 +111,7 @@ export default function StockEntryDrawer({ mode, open, onClose, initialProducts 
         )}
         <Grid size={12}>
           <Typography variant="overline" color="textSecondary">
-            {mode === 'opening' ? 'Tagged items' : 'Items to write off'}
+            {mode === 'opening' ? t('Tagged items') : t('Items to write off')}
           </Typography>
         </Grid>
         <Grid size={12}>
@@ -121,7 +122,7 @@ export default function StockEntryDrawer({ mode, open, onClose, initialProducts 
         </Grid>
         <Grid size={12}>
           <Typography variant="overline" color="textSecondary">
-            Metal (bullion, old gold, scrap)
+            {t('Metal (bullion, old gold, scrap)')}
           </Typography>
         </Grid>
         <Grid size={12}>
@@ -136,13 +137,13 @@ export default function StockEntryDrawer({ mode, open, onClose, initialProducts 
         </Grid>
         <Grid size={12}>
           <TextField
-            label={mode === 'adjustment' ? 'Explanation' : 'Note'}
+            label={mode === 'adjustment' ? t('Explanation') : t('Note')}
             value={note}
             onChange={(e) => setNote(e.target.value)}
             multiline
             minRows={2}
             error={Boolean(errors.note)}
-            helperText={errors.note ?? (mode === 'adjustment' ? 'Shown to the approver' : ' ')}
+            helperText={errors.note ?? (mode === 'adjustment' ? t('Shown to the approver') : ' ')}
           />
         </Grid>
       </Grid>

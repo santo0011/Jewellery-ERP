@@ -20,6 +20,7 @@ import { buildCategoryTree, useCategoriesQuery } from '../categories/categoryApi
 import { useSupplierListQuery } from '../suppliers/supplierApi.js';
 import { useCreateProductMutation, useProductQuery, useUpdateProductMutation } from './productApi.js';
 import { emptyProduct, FieldError, formToProduct, productToForm, safeWeights } from './productForm.js';
+import { t } from '../../i18n/index.js';
 
 const upper = (v) => v.toUpperCase();
 const adorn = (text, position = 'end') => ({ input: { [`${position}Adornment`]: <InputAdornment position={position}>{text}</InputAdornment> }, htmlInput: { inputMode: 'decimal' } });
@@ -59,28 +60,28 @@ function WeightSummary({ control }) {
     <Card sx={{ position: { lg: 'sticky' }, top: { lg: 88 } }}>
       <CardContent>
         <Typography variant="overline" color="textSecondary">
-          Weight summary
+          {t('Weight summary')}
         </Typography>
         {!w ? (
           <Typography variant="body2" color="error" sx={{ mt: 1 }}>
-            Check the weights entered
+            {t('Check the weights entered')}
           </Typography>
         ) : (
           <Box sx={{ mt: 1 }}>
-            {row('Gross', formatWeight(parsed.grossWeightMg))}
-            {row('Stones', `− ${formatWeight(w.stoneWeightMg)}`)}
+            {row(t('Gross'), formatWeight(parsed.grossWeightMg))}
+            {row(t('Stones'), `− ${formatWeight(w.stoneWeightMg)}`)}
             <Divider />
-            {row('Net', formatWeight(w.netWeightMg), true)}
-            {row(`Fine (${PURITIES[metal]?.find((p) => p.fineness === Number(purity))?.label ?? '—'})`, formatWeight(w.fineWeightMg))}
+            {row(t('Net'), formatWeight(w.netWeightMg), true)}
+            {row(t('Fine ({{value}})', { value: PURITIES[metal]?.find((p) => p.fineness === Number(purity))?.label ?? '—' }), formatWeight(w.fineWeightMg))}
             {w.netWeightMg < 0 && (
               <Typography variant="caption" color="error">
-                Stones weigh more than the item
+                {t('Stones weigh more than the item')}
               </Typography>
             )}
           </Box>
         )}
         <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 1.5 }}>
-          1 carat = 0.2 g. The server recalculates and stores these on save.
+          {t('1 carat = 0.2 g. The server recalculates and stores these on save.')}
         </Typography>
       </CardContent>
     </Card>
@@ -96,33 +97,33 @@ function Stones({ control }) {
         <Paper key={field.id} variant="outlined" sx={{ p: 2 }}>
           <Grid container spacing={1.5}>
             <Grid size={{ xs: 12, sm: 4 }}>
-              <RHFSelect control={control} name={`stones.${i}.type`} label="Stone" options={STONE_TYPES} />
+              <RHFSelect control={control} name={`stones.${i}.type`} label={t('Stone')} options={STONE_TYPES} />
             </Grid>
             <Grid size={{ xs: 12, sm: 8 }}>
-              <RHFTextField control={control} name={`stones.${i}.name`} label="Description" placeholder="e.g. VVS1 round brilliant" />
+              <RHFTextField control={control} name={`stones.${i}.name`} label={t('Description')} placeholder={t('e.g. VVS1 round brilliant')} />
             </Grid>
             <Grid size={{ xs: 4, sm: 2 }}>
-              <RHFTextField control={control} name={`stones.${i}.count`} label="Pieces" slotProps={{ htmlInput: { inputMode: 'numeric' } }} />
+              <RHFTextField control={control} name={`stones.${i}.count`} label={t('Pieces')} slotProps={{ htmlInput: { inputMode: 'numeric' } }} />
             </Grid>
             <Grid size={{ xs: 8, sm: 3 }}>
-              <RHFTextField control={control} name={`stones.${i}.weight`} label="Weight" slotProps={adorn(stones?.[i]?.weightUnit === 'g' ? 'g' : 'ct')} />
+              <RHFTextField control={control} name={`stones.${i}.weight`} label={t('Weight')} slotProps={adorn(stones?.[i]?.weightUnit === 'g' ? 'g' : 'ct')} />
             </Grid>
             <Grid size={{ xs: 6, sm: 2 }}>
               <RHFSelect
                 control={control}
                 name={`stones.${i}.weightUnit`}
-                label="Unit"
+                label={t('Unit')}
                 options={[
-                  { value: 'ct', label: 'Carat' },
-                  { value: 'g', label: 'Gram' },
+                  { value: 'ct', label: t('Carat') },
+                  { value: 'g', label: t('Gram') },
                 ]}
               />
             </Grid>
             <Grid size={{ xs: 6, sm: 4 }}>
-              <RHFTextField control={control} name={`stones.${i}.ratePaise`} label={`Rate per ${stones?.[i]?.weightUnit === 'g' ? 'gram' : 'carat'}`} slotProps={adorn('₹', 'start')} />
+              <RHFTextField control={control} name={`stones.${i}.ratePaise`} label={(stones?.[i]?.weightUnit === 'g' ? t('Rate per gram') : t('Rate per carat'))} slotProps={adorn('₹', 'start')} />
             </Grid>
             <Grid size={{ xs: 12, sm: 1 }} sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>
-              <IconButton color="error" onClick={() => remove(i)} aria-label="Remove stone">
+              <IconButton color="error" onClick={() => remove(i)} aria-label={t('Remove stone')}>
                 <DeleteOutlineRoundedIcon />
               </IconButton>
             </Grid>
@@ -131,7 +132,7 @@ function Stones({ control }) {
       ))}
       <Box>
         <Button startIcon={<AddRoundedIcon />} color="secondary" variant="outlined" onClick={() => append({ type: 'diamond', name: '', count: '1', weight: '', weightUnit: 'ct', ratePaise: '' })}>
-          Add stone
+          {t('Add stone')}
         </Button>
       </Box>
     </Stack>
@@ -188,18 +189,18 @@ export default function ProductFormPage() {
     try {
       payload = formToProduct(values, { includeCost: canSeeCost });
     } catch (err) {
-      if (err instanceof FieldError) return setError(err.path, { type: 'client', message: err.message });
+      if (err instanceof FieldError) return setError(err.path, { type: 'client', message: t(err.message) });
       throw err;
     }
     const check = productSchema.safeParse(payload);
     if (!check.success) {
-      check.error.issues.forEach((i) => setError(i.path.join('.'), { type: 'client', message: i.message }));
-      toast.error('Please correct the highlighted fields');
+      check.error.issues.forEach((i) => setError(i.path.join('.'), { type: 'client', message: t(i.message) }));
+      toast.error(t('Please correct the highlighted fields'));
       return undefined;
     }
     try {
       const saved = editing ? await update({ id, ...payload }).unwrap() : await create(payload).unwrap();
-      toast.success(editing ? 'Product updated' : `Product ${saved.sku} created`);
+      toast.success(editing ? t('Product updated') : t('Product {{sku}} created', { sku: saved.sku }));
       // A new product goes back to the list (it shows there); an edit returns to the product.
       navigate(editing ? `/products/${saved.id}` : '/products', { replace: !editing });
     } catch (err) {
@@ -208,7 +209,7 @@ export default function ProductFormPage() {
     return undefined;
   });
 
-  if (editing && isLoading) return <LoadingState label="Loading product" />;
+  if (editing && isLoading) return <LoadingState label={t('Loading product')} />;
   if (editing && error) return <ErrorState error={error} onRetry={refetch} />;
 
   const saving = createState.isLoading || updateState.isLoading;
@@ -216,30 +217,30 @@ export default function ProductFormPage() {
   return (
     <Box component="form" noValidate onSubmit={onSubmit}>
       <PageHeader
-        title={editing ? `Edit ${product.name}` : 'New product'}
+        title={editing ? t('Edit {{name}}', { name: product.name }) : t('New product')}
         subtitle={editing ? product.sku : undefined}
-        back={editing ? { to: `/products/${id}`, label: product.sku } : { to: '/products', label: 'Products' }}
+        back={editing ? { to: `/products/${id}`, label: product.sku } : { to: '/products', label: t('Products') }}
       />
       {locked && (
         <Alert severity="info" sx={{ mb: 2 }}>
-          This item is in stock. Metal, purity, weights, stones and branch can only change through stock adjustments or transfers.
+          {t('This item is in stock. Metal, purity, weights, stones and branch can only change through stock adjustments or transfers.')}
         </Alert>
       )}
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, lg: 8 }}>
           <Stack spacing={2}>
-            <Section title="Item" description="Weights in grams as shown on your scale. SKU and barcode are created on save.">
+            <Section title={t('Item')} description={t('Weights in grams as shown on your scale. SKU and barcode are created on save.')}>
               <Grid container spacing={2}>
                 <Grid size={{ xs: 12, sm: 8 }}>
-                  <RHFTextField control={control} name="name" label="Product name" placeholder="e.g. 22K Temple Necklace" autoFocus={!editing} />
+                  <RHFTextField control={control} name="name" label={t('Product name')} placeholder={t('e.g. 22K Temple Necklace')} autoFocus={!editing} />
                 </Grid>
                 <Grid size={{ xs: 12, sm: 4 }}>
                   <RHFSelect
                     control={control}
                     name="categoryId"
-                    label="Category"
+                    label={t('Category')}
                     options={tree.map((c) => ({ value: String(c.id), label: c.name }))}
-                    placeholder="Select category"
+                    placeholder={t('Select category')}
                     onChange={(e) => {
                       setValue('categoryId', e.target.value, { shouldDirty: true });
                       setValue('subcategoryId', '', { shouldDirty: true });
@@ -247,21 +248,21 @@ export default function ProductFormPage() {
                   />
                 </Grid>
                 <Grid size={{ xs: 6, sm: 3 }}>
-                  <RHFSelect control={control} name="metal" label="Metal" options={METAL_OPTIONS} disabled={locked} onChange={(e) => onMetalChange(e.target.value)} />
+                  <RHFSelect control={control} name="metal" label={t('Metal')} options={METAL_OPTIONS} disabled={locked} onChange={(e) => onMetalChange(e.target.value)} />
                 </Grid>
                 <Grid size={{ xs: 6, sm: 3 }}>
-                  <RHFSelect control={control} name="purity" label="Purity" options={purityOptions} disabled={locked} helperText={purityOptions.length ? undefined : <KeepOnPhone>Enable a purity in Business settings</KeepOnPhone>} />
+                  <RHFSelect control={control} name="purity" label={t('Purity')} options={purityOptions} disabled={locked} helperText={purityOptions.length ? undefined : <KeepOnPhone>{t('Enable a purity in Business settings')}</KeepOnPhone>} />
                 </Grid>
                 <Grid size={{ xs: 6, sm: 3 }}>
-                  <RHFTextField control={control} name="grossWeightMg" label="Gross weight" slotProps={adorn('g')} disabled={locked} />
+                  <RHFTextField control={control} name="grossWeightMg" label={t('Gross weight')} slotProps={adorn('g')} disabled={locked} />
                 </Grid>
                 <Grid size={{ xs: 6, sm: 3 }}>
                   <RHFTextField
                     control={control}
                     name="huid"
-                    label="HUID"
+                    label={t('HUID')}
                     transform={upper}
-                    helperText={metal === 'gold' && catalog.huidMandatory ? <KeepOnPhone>Needed to sell</KeepOnPhone> : undefined}
+                    helperText={metal === 'gold' && catalog.huidMandatory ? <KeepOnPhone>{t('Needed to sell')}</KeepOnPhone> : undefined}
                     slotProps={{ htmlInput: { maxLength: 6 } }}
                   />
                 </Grid>
@@ -269,49 +270,49 @@ export default function ProductFormPage() {
                   <RHFSelect
                     control={control}
                     name="making.type"
-                    label="Making charge"
+                    label={t('Making charge')}
                     options={[
-                      { value: 'per_gram', label: 'Per gram' },
-                      { value: 'percent', label: '% of metal' },
-                      { value: 'fixed', label: 'Per piece' },
+                      { value: 'per_gram', label: t('Per gram') },
+                      { value: 'percent', label: t('% of metal') },
+                      { value: 'fixed', label: t('Per piece') },
                     ]}
                   />
                 </Grid>
                 <Grid size={{ xs: 6, sm: 3 }}>
-                  <RHFTextField control={control} name="making.value" label={makingType === 'percent' ? 'Making %' : 'Making ₹'} slotProps={makingType === 'percent' ? adorn('%') : adorn('₹', 'start')} />
+                  <RHFTextField control={control} name="making.value" label={makingType === 'percent' ? t('Making %') : t('Making ₹')} slotProps={makingType === 'percent' ? adorn('%') : adorn('₹', 'start')} />
                 </Grid>
                 <Grid size={{ xs: 6, sm: 3 }}>
                   <RHFSelect
                     control={control}
                     name="wastage.mode"
-                    label="Wastage"
+                    label={t('Wastage')}
                     options={[
-                      { value: 'percent', label: '% of weight' },
-                      { value: 'weight', label: 'Fixed grams' },
-                      { value: 'none', label: 'None' },
+                      { value: 'percent', label: t('% of weight') },
+                      { value: 'weight', label: t('Fixed grams') },
+                      { value: 'none', label: t('None') },
                     ]}
                   />
                 </Grid>
                 <Grid size={{ xs: 6, sm: 3 }}>
-                  {wastageMode !== 'none' && <RHFTextField control={control} name="wastage.value" label={wastageMode === 'percent' ? 'Wastage %' : 'Wastage g'} slotProps={adorn(wastageMode === 'percent' ? '%' : 'g')} />}
+                  {wastageMode !== 'none' && <RHFTextField control={control} name="wastage.value" label={wastageMode === 'percent' ? t('Wastage %') : t('Wastage g')} slotProps={adorn(wastageMode === 'percent' ? '%' : 'g')} />}
                 </Grid>
                 {session.branches.length > 1 && (
                   <Grid size={{ xs: 12, sm: 6 }}>
-                    <RHFSelect control={control} name="branchId" label="Branch" options={session.branches.map((b) => ({ value: String(b.id), label: b.name }))} disabled={locked} />
+                    <RHFSelect control={control} name="branchId" label={t('Branch')} options={session.branches.map((b) => ({ value: String(b.id), label: b.name }))} disabled={locked} />
                   </Grid>
                 )}
                 {canSeeCost && (
                   <Grid size={{ xs: 12, sm: 6 }}>
-                    <RHFTextField control={control} name="costPricePaise" label="Cost price (optional)" slotProps={adorn('₹', 'start')} />
+                    <RHFTextField control={control} name="costPricePaise" label={t('Cost price (optional)')} slotProps={adorn('₹', 'start')} />
                   </Grid>
                 )}
               </Grid>
             </Section>
 
-            <Section title="Stones" description="Only for items with diamonds or gemstones. Stone weight is taken off the gross weight.">
+            <Section title={t('Stones')} description={t('Only for items with diamonds or gemstones. Stone weight is taken off the gross weight.')}>
               {locked ? (
                 <Typography variant="body2" color="textSecondary">
-                  Stones are locked while the item is in stock.
+                  {t('Stones are locked while the item is in stock.')}
                 </Typography>
               ) : (
                 <Stones control={control} />
@@ -319,66 +320,66 @@ export default function ProductFormPage() {
             </Section>
 
             <MoreDetails
-              hint="Subcategory, lot, fixed price, other charges, HSN, certificate, supplier, description"
+              hint={t('Subcategory, lot, fixed price, other charges, HSN, certificate, supplier, description')}
               defaultOpen={Boolean(editing && product && (product.subcategory || product.stockType === 'lot' || product.pricingMode === 'fixed' || product.otherChargePaise || product.certificateNo || product.supplier || product.description || product.hsnCode))}
               forceOpen={['subcategoryId', 'jewelleryType', 'quantity', 'fixedPricePaise', 'otherChargePaise', 'hsnCode', 'certificateNo', 'description'].some((k) => formState.errors[k])}
             >
               <Grid container spacing={2}>
                 <Grid size={{ xs: 12, sm: 6 }}>
-                  <RHFSelect control={control} name="subcategoryId" label="Subcategory" options={subcategories.map((c) => ({ value: String(c.id), label: c.name }))} placeholder="None" disabled={!subcategories.length} />
+                  <RHFSelect control={control} name="subcategoryId" label={t('Subcategory')} options={subcategories.map((c) => ({ value: String(c.id), label: c.name }))} placeholder={t('None')} disabled={!subcategories.length} />
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6 }}>
-                  <RHFSelect control={control} name="jewelleryType" label="Jewellery type" options={JEWELLERY_TYPES} />
+                  <RHFSelect control={control} name="jewelleryType" label={t('Jewellery type')} options={JEWELLERY_TYPES} />
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <RHFSelect
                     control={control}
                     name="stockType"
-                    label="Stock type"
+                    label={t('Stock type')}
                     options={[
-                      { value: 'tagged', label: 'Single tagged piece' },
-                      { value: 'lot', label: 'Lot of identical pieces' },
+                      { value: 'tagged', label: t('Single tagged piece') },
+                      { value: 'lot', label: t('Lot of identical pieces') },
                     ]}
                     disabled={locked}
                   />
                 </Grid>
                 {stockType === 'lot' && (
                   <Grid size={{ xs: 12, sm: 6 }}>
-                    <RHFTextField control={control} name="quantity" label="Pieces in lot" slotProps={{ htmlInput: { inputMode: 'numeric' } }} disabled={locked} helperText="Gross weight is for the whole lot" />
+                    <RHFTextField control={control} name="quantity" label={t('Pieces in lot')} slotProps={{ htmlInput: { inputMode: 'numeric' } }} disabled={locked} helperText={t('Gross weight is for the whole lot')} />
                   </Grid>
                 )}
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <RHFSelect
                     control={control}
                     name="pricingMode"
-                    label="Price"
+                    label={t('Price')}
                     options={[
-                      { value: 'rate_based', label: 'From daily metal rate' },
-                      { value: 'fixed', label: 'Fixed price (MRP)' },
+                      { value: 'rate_based', label: t('From daily metal rate') },
+                      { value: 'fixed', label: t('Fixed price (MRP)') },
                     ]}
                   />
                 </Grid>
                 {pricingMode === 'fixed' && (
                   <Grid size={{ xs: 12, sm: 6 }}>
-                    <RHFTextField control={control} name="fixedPricePaise" label="Selling price" slotProps={adorn('₹', 'start')} />
+                    <RHFTextField control={control} name="fixedPricePaise" label={t('Selling price')} slotProps={adorn('₹', 'start')} />
                   </Grid>
                 )}
                 <Grid size={{ xs: 12, sm: 6 }}>
-                  <RHFTextField control={control} name="otherChargePaise" label="Other charges" helperText="Hallmarking, certificate, packaging" slotProps={adorn('₹', 'start')} />
+                  <RHFTextField control={control} name="otherChargePaise" label={t('Other charges')} helperText={t('Hallmarking, certificate, packaging')} slotProps={adorn('₹', 'start')} />
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6 }}>
-                  <RHFTextField control={control} name="hsnCode" label="HSN code" helperText="Blank uses the default" slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 8 } }} />
+                  <RHFTextField control={control} name="hsnCode" label={t('HSN code')} helperText={t('Blank uses the default')} slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 8 } }} />
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6 }}>
-                  <RHFTextField control={control} name="certificateNo" label="Certificate no." helperText="Diamond certificate (IGI, GIA…)" />
+                  <RHFTextField control={control} name="certificateNo" label={t('Certificate no.')} helperText={t('Diamond certificate (IGI, GIA…)')} />
                 </Grid>
                 {canSeeSuppliers && (
                   <Grid size={{ xs: 12, sm: 6 }}>
-                    <RHFSelect control={control} name="supplierId" label="Supplier" options={supplierOptions} placeholder="None" />
+                    <RHFSelect control={control} name="supplierId" label={t('Supplier')} options={supplierOptions} placeholder={t('None')} />
                   </Grid>
                 )}
                 <Grid size={12}>
-                  <RHFTextField control={control} name="description" label="Description" multiline minRows={2} />
+                  <RHFTextField control={control} name="description" label={t('Description')} multiline minRows={2} />
                 </Grid>
               </Grid>
             </MoreDetails>
@@ -412,10 +413,10 @@ export default function ProductFormPage() {
         }}
       >
         <Button color="secondary" onClick={() => navigate(editing ? `/products/${id}` : '/products')} disabled={saving}>
-          Cancel
+          {t('Cancel')}
         </Button>
         <Button type="submit" variant="contained" loading={saving} disabled={editing && !formState.isDirty}>
-          {editing ? 'Save changes' : 'Create product'}
+          {editing ? t('Save changes') : t('Create product')}
         </Button>
       </Paper>
     </Box>

@@ -7,6 +7,7 @@ import toast from 'react-hot-toast';
 import AuthImage from '../../components/AuthImage.jsx';
 import { getErrorMessage } from '../../utils/errors.js';
 import { useAddProductImageMutation, useRemoveProductImageMutation, useSetPrimaryProductImageMutation } from './productApi.js';
+import { t } from '../../i18n/index.js';
 
 const MAX_IMAGES = 8;
 const MAX_BYTES = 5 * 1024 * 1024;
@@ -25,7 +26,7 @@ export default function ProductImages({ product, canEdit }) {
     e.target.value = '';
     for (const file of files) {
       if (file.size > MAX_BYTES) {
-        toast.error(`${file.name} is larger than 5 MB`);
+        toast.error(t('{{name}} is larger than 5 MB', { name: file.name }));
         continue;
       }
       try {
@@ -65,19 +66,19 @@ export default function ProductImages({ product, canEdit }) {
         <Stack direction="row" spacing={1} sx={{ mt: 1.5, alignItems: 'center' }}>
           <input ref={input} type="file" accept="image/png,image/jpeg,image/webp" multiple hidden onChange={upload} />
           <Button size="small" variant="outlined" color="secondary" startIcon={<AddPhotoAlternateOutlinedIcon />} onClick={() => input.current?.click()} loading={uploading} disabled={images.length >= MAX_IMAGES}>
-            Add photos
+            {t('Add photos')}
           </Button>
           {current && (
             <>
               {images.indexOf(current) > 0 && (
-                <Tooltip title="Make main photo">
-                  <IconButton size="small" onClick={() => act(() => setPrimary({ id: product.id, fileId: current }), 'Main photo updated')} aria-label="Make main photo">
+                <Tooltip title={t('Make main photo')}>
+                  <IconButton size="small" onClick={() => act(() => setPrimary({ id: product.id, fileId: current }), t('Main photo updated'))} aria-label={t('Make main photo')}>
                     <StarOutlineRoundedIcon fontSize="small" />
                   </IconButton>
                 </Tooltip>
               )}
-              <Tooltip title="Remove photo">
-                <IconButton size="small" color="error" onClick={() => act(() => removeImage({ id: product.id, fileId: current }), 'Photo removed')} aria-label="Remove photo">
+              <Tooltip title={t('Remove photo')}>
+                <IconButton size="small" color="error" onClick={() => act(() => removeImage({ id: product.id, fileId: current }), t('Photo removed'))} aria-label={t('Remove photo')}>
                   <DeleteOutlineRoundedIcon fontSize="small" />
                 </IconButton>
               </Tooltip>

@@ -8,14 +8,15 @@ import { getErrorMessage } from '../../utils/errors.js';
 import { inr, SubscriptionChip, UsageBar } from '../billing/billingUi.jsx';
 import { paymentColumns } from './PaymentsPage.jsx';
 import { useAssignPlanMutation, useOrganisationBillingQuery, usePlansQuery } from './platformApi.js';
+import { t } from '../../i18n/index.js';
 
 // How the plan was paid. "Free" activates it complimentary (no amount).
 const PAID_BY = [
-  ['bank', 'Bank transfer'],
+  ['bank', t('Bank transfer')],
   ['upi', 'UPI'],
-  ['cash', 'Cash'],
-  ['cheque', 'Cheque'],
-  ['free', 'Free (complimentary)'],
+  ['cash', t('Cash')],
+  ['cheque', t('Cheque')],
+  ['free', t('Free (complimentary)')],
 ];
 
 /**
@@ -43,14 +44,14 @@ function ActivatePlanDialog({ orgId, current, onClose }) {
   const summary = !plan
     ? ''
     : other === 'trial'
-      ? `${n}-day free trial of ${plan.name}, from today`
+      ? t('{{n}}-day free trial of {{name}}, from today', { n, name: plan.name })
       : other === 'extend'
-        ? `${n} more day${n === 1 ? '' : 's'} on the current ${current?.status === 'trial' ? 'trial' : 'plan'}`
-        : `${plan.name} · ${plan.durationMonths} month${plan.durationMonths === 1 ? '' : 's'} · ${free ? 'Free' : inr(plan.pricePaise)}`;
+        ? (n === 1 ? (current?.status === 'trial' ? t('{{n}} more day on the current trial', { n }) : t('{{n}} more day on the current plan', { n })) : (current?.status === 'trial' ? t('{{n}} more days on the current trial', { n }) : t('{{n}} more days on the current plan', { n })))
+        : t(plan.durationMonths === 1 ? '{{name}} · {{months}} month · {{price}}' : '{{name}} · {{months}} months · {{price}}', { name: plan.name, months: plan.durationMonths, price: free ? t('Free') : inr(plan.pricePaise) });
 
   const submit = async () => {
     if (other && !n) {
-      toast.error('Enter the number of days');
+      toast.error(t('Enter the number of days'));
       return;
     }
     try {
@@ -63,7 +64,7 @@ function ActivatePlanDialog({ orgId, current, onClose }) {
             ? { mode: 'complimentary', months: plan.durationMonths }
             : { mode: 'manual', months: plan.durationMonths, amountPaise: plan.pricePaise, paymentMode: paidBy, reference: reference.trim() || null }),
       }).unwrap();
-      toast.success(other === 'trial' ? 'Free trial started' : other === 'extend' ? 'Subscription extended' : `${plan.name} activated`);
+      toast.success(other === 'trial' ? t('Free trial started') : other === 'extend' ? t('Subscription extended') : t('{{name}} activated', { name: plan.name }));
       onClose();
     } catch (err) {
       toast.error(getErrorMessage(err));
@@ -72,29 +73,29 @@ function ActivatePlanDialog({ orgId, current, onClose }) {
 
   return (
     <Dialog open onClose={state.isLoading ? undefined : onClose} maxWidth="xs" fullWidth>
-      <DialogTitle sx={{ fontWeight: 700 }}>{other === 'trial' ? 'Start a free trial' : other === 'extend' ? 'Add days' : 'Activate plan'}</DialogTitle>
+      <DialogTitle sx={{ fontWeight: 700 }}>{other === 'trial' ? t('Start a free trial') : other === 'extend' ? t('Add days') : t('Activate plan')}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ pt: 1 }}>
-          <TextField select label="Plan" value={planId} onChange={(e) => setPlanId(e.target.value)}>
+          <TextField select label={t('Plan')} value={planId} onChange={(e) => setPlanId(e.target.value)}>
             {(plans ?? []).map((p) => (
               <MenuItem key={p.id} value={String(p.id)}>
-                {p.name} · {p.pricePaise ? `${inr(p.pricePaise)} / ${p.durationMonths} mo` : 'Free'}
+                {p.name} · {p.pricePaise ? t('{{inr}} / {{durationMonths}} mo', { inr: inr(p.pricePaise), durationMonths: p.durationMonths }) : t('Free')}
               </MenuItem>
             ))}
           </TextField>
 
           {other ? (
-            <TextField label={other === 'trial' ? 'Trial days' : 'Days to add'} value={days} onChange={(e) => setDays(e.target.value.replace(/\D/g, ''))} slotProps={{ input: { endAdornment: <InputAdornment position="end">days</InputAdornment> } }} />
+            <TextField label={other === 'trial' ? t('Trial days') : t('Days to add')} value={days} onChange={(e) => setDays(e.target.value.replace(/\D/g, ''))} slotProps={{ input: { endAdornment: <InputAdornment position="end">{t('days')}</InputAdornment> } }} />
           ) : (
             <>
-              <TextField select label="Paid by" value={paidBy} onChange={(e) => setPaidBy(e.target.value)}>
+              <TextField select label={t('Paid by')} value={paidBy} onChange={(e) => setPaidBy(e.target.value)}>
                 {PAID_BY.map(([v, l]) => (
                   <MenuItem key={v} value={v}>
                     {l}
                   </MenuItem>
                 ))}
               </TextField>
-              {!free && <TextField label="Reference (optional)" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="UTR / cheque / receipt no." />}
+              {!free && <TextField label={t('Reference (optional)')} value={reference} onChange={(e) => setReference(e.target.value)} placeholder={t('UTR / cheque / receipt no.')} />}
             </>
           )}
 
@@ -109,35 +110,38 @@ function ActivatePlanDialog({ orgId, current, onClose }) {
           <Typography variant="caption" color="textSecondary" sx={{ textAlign: 'center' }}>
             {other ? (
               <Link component="button" type="button" variant="caption" onClick={() => setOther(null)}>
-                Back to activate plan
+                {t('Back to activate plan')}
               </Link>
             ) : (
               <>
-                Need a{' '}
-                <Link
-                  component="button"
-                  type="button"
-                  variant="caption"
-                  onClick={() => {
-                    setOther('trial');
-                    setDays('14');
-                  }}
-                >
-                  free trial
-                </Link>{' '}
-                or{' '}
-                <Link
-                  component="button"
-                  type="button"
-                  variant="caption"
-                  onClick={() => {
-                    setOther('extend');
-                    setDays('30');
-                  }}
-                >
-                  extra days
-                </Link>{' '}
-                instead?
+                {t('Need a {{trial}} or {{days}} instead?', {
+                  trial: (
+                    <Link
+                      component="button"
+                      type="button"
+                      variant="caption"
+                      onClick={() => {
+                        setOther('trial');
+                        setDays('14');
+                      }}
+                    >
+                      {t('free trial')}
+                    </Link>
+                  ),
+                  days: (
+                    <Link
+                      component="button"
+                      type="button"
+                      variant="caption"
+                      onClick={() => {
+                        setOther('extend');
+                        setDays('30');
+                      }}
+                    >
+                      {t('extra days')}
+                    </Link>
+                  ),
+                })}
               </>
             )}
           </Typography>
@@ -145,10 +149,10 @@ function ActivatePlanDialog({ orgId, current, onClose }) {
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button color="secondary" onClick={onClose} disabled={state.isLoading}>
-          Cancel
+          {t('Cancel')}
         </Button>
         <Button variant="contained" onClick={submit} disabled={!plan} loading={state.isLoading}>
-          {other === 'trial' ? 'Start trial' : other === 'extend' ? 'Add days' : 'Activate'}
+          {other === 'trial' ? t('Start trial') : other === 'extend' ? t('Add days') : t('Activate')}
         </Button>
       </DialogActions>
     </Dialog>
@@ -165,7 +169,7 @@ export function OrgPaymentsTable({ orgId }) {
       loading={isLoading}
       error={error}
       onRetry={refetch}
-      empty={{ title: 'Nothing yet', description: 'Every activation shows here — online payments, payments you record, complimentary plans, trials and extensions.' }}
+      empty={{ title: t('Nothing yet'), description: t('Every activation shows here — online payments, payments you record, complimentary plans, trials and extensions.') }}
     />
   );
 }
@@ -183,33 +187,33 @@ export default function OrgSubscriptionPanel({ orgId }) {
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ justifyContent: 'space-between', alignItems: { sm: 'flex-start' }, mb: 2 }}>
           <Box>
             <Typography variant="overline" color="textSecondary">
-              Subscription
+              {t('Subscription')}
             </Typography>
             <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-              <Typography variant="h3">{s.planName ?? 'No plan'}</Typography>
+              <Typography variant="h3">{s.planName ?? t('No plan')}</Typography>
               <SubscriptionChip status={s.status} />
             </Stack>
             <Typography variant="body2" color={s.expired ? 'error' : 'textSecondary'} sx={{ mt: 0.5, fontWeight: s.expired ? 600 : 400 }}>
               {s.expired
-                ? `Ended ${s.endsAt ? formatDate(s.endsAt) : ''} — the organisation is locked until it renews`
+                ? t('Ended {{value}} — the organisation is locked until it renews', { value: s.endsAt ? formatDate(s.endsAt) : '' })
                 : s.endsAt
-                  ? `${s.status === 'trial' ? 'Trial ends' : 'Paid until'} ${formatDate(s.endsAt)} · ${s.daysLeft} day${s.daysLeft === 1 ? '' : 's'} left`
+                  ? (s.status === 'trial' ? (s.daysLeft === 1 ? t('Trial ends {{endsAt}} · {{daysLeft}} day left', { endsAt: formatDate(s.endsAt), daysLeft: s.daysLeft }) : t('Trial ends {{endsAt}} · {{daysLeft}} days left', { endsAt: formatDate(s.endsAt), daysLeft: s.daysLeft })) : (s.daysLeft === 1 ? t('Paid until {{endsAt}} · {{daysLeft}} day left', { endsAt: formatDate(s.endsAt), daysLeft: s.daysLeft }) : t('Paid until {{endsAt}} · {{daysLeft}} days left', { endsAt: formatDate(s.endsAt), daysLeft: s.daysLeft })))
                   : '—'}
             </Typography>
           </Box>
           <Button variant="contained" startIcon={<VerifiedOutlinedIcon />} onClick={() => setActivating(true)} sx={{ flexShrink: 0 }}>
-            Activate plan
+            {t('Activate plan')}
           </Button>
         </Stack>
         <Grid container spacing={2} sx={{ mb: 2.5 }}>
           <Grid size={{ xs: 12, md: 4 }}>
-            <UsageBar label="Users" used={data.usage.users} limit={s.limits.users} />
+            <UsageBar label={t('Users')} used={data.usage.users} limit={s.limits.users} />
           </Grid>
           <Grid size={{ xs: 12, md: 4 }}>
-            <UsageBar label="Branches" used={data.usage.branches} limit={s.limits.branches} />
+            <UsageBar label={t('Branches')} used={data.usage.branches} limit={s.limits.branches} />
           </Grid>
           <Grid size={{ xs: 12, md: 4 }}>
-            <UsageBar label="Products" used={data.usage.products} limit={s.limits.products} />
+            <UsageBar label={t('Products')} used={data.usage.products} limit={s.limits.products} />
           </Grid>
         </Grid>
       </CardContent>

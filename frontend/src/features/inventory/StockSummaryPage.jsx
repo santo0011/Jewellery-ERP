@@ -6,6 +6,7 @@ import { EmptyState, ErrorState, LoadingState } from '../../components/StateView
 import { usePermission } from '../../hooks/usePermission.js';
 import { purityLabel } from '../products/productForm.js';
 import { useStockSummaryQuery } from './inventoryApi.js';
+import { t } from '../../i18n/index.js';
 
 const metalName = (m) => METAL_OPTIONS.find((o) => o.value === m)?.label ?? m;
 
@@ -21,9 +22,9 @@ export default function StockSummaryPage() {
   return (
     <>
       <PageHeader
-        title="Stock summary"
-        subtitle="Live stock by metal and purity, weighed to the milligram."
-        breadcrumbs={[{ label: 'Stock' }, { label: 'Stock summary' }]}
+        title={t('Stock summary')}
+        subtitle={t('Live stock by metal and purity, weighed to the milligram.')}
+        breadcrumbs={[{ label: t('Stock') }, { label: t('Stock summary') }]}
       />
       {isLoading ? (
         <LoadingState />
@@ -32,12 +33,12 @@ export default function StockSummaryPage() {
       ) : !data.products.length && !data.metalPools.length ? (
         <Card>
           <EmptyState
-            title="Nothing in stock yet"
-            description="Create products, then post them with an opening stock entry. Bullion and old gold can be added there too."
+            title={t('Nothing in stock yet')}
+            description={t('Create products, then post them with an opening stock entry. Bullion and old gold can be added there too.')}
             action={
               canAdjust && (
                 <Button component={RouterLink} to="/inventory/opening" variant="contained">
-                  Go to opening stock
+                  {t('Go to opening stock')}
                 </Button>
               )
             }
@@ -46,8 +47,8 @@ export default function StockSummaryPage() {
       ) : (
         <>
           {data.inTransit > 0 && (
-            <Alert severity="info" sx={{ mb: 2 }} action={<Button component={RouterLink} to="/inventory/transfers" color="inherit" size="small">View</Button>}>
-              {data.inTransit} item{data.inTransit === 1 ? ' is' : 's are'} in transit between branches and not counted below.
+            <Alert severity="info" sx={{ mb: 2 }} action={<Button component={RouterLink} to="/inventory/transfers" color="inherit" size="small">{t('View')}</Button>}>
+              {(data.inTransit === 1 ? t('{{inTransit}} item is in transit between branches and not counted below.', { inTransit: data.inTransit }) : t('{{inTransit}} items are in transit between branches and not counted below.', { inTransit: data.inTransit }))}
             </Alert>
           )}
           <Grid container spacing={2} sx={{ mb: 3 }}>
@@ -56,13 +57,13 @@ export default function StockSummaryPage() {
                 <Card sx={{ borderTop: 3, borderTopColor: metal === 'gold' ? 'primary.main' : 'divider' }}>
                   <CardContent>
                     <Typography variant="overline" color="textSecondary">
-                      Total fine {metalName(metal).toLowerCase()}
+                      {t('Total fine {{metalName}}', { metalName: metalName(metal).toLowerCase() })}
                     </Typography>
                     <Typography variant="h2" component="p" sx={{ color: metal === 'gold' ? 'accent.main' : 'text.primary' }}>
                       {formatWeight(fine)}
                     </Typography>
                     <Typography variant="caption" color="textSecondary">
-                      Jewellery + metal stock, in pure-metal terms
+                      {t('Jewellery + metal stock, in pure-metal terms')}
                     </Typography>
                   </CardContent>
                 </Card>
@@ -71,19 +72,19 @@ export default function StockSummaryPage() {
           </Grid>
 
           <Typography variant="h4" sx={{ mb: 1.5 }}>
-            Jewellery in stock
+            {t('Jewellery in stock')}
           </Typography>
           <Card sx={{ mb: 3, overflowX: 'auto' }}>
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell>Metal & purity</TableCell>
-                  <TableCell align="right">Items</TableCell>
-                  <TableCell align="right">Pieces</TableCell>
-                  <TableCell align="right">Gross</TableCell>
-                  <TableCell align="right">Net</TableCell>
-                  <TableCell align="right">Fine</TableCell>
-                  {canSeeCost && <TableCell align="right">Cost value</TableCell>}
+                  <TableCell>{t('Metal & purity')}</TableCell>
+                  <TableCell align="right">{t('Items')}</TableCell>
+                  <TableCell align="right">{t('Pieces')}</TableCell>
+                  <TableCell align="right">{t('Gross')}</TableCell>
+                  <TableCell align="right">{t('Net')}</TableCell>
+                  <TableCell align="right">{t('Fine')}</TableCell>
+                  {canSeeCost && <TableCell align="right">{t('Cost value')}</TableCell>}
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -91,7 +92,7 @@ export default function StockSummaryPage() {
                   <TableRow>
                     <TableCell colSpan={7}>
                       <Typography variant="body2" color="textSecondary">
-                        No tagged items in stock.
+                        {t('No tagged items in stock.')}
                       </Typography>
                     </TableCell>
                   </TableRow>
@@ -117,18 +118,18 @@ export default function StockSummaryPage() {
           </Card>
 
           <Typography variant="h4" sx={{ mb: 1.5 }}>
-            Metal stock
+            {t('Metal stock')}
           </Typography>
           <Card sx={{ overflowX: 'auto' }}>
             <Table size="small">
               <TableHead>
                 <TableRow>
-                  <TableCell>Branch</TableCell>
-                  <TableCell>Metal & purity</TableCell>
-                  <TableCell>Type</TableCell>
-                  <TableCell align="right">Gross</TableCell>
-                  <TableCell align="right">Fine</TableCell>
-                  {canSeeCost && <TableCell align="right">Value</TableCell>}
+                  <TableCell>{t('Branch')}</TableCell>
+                  <TableCell>{t('Metal & purity')}</TableCell>
+                  <TableCell>{t('Type')}</TableCell>
+                  <TableCell align="right">{t('Gross')}</TableCell>
+                  <TableCell align="right">{t('Fine')}</TableCell>
+                  {canSeeCost && <TableCell align="right">{t('Value')}</TableCell>}
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -136,7 +137,7 @@ export default function StockSummaryPage() {
                   <TableRow>
                     <TableCell colSpan={6}>
                       <Typography variant="body2" color="textSecondary">
-                        No bullion, old gold or scrap held.
+                        {t('No bullion, old gold or scrap held.')}
                       </Typography>
                     </TableCell>
                   </TableRow>

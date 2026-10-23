@@ -8,6 +8,7 @@ import FormDrawer from '../../components/FormDrawer.jsx';
 import { useSession } from '../../hooks/usePermission.js';
 import { getErrorMessage } from '../../utils/errors.js';
 import { useCreateExpenseCategoryMutation, useCreateExpenseMutation, useExpenseCategoriesQuery, useUpdateExpenseMutation } from './financeApi.js';
+import { t } from '../../i18n/index.js';
 
 const todayIso = () => {
   const d = new Date();
@@ -33,7 +34,7 @@ function CategoryChips({ categories, value, onChange, error }) {
       onChange(cat.id);
       setName('');
       setAdding(false);
-      toast.success(`${cat.name} added`);
+      toast.success(t('{{name}} added', { name: cat.name }));
     } catch (err) {
       toast.error(getErrorMessage(err));
     }
@@ -42,7 +43,7 @@ function CategoryChips({ categories, value, onChange, error }) {
   return (
     <Box>
       <Typography variant="caption" sx={{ fontWeight: 600, color: error ? 'error.main' : 'text.secondary', display: 'block', mb: 0.75 }}>
-        Category{error ? ` — ${error}` : ''}
+        {t('Category')}{error ? ` — ${error}` : ''}
       </Typography>
       <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 0.75 }}>
         {list.map((c) => {
@@ -61,18 +62,18 @@ function CategoryChips({ categories, value, onChange, error }) {
         {!adding && (
           <ButtonBase onClick={() => setAdding(true)} sx={{ px: 1.25, py: 0.75, gap: 0.25, borderRadius: 999, border: '1px dashed', borderColor: 'rgba(var(--brand-rgb), 0.5)', color: 'var(--brand-strong)', fontSize: '0.8125rem', fontWeight: 600 }}>
             <AddRoundedIcon sx={{ fontSize: 16 }} />
-            New
+            {t('New')}
           </ButtonBase>
         )}
       </Stack>
       {adding && (
         <Stack direction="row" spacing={1} sx={{ mt: 1.25 }}>
-          <TextField size="small" autoFocus label="New category" placeholder="e.g. Security guard" value={name} onChange={(e) => setName(e.target.value)} slotProps={{ htmlInput: { maxLength: 60 } }} onKeyDown={(e) => e.key === 'Enter' && name.trim().length >= 2 && (e.preventDefault(), add())} />
+          <TextField size="small" autoFocus label={t('New category')} placeholder={t('e.g. Security guard')} value={name} onChange={(e) => setName(e.target.value)} slotProps={{ htmlInput: { maxLength: 60 } }} onKeyDown={(e) => e.key === 'Enter' && name.trim().length >= 2 && (e.preventDefault(), add())} />
           <Button variant="outlined" color="secondary" onClick={add} disabled={name.trim().length < 2} loading={isLoading} sx={{ flexShrink: 0 }}>
-            Add
+            {t('Add')}
           </Button>
           <Button onClick={() => setAdding(false)} sx={{ flexShrink: 0 }}>
-            Cancel
+            {t('Cancel')}
           </Button>
         </Stack>
       )}
@@ -109,26 +110,26 @@ export default function ExpenseFormDrawer({ open, expense, onClose }) {
   const amountPaise = paiseOf(form.amount);
   const submit = async () => {
     const e = {};
-    if (!form.categoryId) e.categoryId = 'pick one';
-    if (amountPaise === null || amountPaise <= 0) e.amount = 'Enter the amount';
-    if (!form.date) e.date = 'Pick the date';
-    else if (form.date > todayIso()) e.date = 'Cannot be in the future';
-    if (editing && form.reason.trim().length < 3) e.reason = 'Say why it is being changed';
+    if (!form.categoryId) e.categoryId = t('pick one');
+    if (amountPaise === null || amountPaise <= 0) e.amount = t('Enter the amount');
+    if (!form.date) e.date = t('Pick the date');
+    else if (form.date > todayIso()) e.date = t('Cannot be in the future');
+    if (editing && form.reason.trim().length < 3) e.reason = t('Say why it is being changed');
     setErrors(e);
     if (Object.keys(e).length) return;
     const payload = { categoryId: form.categoryId, date: form.date, amountPaise, mode: form.mode, reference: form.mode === 'cash' ? null : form.reference.trim() || null, note: form.note.trim() || null };
     try {
       if (editing) {
         await update({ id: expense.id, ...payload, reason: form.reason.trim() }).unwrap();
-        toast.success('Expense corrected');
+        toast.success(t('Expense corrected'));
       } else {
         const saved = await create({ ...payload, branchId }).unwrap();
-        toast.success(`${formatINR(saved.amountPaise, { decimals: 0 })} · ${saved.category.name} saved`);
+        toast.success(t('{{amount}} · {{name}} saved', { amount: formatINR(saved.amountPaise, { decimals: 0 }), name: saved.category.name }));
       }
       onClose();
     } catch (err) {
       const d = err?.data?.error?.details?.[0];
-      if (d?.path) setErrors({ [d.path === 'amountPaise' ? 'amount' : d.path]: d.message });
+      if (d?.path) setErrors({ [d.path === 'amountPaise' ? 'amount' : d.path]: t(d.message) });
       toast.error(getErrorMessage(err));
     }
   };
@@ -136,15 +137,15 @@ export default function ExpenseFormDrawer({ open, expense, onClose }) {
   return (
     <FormDrawer
       open={open}
-      title={editing ? `Correct ${expense.expenseNo}` : 'Add expense'}
-      subtitle={editing ? 'The books are corrected on the expense’s own date; the reason is kept.' : 'Paid today or earlier — shop costs only. Salary comes from Payroll.'}
+      title={editing ? t('Correct {{expenseNo}}', { expenseNo: expense.expenseNo }) : t('Add expense')}
+      subtitle={editing ? t('The books are corrected on the expense’s own date; the reason is kept.') : t('Paid today or earlier — shop costs only. Salary comes from Payroll.')}
       onClose={onClose}
       onSubmit={(ev) => {
         ev?.preventDefault?.();
         submit();
       }}
       submitting={createState.isLoading || updateState.isLoading}
-      submitLabel={editing ? 'Save correction' : 'Save expense'}
+      submitLabel={editing ? t('Save correction') : t('Save expense')}
       width={520}
     >
       <Grid container spacing={2}>
@@ -153,7 +154,7 @@ export default function ExpenseFormDrawer({ open, expense, onClose }) {
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
-            label="Amount"
+            label={t('Amount')}
             value={form.amount}
             onChange={(e) => set('amount')(e.target.value.replace(/[^\d.]/g, ''))}
             error={Boolean(errors.amount)}
@@ -163,11 +164,11 @@ export default function ExpenseFormDrawer({ open, expense, onClose }) {
           />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
-          <TextField label="Date" type="date" value={form.date} onChange={(e) => set('date')(e.target.value)} error={Boolean(errors.date)} helperText={errors.date} slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: todayIso() } }} />
+          <TextField label={t('Date')} type="date" value={form.date} onChange={(e) => set('date')(e.target.value)} error={Boolean(errors.date)} helperText={errors.date} slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: todayIso() } }} />
         </Grid>
         <Grid size={12}>
           <Typography variant="caption" color="textSecondary" sx={{ fontWeight: 600, display: 'block', mb: 0.75 }}>
-            Paid by
+            {t('Paid by')}
           </Typography>
           <ToggleButtonGroup exclusive fullWidth size="small" value={form.mode} onChange={(e, v) => v && set('mode')(v)}>
             {EXPENSE_PAY_MODES.map((m) => (
@@ -179,15 +180,15 @@ export default function ExpenseFormDrawer({ open, expense, onClose }) {
         </Grid>
         {form.mode !== 'cash' && (
           <Grid size={12}>
-            <TextField label="Reference (optional)" placeholder="UPI / bank / card ref." value={form.reference} onChange={(e) => set('reference')(e.target.value)} slotProps={{ htmlInput: { maxLength: 60 } }} />
+            <TextField label={t('Reference (optional)')} placeholder={t('UPI / bank / card ref.')} value={form.reference} onChange={(e) => set('reference')(e.target.value)} slotProps={{ htmlInput: { maxLength: 60 } }} />
           </Grid>
         )}
         <Grid size={12}>
-          <TextField label="Description (optional)" placeholder="e.g. Electricity bill for September" value={form.note} onChange={(e) => set('note')(e.target.value)} multiline minRows={2} slotProps={{ htmlInput: { maxLength: 300 } }} />
+          <TextField label={t('Description (optional)')} placeholder={t('e.g. Electricity bill for September')} value={form.note} onChange={(e) => set('note')(e.target.value)} multiline minRows={2} slotProps={{ htmlInput: { maxLength: 300 } }} />
         </Grid>
         {!editing && branches.length > 1 && (
           <Grid size={12}>
-            <TextField select label="Branch" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
+            <TextField select label={t('Branch')} value={branchId} onChange={(e) => setBranchId(e.target.value)}>
               {branches.map((b) => (
                 <MenuItem key={b.id} value={b.id}>
                   {b.name}
@@ -199,11 +200,11 @@ export default function ExpenseFormDrawer({ open, expense, onClose }) {
         {editing && (
           <>
             <Grid size={12}>
-              <TextField label="Reason for the change" value={form.reason} onChange={(e) => set('reason')(e.target.value)} error={Boolean(errors.reason)} helperText={errors.reason} slotProps={{ htmlInput: { maxLength: 200 } }} />
+              <TextField label={t('Reason for the change')} value={form.reason} onChange={(e) => set('reason')(e.target.value)} error={Boolean(errors.reason)} helperText={errors.reason} slotProps={{ htmlInput: { maxLength: 200 } }} />
             </Grid>
             <Grid size={12}>
               <Alert severity="info" variant="outlined">
-                The original entry is reversed and this one posted on {form.date || 'its date'}, so that month’s figures stay right.
+                {t('The original entry is reversed and this one posted on {{date}}, so that month’s figures stay right.', { date: form.date || t('its date') })}
               </Alert>
             </Grid>
           </>

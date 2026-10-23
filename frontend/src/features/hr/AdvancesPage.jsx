@@ -16,6 +16,7 @@ import AdvanceDrawer from './AdvanceDrawer.jsx';
 import { AdvanceActions } from './AdvanceHistory.jsx';
 import { useAdvanceListQuery } from './hrApi.js';
 import { monthLabel, payModeLabel } from './hrUi.jsx';
+import { t } from '../../i18n/index.js';
 
 const filterSlots = { inputLabel: { shrink: true }, select: { displayEmpty: true } };
 
@@ -30,7 +31,7 @@ export default function AdvancesPage() {
   const columns = [
     {
       key: 'employee',
-      label: 'Employee',
+      label: t('Employee'),
       render: (a) => (
         <Box>
           <Typography variant="subtitle2">{a.employee.name}</Typography>
@@ -42,7 +43,7 @@ export default function AdvancesPage() {
     },
     {
       key: 'given',
-      label: 'Given on',
+      label: t('Given on'),
       render: (a) => (
         <Box>
           <Typography variant="body2">{formatDate(a.businessDate)}</Typography>
@@ -52,21 +53,21 @@ export default function AdvancesPage() {
     },
     {
       key: 'plan',
-      label: 'Deducted from',
+      label: t('Deducted from'),
       render: (a) => (
         <Box>
           <Typography variant="body2" sx={{ fontWeight: 600 }}>
-            {a.recoverFrom ? `${monthLabel(a.recoverFrom)} salary` : 'Next payroll'}
+            {a.recoverFrom ? t('{{monthLabel}} salary', { monthLabel: monthLabel(a.recoverFrom) }) : t('Next payroll')}
           </Typography>
           <Typography variant="caption" color="textSecondary">
-            {a.instalments <= 1 ? 'All at once' : `${formatINR(a.installmentPaise, { decimals: 0 })} × ${a.instalments} months`}
+            {a.instalments <= 1 ? t('All at once') : t('{{installment}} × {{instalments}} months', { installment: formatINR(a.installmentPaise, { decimals: 0 }), instalments: a.instalments })}
           </Typography>
         </Box>
       ),
     },
     {
       key: 'recovered',
-      label: 'Recovered',
+      label: t('Recovered'),
       width: 190,
       render: (a) => {
         const pct = Math.round((a.recoveredPaise / a.amountPaise) * 100);
@@ -77,7 +78,7 @@ export default function AdvancesPage() {
                 {formatINR(a.recoveredPaise, { decimals: 0 })}
               </Typography>
               <Typography variant="caption" sx={{ fontWeight: 600, color: a.balancePaise ? 'error.main' : 'success.main' }}>
-                {a.balancePaise ? `${formatINR(a.balancePaise, { decimals: 0 })} left` : 'Done'}
+                {a.balancePaise ? t('{{balance}} left', { balance: formatINR(a.balancePaise, { decimals: 0 }) }) : t('Done')}
               </Typography>
             </Stack>
             <LinearProgress variant="determinate" value={pct} color={a.balancePaise ? 'warning' : 'success'} sx={{ height: 6, borderRadius: 3 }} />
@@ -85,26 +86,26 @@ export default function AdvancesPage() {
         );
       },
     },
-    { key: 'status', label: 'Status', render: (a) => <Chip size="small" label={a.status === 'open' ? 'Recovering' : 'Closed'} color={a.status === 'open' ? 'warning' : 'default'} variant="outlined" sx={{ height: 22 }} /> },
+    { key: 'status', label: t('Status'), render: (a) => <Chip size="small" label={a.status === 'open' ? t('Recovering') : t('Closed')} color={a.status === 'open' ? 'warning' : 'default'} variant="outlined" sx={{ height: 22 }} /> },
   ];
 
   return (
     <>
       <PageHeader
-        title="Salary advances"
+        title={t('Salary advances')}
         subtitle={
           data?.meta ? (
             <>
-              Outstanding with staff: <Amount paise={data.meta.outstandingPaise} tone={data.meta.outstandingPaise ? 'due' : 'paid'} decimals={0} /> · recovered automatically from monthly payroll.
+              {t('Outstanding with staff:')} <Amount paise={data.meta.outstandingPaise} tone={data.meta.outstandingPaise ? 'due' : 'paid'} decimals={0} /> {t('· recovered automatically from monthly payroll.')}
             </>
           ) : (
-            'Recovered automatically from monthly payroll.'
+            t('Recovered automatically from monthly payroll.')
           )
         }
         actions={
           canGive && (
             <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setOpen(true)}>
-              Give advance
+              {t('Give advance')}
             </Button>
           )
         }
@@ -114,14 +115,14 @@ export default function AdvancesPage() {
           ...columns,
           {
             key: 'actions',
-            label: 'Action',
+            label: t('Action'),
             align: 'right',
             width: 166,
             render: (a) => (
               <Stack direction="row" sx={{ justifyContent: 'flex-end', alignItems: 'center' }}>
                 <AdvanceActions advance={a} canEdit={canGive} onEdit={setEditAdvance} />
-                <ViewButton title="Open employee" name={a.employee.name} onClick={() => navigate(`/hr/employees/${a.employee.id}`)} />
-                <DisabledDelete reason="Salary advances are in the accounts and cannot be deleted. You can still edit one on the day it was given." />
+                <ViewButton title={t('Open employee')} name={a.employee.name} onClick={() => navigate(`/hr/employees/${a.employee.id}`)} />
+                <DisabledDelete reason={t('Salary advances are in the accounts and cannot be deleted. You can still edit one on the day it was given.')} />
               </Stack>
             ),
           },
@@ -131,15 +132,15 @@ export default function AdvancesPage() {
         fetching={isFetching}
         error={error}
         onRetry={refetch}
-        empty={{ title: list.filters.status === 'open' ? 'No advances being recovered' : 'No advances', description: 'Advances given to staff appear here with what is still to be recovered.' }}
+        empty={{ title: list.filters.status === 'open' ? t('No advances being recovered') : t('No advances'), description: t('Advances given to staff appear here with what is still to be recovered.') }}
         pagination={list.pagination(data?.meta)}
         toolbar={
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-            <SearchField value={list.search} onChange={list.setSearch} placeholder="Search advance no. or reason" />
-            <TextField select label="Status" value={list.filters.status} onChange={(e) => list.setFilter('status', e.target.value)} slotProps={filterSlots} sx={{ width: { sm: 170 }, flexShrink: 0 }}>
-              <MenuItem value="">All</MenuItem>
-              <MenuItem value="open">Recovering</MenuItem>
-              <MenuItem value="closed">Closed</MenuItem>
+            <SearchField value={list.search} onChange={list.setSearch} placeholder={t('Search advance no. or reason')} />
+            <TextField select label={t('Status')} value={list.filters.status} onChange={(e) => list.setFilter('status', e.target.value)} slotProps={filterSlots} sx={{ width: { sm: 170 }, flexShrink: 0 }}>
+              <MenuItem value="">{t('All')}</MenuItem>
+              <MenuItem value="open">{t('Recovering')}</MenuItem>
+              <MenuItem value="closed">{t('Closed')}</MenuItem>
             </TextField>
           </Stack>
         }

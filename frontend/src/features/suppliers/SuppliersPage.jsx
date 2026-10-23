@@ -21,6 +21,7 @@ import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalance
 import Amount from '../../components/Amount.jsx';
 import PaySupplierDialog from './PaySupplierDialog.jsx';
 import { useDeleteStatus } from '../../services/recordApi.js';
+import { t } from '../../i18n/index.js';
 
 export const suppliesLabel = (list) => list.map((v) => SUPPLIER_SUPPLIES.find((s) => s.value === v)?.label ?? v).join(', ');
 
@@ -40,7 +41,7 @@ export default function SuppliersPage() {
   const columns = [
     {
       key: 'companyName',
-      label: 'Supplier',
+      label: t('Supplier'),
       render: (s) => (
         <Box>
           <Typography variant="subtitle2">{s.companyName}</Typography>
@@ -51,12 +52,12 @@ export default function SuppliersPage() {
         </Box>
       ),
     },
-    { key: 'mobile', label: 'Mobile', render: (s) => s.mobile },
-    { key: 'gstin', label: 'GSTIN', render: (s) => s.gstin ?? '—' },
-    { key: 'supplies', label: 'Supplies', render: (s) => suppliesLabel(s.supplies) || '—' },
+    { key: 'mobile', label: t('Mobile'), render: (s) => s.mobile },
+    { key: 'gstin', label: t('GSTIN'), render: (s) => s.gstin ?? '—' },
+    { key: 'supplies', label: t('Supplies'), render: (s) => suppliesLabel(s.supplies) || '—' },
     {
       key: 'due',
-      label: 'Due',
+      label: t('Due'),
       align: 'right',
       render: (s) =>
         s.duePaise > 0 ? (
@@ -64,28 +65,28 @@ export default function SuppliersPage() {
             <Amount paise={s.duePaise} tone="due" decimals={0} />
             {s.openingDuePaise > 0 && (
               <Typography variant="caption" color="textSecondary" sx={{ display: 'block' }}>
-                Old {formatINR(s.openingDuePaise, { decimals: 0 })}
+                {t('Old {{openingDue}}', { openingDue: formatINR(s.openingDuePaise, { decimals: 0 }) })}
               </Typography>
             )}
           </Box>
         ) : (
           <Box component="span" sx={{ color: 'success.main', fontWeight: 600 }}>
-            Nil
+            {t('Nil')}
           </Box>
         ),
     },
-    { key: 'status', label: 'Status', render: (s) => <StatusChip status={s.status} /> },
+    { key: 'status', label: t('Status'), render: (s) => <StatusChip status={s.status} /> },
     {
       key: 'actions',
-      label: 'Action',
+      label: t('Action'),
       align: 'right',
       width: actionsWidth(canPay ? 4 : 3),
       render: (s) => (
         <RowActions onView={() => navigate(`/suppliers/${s.id}`)} onEdit={canEdit ? () => editor.open(s) : undefined} deleteType="supplier" deleteStatus={deleteStatus(s.id)} id={s.id} name={s.companyName}>
           {canPay && (
-            <Tooltip title={s.duePaise > 0 ? `Payment (${formatINR(s.duePaise, { decimals: 0 })} due)` : 'Nothing due'}>
+            <Tooltip title={s.duePaise > 0 ? t('Payment ({{due}} due)', { due: formatINR(s.duePaise, { decimals: 0 }) }) : t('Nothing due')}>
               <span>
-                <IconButton size="small" color="success" disabled={!(s.duePaise > 0)} onClick={() => setPaying(s)} aria-label={`Payment: ${s.companyName}`}>
+                <IconButton size="small" color="success" disabled={!(s.duePaise > 0)} onClick={() => setPaying(s)} aria-label={t('Payment: {{companyName}}', { companyName: s.companyName })}>
                   <PaymentsOutlinedIcon fontSize="small" />
                 </IconButton>
               </span>
@@ -99,28 +100,28 @@ export default function SuppliersPage() {
   return (
     <>
       <PageHeader
-        title="Suppliers"
-        subtitle="Bullion dealers, manufacturers and vendors you buy from."
+        title={t('Suppliers')}
+        subtitle={t('Bullion dealers, manufacturers and vendors you buy from.')}
         actions={
           canCreate && (
             <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setDrawerOpen(true)}>
-              New supplier
+              {t('New supplier')}
             </Button>
           )
         }
       />
       {data?.meta?.summary && (
         <SummaryCards>
-          <SummaryCard icon={LocalShippingOutlinedIcon} label="Active suppliers" value={data.meta.summary.active} caption="You buy from" />
-          <SummaryCard icon={ShoppingBagOutlinedIcon} label="Bought this month" value={formatINR(data.meta.summary.monthPaise, { decimals: 0 })} caption="Purchase bills" tone="blue" onClick={() => navigate('/purchases')} />
+          <SummaryCard icon={LocalShippingOutlinedIcon} label={t('Active suppliers')} value={data.meta.summary.active} caption={t('You buy from')} />
+          <SummaryCard icon={ShoppingBagOutlinedIcon} label={t('Bought this month')} value={formatINR(data.meta.summary.monthPaise, { decimals: 0 })} caption={t('Purchase bills')} tone="blue" onClick={() => navigate('/purchases')} />
           <SummaryCard
             icon={AccountBalanceWalletOutlinedIcon}
-            label="To pay suppliers"
+            label={t('To pay suppliers')}
             value={formatINR(data.meta.summary.duePaise, { decimals: 0 })}
             caption={
               data.meta.summary.dueSuppliers
-                ? [`Owed to ${data.meta.summary.dueSuppliers} supplier${data.meta.summary.dueSuppliers === 1 ? '' : 's'}`, data.meta.summary.oldDuePaise > 0 && `old balance ${formatINR(data.meta.summary.oldDuePaise, { decimals: 0 })}`].filter(Boolean).join(' · ')
-                : 'Nothing due'
+                ? [(data.meta.summary.dueSuppliers === 1 ? t('Owed to {{dueSuppliers}} supplier', { dueSuppliers: data.meta.summary.dueSuppliers }) : t('Owed to {{dueSuppliers}} suppliers', { dueSuppliers: data.meta.summary.dueSuppliers })), data.meta.summary.oldDuePaise > 0 && t('old balance {{oldDue}}', { oldDue: formatINR(data.meta.summary.oldDuePaise, { decimals: 0 }) })].filter(Boolean).join(' · ')
+                : t('Nothing due')
             }
             tone={data.meta.summary.duePaise ? 'red' : 'green'}
             valueTone={data.meta.summary.duePaise ? 'due' : 'paid'}
@@ -135,23 +136,23 @@ export default function SuppliersPage() {
         fetching={isFetching}
         error={error}
         onRetry={refetch}
-        empty={list.filtered ? { title: 'No matching suppliers' } : { title: 'No suppliers yet', description: 'Add the dealers and manufacturers you purchase from.' }}
+        empty={list.filtered ? { title: t('No matching suppliers') } : { title: t('No suppliers yet'), description: t('Add the dealers and manufacturers you purchase from.') }}
         pagination={list.pagination(data?.meta)}
         toolbar={
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-            <SearchField value={list.search} onChange={list.setSearch} placeholder="Search name, mobile, GSTIN or code" />
-            <TextField select label="Supplies" value={list.filters.supplies} onChange={(e) => list.setFilter('supplies', e.target.value)} sx={{ maxWidth: { sm: 200 } }}>
-              <MenuItem value="">Everything</MenuItem>
+            <SearchField value={list.search} onChange={list.setSearch} placeholder={t('Search name, mobile, GSTIN or code')} />
+            <TextField select slotProps={{ inputLabel: { shrink: true }, select: { displayEmpty: true } }} label={t('Supplies')} value={list.filters.supplies} onChange={(e) => list.setFilter('supplies', e.target.value)} sx={{ maxWidth: { sm: 200 } }}>
+              <MenuItem value="">{t('Everything')}</MenuItem>
               {SUPPLIER_SUPPLIES.map((s) => (
                 <MenuItem key={s.value} value={s.value}>
                   {s.label}
                 </MenuItem>
               ))}
             </TextField>
-            <TextField select label="Status" value={list.filters.status} onChange={(e) => list.setFilter('status', e.target.value)} sx={{ maxWidth: { sm: 160 } }}>
-              <MenuItem value="">All</MenuItem>
-              <MenuItem value="active">Active</MenuItem>
-              <MenuItem value="inactive">Inactive</MenuItem>
+            <TextField select slotProps={{ inputLabel: { shrink: true }, select: { displayEmpty: true } }} label={t('Status')} value={list.filters.status} onChange={(e) => list.setFilter('status', e.target.value)} sx={{ maxWidth: { sm: 160 } }}>
+              <MenuItem value="">{t('All')}</MenuItem>
+              <MenuItem value="active">{t('Active')}</MenuItem>
+              <MenuItem value="inactive">{t('Inactive')}</MenuItem>
             </TextField>
           </Stack>
         }

@@ -8,6 +8,7 @@ import { useEffect, useRef, useState } from 'react';
 import { Controller, useWatch } from 'react-hook-form';
 import RHFSelect from './RHFSelect.jsx';
 import RHFTextField from './RHFTextField.jsx';
+import { t } from '../../i18n/index.js';
 
 const STATE_OPTIONS = INDIAN_STATES.map((s) => ({ value: s.code, label: s.name }));
 const PIN = /^[1-9][0-9]{5}$/;
@@ -88,10 +89,10 @@ export default function PincodeAddressFields({ control, setValue, lookup, name =
           <RHFTextField
             control={control}
             name={`${name}.pincode`}
-            label="PIN code"
-            placeholder="6 digits"
+            label={t('PIN code')}
+            placeholder={t('6 digits')}
             transform={(v) => v.replace(/\D/g, '').slice(0, 6)}
-            helperText={status.kind === 'idle' ? 'Fills post office, city, district and state' : ' '}
+            helperText={status.kind === 'idle' ? t('Fills post office, city, district and state') : ' '}
             slotProps={{
               htmlInput: { inputMode: 'numeric', maxLength: 6, autoComplete: 'postal-code' },
               input: {
@@ -102,9 +103,9 @@ export default function PincodeAddressFields({ control, setValue, lookup, name =
                     ) : status.kind === 'found' ? (
                       <CheckCircleRoundedIcon color="success" fontSize="small" />
                     ) : (
-                      <Tooltip title="Look up this PIN code">
+                      <Tooltip title={t('Look up this PIN code')}>
                         <span>
-                          <IconButton size="small" edge="end" onClick={() => find(pin)} disabled={!PIN.test(pin)} aria-label="Look up PIN code">
+                          <IconButton size="small" edge="end" onClick={() => find(pin)} disabled={!PIN.test(pin)} aria-label={t('Look up PIN code')}>
                             <SearchRoundedIcon fontSize="small" />
                           </IconButton>
                         </span>
@@ -141,7 +142,7 @@ export default function PincodeAddressFields({ control, setValue, lookup, name =
                     </Box>
                   );
                 }}
-                renderInput={(p) => <TextField {...p} label="Post office" helperText={offices.length > 1 ? `${offices.length} post offices for this PIN — pick yours` : ' '} />}
+                renderInput={(p) => <TextField {...p} label={t('Post office')} helperText={offices.length > 1 ? t('{{count}} post offices for this PIN — pick yours', { count: offices.length }) : ' '} />}
               />
             )}
           />
@@ -150,40 +151,40 @@ export default function PincodeAddressFields({ control, setValue, lookup, name =
 
       {status.kind === 'found' && (
         <Alert severity="success" variant="outlined" icon={<LocationOnOutlinedIcon fontSize="inherit" />} sx={{ py: 0 }}>
-          {status.district}, {status.state} — filled in below. Check and change anything that is not right.
+          {t('{{district}}, {{state}} — filled in below. Check and change anything that is not right.', { district: status.district, state: status.state })}
         </Alert>
       )}
       {(status.kind === 'missing' || status.kind === 'unavailable') && (
         <Alert severity="info" variant="outlined" icon={<EditLocationAltOutlinedIcon fontSize="inherit" />} sx={{ py: 0 }}>
-          {status.kind === 'missing' ? 'This PIN code was not found.' : 'PIN code look-up is not available right now.'} Please enter the address below yourself.
+          {status.kind === 'missing' ? t('This PIN code was not found.') : t('PIN code look-up is not available right now.')} {t('Please enter the address below yourself.')}
         </Alert>
       )}
 
       <Grid container spacing={2}>
         <Grid size={12}>
-          <RHFTextField control={control} name={`${name}.line1`} label="House / shop no. & building" placeholder="e.g. Shop 12, Gold Plaza" />
+          <RHFTextField control={control} name={`${name}.line1`} label={t('House / shop no. & building')} placeholder={t('e.g. Shop 12, Gold Plaza')} />
         </Grid>
         <Grid size={{ xs: 12, sm: 7 }}>
-          <RHFTextField control={control} name={`${name}.line2`} label="Area / street" placeholder="e.g. Bowbazar Street" />
+          <RHFTextField control={control} name={`${name}.line2`} label={t('Area / street')} placeholder={t('e.g. Bowbazar Street')} />
         </Grid>
         <Grid size={{ xs: 12, sm: 5 }}>
-          <RHFTextField control={control} name={`${name}.landmark`} label="Landmark (optional)" placeholder="e.g. Opposite City Mall" />
+          <RHFTextField control={control} name={`${name}.landmark`} label={t('Landmark (optional)')} placeholder={t('e.g. Opposite City Mall')} />
         </Grid>
         <Grid size={{ xs: 12, sm: 4 }}>
-          <RHFTextField control={control} name={`${name}.city`} label="City / town" />
+          <RHFTextField control={control} name={`${name}.city`} label={t('City / town')} />
         </Grid>
         <Grid size={{ xs: 12, sm: 4 }}>
-          <RHFTextField control={control} name={`${name}.district`} label="District" />
+          <RHFTextField control={control} name={`${name}.district`} label={t('District')} />
         </Grid>
         <Grid size={{ xs: 12, sm: 4 }}>
-          <RHFSelect control={control} name={stateField} label="State (GST)" options={STATE_OPTIONS} placeholder="Select state" />
+          <RHFSelect control={control} name={stateField} label={t('State (GST)')} options={STATE_OPTIONS} placeholder={t('Select state')} />
         </Grid>
       </Grid>
 
       {/* What will be saved, to verify before submitting. */}
       <Box sx={{ p: 1.75, borderRadius: 2, border: '1px dashed', borderColor: preview.length > 1 ? 'rgba(var(--brand-rgb), 0.45)' : 'divider', bgcolor: preview.length > 1 ? 'rgba(var(--brand-rgb), 0.05)' : 'transparent' }}>
         <Typography variant="caption" sx={{ display: 'block', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'text.secondary', mb: 0.5 }}>
-          Address preview
+          {t('Address preview')}
         </Typography>
         {preview.length > 1 ? (
           preview.map((line) => (
@@ -193,7 +194,7 @@ export default function PincodeAddressFields({ control, setValue, lookup, name =
           ))
         ) : (
           <Typography variant="body2" color="textSecondary">
-            Enter the PIN code to start — the address appears here as it will be saved.
+            {t('Enter the PIN code to start — the address appears here as it will be saved.')}
           </Typography>
         )}
       </Box>

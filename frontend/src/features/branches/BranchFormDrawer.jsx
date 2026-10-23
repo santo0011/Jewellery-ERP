@@ -11,6 +11,7 @@ import FormDrawer from '../../components/FormDrawer.jsx';
 import { applyServerErrors, getErrorMessage } from '../../utils/errors.js';
 import { nullsToEmpty } from '../../utils/format.js';
 import { useCreateBranchMutation, useUpdateBranchMutation } from './branchApi.js';
+import { t } from '../../i18n/index.js';
 
 // Same address fields as the organisation's (ADDRESS_FIELDS); the state lives in the address here.
 const EMPTY = { code: '', name: '', phone: '', email: '', gstin: '', address: { ...addressFormValues(), stateCode: '' } };
@@ -43,7 +44,7 @@ export default function BranchFormDrawer({ open, branch, onClose }) {
     try {
       if (editing) await updateBranch({ id: branch._id, ...values }).unwrap();
       else await createBranch(values).unwrap();
-      toast.success(editing ? 'Branch updated' : 'Branch created');
+      toast.success(editing ? t('Branch updated') : t('Branch created'));
       onClose();
     } catch (err) {
       applyServerErrors(err, setError);
@@ -54,12 +55,12 @@ export default function BranchFormDrawer({ open, branch, onClose }) {
     <FormDrawer
       width={640}
       open={open}
-      title={editing ? 'Edit branch' : 'New branch'}
-      subtitle={editing ? branch.name : 'Each branch keeps its own stock, cash and reports.'}
+      title={editing ? t('Edit branch') : t('New branch')}
+      subtitle={editing ? branch.name : t('Each branch keeps its own stock, cash and reports.')}
       onClose={onClose}
       onSubmit={onSubmit}
       submitting={createState.isLoading || updateState.isLoading}
-      submitLabel={editing ? 'Save changes' : 'Create branch'}
+      submitLabel={editing ? t('Save changes') : t('Create branch')}
     >
       <Grid container spacing={2}>
         {error && !error.data?.error?.details && (
@@ -68,27 +69,27 @@ export default function BranchFormDrawer({ open, branch, onClose }) {
           </Grid>
         )}
         <Grid size={{ xs: 12, sm: 4 }}>
-          <RHFTextField control={control} name="code" label="Code" transform={upper} helperText="e.g. KOL1" slotProps={{ htmlInput: { maxLength: 10 } }} autoFocus={!editing} />
+          <RHFTextField control={control} name="code" label={t('Code')} transform={upper} helperText={t('e.g. KOL1')} slotProps={{ htmlInput: { maxLength: 10 } }} autoFocus={!editing} />
         </Grid>
         <Grid size={{ xs: 12, sm: 8 }}>
-          <RHFTextField control={control} name="name" label="Branch name" />
+          <RHFTextField control={control} name="name" label={t('Branch name')} />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
-          <RHFTextField control={control} name="phone" label="Phone" slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 10 } }} />
+          <RHFTextField control={control} name="phone" label={t('Phone')} slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 10 } }} />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
-          <RHFTextField control={control} name="email" label="Email" type="email" />
+          <RHFTextField control={control} name="email" label={t('Email')} type="email" />
         </Grid>
         <Grid size={12}>
-          <RHFTextField control={control} name="gstin" label="GSTIN" transform={upper} helperText="Required if this branch has a separate GST registration" slotProps={{ htmlInput: { maxLength: 15 } }} />
+          <RHFTextField control={control} name="gstin" label={t('GSTIN')} transform={upper} helperText={t('Required if this branch has a separate GST registration')} slotProps={{ htmlInput: { maxLength: 15 } }} />
         </Grid>
         <Grid size={12}>
           <Typography variant="overline" color="textSecondary" sx={{ display: 'block' }}>
-            Address
+            {t('Address')}
           </Typography>
           {branch?.isHeadOffice && (
             <Alert severity="info" variant="outlined" sx={{ mt: 0.5 }}>
-              This is also the organisation’s registered address — saving it here updates Settings → Organisation (and what the Super Admin sees), and the other way round.
+              {t('This is also the organisation’s registered address — saving it here updates Settings → Organisation (and what the Super Admin sees), and the other way round.')}
             </Alert>
           )}
         </Grid>

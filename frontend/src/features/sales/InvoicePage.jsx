@@ -22,6 +22,7 @@ import { DEFAULT_LAYOUT } from '../print/printLayouts.js';
 import { purityLabel } from '../products/productForm.js';
 import { billLabels } from './billLabels.js';
 import { useCancelSaleMutation, useSaleQuery } from './saleApi.js';
+import { t } from '../../i18n/index.js';
 
 const address = (a) => (a ? [a.line1, a.line2, a.city, stateName(a.stateCode), a.pincode].filter(Boolean).join(', ') : '');
 
@@ -44,7 +45,7 @@ function CancelDialog({ sale, open, onClose }) {
   const submit = async () => {
     try {
       await cancel({ id: sale.id, reason }).unwrap();
-      toast.success(`Invoice ${sale.invoiceNo} cancelled`);
+      toast.success(t('Invoice {{invoiceNo}} cancelled', { invoiceNo: sale.invoiceNo }));
       onClose();
     } catch (err) {
       toast.error(getErrorMessage(err));
@@ -52,21 +53,21 @@ function CancelDialog({ sale, open, onClose }) {
   };
   return (
     <Dialog open={open} onClose={isLoading ? undefined : onClose} maxWidth="xs" fullWidth>
-      <DialogTitle sx={{ fontWeight: 600 }}>Cancel invoice?</DialogTitle>
+      <DialogTitle sx={{ fontWeight: 600 }}>{t('Cancel invoice?')}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ pt: 0.5 }}>
           <Typography variant="body2" color="textSecondary">
-            Items go back into stock and the accounts are reversed.{sale.order ? ` Order ${sale.order.orderNo} becomes ready to bill again, with its advance.` : ''}
+            {t('Items go back into stock and the accounts are reversed.')}{sale.order ? t(' Order {{orderNo}} becomes ready to bill again, with its advance.', { orderNo: sale.order.orderNo }) : ''}
           </Typography>
-          <TextField label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} autoFocus multiline minRows={2} error={reason.length > 0 && reason.trim().length < 5} helperText="At least 5 characters" />
+          <TextField label={t('Reason')} value={reason} onChange={(e) => setReason(e.target.value)} autoFocus multiline minRows={2} error={reason.length > 0 && reason.trim().length < 5} helperText={t('At least 5 characters')} />
         </Stack>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button color="secondary" onClick={onClose} disabled={isLoading}>
-          Keep invoice
+          {t('Keep invoice')}
         </Button>
         <Button variant="contained" color="error" onClick={submit} loading={isLoading} disabled={reason.trim().length < 5}>
-          Cancel invoice
+          {t('Cancel invoice')}
         </Button>
       </DialogActions>
     </Dialog>
@@ -104,22 +105,22 @@ export default function InvoicePage() {
       <PageHeader
         title={sale.invoiceNo}
         subtitle={formatDateTime(sale.createdAt)}
-        back={{ to: '/sales', label: 'Invoices' }}
+        back={{ to: '/sales', label: t('Invoices') }}
         actions={
           <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', gap: 1 }}>
             {!cancelled && canCancel && (
               <Button color="error" startIcon={<BlockRoundedIcon />} onClick={() => setCancelOpen(true)}>
-                Cancel
+                {t('Cancel')}
               </Button>
             )}
             {!cancelled && canCollect && customer?.id && duePaise > 0 && (
               <Button variant="outlined" startIcon={<PaymentsOutlinedIcon />} onClick={() => setCollectOpen(true)}>
-                Collect due {formatINR(duePaise, { decimals: 0 })}
+                {t('Collect due {{due}}', { due: formatINR(duePaise, { decimals: 0 }) })}
               </Button>
             )}
             {canPrint && (
               <Button variant="contained" startIcon={<PrintOutlinedIcon />} onClick={() => setPreviewOpen(true)}>
-                Print
+                {t('Print')}
               </Button>
             )}
           </Stack>
@@ -127,8 +128,8 @@ export default function InvoicePage() {
       />
       {cancelled && (
         <Alert severity="error" sx={{ mb: 2 }}>
-          Cancelled {formatDateTime(sale.cancelledAt)}
-          {sale.cancelledBy ? ` by ${sale.cancelledBy.name}` : ''}: {sale.cancelReason}
+          {t('Cancelled {{cancelledAt}}', { cancelledAt: formatDateTime(sale.cancelledAt) })}
+          {sale.cancelledBy ? t(' by {{name}}', { name: sale.cancelledBy.name }) : ''}: {sale.cancelReason}
         </Alert>
       )}
 
@@ -147,12 +148,12 @@ export default function InvoicePage() {
             </Typography>
             {seller.gstin && (
               <Typography variant="caption" sx={{ display: 'block', fontWeight: 600 }}>
-                GSTIN {seller.gstin}
+                {t('GSTIN {{gstin}}', { gstin: seller.gstin })}
               </Typography>
             )}
           </Box>
           <Box sx={{ textAlign: { sm: 'right' } }}>
-            <Typography sx={{ fontSize: 13, letterSpacing: '0.18em', fontWeight: 700, color: 'var(--brand-strong)' }}>TAX INVOICE</Typography>
+            <Typography sx={{ fontSize: 13, letterSpacing: '0.18em', fontWeight: 700, color: 'var(--brand-strong)' }}>{t('TAX INVOICE')}</Typography>
             <Typography variant="h3" sx={{ mt: 0.5 }}>
               {sale.invoiceNo}
             </Typography>
@@ -161,13 +162,13 @@ export default function InvoicePage() {
             </Typography>
             {sale.order && (
               <Typography variant="body2" sx={{ color: '#555' }}>
-                Against order{' '}
+                {t('Against order')}{' '}
                 <Box component={RouterLink} to={`/orders/${sale.order.id}`} sx={{ color: 'inherit', fontWeight: 600 }}>
                   {sale.order.orderNo}
                 </Box>
               </Typography>
             )}
-            {cancelled && <Typography sx={{ mt: 1, fontWeight: 800, color: '#9B2C2C', letterSpacing: '0.1em' }}>CANCELLED</Typography>}
+            {cancelled && <Typography sx={{ mt: 1, fontWeight: 800, color: '#9B2C2C', letterSpacing: '0.1em' }}>{t('CANCELLED')}</Typography>}
           </Box>
         </Stack>
 
@@ -175,7 +176,7 @@ export default function InvoicePage() {
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ justifyContent: 'space-between' }}>
           <Box>
             <Typography variant="overline" sx={{ color: '#777' }}>
-              Bill to
+              {t('Bill to')}
             </Typography>
             {customer ? (
               <>
@@ -191,16 +192,16 @@ export default function InvoicePage() {
                     {address(customer.address)}
                   </Typography>
                 )}
-                {customer.gstin && <Typography variant="caption" sx={{ display: 'block' }}>GSTIN {customer.gstin}</Typography>}
-                {customer.pan && <Typography variant="caption" sx={{ display: 'block' }}>PAN {customer.pan}</Typography>}
+                {customer.gstin && <Typography variant="caption" sx={{ display: 'block' }}>{t('GSTIN {{gstin}}', { gstin: customer.gstin })}</Typography>}
+                {customer.pan && <Typography variant="caption" sx={{ display: 'block' }}>{t('PAN {{pan}}', { pan: customer.pan })}</Typography>}
               </>
             ) : (
-              <Typography variant="subtitle2">Walk-in customer</Typography>
+              <Typography variant="subtitle2">{t('Walk-in customer')}</Typography>
             )}
           </Box>
           <Box sx={{ textAlign: { sm: 'right' } }}>
             <Typography variant="overline" sx={{ color: '#777' }}>
-              Place of supply
+              {t('Place of supply')}
             </Typography>
             <Typography variant="body2">{stateName(sale.placeOfSupply) || '—'}</Typography>
           </Box>
@@ -212,12 +213,12 @@ export default function InvoicePage() {
             <TableHead>
               <TableRow>
                 <TableCell>#</TableCell>
-                <TableCell>Item</TableCell>
-                <TableCell align="right">Net wt</TableCell>
-                <TableCell align="right">Rate/g</TableCell>
-                <TableCell align="right">Metal</TableCell>
-                <TableCell align="right">Making + other</TableCell>
-                <TableCell align="right">Taxable</TableCell>
+                <TableCell>{t('Item')}</TableCell>
+                <TableCell align="right">{t('Net wt')}</TableCell>
+                <TableCell align="right">{t('Rate/g')}</TableCell>
+                <TableCell align="right">{t('Metal')}</TableCell>
+                <TableCell align="right">{t('Making + other')}</TableCell>
+                <TableCell align="right">{t('Taxable')}</TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
@@ -229,17 +230,17 @@ export default function InvoicePage() {
                     <TableCell>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
                         {i.name}
-                        {i.returned ? ' (returned)' : ''}
+                        {i.returned ? t(' (returned)') : ''}
                       </Typography>
                       <Typography variant="caption" sx={{ color: '#666' }}>
-                        {[i.sku, purityLabel(i.metal, i.purity), i.huid && `HUID ${i.huid}`, i.hsnCode && `HSN ${i.hsnCode}`, `Gross ${formatWeight(i.grossWeightMg)}`].filter(Boolean).join(' · ')}
+                        {[i.sku, purityLabel(i.metal, i.purity), i.huid && t('HUID {{huid}}', { huid: i.huid }), i.hsnCode && t('HSN {{hsnCode}}', { hsnCode: i.hsnCode }), t('Gross {{grossWeight}}', { grossWeight: formatWeight(i.grossWeightMg) })].filter(Boolean).join(' · ')}
                       </Typography>
                     </TableCell>
                     <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                       {formatWeight(i.netWeightMg)}
                     </TableCell>
                     <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-                      {b.ratePerGramPaise != null ? formatINR(b.ratePerGramPaise, { decimals: 0 }) : 'Fixed'}
+                      {b.ratePerGramPaise != null ? formatINR(b.ratePerGramPaise, { decimals: 0 }) : t('Fixed')}
                     </TableCell>
                     <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                       {formatINR(b.metalPaise + b.wastagePaise)}
@@ -248,7 +249,7 @@ export default function InvoicePage() {
                       {formatINR(b.makingPaise + b.stonePaise + b.otherPaise)}
                       {b.discountPaise > 0 && (
                         <Typography variant="caption" sx={{ display: 'block', color: '#2E6B4F' }}>
-                          − {formatINR(b.discountPaise)} disc.
+                          {t('− {{discount}} disc.', { discount: formatINR(b.discountPaise) })}
                         </Typography>
                       )}
                     </TableCell>
@@ -265,52 +266,52 @@ export default function InvoicePage() {
         <Stack direction={{ xs: 'column', sm: 'row' }} spacing={3} sx={{ mt: 2.5, justifyContent: 'space-between' }}>
           <Box sx={{ flex: 1 }}>
             <Typography variant="overline" sx={{ color: '#777' }}>
-              Amount in words
+              {t('Amount in words')}
             </Typography>
             <Typography variant="body2" sx={{ fontStyle: 'italic' }}>
               {rupeesInWords(totals.grandTotalPaise)}
             </Typography>
             <Typography variant="overline" sx={{ color: '#777', display: 'block', mt: 1.5 }}>
-              Payment
+              {t('Payment')}
             </Typography>
             {sale.advanceAdjustedPaise > 0 && (
               <Typography variant="body2">
-                Order advance <Amount paise={sale.advanceAdjustedPaise} tone="paid" />
+                {t('Order advance')} <Amount paise={sale.advanceAdjustedPaise} tone="paid" />
               </Typography>
             )}
             {sale.customerAdvancePaise > 0 && (
               <Typography variant="body2">
-                Advance paid earlier <Amount paise={sale.customerAdvancePaise} tone="paid" />
+                {t('Advance paid earlier')} <Amount paise={sale.customerAdvancePaise} tone="paid" />
               </Typography>
             )}
             {sale.oldGoldPaise > 0 && (
               <Box sx={{ mb: 0.5 }}>
                 <Typography variant="body2">
-                  Old gold {sale.oldGold?.docNo} <Amount paise={sale.oldGoldPaise} tone="paid" />
+                  {t('Old gold {{docNo}}', { docNo: sale.oldGold?.docNo })} <Amount paise={sale.oldGoldPaise} tone="paid" />
                 </Typography>
                 {(sale.oldGold?.lines ?? []).map((l, n) => (
                   <Typography key={n} variant="caption" sx={{ display: 'block', color: '#555' }}>
-                    {l.description} · {purityLabel(l.metal, l.purity)} · {formatWeight(l.netWeightMg)} net @ {formatINR(l.ratePerGramPaise, { decimals: 0 })}/g
-                    {l.deductionBps ? ` less ${l.deductionBps / 100}%` : ''} = {formatINR(l.valuePaise)}
+                    {t('{{description}} · {{metal}} · {{netWeight}} net @ {{ratePerGram}}/g', { description: l.description, metal: purityLabel(l.metal, l.purity), netWeight: formatWeight(l.netWeightMg), ratePerGram: formatINR(l.ratePerGramPaise, { decimals: 0 }) })}
+                    {l.deductionBps ? t(' less {{value}}%', { value: l.deductionBps / 100 }) : ''} = {formatINR(l.valuePaise)}
                   </Typography>
                 ))}
               </Box>
             )}
             {sale.payments.map((p, n) => (
               <Typography key={n} variant="body2">
-                {p.mode === 'credit' ? 'Left due at billing' : paymentLabel(p.mode)} <Amount paise={p.amountPaise} tone={p.mode === 'credit' ? 'due' : 'paid'} />
+                {p.mode === 'credit' ? t('Left due at billing') : paymentLabel(p.mode)} <Amount paise={p.amountPaise} tone={p.mode === 'credit' ? 'due' : 'paid'} />
                 {p.reference ? ` · ${p.reference}` : ''}
               </Typography>
             ))}
             {sale.notes && (
               <Typography variant="caption" sx={{ display: 'block', mt: 1.5, color: '#555' }}>
-                Note: {sale.notes}
+                {t('Note: {{notes}}', { notes: sale.notes })}
               </Typography>
             )}
           </Box>
           <Box sx={{ width: { sm: 300 } }}>
             {totals.discountPaise > 0 && <Line label={billLabels(totals).discount} value={`− ${formatINR(totals.discountPaise)}`} />}
-            <Line label="Taxable value" value={formatINR(totals.taxablePaise)} />
+            <Line label={t('Taxable value')} value={formatINR(totals.taxablePaise)} />
             {sale.interState ? (
               <Line label={billLabels(totals).igst} value={formatINR(totals.igstPaise)} />
             ) : (
@@ -319,18 +320,18 @@ export default function InvoicePage() {
                 <Line label={billLabels(totals).sgst} value={formatINR(totals.sgstPaise)} />
               </>
             )}
-            {totals.roundOffPaise !== 0 && <Line label="Round off" value={formatINR(totals.roundOffPaise)} />}
+            {totals.roundOffPaise !== 0 && <Line label={t('Round off')} value={formatINR(totals.roundOffPaise)} />}
             <Divider sx={{ my: 1, borderColor: '#E6E1D3' }} />
-            <Line label="Invoice total" value={formatINR(totals.grandTotalPaise)} strong />
-            {sale.advanceAdjustedPaise > 0 && <Line label="Order advance" value={formatINR(sale.advanceAdjustedPaise)} tone="paid" />}
-            {sale.customerAdvancePaise > 0 && <Line label="Advance paid earlier" value={formatINR(sale.customerAdvancePaise)} tone="paid" />}
-            {sale.oldGoldPaise > 0 && <Line label="Old gold" value={formatINR(sale.oldGoldPaise)} tone="paid" />}
-            <Line label={sale.advanceAdjustedPaise > 0 || sale.customerAdvancePaise > 0 || sale.oldGoldPaise > 0 ? 'Paid now' : 'Paid'} value={formatINR(paidNow)} tone="paid" strong />
-            {collectedLater > 0 && <Line label="Collected later" value={formatINR(collectedLater)} tone="paid" />}
+            <Line label={t('Invoice total')} value={formatINR(totals.grandTotalPaise)} strong />
+            {sale.advanceAdjustedPaise > 0 && <Line label={t('Order advance')} value={formatINR(sale.advanceAdjustedPaise)} tone="paid" />}
+            {sale.customerAdvancePaise > 0 && <Line label={t('Advance paid earlier')} value={formatINR(sale.customerAdvancePaise)} tone="paid" />}
+            {sale.oldGoldPaise > 0 && <Line label={t('Old gold')} value={formatINR(sale.oldGoldPaise)} tone="paid" />}
+            <Line label={sale.advanceAdjustedPaise > 0 || sale.customerAdvancePaise > 0 || sale.oldGoldPaise > 0 ? t('Paid now') : t('Paid')} value={formatINR(paidNow)} tone="paid" strong />
+            {collectedLater > 0 && <Line label={t('Collected later')} value={formatINR(collectedLater)} tone="paid" />}
             {duePaise > 0 ? (
-              <Line label={paidNow > 0 || collectedLater > 0 || sale.advanceAdjustedPaise > 0 || sale.customerAdvancePaise > 0 || sale.oldGoldPaise > 0 ? 'Due (partly paid)' : 'Due'} value={formatINR(duePaise)} tone="due" strong />
+              <Line label={paidNow > 0 || collectedLater > 0 || sale.advanceAdjustedPaise > 0 || sale.customerAdvancePaise > 0 || sale.oldGoldPaise > 0 ? t('Due (partly paid)') : t('Due')} value={formatINR(duePaise)} tone="due" strong />
             ) : (
-              <Line label="Due" value="Fully paid" tone="paid" />
+              <Line label={t('Due')} value={t('Fully paid')} tone="paid" />
             )}
           </Box>
         </Stack>
@@ -338,11 +339,11 @@ export default function InvoicePage() {
         <Divider sx={{ my: 3, borderColor: '#E6E1D3' }} />
         <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-end' }}>
           <Typography variant="caption" sx={{ color: '#777', maxWidth: 420 }}>
-            Thank you for your purchase. Goods once sold are subject to the store&apos;s exchange and return policy.
+            {t('Thank you for your purchase. Goods once sold are subject to the store\'s exchange and return policy.')}
           </Typography>
           <Box sx={{ textAlign: 'center' }}>
             <Box sx={{ width: 180, borderTop: '1px solid #999', mb: 0.5, mt: 4 }} />
-            <Typography variant="caption">For {seller.name}</Typography>
+            <Typography variant="caption">{t('For {{name}}', { name: seller.name })}</Typography>
           </Box>
         </Stack>
       </Card>

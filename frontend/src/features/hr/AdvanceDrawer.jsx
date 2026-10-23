@@ -13,6 +13,7 @@ import { applyServerErrors, getErrorMessage } from '../../utils/errors.js';
 import { useCreateAdvanceMutation, useEmployeeListQuery, useUpdateAdvanceMutation } from './hrApi.js';
 import { monthLabel, PAY_MODES, remapErrors, salaryMonth, todayIso } from './hrUi.jsx';
 import KeepOnPhone from '../../components/KeepOnPhone.jsx';
+import { t, getLocale } from '../../i18n/index.js';
 
 const paiseOf = (v) => {
   try {
@@ -25,10 +26,10 @@ const positive = (msg) => z.string().refine((v) => paiseOf(v) > 0, msg);
 
 const schema = z
   .object({
-    employeeId: z.string().min(1, 'Select an employee'),
-    amount: positive('Enter the advance amount'),
-    givenOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Pick the date'),
-    recoverFrom: z.string().regex(/^\d{4}-\d{2}$/, 'Pick the month'),
+    employeeId: z.string().min(1, t('Select an employee')),
+    amount: positive(t('Enter the advance amount')),
+    givenOn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, t('Pick the date')),
+    recoverFrom: z.string().regex(/^\d{4}-\d{2}$/, t('Pick the month')),
     plan: z.enum(['full', 'parts']),
     installment: z.string(),
     mode: z.string().min(1),
@@ -38,12 +39,12 @@ const schema = z
     reason: z.string().max(200),
   })
   .superRefine((v, ctx) => {
-    if (v.editing && v.reason.trim().length < 3) ctx.addIssue({ code: 'custom', path: ['reason'], message: 'Say why it is being changed' });
-    if (v.givenOn > todayIso()) ctx.addIssue({ code: 'custom', path: ['givenOn'], message: 'Cannot be in the future' });
+    if (v.editing && v.reason.trim().length < 3) ctx.addIssue({ code: 'custom', path: ['reason'], message: t('Say why it is being changed') });
+    if (v.givenOn > todayIso()) ctx.addIssue({ code: 'custom', path: ['givenOn'], message: t('Cannot be in the future') });
     if (v.plan !== 'parts') return;
     const inst = paiseOf(v.installment);
-    if (inst <= 0) ctx.addIssue({ code: 'custom', path: ['installment'], message: 'Enter the amount to deduct each month' });
-    else if (inst > paiseOf(v.amount)) ctx.addIssue({ code: 'custom', path: ['installment'], message: 'Cannot be more than the advance' });
+    if (inst <= 0) ctx.addIssue({ code: 'custom', path: ['installment'], message: t('Enter the amount to deduct each month') });
+    else if (inst > paiseOf(v.amount)) ctx.addIssue({ code: 'custom', path: ['installment'], message: t('Cannot be more than the advance') });
   });
 
 const money = { slotProps: { input: { startAdornment: <InputAdornment position="start">₹</InputAdornment> }, htmlInput: { inputMode: 'decimal' } } };
@@ -53,7 +54,7 @@ const addMonths = (month, n) => {
   const d = new Date(Date.UTC(y, m - 1 + n, 1));
   return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`;
 };
-const shortMonth = (month) => new Date(`${month}-01T00:00:00Z`).toLocaleString('en-IN', { month: 'short', year: '2-digit', timeZone: 'UTC' });
+const shortMonth = (month) => new Date(`${month}-01T00:00:00Z`).toLocaleString(getLocale(), { month: 'short', year: '2-digit', timeZone: 'UTC' });
 
 /** Month-by-month deductions for the preview. */
 function schedule(amountPaise, installmentPaise, fromMonth) {
@@ -117,10 +118,10 @@ export default function AdvanceDrawer({ open, employee, advance, onClose }) {
     try {
       if (editing) {
         const adv = await update({ id: advance.id, ...body, reason: v.reason.trim() }).unwrap();
-        toast.success(`Advance ${adv.advanceNo} updated`);
+        toast.success(t('Advance {{advanceNo}} updated', { advanceNo: adv.advanceNo }));
       } else {
         const adv = await create({ employeeId: v.employeeId, ...body }).unwrap();
-        toast.success(`Advance ${adv.advanceNo} of ${formatINR(adv.amountPaise, { decimals: 0 })} given to ${adv.employee.name}`);
+        toast.success(t('Advance {{advanceNo}} of {{amount}} given to {{name}}', { advanceNo: adv.advanceNo, amount: formatINR(adv.amountPaise, { decimals: 0 }), name: adv.employee.name }));
       }
       onClose();
     } catch (err) {
@@ -131,35 +132,35 @@ export default function AdvanceDrawer({ open, employee, advance, onClose }) {
   return (
     <FormDrawer
       open={open}
-      title={editing ? `Edit advance ${advance.advanceNo}` : 'Give salary advance'}
-      subtitle={editing ? advance.employee?.name : employee ? `${employee.name} · ${employee.designation}` : 'Cut from the salary month you choose.'}
+      title={editing ? t('Edit advance {{advanceNo}}', { advanceNo: advance.advanceNo }) : t('Give salary advance')}
+      subtitle={editing ? advance.employee?.name : employee ? `${employee.name} · ${employee.designation}` : t('Cut from the salary month you choose.')}
       onClose={onClose}
       onSubmit={onSubmit}
       submitting={state.isLoading}
-      submitLabel={editing ? 'Save changes' : amountPaise ? `Give ${formatINR(amountPaise, { decimals: 0 })}` : 'Give advance'}
+      submitLabel={editing ? t('Save changes') : amountPaise ? t('Give {{amount}}', { amount: formatINR(amountPaise, { decimals: 0 }) }) : t('Give advance')}
       width={480}
     >
       <Stack spacing={2.5}>
         {editing && (
           <Alert severity="warning" icon={false}>
-            Advances can be corrected only on the day they are entered. Every change is saved in the history with your reason.
+            {t('Advances can be corrected only on the day they are entered. Every change is saved in the history with your reason.')}
           </Alert>
         )}
-        {!employee && !editing && <RHFSelect control={control} name="employeeId" label="Employee" placeholder="Select employee" options={(staff?.items ?? []).map((e) => ({ value: e.id, label: `${e.name} · ${e.designation}` }))} />}
+        {!employee && !editing && <RHFSelect control={control} name="employeeId" label={t('Employee')} placeholder={t('Select employee')} options={(staff?.items ?? []).map((e) => ({ value: e.id, label: `${e.name} · ${e.designation}` }))} />}
 
         <RHFTextField
           control={control}
           name="amount"
-          label="Amount"
+          label={t('Amount')}
           autoFocus
           {...money}
-          helperText={<KeepOnPhone>{chosen?.grossPaise ? `Salary ${formatINR(chosen.grossPaise, { decimals: 0 })} / month` : ' '}</KeepOnPhone>}
+          helperText={<KeepOnPhone>{chosen?.grossPaise ? t('Salary {{gross}} / month', { gross: formatINR(chosen.grossPaise, { decimals: 0 }) }) : ' '}</KeepOnPhone>}
           sx={{ '& input': { fontSize: '1.25rem', fontWeight: 600 } }}
         />
 
         <Box>
           <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mb: 0.5 }}>
-            Paid by
+            {t('Paid by')}
           </Typography>
           <Controller
             control={control}
@@ -178,10 +179,10 @@ export default function AdvanceDrawer({ open, employee, advance, onClose }) {
 
         <Grid container spacing={2}>
           <Grid size={{ xs: 12, sm: 6 }}>
-            <RHFTextField control={control} name="givenOn" label="Given on" type="date" slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: todayIso() } }} />
+            <RHFTextField control={control} name="givenOn" label={t('Given on')} type="date" slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: todayIso() } }} />
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
-            <RHFTextField control={control} name="recoverFrom" label="Cut from salary of" type="month" slotProps={{ inputLabel: { shrink: true } }} />
+            <RHFTextField control={control} name="recoverFrom" label={t('Cut from salary of')} type="month" slotProps={{ inputLabel: { shrink: true } }} />
           </Grid>
         </Grid>
 
@@ -195,10 +196,10 @@ export default function AdvanceDrawer({ open, employee, advance, onClose }) {
                 label={
                   <Box>
                     <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                      Cut in monthly parts
+                      {t('Cut in monthly parts')}
                     </Typography>
                     <Typography variant="caption" color="textSecondary">
-                      Off = the whole amount is cut from one salary
+                      {t('Off = the whole amount is cut from one salary')}
                     </Typography>
                   </Box>
                 }
@@ -208,7 +209,7 @@ export default function AdvanceDrawer({ open, employee, advance, onClose }) {
           />
           {plan === 'parts' && (
             <Box sx={{ mt: 1.5, mb: 0.5 }}>
-              <RHFTextField control={control} name="installment" label="Cut each month" {...money} />
+              <RHFTextField control={control} name="installment" label={t('Cut each month')} {...money} />
             </Box>
           )}
         </Box>
@@ -217,23 +218,23 @@ export default function AdvanceDrawer({ open, employee, advance, onClose }) {
           <Box sx={{ p: 1.75, borderRadius: 2, border: '1px solid rgba(var(--brand-rgb), 0.35)', bgcolor: 'rgba(var(--brand-rgb), 0.06)' }}>
             <Typography variant="body2" sx={{ fontWeight: 600 }}>
               {planRows.length === 1
-                ? `${formatINR(amountPaise, { decimals: 0 })} will be cut from ${monthLabel(planRows[0].month)} salary`
-                : `${formatINR(perMonth, { decimals: 0 })} cut each month · ${shortMonth(planRows[0].month)} to ${shortMonth(planRows.at(-1).month)} (${planRows.length} months)`}
+                ? t('{{amount}} will be cut from {{monthLabel}} salary', { amount: formatINR(amountPaise, { decimals: 0 }), monthLabel: monthLabel(planRows[0].month) })
+                : t('{{perMonth}} cut each month · {{shortMonth}} to {{shortMonth2}} ({{count}} months)', { perMonth: formatINR(perMonth, { decimals: 0 }), shortMonth: shortMonth(planRows[0].month), shortMonth2: shortMonth(planRows.at(-1).month), count: planRows.length })}
             </Typography>
             {chosen?.grossPaise > 0 && planRows[0].paise > chosen.grossPaise && (
               <Typography variant="caption" sx={{ display: 'block', mt: 0.5, color: 'warning.dark' }}>
-                More than one month’s salary — what the salary can’t cover is taken the next month.
+                {t('More than one month’s salary — what the salary can’t cover is taken the next month.')}
               </Typography>
             )}
           </Box>
         )}
 
-        {editing && <RHFTextField control={control} name="reason" label="Reason for the change" placeholder="e.g. Typed the wrong amount" />}
+        {editing && <RHFTextField control={control} name="reason" label={t('Reason for the change')} placeholder={t('e.g. Typed the wrong amount')} />}
 
-        <MoreDetails hint="Reference, reason" defaultOpen={editing && Boolean(advance.reference || advance.note)}>
+        <MoreDetails hint={t('Reference, reason')} defaultOpen={editing && Boolean(advance.reference || advance.note)}>
           <Stack spacing={2}>
-            <RHFTextField control={control} name="reference" label="Reference" helperText="UPI / transfer ref." />
-            <RHFTextField control={control} name="note" label="Reason" multiline minRows={2} />
+            <RHFTextField control={control} name="reference" label={t('Reference')} helperText={t('UPI / transfer ref.')} />
+            <RHFTextField control={control} name="note" label={t('Reason')} multiline minRows={2} />
           </Stack>
         </MoreDetails>
       </Stack>

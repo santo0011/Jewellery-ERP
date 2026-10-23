@@ -338,7 +338,7 @@ export async function changePassword(userId, sessionId, { currentPassword, newPa
 
 export async function getMe(auth) {
   const [user, currentSession, organisation, subscription] = await Promise.all([
-    User.findById(auth.userId).select('name email mobile isOwner defaultBranchId roleIds branchAccess lastLoginAt mustChangePassword branchLoginFor').lean(),
+    User.findById(auth.userId).select('name email mobile isOwner defaultBranchId roleIds branchAccess lastLoginAt mustChangePassword branchLoginFor language').lean(),
     Session.findById(auth.sessionId).select('signedInWith').lean(),
     Organisation.findById(auth.organisationId).select('name legalName timezone currency address gstin logoFileId').lean(),
     Subscription.findOne({}).lean(),
@@ -367,6 +367,7 @@ export async function getMe(auth) {
       mustChangePassword: Boolean(user.mustChangePassword),
       signedInWithCode: currentSession?.signedInWith === 'code', // can set a new password without the old one
       branchLogin: Boolean(user.branchLoginFor),
+      language: user.language ?? null,
       roles: roles.map((r) => ({ id: r._id, key: r.key, name: r.name })),
     },
     organisation: {
@@ -410,6 +411,12 @@ export async function updateProfile(userId, input) {
     await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'user', recordType: 'User', recordId: user._id, changes });
   }
   return { id: user._id, name: user.name, email: user.email, mobile: user.mobile };
+}
+
+/** Saves the language the user picked, so it follows them to other devices. */
+export async function setLanguage(userId, language) {
+  await User.updateOne({ _id: userId }, { $set: { language } });
+  return { language };
 }
 
 export async function listSessions(userId, currentSessionId) {

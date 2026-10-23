@@ -2,6 +2,7 @@ import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
 import { Box, Breadcrumbs, ButtonBase, Link, Stack, Typography } from '@mui/material';
 import { Link as RouterLink, useLocation, useNavigate } from 'react-router';
 import { tokens } from '../theme/tokens.js';
+import { t } from '../i18n/index.js';
 
 /**
  * Goes back one step when the user arrived from inside the app (keeps their search, tab and page),
@@ -14,7 +15,7 @@ function BackButton({ to, label }) {
   return (
     <ButtonBase
       onClick={goBack}
-      aria-label={`Back to ${label}`}
+      aria-label={t('Back to {{label}}', { label })}
       sx={{
         mb: { xs: 1.25, sm: 1.5 },
         pl: 0.5,
@@ -39,7 +40,7 @@ function BackButton({ to, label }) {
         <ArrowBackRoundedIcon sx={{ fontSize: 16 }} />
       </Box>
       <Box component="span" sx={{ maxWidth: { xs: '60vw', sm: 'none' }, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        Back to {label}
+        {t('Back to {{label}}', { label })}
       </Box>
     </ButtonBase>
   );

@@ -19,6 +19,7 @@ import { PAY_MODES } from './purchaseUi.jsx';
 import ItemPicker from '../items/ItemPicker.jsx';
 import MoreDetails from '../../components/MoreDetails.jsx';
 import KeepOnPhone from '../../components/KeepOnPhone.jsx';
+import { t } from '../../i18n/index.js';
 
 const rupee = { input: { startAdornment: <InputAdornment position="start">₹</InputAdornment> }, htmlInput: { inputMode: 'decimal' } };
 const paise = (v) => {
@@ -151,25 +152,25 @@ export default function PurchaseFormPage() {
   const [confirming, setConfirming] = useState(false);
   const review = () => {
     const e = {};
-    if (!supplier) e.supplier = 'Pick the supplier';
-    if (!billNo.trim()) e.billNo = 'Enter the bill number';
-    if (!pieceCount && !lines.length) e.items = 'Add at least one piece or metal line';
+    if (!supplier) e.supplier = t('Pick the supplier');
+    if (!billNo.trim()) e.billNo = t('Enter the bill number');
+    if (!pieceCount && !lines.length) e.items = t('Add at least one piece or metal line');
     fresh.forEach((p, i) => {
-      if (!(freshMg(p) > 0)) e[`fw${i}`] = 'Enter weight';
-      if (!(paise(p.cost) > 0)) e[`fc${i}`] = 'Enter cost';
+      if (!(freshMg(p) > 0)) e[`fw${i}`] = t('Enter weight');
+      if (!(paise(p.cost) > 0)) e[`fc${i}`] = t('Enter cost');
       if (p.huid && !/^[A-Za-z0-9]{6}$/.test(p.huid)) e[`fh${i}`] = '6 letters/digits';
     });
     pieces.forEach((p, i) => {
-      if (!(paise(p.cost) > 0)) e[`cost${i}`] = 'Enter cost';
+      if (!(paise(p.cost) > 0)) e[`cost${i}`] = t('Enter cost');
     });
     if (lines.length && Object.keys(metal.errors).length) e.lines = metal.errors;
     metal.payload.forEach((l, i) => {
-      if (!(l.valuePaise > 0)) e.lines = { ...(e.lines ?? {}), [`${i}.value`]: 'Enter value' };
+      if (!(l.valuePaise > 0)) e.lines = { ...(e.lines ?? {}), [`${i}.value`]: t('Enter value') };
     });
-    if (paidMode === 'part' && !(paidNow > 0 && paidNow <= total)) e.paid = `Between ₹1 and ${formatINR(total, { decimals: 0 })}`;
+    if (paidMode === 'part' && !(paidNow > 0 && paidNow <= total)) e.paid = t('Between ₹1 and {{total}}', { total: formatINR(total, { decimals: 0 }) });
     setErrors(e);
     if (Object.keys(e).length) {
-      toast.error('Please fill the highlighted fields');
+      toast.error(t('Please fill the highlighted fields'));
       return;
     }
     setConfirming(true);
@@ -192,13 +193,13 @@ export default function PurchaseFormPage() {
         ...(paidNow > 0 && { paidNow: { amountPaise: paidNow, mode: payMode } }),
         note: note.trim() || null,
       }).unwrap();
-      toast.success(`Purchase ${p.purchaseNo} saved — stock added`);
+      toast.success(t('Purchase {{purchaseNo}} saved — stock added', { purchaseNo: p.purchaseNo }));
       // The bill is saved; a photo that fails to upload can be added again from the purchase page.
       for (const file of billFiles) {
         try {
           await addBillImage({ id: p.id, file }).unwrap();
         } catch (err) {
-          toast.error(`Bill photo not uploaded: ${getErrorMessage(err)}. Add it again on the purchase page.`);
+          toast.error(t('Bill photo not uploaded: {{getErrorMessage}}. Add it again on the purchase page.', { getErrorMessage: getErrorMessage(err) }));
           break;
         }
       }
@@ -206,7 +207,7 @@ export default function PurchaseFormPage() {
     } catch (err) {
       const d = err?.data?.error?.details?.[0];
       const m = d?.path?.match(/^newPieces\.(\d+)\.(\w+)/);
-      if (m) setErrors({ [`${m[2] === 'huid' ? 'fh' : m[2] === 'grossWeightMg' ? 'fw' : 'fc'}${m[1]}`]: d.message });
+      if (m) setErrors({ [`${m[2] === 'huid' ? 'fh' : m[2] === 'grossWeightMg' ? 'fw' : 'fc'}${m[1]}`]: t(d.message) });
       toast.error(getErrorMessage(err));
     }
   };
@@ -214,22 +215,21 @@ export default function PurchaseFormPage() {
 
   return (
     <>
-      <PageHeader title="New purchase" subtitle="Enter the supplier’s bill. The items go into stock at this cost." back={{ to: '/purchases', label: 'Purchases' }} />
+      <PageHeader title={t('New purchase')} subtitle={t('Enter the supplier’s bill. The items go into stock at this cost.')} back={{ to: '/purchases', label: t('Purchases') }} />
       {order && (
         <Alert severity="info" sx={{ mb: 2 }}>
-          Receiving order <strong>{order.orderNo}</strong> — {order.lines.map((l) => l.description).join(', ')}. The ordered pieces are filled in below with the order’s weight and amount — check them against
-          the supplier’s bill. Saving this bill marks the order as received.
+          {t('Receiving order {{orderNo}} — {{lines}}. The ordered pieces are filled in below with the order’s weight and amount — check them against the supplier’s bill. Saving this bill marks the order as received.', { orderNo: <strong>{order.orderNo}</strong>, lines: order.lines.map((l) => l.description).join(', ') })}
         </Alert>
       )}
       {unmatchedLines.length > 0 && (
         <Alert severity="warning" sx={{ mb: 2 }}>
-          Not in saved items, so not filled in: <strong>{unmatchedLines.map((l) => `${l.description} (${l.quantity ?? 1})`).join(', ')}</strong>. Add them under Pieces — type the name and pick “Add as a new item” if it is not saved yet.
+          {t('Not in saved items, so not filled in: {{items}}. Add them under Pieces — type the name and pick “Add as a new item” if it is not saved yet.', { items: <strong>{unmatchedLines.map((l) => `${l.description} (${l.quantity ?? 1})`).join(', ')}</strong> })}
         </Alert>
       )}
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, lg: 8 }}>
           <Stack spacing={2}>
-            <Section title="1. Supplier & bill">
+            <Section title={t('1. Supplier & bill')}>
               <Grid container spacing={2}>
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <Autocomplete
@@ -239,14 +239,14 @@ export default function PurchaseFormPage() {
                     disabled={Boolean(order)}
                     getOptionLabel={(s) => s.companyName ?? ''}
                     isOptionEqualToValue={(a, b) => String(a.id) === String(b.id)}
-                    renderInput={(p) => <TextField {...p} label="Supplier" error={Boolean(errors.supplier)} helperText={<KeepOnPhone>{errors.supplier ?? (suppliers?.items?.length === 0 ? 'Add a supplier first under Suppliers' : ' ')}</KeepOnPhone>} />}
+                    renderInput={(p) => <TextField {...p} label={t('Supplier')} error={Boolean(errors.supplier)} helperText={<KeepOnPhone>{errors.supplier ?? (suppliers?.items?.length === 0 ? t('Add a supplier first under Suppliers') : ' ')}</KeepOnPhone>} />}
                   />
                 </Grid>
                 {session.branches.length > 1 && (
                   <Grid size={{ xs: 12, sm: 6 }}>
                     <TextField
                       select
-                      label="Branch (stock goes to)"
+                      label={t('Branch (stock goes to)')}
                       value={branchId}
                       disabled={Boolean(order)}
                       onChange={(e) => {
@@ -263,25 +263,25 @@ export default function PurchaseFormPage() {
                   </Grid>
                 )}
                 <Grid size={{ xs: 5, sm: 3 }}>
-                  <TextField label="Bill no." value={billNo} onChange={(e) => setBillNo(e.target.value)} error={Boolean(errors.billNo)} helperText={errors.billNo ?? ' '} slotProps={{ htmlInput: { maxLength: 40 } }} />
+                  <TextField label={t('Bill no.')} value={billNo} onChange={(e) => setBillNo(e.target.value)} error={Boolean(errors.billNo)} helperText={errors.billNo ?? ' '} slotProps={{ htmlInput: { maxLength: 40 } }} />
                 </Grid>
                 <Grid size={{ xs: 7, sm: 3 }}>
-                  <TextField label="Bill date" type="date" value={billDate} onChange={(e) => setBillDate(e.target.value)} slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: todayIso() } }} helperText=" " />
+                  <TextField label={t('Bill date')} type="date" value={billDate} onChange={(e) => setBillDate(e.target.value)} slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: todayIso() } }} helperText=" " />
                 </Grid>
                 <Grid size={12}>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    Bill photo <Typography component="span" variant="caption" color="textSecondary">(optional)</Typography>
+                    {t('Bill photo')} <Typography component="span" variant="caption" color="textSecondary">{t('(optional)')}</Typography>
                   </Typography>
                   <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mb: 1 }}>
-                    Photo or scan of the supplier’s bill — PNG, JPEG or WebP, up to 5 MB each, 5 photos max.
+                    {t('Photo or scan of the supplier’s bill — PNG, JPEG or WebP, up to 5 MB each, 5 photos max.')}
                   </Typography>
                   <BillPhotoPicker files={billFiles} onChange={setBillFiles} />
                 </Grid>
               </Grid>
             </Section>
 
-            <Section title="2. Ready-to-sell jewellery" hint="Rings, chains, earrings… each piece goes into Products, ready to bill. Search a saved item, then enter its weight, HUID and cost.">
-              <ItemPicker onPick={(item) => setFresh((list) => [...list, { key: `${item.id}-${Date.now()}`, item, weight: '', huid: '', cost: '' }])} label="Add a piece — search items" />
+            <Section title={t('2. Ready-to-sell jewellery')} hint={t('Rings, chains, earrings… each piece goes into Products, ready to bill. Search a saved item, then enter its weight, HUID and cost.')}>
+              <ItemPicker onPick={(item) => setFresh((list) => [...list, { key: `${item.id}-${Date.now()}`, item, weight: '', huid: '', cost: '' }])} label={t('Add a piece — search items')} />
               {errors.items && (
                 <Typography variant="caption" color="error">
                   {errors.items}
@@ -300,10 +300,10 @@ export default function PurchaseFormPage() {
                         </Typography>
                       </Box>
                       <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
-                        <TextField size="small" label="Weight" value={x.weight} onChange={(e) => setFreshField(i, 'weight', e.target.value.replace(/[^\d.]/g, ''))} error={Boolean(errors[`fw${i}`])} slotProps={{ input: { endAdornment: <InputAdornment position="end">g</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }} sx={{ width: 110 }} autoFocus={i === fresh.length - 1 && !x.weight} />
-                        <TextField size="small" label="HUID" value={x.huid} onChange={(e) => setFreshField(i, 'huid', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))} error={Boolean(errors[`fh${i}`])} placeholder="Optional" sx={{ width: 104 }} />
-                        <TextField size="small" label="Cost" value={x.cost} onChange={(e) => setFreshField(i, 'cost', e.target.value.replace(/[^\d.]/g, ''))} error={Boolean(errors[`fc${i}`])} slotProps={rupee} sx={{ width: 130 }} />
-                        <IconButton size="small" onClick={() => setFresh((list) => list.filter((_, j) => j !== i))} aria-label={`Remove ${x.item.name}`} sx={{ mt: 0.5 }}>
+                        <TextField size="small" label={t('Weight')} value={x.weight} onChange={(e) => setFreshField(i, 'weight', e.target.value.replace(/[^\d.]/g, ''))} error={Boolean(errors[`fw${i}`])} slotProps={{ input: { endAdornment: <InputAdornment position="end">{t('g')}</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }} sx={{ width: 110 }} autoFocus={i === fresh.length - 1 && !x.weight} />
+                        <TextField size="small" label={t('HUID')} value={x.huid} onChange={(e) => setFreshField(i, 'huid', e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))} error={Boolean(errors[`fh${i}`])} placeholder={t('Optional')} sx={{ width: 104 }} />
+                        <TextField size="small" label={t('Cost')} value={x.cost} onChange={(e) => setFreshField(i, 'cost', e.target.value.replace(/[^\d.]/g, ''))} error={Boolean(errors[`fc${i}`])} slotProps={rupee} sx={{ width: 130 }} />
+                        <IconButton size="small" onClick={() => setFresh((list) => list.filter((_, j) => j !== i))} aria-label={t('Remove {{name}}', { name: x.item.name })} sx={{ mt: 0.5 }}>
                           <CloseRoundedIcon fontSize="small" />
                         </IconButton>
                       </Stack>
@@ -313,8 +313,8 @@ export default function PurchaseFormPage() {
               )}
 
               <Box sx={{ mt: 2 }}>
-                <MoreDetails title="Already created in Products?" hint="Pick draft pieces instead" defaultOpen={pieces.length > 0}>
-                  <ProductPicker status="draft" branchId={branchId} selected={pieces.map((p) => p.product)} onAdd={(product) => setPieces((list) => [...list, { product, cost: product.costPricePaise ? String(product.costPricePaise / 100) : '' }])} label="Pick a draft piece by SKU or name" />
+                <MoreDetails title={t('Already created in Products?')} hint={t('Pick draft pieces instead')} defaultOpen={pieces.length > 0}>
+                  <ProductPicker status="draft" branchId={branchId} selected={pieces.map((p) => p.product)} onAdd={(product) => setPieces((list) => [...list, { product, cost: product.costPricePaise ? String(product.costPricePaise / 100) : '' }])} label={t('Pick a draft piece by SKU or name')} />
                   {pieces.length > 0 && (
                     <Box sx={{ mt: 1.5, border: 1, borderColor: 'divider', borderRadius: 2 }}>
                       {pieces.map((x, i) => (
@@ -329,14 +329,14 @@ export default function PurchaseFormPage() {
                           </Box>
                           <TextField
                             size="small"
-                            label="Cost"
+                            label={t('Cost')}
                             value={x.cost}
                             onChange={(e) => setPieces((list) => list.map((p, j) => (j === i ? { ...p, cost: e.target.value.replace(/[^\d.]/g, '') } : p)))}
                             error={Boolean(errors[`cost${i}`])}
                             slotProps={rupee}
                             sx={{ width: 130 }}
                           />
-                          <IconButton size="small" onClick={() => setPieces((list) => list.filter((_, j) => j !== i))} aria-label={`Remove ${x.product.sku}`}>
+                          <IconButton size="small" onClick={() => setPieces((list) => list.filter((_, j) => j !== i))} aria-label={t('Remove {{sku}}', { sku: x.product.sku })}>
                             <CloseRoundedIcon fontSize="small" />
                           </IconButton>
                         </Stack>
@@ -347,19 +347,19 @@ export default function PurchaseFormPage() {
               </Box>
             </Section>
 
-            <Section title="3. Raw material (by weight)" hint="Bullion, old gold or scrap — goes to Raw materials, not Products, until it is made into jewellery (optional).">
+            <Section title={t('3. Raw material (by weight)')} hint={t('Bullion, old gold or scrap — goes to Raw materials, not Products, until it is made into jewellery (optional).')}>
               <MetalLinesEditor lines={lines} onChange={setLines} errors={errors.lines} showValue />
             </Section>
 
-            <Section title="4. Charges & GST">
+            <Section title={t('4. Charges & GST')}>
               <Grid container spacing={2}>
                 <Grid size={{ xs: 12, sm: 4 }}>
-                  <TextField label="Other charges" value={other} onChange={(e) => setOther(e.target.value.replace(/[^\d.]/g, ''))} slotProps={rupee} helperText="Hallmarking, courier…" />
+                  <TextField label={t('Other charges')} value={other} onChange={(e) => setOther(e.target.value.replace(/[^\d.]/g, ''))} slotProps={rupee} helperText={t('Hallmarking, courier…')} />
                 </Grid>
                 <Grid size={{ xs: 6, sm: 4 }}>
                   <TextField
                     select
-                    label="GST rate"
+                    label={t('GST rate')}
                     value={gstRate}
                     onChange={(e) => {
                       setGstRate(e.target.value);
@@ -369,16 +369,16 @@ export default function PurchaseFormPage() {
                   >
                     {['3', '5', '0'].map((r) => (
                       <MenuItem key={r} value={r}>
-                        {r === '0' ? 'No GST' : `${r}%`}
+                        {r === '0' ? t('No GST') : `${r}%`}
                       </MenuItem>
                     ))}
                   </TextField>
                 </Grid>
                 <Grid size={{ xs: 6, sm: 4 }}>
-                  <TextField label="GST amount" value={gstOverride !== '' ? gstOverride : gstAuto ? String(gstAuto / 100) : ''} onChange={(e) => setGstOverride(e.target.value.replace(/[^\d.]/g, ''))} slotProps={rupee} helperText="As on the bill" />
+                  <TextField label={t('GST amount')} value={gstOverride !== '' ? gstOverride : gstAuto ? String(gstAuto / 100) : ''} onChange={(e) => setGstOverride(e.target.value.replace(/[^\d.]/g, ''))} slotProps={rupee} helperText={t('As on the bill')} />
                 </Grid>
                 <Grid size={12}>
-                  <TextField label="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} slotProps={{ htmlInput: { maxLength: 300 } }} />
+                  <TextField label={t('Note (optional)')} value={note} onChange={(e) => setNote(e.target.value)} slotProps={{ htmlInput: { maxLength: 300 } }} />
                 </Grid>
               </Grid>
             </Section>
@@ -389,27 +389,27 @@ export default function PurchaseFormPage() {
           <Card sx={{ position: { lg: 'sticky' }, top: { lg: 88 } }}>
             <CardContent>
               <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>
-                Bill summary
+                {t('Bill summary')}
               </Typography>
-              <Line label={`Pieces (${pieceCount})`} value={formatINR(piecesPaise, { decimals: 0 })} />
-              <Line label={`Metal (${lines.length})`} value={formatINR(metalPaise, { decimals: 0 })} />
-              {otherPaise > 0 && <Line label="Other charges" value={formatINR(otherPaise, { decimals: 0 })} />}
-              <Line label="GST" value={formatINR(gst, { decimals: 0 })} />
+              <Line label={t('Pieces ({{pieceCount}})', { pieceCount })} value={formatINR(piecesPaise, { decimals: 0 })} />
+              <Line label={t('Metal ({{count}})', { count: lines.length })} value={formatINR(metalPaise, { decimals: 0 })} />
+              {otherPaise > 0 && <Line label={t('Other charges')} value={formatINR(otherPaise, { decimals: 0 })} />}
+              <Line label={t('GST')} value={formatINR(gst, { decimals: 0 })} />
               <Divider sx={{ my: 1 }} />
-              <Line label="Bill total" value={formatINR(total, { decimals: 0 })} strong />
+              <Line label={t('Bill total')} value={formatINR(total, { decimals: 0 })} strong />
               <Typography variant="caption" color="textSecondary">
-                Weight {formatWeight(weight)}
+                {t('Weight {{weight}}', { weight: formatWeight(weight) })}
               </Typography>
 
               <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 2, mb: 0.5 }}>
-                Paid to supplier now
+                {t('Paid to supplier now')}
               </Typography>
               <ToggleButtonGroup exclusive fullWidth size="small" value={paidMode} onChange={(e, v) => v && setPaidMode(v)}>
-                <ToggleButton value="none">Nothing</ToggleButton>
-                <ToggleButton value="part">Part</ToggleButton>
-                <ToggleButton value="full">Full</ToggleButton>
+                <ToggleButton value="none">{t('Nothing')}</ToggleButton>
+                <ToggleButton value="part">{t('Part')}</ToggleButton>
+                <ToggleButton value="full">{t('Full')}</ToggleButton>
               </ToggleButtonGroup>
-              {paidMode === 'part' && <TextField size="small" label="Amount paid" value={paidAmount} onChange={(e) => setPaidAmount(e.target.value.replace(/[^\d.]/g, ''))} slotProps={rupee} error={Boolean(errors.paid)} helperText={errors.paid} sx={{ mt: 1.5 }} />}
+              {paidMode === 'part' && <TextField size="small" label={t('Amount paid')} value={paidAmount} onChange={(e) => setPaidAmount(e.target.value.replace(/[^\d.]/g, ''))} slotProps={rupee} error={Boolean(errors.paid)} helperText={errors.paid} sx={{ mt: 1.5 }} />}
               {paidMode !== 'none' && (
                 <ToggleButtonGroup exclusive fullWidth size="small" value={payMode} onChange={(e, v) => v && setPayMode(v)} sx={{ mt: 1.5 }}>
                   {PAY_MODES.map((m) => (
@@ -419,35 +419,35 @@ export default function PurchaseFormPage() {
                   ))}
                 </ToggleButtonGroup>
               )}
-              <Line label="Still to pay" value={formatINR(Math.max(0, total - paidNow), { decimals: 0 })} tone={total - paidNow > 0 ? 'error.main' : 'success.main'} />
+              <Line label={t('Still to pay')} value={formatINR(Math.max(0, total - paidNow), { decimals: 0 })} tone={total - paidNow > 0 ? 'error.main' : 'success.main'} />
 
               <Button fullWidth variant="contained" size="large" sx={{ mt: 2 }} onClick={review} disabled={state.isLoading || uploadingBill || !total} loading={state.isLoading || uploadingBill}>
-                Save purchase
+                {t('Save purchase')}
               </Button>
             </CardContent>
           </Card>
         </Grid>
       </Grid>
       <Dialog open={confirming} onClose={() => setConfirming(false)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ fontWeight: 600 }}>Save this purchase?</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 600 }}>{t('Save this purchase?')}</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="textSecondary" sx={{ mb: 1.5 }}>
-            The pieces and metal go into stock and the bill is booked to {supplier?.companyName}. Check the amounts — a saved purchase cannot be edited.
+            {t('The pieces and metal go into stock and the bill is booked to {{companyName}}. Check the amounts — a saved purchase cannot be edited.', { companyName: supplier?.companyName })}
           </Typography>
-          <Line label="Supplier" value={supplier?.companyName ?? '—'} />
-          <Line label="Bill" value={`${billNo.trim()} · ${formatDate(billDate)}`} />
-          <Line label="Items" value={[pieceCount && `${pieceCount} piece${pieceCount === 1 ? '' : 's'}`, lines.length && `${lines.length} metal line${lines.length === 1 ? '' : 's'}`].filter(Boolean).join(' + ') || '—'} />
+          <Line label={t('Supplier')} value={supplier?.companyName ?? '—'} />
+          <Line label={t('Bill')} value={`${billNo.trim()} · ${formatDate(billDate)}`} />
+          <Line label={t('Items')} value={[pieceCount && (pieceCount === 1 ? t('{{pieceCount}} piece', { pieceCount }) : t('{{pieceCount}} pieces', { pieceCount })), lines.length && (lines.length === 1 ? t('{{count}} metal line', { count: lines.length }) : t('{{count}} metal lines', { count: lines.length }))].filter(Boolean).join(' + ') || '—'} />
           <Divider sx={{ my: 1 }} />
-          <Line label="Bill total" value={formatINR(total, { decimals: 0 })} strong />
-          <Line label="Paid now" value={paidNow ? `${formatINR(paidNow, { decimals: 0 })} · ${PAY_MODES.find((m) => m.value === payMode)?.label ?? payMode}` : 'Nothing'} />
-          <Line label="Still to pay" value={formatINR(Math.max(0, total - paidNow), { decimals: 0 })} tone={total - paidNow > 0 ? 'error.main' : 'success.main'} />
+          <Line label={t('Bill total')} value={formatINR(total, { decimals: 0 })} strong />
+          <Line label={t('Paid now')} value={paidNow ? `${formatINR(paidNow, { decimals: 0 })} · ${PAY_MODES.find((m) => m.value === payMode)?.label ?? payMode}` : t('Nothing')} />
+          <Line label={t('Still to pay')} value={formatINR(Math.max(0, total - paidNow), { decimals: 0 })} tone={total - paidNow > 0 ? 'error.main' : 'success.main'} />
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button color="secondary" onClick={() => setConfirming(false)}>
-            Go back
+            {t('Go back')}
           </Button>
           <Button variant="contained" onClick={submit}>
-            Yes, save purchase
+            {t('Yes, save purchase')}
           </Button>
         </DialogActions>
       </Dialog>

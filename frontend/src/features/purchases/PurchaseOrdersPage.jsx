@@ -24,6 +24,7 @@ import PendingActionsOutlinedIcon from '@mui/icons-material/PendingActionsOutlin
 import EventBusyOutlinedIcon from '@mui/icons-material/EventBusyOutlined';
 import CurrencyRupeeOutlinedIcon from '@mui/icons-material/CurrencyRupeeOutlined';
 import { useDeleteStatus } from '../../services/recordApi.js';
+import { t } from '../../i18n/index.js';
 
 const blankLine = () => ({ description: '', itemId: null, metal: 'gold', purity: 916, quantity: '1', weight: '', amount: '' });
 const toMg = (v) => {
@@ -69,7 +70,7 @@ function NewOrderDrawer({ open, onClose }) {
         lines: lines.map((l) => ({ description: l.description.trim(), ...(l.itemId && { itemId: l.itemId }), metal: l.metal, purity: Number(l.purity), quantity: Math.max(1, Number(l.quantity) || 1), weightMg: toMg(l.weight), amountPaise: toP(l.amount) })),
         note: note.trim() || null,
       }).unwrap();
-      toast.success(`Order ${order.orderNo} placed with ${order.supplier.name}`);
+      toast.success(t('Order {{orderNo}} placed with {{name}}', { orderNo: order.orderNo, name: order.supplier.name }));
       onClose();
     } catch (err) {
       toast.error(getErrorMessage(err));
@@ -77,7 +78,7 @@ function NewOrderDrawer({ open, onClose }) {
   };
 
   return (
-    <FormDrawer open={open} title="New purchase order" subtitle="What you are ordering from a supplier." onClose={onClose} onSubmit={submit} submitting={state.isLoading} submitLabel="Place order" width={620}>
+    <FormDrawer open={open} title={t('New purchase order')} subtitle={t('What you are ordering from a supplier.')} onClose={onClose} onSubmit={submit} submitting={state.isLoading} submitLabel={t('Place order')} width={620}>
       <Stack spacing={2}>
         <Grid container spacing={2}>
           <Grid size={{ xs: 12, sm: 6 }}>
@@ -87,15 +88,15 @@ function NewOrderDrawer({ open, onClose }) {
               onChange={(e, v) => setSupplier(v)}
               getOptionLabel={(s) => s.companyName ?? ''}
               isOptionEqualToValue={(a, b) => String(a.id) === String(b.id)}
-              renderInput={(p) => <TextField {...p} label="Supplier" error={tried && !supplier} helperText={tried && !supplier ? 'Pick the supplier' : ' '} />}
+              renderInput={(p) => <TextField {...p} label={t('Supplier')} error={tried && !supplier} helperText={tried && !supplier ? t('Pick the supplier') : ' '} />}
             />
           </Grid>
           <Grid size={{ xs: 12, sm: 6 }}>
-            <TextField label="Expected by" type="date" value={expectedDate} onChange={(e) => setExpectedDate(e.target.value)} slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: todayIso() } }} helperText="Optional" />
+            <TextField label={t('Expected by')} type="date" value={expectedDate} onChange={(e) => setExpectedDate(e.target.value)} slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: todayIso() } }} helperText={t('Optional')} />
           </Grid>
           {session.branches.length > 1 && (
             <Grid size={12}>
-              <TextField select label="For branch" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
+              <TextField select label={t('For branch')} value={branchId} onChange={(e) => setBranchId(e.target.value)}>
                 {session.branches.map((b) => (
                   <MenuItem key={b.id} value={b.id}>
                     {b.name}
@@ -106,11 +107,11 @@ function NewOrderDrawer({ open, onClose }) {
           )}
         </Grid>
 
-        <Typography variant="subtitle2">Items</Typography>
+        <Typography variant="subtitle2">{t('Items')}</Typography>
         <ItemPicker
           size="small"
-          label="Add from saved items"
-          helperText="Pick a saved item to fill its name, metal and purity — or type the line yourself below."
+          label={t('Add from saved items')}
+          helperText={t('Pick a saved item to fill its name, metal and purity — or type the line yourself below.')}
           onPick={(item) =>
             setLines((ls) => {
               const line = { ...blankLine(), description: item.name, itemId: item.id, metal: item.metal, purity: item.purity };
@@ -124,13 +125,13 @@ function NewOrderDrawer({ open, onClose }) {
           <Box key={i} sx={{ p: 1.5, border: 1, borderColor: 'divider', borderRadius: 2 }}>
             <Grid container spacing={1.5}>
               <Grid size={{ xs: 12, sm: 7 }}>
-                <TextField size="small" label="Item" placeholder="e.g. 22K bangles, 2 pairs" value={l.description} onChange={(e) => set(i, { description: e.target.value, itemId: null })} error={tried && l.description.trim().length < 2} />
+                <TextField size="small" label={t('Item')} placeholder={t('e.g. 22K bangles, 2 pairs')} value={l.description} onChange={(e) => set(i, { description: e.target.value, itemId: null })} error={tried && l.description.trim().length < 2} />
               </Grid>
               <Grid size={{ xs: 6, sm: 2.5 }}>
                 <TextField
                   size="small"
                   select
-                  label="Metal"
+                  label={t('Metal')}
                   value={l.metal}
                   onChange={(e) => set(i, { metal: e.target.value, purity: PURITIES[e.target.value]?.[0]?.fineness ?? 0, itemId: null })}
                 >
@@ -142,7 +143,7 @@ function NewOrderDrawer({ open, onClose }) {
                 </TextField>
               </Grid>
               <Grid size={{ xs: 6, sm: 2.5 }}>
-                <TextField size="small" select label="Purity" value={l.purity} onChange={(e) => set(i, { purity: e.target.value, itemId: null })}>
+                <TextField size="small" select label={t('Purity')} value={l.purity} onChange={(e) => set(i, { purity: e.target.value, itemId: null })}>
                   {(PURITIES[l.metal] ?? []).map((p) => (
                     <MenuItem key={p.fineness} value={p.fineness}>
                       {p.label}
@@ -151,16 +152,16 @@ function NewOrderDrawer({ open, onClose }) {
                 </TextField>
               </Grid>
               <Grid size={{ xs: 4, sm: 2 }}>
-                <TextField size="small" label="Qty" value={l.quantity} onChange={(e) => set(i, { quantity: e.target.value.replace(/\D/g, '') })} />
+                <TextField size="small" label={t('Qty')} value={l.quantity} onChange={(e) => set(i, { quantity: e.target.value.replace(/\D/g, '') })} />
               </Grid>
               <Grid size={{ xs: 8, sm: 4 }}>
-                <TextField size="small" label="Approx. weight" value={l.weight} onChange={(e) => set(i, { weight: e.target.value.replace(/[^\d.]/g, '') })} slotProps={{ input: { endAdornment: <InputAdornment position="end">g</InputAdornment> } }} />
+                <TextField size="small" label={t('Approx. weight')} value={l.weight} onChange={(e) => set(i, { weight: e.target.value.replace(/[^\d.]/g, '') })} slotProps={{ input: { endAdornment: <InputAdornment position="end">{t('g')}</InputAdornment> } }} />
               </Grid>
               <Grid size={{ xs: 10, sm: 5 }}>
-                <TextField size="small" label="Estimated amount" value={l.amount} onChange={(e) => set(i, { amount: e.target.value.replace(/[^\d.]/g, '') })} slotProps={{ input: { startAdornment: <InputAdornment position="start">₹</InputAdornment> } }} />
+                <TextField size="small" label={t('Estimated amount')} value={l.amount} onChange={(e) => set(i, { amount: e.target.value.replace(/[^\d.]/g, '') })} slotProps={{ input: { startAdornment: <InputAdornment position="start">₹</InputAdornment> } }} />
               </Grid>
               <Grid size={{ xs: 2, sm: 1 }} sx={{ display: 'flex', alignItems: 'center' }}>
-                <IconButton size="small" onClick={() => setLines((ls) => ls.filter((_, j) => j !== i))} disabled={lines.length === 1} aria-label="Remove line">
+                <IconButton size="small" onClick={() => setLines((ls) => ls.filter((_, j) => j !== i))} disabled={lines.length === 1} aria-label={t('Remove line')}>
                   <DeleteOutlineRoundedIcon fontSize="small" />
                 </IconButton>
               </Grid>
@@ -169,15 +170,15 @@ function NewOrderDrawer({ open, onClose }) {
         ))}
         <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center' }}>
           <Button startIcon={<AddRoundedIcon />} onClick={() => setLines((ls) => [...ls, blankLine()])}>
-            Add item
+            {t('Add item')}
           </Button>
           {estimate > 0 && (
             <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              Estimate {formatINR(estimate, { decimals: 0 })}
+              {t('Estimate {{estimate}}', { estimate: formatINR(estimate, { decimals: 0 }) })}
             </Typography>
           )}
         </Stack>
-        <TextField label="Note to supplier (optional)" value={note} onChange={(e) => setNote(e.target.value)} multiline minRows={2} slotProps={{ htmlInput: { maxLength: 300 } }} />
+        <TextField label={t('Note to supplier (optional)')} value={note} onChange={(e) => setNote(e.target.value)} multiline minRows={2} slotProps={{ htmlInput: { maxLength: 300 } }} />
       </Stack>
     </FormDrawer>
   );
@@ -196,7 +197,7 @@ export default function PurchaseOrdersPage() {
   const columns = [
     {
       key: 'order',
-      label: 'Order',
+      label: t('Order'),
       render: (o) => (
         <Box>
           <Typography variant="subtitle2">{o.orderNo}</Typography>
@@ -206,58 +207,58 @@ export default function PurchaseOrdersPage() {
         </Box>
       ),
     },
-    { key: 'supplier', label: 'Supplier', render: (o) => <Typography variant="body2" sx={{ fontWeight: 500 }}>{o.supplier.name}</Typography> },
+    { key: 'supplier', label: t('Supplier'), render: (o) => <Typography variant="body2" sx={{ fontWeight: 500 }}>{o.supplier.name}</Typography> },
     {
       key: 'items',
-      label: 'Items',
+      label: t('Items'),
       render: (o) => (
         <Box sx={{ maxWidth: 280 }}>
           <Typography variant="body2" noWrap>
             {o.lines.map((l) => l.description).join(', ')}
           </Typography>
           <Typography variant="caption" color="textSecondary">
-            {o.totals.quantity} pcs{o.totals.weightMg ? ` · ~${formatWeight(o.totals.weightMg)}` : ''}
+            {t('{{quantity}} pcs', { quantity: o.totals.quantity })}{o.totals.weightMg ? ` · ~${formatWeight(o.totals.weightMg)}` : ''}
           </Typography>
         </Box>
       ),
     },
-    { key: 'amount', label: 'Estimate', align: 'right', render: (o) => (o.totals.amountPaise ? formatINR(o.totals.amountPaise, { decimals: 0 }) : '—') },
+    { key: 'amount', label: t('Estimate'), align: 'right', render: (o) => (o.totals.amountPaise ? formatINR(o.totals.amountPaise, { decimals: 0 }) : '—') },
     {
       key: 'expected',
-      label: 'Expected',
+      label: t('Expected'),
       render: (o) => (
         <Typography variant="body2" sx={{ color: o.overdue ? 'error.main' : 'text.primary', fontWeight: o.overdue ? 600 : 400 }}>
           {o.expectedDate ? formatDate(o.expectedDate) : '—'}
         </Typography>
       ),
     },
-    { key: 'status', label: 'Status', render: (o) => <OrderStatusChip status={o.status} overdue={o.overdue} /> },
+    { key: 'status', label: t('Status'), render: (o) => <OrderStatusChip status={o.status} overdue={o.overdue} /> },
   ];
 
   return (
     <>
       <PageHeader
-        title="Purchase orders"
-        subtitle="What you have ordered from suppliers and when it is due."
+        title={t('Purchase orders')}
+        subtitle={t('What you have ordered from suppliers and when it is due.')}
         actions={
           canCreate && (
             <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setOpen(true)}>
-              New order
+              {t('New order')}
             </Button>
           )
         }
       />
       <SummaryCards>
-        <SummaryCard icon={PendingActionsOutlinedIcon} label="Open orders" value={meta?.open ?? 0} caption="Waiting for delivery" onClick={() => list.setFilter('status', 'open')} />
-        <SummaryCard icon={EventBusyOutlinedIcon} label="Overdue" value={meta?.overdue ?? 0} caption={meta?.overdue ? 'Past the expected date' : 'Nothing late'} tone={meta?.overdue ? 'red' : 'green'} valueTone={meta?.overdue ? 'due' : undefined} />
-        <SummaryCard icon={CurrencyRupeeOutlinedIcon} label="Open order value" value={formatINR(meta?.openAmountPaise ?? 0, { decimals: 0 })} caption="Estimated" tone="blue" />
+        <SummaryCard icon={PendingActionsOutlinedIcon} label={t('Open orders')} value={meta?.open ?? 0} caption={t('Waiting for delivery')} onClick={() => list.setFilter('status', 'open')} />
+        <SummaryCard icon={EventBusyOutlinedIcon} label={t('Overdue')} value={meta?.overdue ?? 0} caption={meta?.overdue ? t('Past the expected date') : t('Nothing late')} tone={meta?.overdue ? 'red' : 'green'} valueTone={meta?.overdue ? 'due' : undefined} />
+        <SummaryCard icon={CurrencyRupeeOutlinedIcon} label={t('Open order value')} value={formatINR(meta?.openAmountPaise ?? 0, { decimals: 0 })} caption={t('Estimated')} tone="blue" />
       </SummaryCards>
       <DataTable
         columns={[
           ...columns,
           {
             key: 'actions',
-            label: 'Action',
+            label: t('Action'),
             align: 'right',
             width: actionsWidth(2),
             // An order already received on a bill stays with it.
@@ -269,16 +270,16 @@ export default function PurchaseOrdersPage() {
         fetching={isFetching}
         error={error}
         onRetry={refetch}
-        empty={list.filters.status === 'open' ? { title: 'No open orders', description: 'Orders you place with suppliers show here until the goods arrive.' } : { title: 'No orders', description: 'Try another filter.' }}
+        empty={list.filters.status === 'open' ? { title: t('No open orders'), description: t('Orders you place with suppliers show here until the goods arrive.') } : { title: t('No orders'), description: t('Try another filter.') }}
         pagination={list.pagination(meta)}
         toolbar={
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: { sm: 'center' } }}>
-            <SearchField value={list.search} onChange={list.setSearch} placeholder="Search order no., supplier or item" />
+            <SearchField value={list.search} onChange={list.setSearch} placeholder={t('Search order no., supplier or item')} />
             <ToggleButtonGroup exclusive size="small" value={list.filters.status} onChange={(e, v) => v !== null && list.setFilter('status', v)} sx={{ height: 40, flexShrink: 0 }}>
-              <ToggleButton value="open">Open</ToggleButton>
-              <ToggleButton value="received">Received</ToggleButton>
-              <ToggleButton value="cancelled">Cancelled</ToggleButton>
-              <ToggleButton value="">All</ToggleButton>
+              <ToggleButton value="open">{t('Open')}</ToggleButton>
+              <ToggleButton value="received">{t('Received')}</ToggleButton>
+              <ToggleButton value="cancelled">{t('Cancelled')}</ToggleButton>
+              <ToggleButton value="">{t('All')}</ToggleButton>
             </ToggleButtonGroup>
           </Stack>
         }

@@ -14,6 +14,7 @@ import { getErrorMessage } from '../../utils/errors.js';
 import { useCheckoutMutation, useMyBillingQuery, useVerifyPaymentMutation } from './billingApi.js';
 import PayDialog from './PayDialog.jsx';
 import { inr, methodLabel, PaymentStatusChip, PlanAction, PlanCard, SubscriptionChip, UsageBar } from './billingUi.jsx';
+import { t } from '../../i18n/index.js';
 
 function CurrentPlan({ s, usage }) {
   const ends = s.endsAt ? formatDate(s.endsAt) : null;
@@ -29,23 +30,23 @@ function CurrentPlan({ s, usage }) {
               </Box>
               <Box>
                 <Typography variant="overline" color="textSecondary">
-                  Your plan
+                  {t('Your plan')}
                 </Typography>
                 <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                   <Typography sx={{ fontFamily: fonts.display, fontSize: 30, fontWeight: 700, lineHeight: 1.1 }}>{s.planName ?? '—'}</Typography>
                   <SubscriptionChip status={s.status} />
                 </Stack>
                 <Typography variant="body2" sx={{ mt: 0.5, color: s.expired ? 'error.main' : s.daysLeft <= 7 ? 'warning.dark' : 'text.secondary', fontWeight: s.expired || s.daysLeft <= 7 ? 600 : 400 }}>
-                  {s.expired ? `Ended${ends ? ` on ${ends}` : ''} — renew below to unlock the app` : `${s.status === 'trial' ? 'Free trial ends' : 'Renews / ends'} ${ends} · ${s.daysLeft} day${s.daysLeft === 1 ? '' : 's'} left`}
+                  {s.expired ? (ends ? t('Ended on {{ends}} — renew below to unlock the app', { ends }) : t('Ended — renew below to unlock the app')) : (s.status === 'trial' ? (s.daysLeft === 1 ? t('Free trial ends {{ends}} · {{daysLeft}} day left', { ends, daysLeft: s.daysLeft }) : t('Free trial ends {{ends}} · {{daysLeft}} days left', { ends, daysLeft: s.daysLeft })) : (s.daysLeft === 1 ? t('Renews / ends {{ends}} · {{daysLeft}} day left', { ends, daysLeft: s.daysLeft }) : t('Renews / ends {{ends}} · {{daysLeft}} days left', { ends, daysLeft: s.daysLeft })))}
                 </Typography>
               </Box>
             </Stack>
           </Grid>
           <Grid size={{ xs: 12, md: 7 }}>
             <Stack spacing={1.5}>
-              <UsageBar label="Users" used={usage.users} limit={s.limits.users} />
-              <UsageBar label="Branches" used={usage.branches} limit={s.limits.branches} />
-              <UsageBar label="Products" used={usage.products} limit={s.limits.products} />
+              <UsageBar label={t('Users')} used={usage.users} limit={s.limits.users} />
+              <UsageBar label={t('Branches')} used={usage.branches} limit={s.limits.branches} />
+              <UsageBar label={t('Products')} used={usage.products} limit={s.limits.products} />
             </Stack>
           </Grid>
         </Grid>
@@ -75,9 +76,9 @@ export default function SubscriptionPage() {
     verify(returnedOrder)
       .unwrap()
       .then((p) => {
-        if (p.status === 'paid') toast.success(`Payment received — ${p.plan.name} is active until ${formatDate(p.periodEnd)}`);
-        else if (p.status === 'created') toast('Payment not completed yet. If money was taken, it will show here within a few minutes.', { icon: '⏳' });
-        else toast.error('The payment did not go through. You have not been charged.');
+        if (p.status === 'paid') toast.success(t('Payment received — {{name}} is active until {{periodEnd}}', { name: p.plan.name, periodEnd: formatDate(p.periodEnd) }));
+        else if (p.status === 'created') toast(t('Payment not completed yet. If money was taken, it will show here within a few minutes.'), { icon: '⏳' });
+        else toast.error(t('The payment did not go through. You have not been charged.'));
       })
       .catch((err) => toast.error(getErrorMessage(err)))
       .finally(() => {
@@ -99,7 +100,7 @@ export default function SubscriptionPage() {
     setBusyPlan(plan.id);
     try {
       await checkout({ planId: plan.id }).unwrap();
-      toast.success(`${plan.name} is now active`);
+      toast.success(t('{{name}} is now active', { name: plan.name }));
       refetch();
     } catch (err) {
       toast.error(getErrorMessage(err));
@@ -114,29 +115,29 @@ export default function SubscriptionPage() {
 
   return (
     <>
-      <PageHeader title="Subscription" subtitle="Your plan, what you use, and payments." />
+      <PageHeader title={t('Subscription')} subtitle={t('Your plan, what you use, and payments.')} />
       {checking && (
         <Alert severity="info" icon={<CircularProgress size={18} />} sx={{ mb: 2 }}>
-          Confirming your payment with Cashfree…
+          {t('Confirming your payment with Cashfree…')}
         </Alert>
       )}
       <CurrentPlan s={s} usage={data.usage} />
 
       <Stack direction="row" sx={{ alignItems: 'baseline', justifyContent: 'space-between', mb: 1.5, gap: 1, flexWrap: 'wrap' }}>
-        <Typography variant="h3">{s.expired ? 'Choose a plan to continue' : 'Plans'}</Typography>
+        <Typography variant="h3">{s.expired ? t('Choose a plan to continue') : t('Plans')}</Typography>
         {data.gateway.enabled && (
-          <Chip size="small" label={data.gateway.mode === 'sandbox' ? 'Test mode — no real money' : 'Secure payment by Cashfree'} color={data.gateway.mode === 'sandbox' ? 'warning' : 'success'} variant="outlined" />
+          <Chip size="small" label={data.gateway.mode === 'sandbox' ? t('Test mode — no real money') : t('Secure payment by Cashfree')} color={data.gateway.mode === 'sandbox' ? 'warning' : 'success'} variant="outlined" />
         )}
       </Stack>
       {!data.gateway.enabled && (
         <Alert severity="warning" sx={{ mb: 2 }}>
-          Online payment is not set up yet. Please contact the platform administrator to renew.
+          {t('Online payment is not set up yet. Please contact the platform administrator to renew.')}
         </Alert>
       )}
       <Grid container spacing={2.5} sx={{ mb: 4 }}>
         {data.plans.map((p) => {
           const current = String(p.id) === String(s.planId) && !s.expired && s.status === 'active';
-          const label = p.pricePaise === 0 ? 'Switch to this plan' : String(p.id) === String(s.planId) ? `Renew · Pay ${inr(p.pricePaise)}` : `Pay ${inr(p.pricePaise)}`;
+          const label = p.pricePaise === 0 ? t('Switch to this plan') : String(p.id) === String(s.planId) ? t('Renew · Pay {{inr}}', { inr: inr(p.pricePaise) }) : t('Pay {{inr}}', { inr: inr(p.pricePaise) });
           return (
             <Grid key={p.id} size={{ xs: 12, sm: 6, lg: 4 }}>
               <PlanCard
@@ -145,11 +146,11 @@ export default function SubscriptionPage() {
                 action={
                   canBuy ? (
                     <PlanAction onClick={() => buy(p)} disabled={Boolean(busyPlan) || (!data.gateway.enabled && p.pricePaise > 0)} variant={p.isPopular || current ? 'contained' : 'outlined'}>
-                      {busyPlan === p.id ? 'Opening payment…' : label}
+                      {busyPlan === p.id ? t('Opening payment…') : label}
                     </PlanAction>
                   ) : (
                     <Typography variant="caption" color="textSecondary">
-                      Ask the owner to change the plan
+                      {t('Ask the owner to change the plan')}
                     </Typography>
                   )
                 }
@@ -162,13 +163,13 @@ export default function SubscriptionPage() {
       {paying && <PayDialog plan={paying} mode={data.gateway.mode} onClose={() => setPaying(null)} onPaid={() => refetch()} />}
 
       <Typography variant="h3" sx={{ mb: 1.5 }}>
-        Payment history
+        {t('Payment history')}
       </Typography>
       <DataTable
         columns={[
           {
             key: 'date',
-            label: 'Date',
+            label: t('Date'),
             render: (p) => (
               <Box>
                 <Typography variant="body2" sx={{ fontWeight: 600 }}>
@@ -180,14 +181,14 @@ export default function SubscriptionPage() {
               </Box>
             ),
           },
-          { key: 'plan', label: 'Plan', render: (p) => `${p.plan.name} · ${p.months} month${p.months === 1 ? '' : 's'}` },
-          { key: 'period', label: 'Covers', render: (p) => (p.periodStart ? `${formatDate(p.periodStart)} – ${formatDate(p.periodEnd)}` : '—') },
-          { key: 'method', label: 'Paid by', render: (p) => (p.source === 'manual' ? `${methodLabel(p.paymentMethod)} (recorded)` : methodLabel(p.paymentMethod)) },
-          { key: 'amount', label: 'Amount', align: 'right', render: (p) => <Typography variant="body2" sx={{ fontWeight: 700 }}>{inr(p.amountPaise)}</Typography> },
-          { key: 'status', label: 'Status', render: (p) => <PaymentStatusChip status={p.status} /> },
+          { key: 'plan', label: t('Plan'), render: (p) => (p.months === 1 ? t('{{name}} · {{months}} month', { name: p.plan.name, months: p.months }) : t('{{name}} · {{months}} months', { name: p.plan.name, months: p.months })) },
+          { key: 'period', label: t('Covers'), render: (p) => (p.periodStart ? `${formatDate(p.periodStart)} – ${formatDate(p.periodEnd)}` : '—') },
+          { key: 'method', label: t('Paid by'), render: (p) => (p.source === 'manual' ? t('{{methodLabel}} (recorded)', { methodLabel: methodLabel(p.paymentMethod) }) : methodLabel(p.paymentMethod)) },
+          { key: 'amount', label: t('Amount'), align: 'right', render: (p) => <Typography variant="body2" sx={{ fontWeight: 700 }}>{inr(p.amountPaise)}</Typography> },
+          { key: 'status', label: t('Status'), render: (p) => <PaymentStatusChip status={p.status} /> },
         ]}
         rows={data.payments}
-        empty={{ title: 'No payments yet', description: 'Your subscription payments will show here.' }}
+        empty={{ title: t('No payments yet'), description: t('Your subscription payments will show here.') }}
       />
     </>
   );

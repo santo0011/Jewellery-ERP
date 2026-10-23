@@ -4,6 +4,7 @@ import { useForm } from 'react-hook-form';
 import toast from 'react-hot-toast';
 import { applyServerErrors, getErrorMessage } from '../../utils/errors.js';
 import { useUpdateSettingsMutation } from './settingsApi.js';
+import { t } from '../../i18n/index.js';
 
 /** One settings section as a card with Save / Discard. `save` replaces the usual save of the whole section. */
 export default function SettingsSectionForm({ section, title, description, value, toForm = (v) => v, fromForm = (v) => v, readOnly, save, notice, children }) {
@@ -23,13 +24,13 @@ export default function SettingsSectionForm({ section, title, description, value
     try {
       payload = fromForm(values);
     } catch {
-      toast.error('Some numbers are not valid. Please check the highlighted fields.');
+      toast.error(t('Some numbers are not valid. Please check the highlighted fields.'));
       return;
     }
     setSaving(true);
     try {
       await (save ? save(payload) : update({ section, values: payload }).unwrap());
-      toast.success('Settings saved');
+      toast.success(t('Settings saved'));
     } catch (err) {
       if (!applyServerErrors(err, setError)) toast.error(getErrorMessage(err));
     } finally {
@@ -49,7 +50,7 @@ export default function SettingsSectionForm({ section, title, description, value
         <Divider sx={{ my: 2.5 }} />
         {readOnly && (
           <Alert severity="info" sx={{ mb: 2 }}>
-            You have view-only access to settings.
+            {t('You have view-only access to settings.')}
           </Alert>
         )}
         {notice}
@@ -57,10 +58,10 @@ export default function SettingsSectionForm({ section, title, description, value
         {!readOnly && (
           <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 1, mt: 3 }}>
             <Button color="secondary" onClick={() => reset(toForm(value))} disabled={!formState.isDirty || isLoading}>
-              Discard
+              {t('Discard')}
             </Button>
             <Button type="submit" variant="contained" loading={isLoading} disabled={!formState.isDirty}>
-              Save changes
+              {t('Save changes')}
             </Button>
           </Box>
         )}

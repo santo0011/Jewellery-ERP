@@ -20,6 +20,7 @@ import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
 import RequestQuoteOutlinedIcon from '@mui/icons-material/RequestQuoteOutlined';
 import PersonOffOutlinedIcon from '@mui/icons-material/PersonOffOutlined';
 import { useDeleteStatus } from '../../services/recordApi.js';
+import { t } from '../../i18n/index.js';
 
 
 export default function EmployeesPage() {
@@ -40,14 +41,14 @@ export default function EmployeesPage() {
   const columns = [
     {
       key: 'name',
-      label: 'Employee',
+      label: t('Employee'),
       render: (e) => (
         <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
           <EmployeeAvatar employee={e} size={40} />
           <Box sx={{ minWidth: 0 }}>
             <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
               <Typography variant="subtitle2">{e.name}</Typography>
-              {e.status === 'left' && <Chip size="small" label="Left" variant="outlined" sx={{ height: 18, fontSize: '0.6875rem' }} />}
+              {e.status === 'left' && <Chip size="small" label={t('Left')} variant="outlined" sx={{ height: 18, fontSize: '0.6875rem' }} />}
             </Stack>
             <Typography variant="body2" color="textSecondary">
               {e.designation} · {e.code}
@@ -56,14 +57,14 @@ export default function EmployeesPage() {
         </Stack>
       ),
     },
-    { key: 'mobile', label: 'Mobile', render: (e) => e.mobile },
-    ...(multiBranch ? [{ key: 'branch', label: 'Branch', render: (e) => e.branch?.name ?? '—' }] : []),
+    { key: 'mobile', label: t('Mobile'), render: (e) => e.mobile },
+    ...(multiBranch ? [{ key: 'branch', label: t('Branch'), render: (e) => e.branch?.name ?? '—' }] : []),
     ...(payVisible
       ? [
-          { key: 'salary', label: 'Salary / month', align: 'right', render: (e) => <Amount paise={e.grossPaise} decimals={0} /> },
+          { key: 'salary', label: t('Salary / month'), align: 'right', render: (e) => <Amount paise={e.grossPaise} decimals={0} /> },
           {
             key: 'advance',
-            label: 'Advance due',
+            label: t('Advance due'),
             align: 'right',
             render: (e) => (e.advanceBalancePaise ? <Amount paise={e.advanceBalancePaise} tone="due" decimals={0} /> : <Typography variant="body2" color="textSecondary">—</Typography>),
           },
@@ -74,32 +75,32 @@ export default function EmployeesPage() {
   return (
     <>
       <PageHeader
-        title="Employees"
-        subtitle={data?.meta ? `${data.meta.total} ${list.filters.status === 'left' ? 'former' : list.filters.status === 'active' ? 'working' : ''} staff`.replace('  ', ' ') : 'Your staff'}
+        title={t('Employees')}
+        subtitle={data?.meta ? (list.filters.status === 'left' ? t('{{total}} former staff', { total: data.meta.total }) : (list.filters.status === 'active' ? t('{{total}} working staff', { total: data.meta.total }) : t('{{total}} staff', { total: data.meta.total }))).replace('  ', ' ') : t('Your staff')}
         actions={
           canCreate && (
             <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setDrawerOpen(true)}>
-              New employee
+              {t('New employee')}
             </Button>
           )
         }
       />
       {data?.meta?.summary && (
         <SummaryCards>
-          <SummaryCard icon={BadgeOutlinedIcon} label="Working staff" value={data.meta.summary.working} caption="Currently on the rolls" onClick={() => list.setFilter('status', 'active')} />
-          {data.meta.summary.salaryPaise !== undefined && <SummaryCard icon={PaymentsOutlinedIcon} label="Monthly salary bill" value={formatINR(data.meta.summary.salaryPaise, { decimals: 0 })} caption="Gross, before deductions" tone="blue" />}
+          <SummaryCard icon={BadgeOutlinedIcon} label={t('Working staff')} value={data.meta.summary.working} caption={t('Currently on the rolls')} onClick={() => list.setFilter('status', 'active')} />
+          {data.meta.summary.salaryPaise !== undefined && <SummaryCard icon={PaymentsOutlinedIcon} label={t('Monthly salary bill')} value={formatINR(data.meta.summary.salaryPaise, { decimals: 0 })} caption={t('Gross, before deductions')} tone="blue" />}
           {data.meta.summary.advancePaise !== undefined && (
             <SummaryCard
               icon={RequestQuoteOutlinedIcon}
-              label="Advances due"
+              label={t('Advances due')}
               value={formatINR(data.meta.summary.advancePaise, { decimals: 0 })}
-              caption={data.meta.summary.advancePeople ? `With ${data.meta.summary.advancePeople} staff` : 'Nothing outstanding'}
+              caption={data.meta.summary.advancePeople ? t('With {{advancePeople}} staff', { advancePeople: data.meta.summary.advancePeople }) : t('Nothing outstanding')}
               tone={data.meta.summary.advancePaise ? 'red' : 'green'}
               valueTone={data.meta.summary.advancePaise ? 'due' : 'paid'}
               onClick={() => navigate('/hr/advances')}
             />
           )}
-          <SummaryCard icon={PersonOffOutlinedIcon} label="Left" value={data.meta.summary.left} caption="Former staff" tone="grey" onClick={() => list.setFilter('status', 'left')} />
+          <SummaryCard icon={PersonOffOutlinedIcon} label={t('Left')} value={data.meta.summary.left} caption={t('Former staff')} tone="grey" onClick={() => list.setFilter('status', 'left')} />
         </SummaryCards>
       )}
       <DataTable
@@ -107,7 +108,7 @@ export default function EmployeesPage() {
           ...columns,
           {
             key: 'actions',
-            label: 'Action',
+            label: t('Action'),
             align: 'right',
             width: actionsWidth(3),
             render: (e) => <RowActions onView={() => navigate(`/hr/employees/${e.id}`)} onEdit={canEdit ? () => editor.open(e) : undefined} deleteType="employee" deleteStatus={deleteStatus(e.id)} id={e.id} name={e.name} />,
@@ -118,15 +119,15 @@ export default function EmployeesPage() {
         fetching={isFetching}
         error={error}
         onRetry={refetch}
-        empty={list.filtered && list.search ? { title: 'No matching employees', description: 'Try another name, mobile or code.' } : { title: 'No employees yet', description: 'Add your staff to start marking attendance and running payroll.' }}
+        empty={list.filtered && list.search ? { title: t('No matching employees'), description: t('Try another name, mobile or code.') } : { title: t('No employees yet'), description: t('Add your staff to start marking attendance and running payroll.') }}
         pagination={list.pagination(data?.meta)}
         toolbar={
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-            <SearchField value={list.search} onChange={list.setSearch} placeholder="Search name, mobile, code or designation" />
-            <ToggleButtonGroup exclusive size="small" value={list.filters.status} onChange={(e, v) => v !== null && list.setFilter('status', v)} aria-label="Show" sx={{ flexShrink: 0, height: 40 }}>
-              <ToggleButton value="active">Working</ToggleButton>
-              <ToggleButton value="left">Left</ToggleButton>
-              <ToggleButton value="">All</ToggleButton>
+            <SearchField value={list.search} onChange={list.setSearch} placeholder={t('Search name, mobile, code or designation')} />
+            <ToggleButtonGroup exclusive size="small" value={list.filters.status} onChange={(e, v) => v !== null && list.setFilter('status', v)} aria-label={t('Show')} sx={{ flexShrink: 0, height: 40 }}>
+              <ToggleButton value="active">{t('Working')}</ToggleButton>
+              <ToggleButton value="left">{t('Left')}</ToggleButton>
+              <ToggleButton value="">{t('All')}</ToggleButton>
             </ToggleButtonGroup>
           </Stack>
         }

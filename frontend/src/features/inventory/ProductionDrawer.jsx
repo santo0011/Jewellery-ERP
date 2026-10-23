@@ -11,10 +11,11 @@ import { getErrorMessage } from '../../utils/errors.js';
 import ItemPicker from '../items/ItemPicker.jsx';
 import { purityLabel } from '../products/productForm.js';
 import { useCreateProductionMutation } from './inventoryApi.js';
+import { t } from '../../i18n/index.js';
 
 const inr = (p) => formatINR(p, { decimals: 0 });
 const kindLabel = (k) => METAL_POOL_KINDS.find((x) => x.value === k)?.label ?? k;
-const metalName = (m) => m.charAt(0).toUpperCase() + m.slice(1);
+const metalName = (m) => t(m.charAt(0).toUpperCase() + m.slice(1));
 const poolKey = (p) => `${p.metal}|${p.purity}|${p.kind}`;
 const mgOf = (v) => {
   try {
@@ -91,15 +92,15 @@ export default function ProductionDrawer({ open, onClose, pools = [] }) {
 
   const submit = async () => {
     const e = {};
-    if (!metalRows.length) e.metal = 'Add the metal used';
+    if (!metalRows.length) e.metal = t('Add the metal used');
     metalRows.forEach((r, i) => {
-      if (!r.pool) e[`m${i}`] = 'Pick the metal';
-      else if (!(r.mg > 0)) e[`mw${i}`] = 'Enter weight';
-      else if (r.mg > r.pool.grossMg) e[`mw${i}`] = `Only ${formatWeight(r.pool.grossMg)} in stock`;
+      if (!r.pool) e[`m${i}`] = t('Pick the metal');
+      else if (!(r.mg > 0)) e[`mw${i}`] = t('Enter weight');
+      else if (r.mg > r.pool.grossMg) e[`mw${i}`] = t('Only {{gross}} in stock', { gross: formatWeight(r.pool.grossMg) });
     });
-    if (!pieces.length) e.pieces = 'Add the pieces made';
+    if (!pieces.length) e.pieces = t('Add the pieces made');
     pieces.forEach((p, i) => {
-      if (!(mgOf(p.weight) > 0)) e[`pw${i}`] = 'Enter weight';
+      if (!(mgOf(p.weight) > 0)) e[`pw${i}`] = t('Enter weight');
       if (p.huid && !/^[A-Za-z0-9]{6}$/.test(p.huid)) e[`ph${i}`] = '6 letters/digits';
     });
     setErrors(e);
@@ -113,7 +114,7 @@ export default function ProductionDrawer({ open, onClose, pools = [] }) {
         ...(makingPaise > 0 && { makingMode: mode }),
         note: note.trim() || null,
       }).unwrap();
-      toast.success(`${res.productionNo}: ${res.pieces.length} piece${res.pieces.length === 1 ? '' : 's'} added to Products`);
+      toast.success((res.pieces.length === 1 ? t('{{productionNo}}: {{count}} piece added to Products', { productionNo: res.productionNo, count: res.pieces.length }) : t('{{productionNo}}: {{count}} pieces added to Products', { productionNo: res.productionNo, count: res.pieces.length })));
       onClose();
     } catch (err) {
       toast.error(getErrorMessage(err));
@@ -123,20 +124,20 @@ export default function ProductionDrawer({ open, onClose, pools = [] }) {
   return (
     <FormDrawer
       open={open}
-      title="Make jewellery"
-      subtitle="Metal comes out of the raw stock; the pieces go into Products, ready to sell."
+      title={t('Make jewellery')}
+      subtitle={t('Metal comes out of the raw stock; the pieces go into Products, ready to sell.')}
       onClose={onClose}
       onSubmit={(ev) => {
         ev?.preventDefault?.();
         submit();
       }}
       submitting={isLoading}
-      submitLabel="Make & add to stock"
+      submitLabel={t('Make & add to stock')}
       width={640}
     >
       <Stack spacing={2.5}>
         {branches.length > 1 && (
-          <TextField select label="Branch" value={branchId} onChange={(e) => (setBranchId(e.target.value), setMetal([]))}>
+          <TextField select label={t('Branch')} value={branchId} onChange={(e) => (setBranchId(e.target.value), setMetal([]))}>
             {branches.map((b) => (
               <MenuItem key={b.id} value={b.id}>
                 {b.name}
@@ -146,10 +147,10 @@ export default function ProductionDrawer({ open, onClose, pools = [] }) {
         )}
 
         <Box>
-          <SectionTitle n={1} title="Metal used" hint="From this branch’s raw metal stock, at what it cost on average." />
+          <SectionTitle n={1} title={t('Metal used')} hint={t('From this branch’s raw metal stock, at what it cost on average.')} />
           {!here.length ? (
             <Alert severity="info" variant="outlined">
-              No raw metal at this branch. Buy bullion or old gold on a purchase bill (Loose metal), then come back.
+              {t('No raw metal at this branch. Buy bullion or old gold on a purchase bill (Loose metal), then come back.')}
             </Alert>
           ) : (
             <Stack spacing={1.25}>
@@ -157,7 +158,7 @@ export default function ProductionDrawer({ open, onClose, pools = [] }) {
                 <Stack key={r.key + i} direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
                   <TextField
                     select
-                    label="Metal"
+                    label={t('Metal')}
                     value={r.key}
                     onChange={(e) => setMetal((list) => list.map((x, j) => (j === i ? { ...x, key: e.target.value } : x)))}
                     error={Boolean(errors[`m${i}`])}
@@ -171,21 +172,21 @@ export default function ProductionDrawer({ open, onClose, pools = [] }) {
                     ))}
                   </TextField>
                   <TextField
-                    label="Weight"
+                    label={t('Weight')}
                     value={r.weight}
                     onChange={(e) => setMetal((list) => list.map((x, j) => (j === i ? { ...x, weight: e.target.value.replace(/[^\d.]/g, '') } : x)))}
                     error={Boolean(errors[`mw${i}`])}
                     helperText={errors[`mw${i}`] ?? (r.cost != null && r.mg ? inr(r.cost) : ' ')}
                     sx={{ width: { xs: 110, sm: 140 }, flexShrink: 0 }}
-                    slotProps={{ input: { endAdornment: <InputAdornment position="end">g</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }}
+                    slotProps={{ input: { endAdornment: <InputAdornment position="end">{t('g')}</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }}
                   />
-                  <IconButton onClick={() => setMetal((list) => list.filter((_, j) => j !== i))} aria-label="Remove metal" sx={{ mt: 0.5 }}>
+                  <IconButton onClick={() => setMetal((list) => list.filter((_, j) => j !== i))} aria-label={t('Remove metal')} sx={{ mt: 0.5 }}>
                     <CloseRoundedIcon fontSize="small" />
                   </IconButton>
                 </Stack>
               ))}
               <Button variant="outlined" color="secondary" startIcon={<AddRoundedIcon />} onClick={() => setMetal((list) => [...list, { key: poolKey(here[0]), weight: '' }])} sx={{ alignSelf: 'flex-start' }}>
-                Add metal
+                {t('Add metal')}
               </Button>
               {errors.metal && (
                 <Typography variant="caption" color="error">
@@ -197,7 +198,7 @@ export default function ProductionDrawer({ open, onClose, pools = [] }) {
         </Box>
 
         <Box>
-          <SectionTitle n={2} title="Pieces made" hint="Pick a saved item for each piece, then its weight (and HUID if hallmarked)." />
+          <SectionTitle n={2} title={t('Pieces made')} hint={t('Pick a saved item for each piece, then its weight (and HUID if hallmarked).')} />
           <Stack spacing={1.25}>
             {pieces.map((p, i) => (
               <Stack key={p.key} direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
@@ -210,28 +211,28 @@ export default function ProductionDrawer({ open, onClose, pools = [] }) {
                   </Typography>
                 </Box>
                 <TextField
-                  label="Weight"
+                  label={t('Weight')}
                   value={p.weight}
                   onChange={(e) => setPieces((list) => list.map((x, j) => (j === i ? { ...x, weight: e.target.value.replace(/[^\d.]/g, '') } : x)))}
                   error={Boolean(errors[`pw${i}`])}
                   helperText={errors[`pw${i}`] ?? ' '}
                   sx={{ width: { xs: 100, sm: 120 }, flexShrink: 0 }}
-                  slotProps={{ input: { endAdornment: <InputAdornment position="end">g</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }}
+                  slotProps={{ input: { endAdornment: <InputAdornment position="end">{t('g')}</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }}
                 />
                 <TextField
-                  label="HUID"
+                  label={t('HUID')}
                   value={p.huid}
                   onChange={(e) => setPieces((list) => list.map((x, j) => (j === i ? { ...x, huid: e.target.value.toUpperCase().slice(0, 6) } : x)))}
                   error={Boolean(errors[`ph${i}`])}
                   helperText={errors[`ph${i}`] ?? ' '}
                   sx={{ width: { xs: 90, sm: 110 }, flexShrink: 0 }}
                 />
-                <IconButton onClick={() => setPieces((list) => list.filter((_, j) => j !== i))} aria-label={`Remove ${p.item.name}`} sx={{ mt: 0.5 }}>
+                <IconButton onClick={() => setPieces((list) => list.filter((_, j) => j !== i))} aria-label={t('Remove {{name}}', { name: p.item.name })} sx={{ mt: 0.5 }}>
                   <CloseRoundedIcon fontSize="small" />
                 </IconButton>
               </Stack>
             ))}
-            <ItemPicker onPick={(item) => setPieces((list) => [...list, { key: `${item.id}-${Date.now()}`, item, weight: '', huid: '' }])} label="Add a piece — search items" />
+            <ItemPicker onPick={(item) => setPieces((list) => [...list, { key: `${item.id}-${Date.now()}`, item, weight: '', huid: '' }])} label={t('Add a piece — search items')} />
             {errors.pieces && (
               <Typography variant="caption" color="error">
                 {errors.pieces}
@@ -241,26 +242,26 @@ export default function ProductionDrawer({ open, onClose, pools = [] }) {
         </Box>
 
         <Box>
-          <SectionTitle n={3} title="Making charge" hint="What the karigar was paid for this work (optional). It adds to the pieces’ cost." />
+          <SectionTitle n={3} title={t('Making charge')} hint={t('What the karigar was paid for this work (optional). It adds to the pieces’ cost.')} />
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25}>
-            <TextField label="Making charge" value={making} onChange={(e) => setMaking(e.target.value.replace(/[^\d.]/g, ''))} slotProps={{ input: { startAdornment: <InputAdornment position="start">₹</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }} sx={{ flex: 1 }} />
+            <TextField label={t('Making charge')} value={making} onChange={(e) => setMaking(e.target.value.replace(/[^\d.]/g, ''))} slotProps={{ input: { startAdornment: <InputAdornment position="start">₹</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }} sx={{ flex: 1 }} />
             {makingPaise > 0 && (
               <ToggleButtonGroup exclusive size="small" value={mode} onChange={(e, v) => v && setMode(v)} sx={{ flexShrink: 0, alignSelf: { sm: 'center' } }}>
-                <ToggleButton value="cash">Cash</ToggleButton>
-                <ToggleButton value="upi">UPI</ToggleButton>
-                <ToggleButton value="bank">Bank</ToggleButton>
+                <ToggleButton value="cash">{t('Cash')}</ToggleButton>
+                <ToggleButton value="upi">{t('UPI')}</ToggleButton>
+                <ToggleButton value="bank">{t('Bank')}</ToggleButton>
               </ToggleButtonGroup>
             )}
           </Stack>
-          <TextField label="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} sx={{ mt: 1.25 }} slotProps={{ htmlInput: { maxLength: 300 } }} />
+          <TextField label={t('Note (optional)')} value={note} onChange={(e) => setNote(e.target.value)} sx={{ mt: 1.25 }} slotProps={{ htmlInput: { maxLength: 300 } }} />
         </Box>
 
         {(metalRows.length > 0 || pieces.length > 0) && (
           <Box sx={{ p: 2, borderRadius: 2.5, border: 1, borderColor: 'rgba(var(--brand-rgb), 0.3)', bgcolor: 'rgba(var(--brand-rgb), 0.05)' }}>
             {[
-              ['Metal used', usedMg ? formatWeight(usedMg) : '—'],
-              ['Pieces made', `${pieces.length} · ${madeMg ? formatWeight(madeMg) : '—'}`],
-              ...(metalCost != null ? [['Metal cost', inr(metalCost)], ['Making charge', inr(makingPaise)]] : []),
+              [t('Metal used'), usedMg ? formatWeight(usedMg) : '—'],
+              [t('Pieces made'), `${pieces.length} · ${madeMg ? formatWeight(madeMg) : '—'}`],
+              ...(metalCost != null ? [[t('Metal cost'), inr(metalCost)], [t('Making charge'), inr(makingPaise)]] : []),
             ].map(([k, v]) => (
               <Stack key={k} direction="row" sx={{ justifyContent: 'space-between', py: 0.35 }}>
                 <Typography variant="body2" color="textSecondary">
@@ -276,7 +277,7 @@ export default function ProductionDrawer({ open, onClose, pools = [] }) {
                 <Divider sx={{ my: 0.75 }} />
                 <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
                   <Typography variant="body2" sx={{ fontWeight: 700 }}>
-                    Cost of the pieces
+                    {t('Cost of the pieces')}
                   </Typography>
                   <Typography variant="body2" sx={{ fontWeight: 800, color: 'var(--brand-strong)', fontVariantNumeric: 'tabular-nums' }}>
                     {inr(metalCost + makingPaise)}
@@ -286,7 +287,7 @@ export default function ProductionDrawer({ open, onClose, pools = [] }) {
             )}
             {madeMg > usedMg && usedMg > 0 && (
               <Typography variant="caption" sx={{ color: 'warning.main', display: 'block', mt: 0.75 }}>
-                The pieces weigh more than the metal used — check the weights (stones count in a piece’s weight).
+                {t('The pieces weigh more than the metal used — check the weights (stones count in a piece’s weight).')}
               </Typography>
             )}
           </Box>

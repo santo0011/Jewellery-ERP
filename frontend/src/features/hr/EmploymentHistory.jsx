@@ -5,11 +5,12 @@ import { Box, Card, CardContent, Chip, Stack, Typography } from '@mui/material';
 import { formatINR } from '@jerp/shared';
 import DataTable from '../../components/DataTable.jsx';
 import { formatDate, formatDateTime } from '../../utils/format.js';
+import { t } from '../../i18n/index.js';
 
 const EVENT = {
-  joined: { label: 'Joined', icon: PersonAddAlt1OutlinedIcon, color: 'success.main', soft: 'rgba(46, 125, 50, 0.12)' },
-  left: { label: 'Left', icon: LogoutRoundedIcon, color: 'error.main', soft: 'rgba(198, 40, 40, 0.12)' },
-  rejoined: { label: 'Rejoined', icon: ReplayRoundedIcon, color: 'info.main', soft: 'rgba(2, 136, 209, 0.12)' },
+  joined: { label: t('Joined'), icon: PersonAddAlt1OutlinedIcon, color: 'success.main', soft: 'rgba(46, 125, 50, 0.12)' },
+  left: { label: t('Left'), icon: LogoutRoundedIcon, color: 'error.main', soft: 'rgba(198, 40, 40, 0.12)' },
+  rejoined: { label: t('Rejoined'), icon: ReplayRoundedIcon, color: 'info.main', soft: 'rgba(2, 136, 209, 0.12)' },
 };
 
 const dayNumber = (iso) => Math.round(Date.parse(`${iso}T00:00:00Z`) / 86400000);
@@ -17,11 +18,11 @@ const todayIso = () => new Date().toISOString().slice(0, 10);
 
 /** "1 year 3 months", "4 months", "12 days" */
 function span(days) {
-  if (days < 31) return `${days} day${days === 1 ? '' : 's'}`;
+  if (days < 31) return (days === 1 ? t('{{days}} day', { days }) : t('{{days}} days', { days }));
   const months = Math.floor(days / 30.44);
   const y = Math.floor(months / 12);
   const m = months % 12;
-  return [y && `${y} year${y > 1 ? 's' : ''}`, m && `${m} month${m > 1 ? 's' : ''}`].filter(Boolean).join(' ');
+  return [y && (y > 1 ? t('{{y}} years', { y }) : t('{{y}} year', { y })), m && (m > 1 ? t('{{m}} months', { m }) : t('{{m}} month', { m }))].filter(Boolean).join(' ');
 }
 
 /** Joined / left / rejoined as a timeline, with the time away between leaving and coming back. */
@@ -45,9 +46,9 @@ export default function EmploymentHistory({ employee }) {
     <Card>
       <CardContent>
         <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', mb: 2.5 }}>
-          <Chip label={`With you ${span(served)}`} sx={{ fontWeight: 600 }} />
-          <Chip label={exits ? `Left ${exits} time${exits > 1 ? 's' : ''}` : 'Never left'} variant="outlined" />
-          <Chip label={employee.status === 'left' ? 'Currently not working' : 'Currently working'} color={employee.status === 'left' ? 'default' : 'success'} variant="outlined" />
+          <Chip label={t('With you {{span}}', { span: span(served) })} sx={{ fontWeight: 600 }} />
+          <Chip label={exits ? (exits > 1 ? t('Left {{exits}} times', { exits }) : t('Left {{exits}} time', { exits })) : t('Never left')} variant="outlined" />
+          <Chip label={employee.status === 'left' ? t('Currently not working') : t('Currently working')} color={employee.status === 'left' ? 'default' : 'success'} variant="outlined" />
         </Stack>
 
         <Box component="ol" sx={{ listStyle: 'none', m: 0, p: 0 }}>
@@ -78,13 +79,13 @@ export default function EmploymentHistory({ employee }) {
                   )}
                   {(h.by || h.at) && (
                     <Typography variant="caption" color="textSecondary">
-                      Recorded{h.by ? ` by ${h.by.name}` : ''}
+                      {h.by ? t('Recorded by {{name}}', { name: h.by.name }) : t('Recorded')}
                       {h.at ? ` · ${formatDateTime(h.at)}` : ''}
                     </Typography>
                   )}
                   {away !== null && (
                     <Box sx={{ mt: 1 }}>
-                      <Chip size="small" label={`Away ${span(Math.max(0, away))} · not paid`} sx={{ height: 22, bgcolor: 'action.hover' }} />
+                      <Chip size="small" label={t('Away {{span}} · not paid', { span: span(Math.max(0, away)) })} sx={{ height: 22, bgcolor: 'action.hover' }} />
                     </Box>
                   )}
                 </Box>
@@ -110,34 +111,34 @@ export function SalaryHistory({ rows }) {
       <CardContent>
         <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', alignItems: 'center', mb: 2 }}>
           <Typography variant="subtitle1" sx={{ fontWeight: 700, mr: 1 }}>
-            Salary history
+            {t('Salary history')}
           </Typography>
-          <Chip size="small" label={increments ? `${increments} increment${increments > 1 ? 's' : ''}` : 'No increments yet'} />
-          {first && <Chip size="small" variant="outlined" label={`Started at ${money(first.grossPaise)}`} />}
-          {growth !== null && current !== first && <Chip size="small" variant="outlined" color={growth >= 0 ? 'success' : 'error'} label={`${growth >= 0 ? '+' : ''}${growth}% since joining`} />}
+          <Chip size="small" label={increments ? (increments > 1 ? t('{{increments}} increments', { increments }) : t('{{increments}} increment', { increments })) : t('No increments yet')} />
+          {first && <Chip size="small" variant="outlined" label={t('Started at {{money}}', { money: money(first.grossPaise) })} />}
+          {growth !== null && current !== first && <Chip size="small" variant="outlined" color={growth >= 0 ? 'success' : 'error'} label={(growth >= 0 ? t('+{{growth}}% since joining', { growth }) : t('{{growth}}% since joining', { growth }))} />}
         </Stack>
         <DataTable
           columns={[
             {
               key: 'when',
-              label: 'Date',
+              label: t('Date'),
               render: (r) => (
                 <Box>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>
                     {r.date ? formatDate(r.date) : formatDateTime(r.at)}
                   </Typography>
                   <Typography variant="caption" color="textSecondary">
-                    {r.event === 'joined' ? 'Starting salary' : r.by ? `by ${r.by.name}` : 'Salary changed'}
+                    {r.event === 'joined' ? t('Starting salary') : r.by ? t('by {{name}}', { name: r.by.name }) : t('Salary changed')}
                   </Typography>
                 </Box>
               ),
             },
-            { key: 'basic', label: 'Basic', align: 'right', render: (r) => money(r.basicPaise) },
-            { key: 'allowance', label: 'Allowance', align: 'right', render: (r) => money(r.allowancePaise) },
-            { key: 'gross', label: 'Salary / month', align: 'right', render: (r) => <Typography variant="body2" sx={{ fontWeight: 700 }}>{money(r.grossPaise)}</Typography> },
+            { key: 'basic', label: t('Basic'), align: 'right', render: (r) => money(r.basicPaise) },
+            { key: 'allowance', label: t('Allowance'), align: 'right', render: (r) => money(r.allowancePaise) },
+            { key: 'gross', label: t('Salary / month'), align: 'right', render: (r) => <Typography variant="body2" sx={{ fontWeight: 700 }}>{money(r.grossPaise)}</Typography> },
             {
               key: 'change',
-              label: 'Change',
+              label: t('Change'),
               align: 'right',
               render: (r) =>
                 r.changePaise === null ? (
@@ -152,7 +153,7 @@ export function SalaryHistory({ rows }) {
           ]}
           rows={[...rows].reverse()}
           getRowId={(r) => `${r.event}-${r.at ?? r.date}`}
-          empty={{ title: 'No salary record', description: 'Salary changes appear here when the employee is edited.' }}
+          empty={{ title: t('No salary record'), description: t('Salary changes appear here when the employee is edited.') }}
         />
       </CardContent>
     </Card>

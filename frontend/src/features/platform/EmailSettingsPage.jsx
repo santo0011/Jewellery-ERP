@@ -18,27 +18,28 @@ import { ErrorState, LoadingState } from '../../components/StateViews.jsx';
 import { applyServerErrors, getErrorMessage } from '../../utils/errors.js';
 import { formatDateTime } from '../../utils/format.js';
 import { useEmailPreviewQuery, useEmailSettingsQuery, usePlatformMeQuery, useSaveEmailSettingsMutation, useTestEmailSettingsMutation } from './platformApi.js';
+import { t } from '../../i18n/index.js';
 
 const SECURITY = [
-  { value: 'starttls', label: 'STARTTLS (port 587)' },
-  { value: 'ssl', label: 'SSL / TLS (port 465)' },
-  { value: 'none', label: 'None (not recommended)' },
+  { value: 'starttls', label: t('STARTTLS (port 587)') },
+  { value: 'ssl', label: t('SSL / TLS (port 465)') },
+  { value: 'none', label: t('None (not recommended)') },
 ];
 const DEFAULT_PORT = { starttls: 587, ssl: 465, none: 25 };
 
 /** One click fills the server details of common providers; the login is still the user's own. */
 const PRESETS = [
-  { label: 'Gmail / Google Workspace', host: 'smtp.gmail.com', port: 587, security: 'starttls', hint: 'Use an App Password (Google account → Security → App passwords), not your normal password.' },
-  { label: 'Outlook / Microsoft 365', host: 'smtp.office365.com', port: 587, security: 'starttls', hint: 'SMTP sign-in must be allowed for the mailbox in Microsoft 365 admin.' },
-  { label: 'Zoho Mail', host: 'smtp.zoho.in', port: 465, security: 'ssl', hint: 'Use smtp.zoho.com for accounts outside India.' },
-  { label: 'Brevo', host: 'smtp-relay.brevo.com', port: 587, security: 'starttls', hint: 'Username is your Brevo login; the password is an SMTP key from Brevo.' },
+  { label: t('Gmail / Google Workspace'), host: 'smtp.gmail.com', port: 587, security: 'starttls', hint: t('Use an App Password (Google account → Security → App passwords), not your normal password.') },
+  { label: t('Outlook / Microsoft 365'), host: 'smtp.office365.com', port: 587, security: 'starttls', hint: t('SMTP sign-in must be allowed for the mailbox in Microsoft 365 admin.') },
+  { label: t('Zoho Mail'), host: 'smtp.zoho.in', port: 465, security: 'ssl', hint: t('Use smtp.zoho.com for accounts outside India.') },
+  { label: t('Brevo'), host: 'smtp-relay.brevo.com', port: 587, security: 'starttls', hint: t('Username is your Brevo login; the password is an SMTP key from Brevo.') },
 ];
 
 const PREVIEWS = [
-  { value: 'organisationWelcome', label: 'Welcome + sign-in code' },
-  { value: 'loginOtp', label: 'New sign-in code' },
-  { value: 'passwordReset', label: 'Password reset' },
-  { value: 'smtpTest', label: 'Test email' },
+  { value: 'organisationWelcome', label: t('Welcome + sign-in code') },
+  { value: 'loginOtp', label: t('New sign-in code') },
+  { value: 'passwordReset', label: t('Password reset') },
+  { value: 'smtpTest', label: t('Test email') },
 ];
 
 const toForm = (s) => ({
@@ -77,18 +78,18 @@ function PreviewDialog({ template, onClose }) {
         <MailOutlineRoundedIcon color="action" />
         <Box sx={{ minWidth: 0 }}>
           <Typography noWrap sx={{ fontWeight: 600 }}>
-            {data?.subject ?? 'Preview'}
+            {data?.subject ?? t('Preview')}
           </Typography>
           <Typography variant="caption" color="textSecondary">
-            Sample data — this is how the email looks in the inbox.
+            {t('Sample data — this is how the email looks in the inbox.')}
           </Typography>
         </Box>
-        <IconButton onClick={onClose} aria-label="Close preview" sx={{ position: 'absolute', right: 12, top: 12 }}>
+        <IconButton onClick={onClose} aria-label={t('Close preview')} sx={{ position: 'absolute', right: 12, top: 12 }}>
           <CloseRoundedIcon />
         </IconButton>
       </DialogTitle>
       <DialogContent sx={{ p: 0, bgcolor: '#F4F1EA' }}>
-        {isFetching || !data ? <LoadingState /> : <Box component="iframe" title="Email preview" srcDoc={data.html} sandbox="" sx={{ display: 'block', width: '100%', height: '72vh', border: 0 }} />}
+        {isFetching || !data ? <LoadingState /> : <Box component="iframe" title={t('Email preview')} srcDoc={data.html} sandbox="" sx={{ display: 'block', width: '100%', height: '72vh', border: 0 }} />}
       </DialogContent>
     </Dialog>
   );
@@ -118,14 +119,14 @@ export default function EmailSettingsPage() {
     if (Object.values(DEFAULT_PORT).includes(port) && port !== DEFAULT_PORT[security]) setValue('port', DEFAULT_PORT[security], { shouldDirty: true });
   }, [security, getValues, setValue]);
 
-  if (isLoading) return <LoadingState label="Loading email settings" />;
+  if (isLoading) return <LoadingState label={t('Loading email settings')} />;
   if (error) return <ErrorState error={error} onRetry={refetch} />;
 
   const onSubmit = handleSubmit(async (values) => {
     try {
       const saved = await save(values).unwrap();
       reset(toForm(saved));
-      toast.success(saved.delivery === 'smtp' ? 'Saved — emails now go out through your mail server' : 'Saved');
+      toast.success(saved.delivery === 'smtp' ? t('Saved — emails now go out through your mail server') : t('Saved'));
     } catch (err) {
       if (!applyServerErrors(err, setError)) toast.error(getErrorMessage(err));
     }
@@ -135,7 +136,7 @@ export default function EmailSettingsPage() {
     const v = getValues();
     try {
       await sendTest({ ...v, port: Number(v.port), to: testTo }).unwrap();
-      toast.success(`Test email sent to ${testTo}. Check the inbox (and spam).`);
+      toast.success(t('Test email sent to {{testTo}}. Check the inbox (and spam).', { testTo }));
     } catch (err) {
       toast.error(getErrorMessage(err));
     }
@@ -153,15 +154,15 @@ export default function EmailSettingsPage() {
 
   return (
     <Box component="form" noValidate onSubmit={onSubmit}>
-      <PageHeader title="Email settings" subtitle="The mail server that sends sign-in codes, password reset links and other emails." breadcrumbs={[{ label: 'Settings' }, { label: 'Email' }]} />
+      <PageHeader title={t('Email settings')} subtitle={t('The mail server that sends sign-in codes, password reset links and other emails.')} breadcrumbs={[{ label: t('Settings') }, { label: t('Email') }]} />
 
       <Alert severity={live ? 'success' : 'warning'} sx={{ mb: 2.5 }}>
         {live ? (
           <>
-            Emails are being sent through <strong>{data.host}</strong> as <strong>{data.fromName ? `${data.fromName} <${data.fromEmail}>` : data.fromEmail}</strong>.
+            {t('Emails are being sent through {{host}} as {{sender}}.', { host: <strong>{data.host}</strong>, sender: <strong>{data.fromName ? `${data.fromName} <${data.fromEmail}>` : data.fromEmail}</strong> })}
           </>
         ) : (
-          <>Email is off: messages are only written to the server log, and new organisations’ sign-in codes are shown to you instead. Set up your mail server below and switch it on.</>
+          <>{t('Email is off: messages are only written to the server log, and new organisations’ sign-in codes are shown to you instead. Set up your mail server below and switch it on.')}</>
         )}
       </Alert>
 
@@ -171,20 +172,20 @@ export default function EmailSettingsPage() {
             <CardContent sx={{ p: { xs: 2.5, sm: 3 } }}>
               <Stack direction={{ xs: 'column', sm: 'row' }} sx={{ justifyContent: 'space-between', alignItems: { sm: 'center' }, gap: 1, mb: 2 }}>
                 <Box>
-                  <Typography variant="h4">SMTP server</Typography>
+                  <Typography variant="h4">{t('SMTP server')}</Typography>
                   <Typography variant="body2" color="textSecondary">
-                    From your email provider’s “SMTP” or “mail client” settings.
+                    {t('From your email provider’s “SMTP” or “mail client” settings.')}
                   </Typography>
                 </Box>
                 <Controller
                   name="enabled"
                   control={control}
-                  render={({ field }) => <FormControlLabel control={<Switch checked={Boolean(field.value)} onChange={(e) => field.onChange(e.target.checked)} />} label={field.value ? 'Sending on' : 'Sending off'} />}
+                  render={({ field }) => <FormControlLabel control={<Switch checked={Boolean(field.value)} onChange={(e) => field.onChange(e.target.checked)} />} label={field.value ? t('Sending on') : t('Sending off')} />}
                 />
               </Stack>
 
               <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mb: 1 }}>
-                Quick setup
+                {t('Quick setup')}
               </Typography>
               <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 1, mb: hint ? 1.5 : 2.5 }}>
                 {PRESETS.map((p) => (
@@ -199,49 +200,49 @@ export default function EmailSettingsPage() {
 
               <Grid container spacing={2}>
                 <Grid size={{ xs: 12, sm: 6 }}>
-                  <RHFTextField control={control} name="host" label="SMTP server" placeholder="smtp.yourdomain.com" />
+                  <RHFTextField control={control} name="host" label={t('SMTP server')} placeholder={t('smtp.yourdomain.com')} />
                 </Grid>
                 <Grid size={{ xs: 6, sm: 2 }}>
-                  <RHFTextField control={control} name="port" label="Port" slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 5 } }} />
+                  <RHFTextField control={control} name="port" label={t('Port')} slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 5 } }} />
                 </Grid>
                 <Grid size={{ xs: 6, sm: 4 }}>
-                  <RHFSelect control={control} name="security" label="Security" options={SECURITY} />
+                  <RHFSelect control={control} name="security" label={t('Security')} options={SECURITY} />
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6 }}>
-                  <RHFTextField control={control} name="username" label="Username" placeholder="Usually the full email address" autoComplete="off" />
+                  <RHFTextField control={control} name="username" label={t('Username')} placeholder={t('Usually the full email address')} autoComplete="off" />
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6 }}>
                   <PasswordField
                     control={control}
                     name="password"
-                    label="Password"
+                    label={t('Password')}
                     autoComplete="new-password"
-                    placeholder={data.hasPassword ? '•••••••• (saved)' : ''}
-                    helperText={data.hasPassword ? 'Saved and encrypted. Leave blank to keep it.' : 'Stored encrypted; never shown again.'}
+                    placeholder={data.hasPassword ? t('•••••••• (saved)') : ''}
+                    helperText={data.hasPassword ? t('Saved and encrypted. Leave blank to keep it.') : t('Stored encrypted; never shown again.')}
                   />
                 </Grid>
               </Grid>
 
               <Divider sx={{ my: 3 }} />
-              <SectionTitle caption="What people see in their inbox.">Sender</SectionTitle>
+              <SectionTitle caption={t('What people see in their inbox.')}>{t('Sender')}</SectionTitle>
               <Grid container spacing={2}>
                 <Grid size={{ xs: 12, sm: 6 }}>
-                  <RHFTextField control={control} name="fromName" label="From name" placeholder="Jewellery ERP" />
+                  <RHFTextField control={control} name="fromName" label={t('From name')} placeholder={t('Jewellery ERP')} />
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6 }}>
-                  <RHFTextField control={control} name="fromEmail" label="From email" placeholder="noreply@yourdomain.com" type="email" />
+                  <RHFTextField control={control} name="fromEmail" label={t('From email')} placeholder={t('noreply@yourdomain.com')} type="email" />
                 </Grid>
                 <Grid size={{ xs: 12, sm: 6 }}>
-                  <RHFTextField control={control} name="replyTo" label="Reply-to (optional)" placeholder="support@yourdomain.com" type="email" />
+                  <RHFTextField control={control} name="replyTo" label={t('Reply-to (optional)')} placeholder={t('support@yourdomain.com')} type="email" />
                 </Grid>
               </Grid>
 
               <Stack direction="row" sx={{ justifyContent: 'flex-end', gap: 1, mt: 3 }}>
                 <Button color="secondary" onClick={() => reset(toForm(data))} disabled={!formState.isDirty || saveState.isLoading}>
-                  Discard
+                  {t('Discard')}
                 </Button>
                 <Button type="submit" variant="contained" loading={saveState.isLoading} disabled={!formState.isDirty}>
-                  Save settings
+                  {t('Save settings')}
                 </Button>
               </Stack>
             </CardContent>
@@ -252,17 +253,17 @@ export default function EmailSettingsPage() {
           <Stack spacing={2.5}>
             <Card>
               <CardContent sx={{ p: { xs: 2.5, sm: 3 } }}>
-                <SectionTitle caption="Uses the values in the form, saved or not.">Send a test email</SectionTitle>
-                <TextField label="Send to" type="email" value={testTo} onChange={(e) => setTestTo(e.target.value)} size="small" sx={{ mb: 1.5 }} />
+                <SectionTitle caption={t('Uses the values in the form, saved or not.')}>{t('Send a test email')}</SectionTitle>
+                <TextField label={t('Send to')} type="email" value={testTo} onChange={(e) => setTestTo(e.target.value)} size="small" sx={{ mb: 1.5 }} />
                 <Button fullWidth variant="outlined" startIcon={<SendRoundedIcon />} onClick={runTest} loading={testState.isLoading} disabled={!testTo || !watch('host') || !watch('fromEmail')}>
-                  Send test
+                  {t('Send test')}
                 </Button>
                 {last && (
                   <Stack direction="row" spacing={1} sx={{ mt: 2, alignItems: 'flex-start' }}>
                     {last.ok ? <CheckCircleRoundedIcon color="success" fontSize="small" /> : <ErrorOutlineRoundedIcon color="error" fontSize="small" />}
                     <Box sx={{ minWidth: 0 }}>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        {last.ok ? `Delivered to ${last.to}` : `Failed for ${last.to}`}
+                        {last.ok ? t('Delivered to {{to}}', { to: last.to }) : t('Failed for {{to}}', { to: last.to })}
                       </Typography>
                       <Typography variant="caption" color="textSecondary" sx={{ display: 'block' }}>
                         {formatDateTime(last.at)}
@@ -280,7 +281,7 @@ export default function EmailSettingsPage() {
 
             <Card>
               <CardContent sx={{ p: { xs: 2.5, sm: 3 } }}>
-                <SectionTitle caption="How each email looks — nothing is sent.">Email designs</SectionTitle>
+                <SectionTitle caption={t('How each email looks — nothing is sent.')}>{t('Email designs')}</SectionTitle>
                 <Stack spacing={1}>
                   {PREVIEWS.map((p) => (
                     <Button key={p.value} color="secondary" variant="outlined" startIcon={<VisibilityOutlinedIcon />} onClick={() => setPreview(p.value)} sx={{ justifyContent: 'flex-start' }}>

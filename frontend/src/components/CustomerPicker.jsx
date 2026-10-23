@@ -5,11 +5,12 @@ import CustomerFormDrawer from '../features/customers/CustomerFormDrawer.jsx';
 import { useCustomerListQuery } from '../features/customers/customerApi.js';
 import { useDebounce } from '../hooks/useDebounce.js';
 import { usePermission } from '../hooks/usePermission.js';
+import { t } from '../i18n/index.js';
 
 const labelOf = (c) => `${c.name} · ${c.mobile}`;
 
 /** Search customers by name, mobile or code, with a quick "New customer" for walk-ins. */
-export default function CustomerPicker({ value, onChange, label = 'Customer', error, helperText, disabled, autoFocus }) {
+export default function CustomerPicker({ value, onChange, label = t('Customer'), error, helperText, disabled, autoFocus }) {
   const [input, setInput] = useState('');
   const [creating, setCreating] = useState(false);
   const canCreate = usePermission('customer.create');
@@ -34,7 +35,7 @@ export default function CustomerPicker({ value, onChange, label = 'Customer', er
           filterOptions={(x) => x}
           getOptionLabel={labelOf}
           isOptionEqualToValue={(a, b) => a.id === b.id}
-          noOptionsText={q ? 'No matching customers' : 'Type a name or mobile number'}
+          noOptionsText={q ? t('No matching customers') : t('Type a name or mobile number')}
           renderOption={({ key, ...props }, c) => (
             <Box component="li" key={key} {...props}>
               <Box sx={{ minWidth: 0 }}>
@@ -48,11 +49,11 @@ export default function CustomerPicker({ value, onChange, label = 'Customer', er
               </Box>
             </Box>
           )}
-          renderInput={(params) => <TextField {...params} label={label} placeholder="Search name or mobile" error={Boolean(error)} helperText={error ?? helperText} autoFocus={autoFocus} />}
+          renderInput={(params) => <TextField {...params} label={label} placeholder={t('Search name or mobile')} error={Boolean(error)} helperText={error ?? helperText} autoFocus={autoFocus} />}
         />
         {canCreate && !disabled && (
           <Button variant="outlined" onClick={() => setCreating(true)} startIcon={<PersonAddAlt1OutlinedIcon />} sx={{ flexShrink: 0, height: 41 }}>
-            New
+            {t('New')}
           </Button>
         )}
       </Stack>

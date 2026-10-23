@@ -21,13 +21,14 @@ import { useAttendanceDayQuery, useSaveAttendanceMutation } from './hrApi.js';
 import { todayIso } from './hrUi.jsx';
 import { EmployeeAvatar } from './EmployeePhoto.jsx';
 import ViewTabs from '../../components/ViewTabs.jsx';
+import { t, getLocale } from '../../i18n/index.js';
 
 const shiftDate = (iso, days) => {
   const d = new Date(`${iso}T00:00:00Z`);
   d.setUTCDate(d.getUTCDate() + days);
   return d.toISOString().slice(0, 10);
 };
-const weekdayName = (iso) => new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-IN', { weekday: 'long', timeZone: 'UTC' });
+const weekdayName = (iso) => new Date(`${iso}T00:00:00Z`).toLocaleDateString(getLocale(), { weekday: 'long', timeZone: 'UTC' });
 
 // Same colours as the monthly register.
 const TONE = {
@@ -39,9 +40,9 @@ const TONE = {
 };
 /** Palette colour behind each status, for the ring around an employee photo. */
 const TONE_PALETTE = { present: 'success', absent: 'error', half_day: 'warning', paid_leave: 'info', holiday: 'grey' };
-const STATUS_SHORT = { absent: 'absent', half_day: 'half', paid_leave: 'leave', holiday: 'off' };
+const STATUS_SHORT = { absent: t('Absent'), half_day: t('Half'), paid_leave: t('Leave'), holiday: t('Off') };
 /** Word under each status button on phones and tablets. */
-const SHORT_LABEL = { present: 'Present', absent: 'Absent', half_day: 'Half', paid_leave: 'Leave', holiday: 'Off' };
+const SHORT_LABEL = { present: t('Present'), absent: t('Absent'), half_day: t('Half'), paid_leave: t('Leave'), holiday: t('Off') };
 const LETTER = Object.fromEntries(ATTENDANCE_STATUSES.map((s) => [s.value, s.short]));
 const initials = (name) =>
   name
@@ -96,7 +97,7 @@ function DailyAttendance({ branchId, branchPicker }) {
   const onSave = async () => {
     try {
       await save({ branchId, date, entries: changed.map((e) => ({ employeeId: e.id, status: draft[e.id] })) }).unwrap();
-      toast.success(`Attendance saved for ${changed.length} employee${changed.length > 1 ? 's' : ''}`);
+      toast.success((changed.length > 1 ? t('Attendance saved for {{count}} employees', { count: changed.length }) : t('Attendance saved for {{count}} employee', { count: changed.length })));
     } catch (err) {
       toast.error(getErrorMessage(err));
     }
@@ -109,30 +110,30 @@ function DailyAttendance({ branchId, branchPicker }) {
         <Stack direction="row" sx={{ alignItems: 'center', flexWrap: 'wrap', gap: 1.5 }}>
           {branchPicker}
           <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', flexShrink: 0, width: { xs: '100%', sm: 'auto' }, minWidth: 0 }}>
-            <IconButton aria-label="Previous day" onClick={() => setDate(shiftDate(date, -1))}>
+            <IconButton aria-label={t('Previous day')} onClick={() => setDate(shiftDate(date, -1))}>
               <ChevronLeftRoundedIcon />
             </IconButton>
             <TextField
-              label={date === today ? `Today · ${weekdayName(date)}` : weekdayName(date)}
+              label={date === today ? t('Today · {{weekdayName}}', { weekdayName: weekdayName(date) }) : weekdayName(date)}
               type="date"
               value={date}
               onChange={(e) => e.target.value && setDate(e.target.value)}
               slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: today } }}
               sx={{ width: { xs: 'auto', sm: 190 }, flex: { xs: 1, sm: 'none' }, minWidth: 0 }}
             />
-            <IconButton aria-label="Next day" onClick={() => setDate(shiftDate(date, 1))} disabled={date >= today}>
+            <IconButton aria-label={t('Next day')} onClick={() => setDate(shiftDate(date, 1))} disabled={date >= today}>
               <ChevronRightRoundedIcon />
             </IconButton>
             {date !== today && (
               <Button size="small" onClick={() => setDate(today)} sx={{ whiteSpace: 'nowrap', flexShrink: 0 }}>
-                Today
+                {t('Today')}
               </Button>
             )}
           </Stack>
           {editable && (
             <Stack direction="row" spacing={1} sx={{ flexShrink: 0, ml: { xs: 0, sm: 'auto' }, width: { xs: '100%', sm: 'auto' }, '& > *': { flex: { xs: 1, sm: 'none' } }, '& .MuiButton-root': { width: { xs: '100%', sm: 'auto' } } }}>
               {unmarked > 0 && (
-                <Tooltip title={`Mark the ${unmarked} unmarked employee${unmarked > 1 ? 's' : ''} as present`}>
+                <Tooltip title={(unmarked > 1 ? t('Mark the {{unmarked}} unmarked employees as present', { unmarked }) : t('Mark the {{unmarked}} unmarked employee as present', { unmarked }))}>
                   <Button
                     variant="outlined"
                     color="secondary"
@@ -140,12 +141,12 @@ function DailyAttendance({ branchId, branchPicker }) {
                     onClick={() => setDraft((d) => Object.fromEntries(Object.entries(d).map(([k, v]) => [k, v ?? 'present'])))}
                     sx={{ whiteSpace: 'nowrap' }}
                   >
-                    All present ({unmarked})
+                    {t('All present ({{unmarked}})', { unmarked })}
                   </Button>
                 </Tooltip>
               )}
               <Button variant="contained" onClick={onSave} disabled={!changed.length || saveState.isLoading} sx={{ whiteSpace: 'nowrap', minWidth: 120 }}>
-                {changed.length ? `Save (${changed.length})` : 'Saved'}
+                {changed.length ? t('Save ({{count}})', { count: changed.length }) : t('Saved')}
               </Button>
             </Stack>
           )}
@@ -154,17 +155,17 @@ function DailyAttendance({ branchId, branchPicker }) {
 
       {data?.dayOff && !data.locked && (
         <Alert severity="warning" icon={<CelebrationOutlinedIcon />} sx={{ mb: 2 }}>
-          <strong>{data.dayOff}</strong> — the shop is closed. Staff you don’t mark are on holiday (paid). Mark anyone who came in as Present.
+          <strong>{data.dayOff}</strong> {t('— the shop is closed. Staff you don’t mark are on holiday (paid). Mark anyone who came in as Present.')}
         </Alert>
       )}
       {data?.locked && (
         <Alert severity="info" icon={<LockOutlinedIcon />} sx={{ mb: 2 }}>
-          Payroll {data.lockedBy} for this month is finalised, so attendance is locked.
+          {t('Payroll {{lockedBy}} for this month is finalised, so attendance is locked.', { lockedBy: data.lockedBy })}
         </Alert>
       )}
       {data && !data.locked && canMark && date !== today && !canEditPast && (
         <Alert severity="info" sx={{ mb: 2 }}>
-          You can mark only today’s attendance. Changing past days needs the “Edit attendance” permission.
+          {t('You can mark only today’s attendance. Changing past days needs the “Edit attendance” permission.')}
         </Alert>
       )}
 
@@ -174,7 +175,7 @@ function DailyAttendance({ branchId, branchPicker }) {
         <ErrorState error={error} onRetry={refetch} />
       ) : !data?.employees.length ? (
         <Card>
-          <EmptyState title="No employees on this date" description="Add employees under HR → Employees. Only staff who had joined by this date (and not left) appear here." />
+          <EmptyState title={t('No employees on this date')} description={t('Add employees under HR → Employees. Only staff who had joined by this date (and not left) appear here.')} />
         </Card>
       ) : (
         <Box sx={{ opacity: isFetching ? 0.6 : 1, transition: 'opacity 120ms' }}>
@@ -227,7 +228,7 @@ function DailyAttendance({ branchId, branchPicker }) {
                   <Stack
                     direction={{ xs: 'column', md: 'row' }}
                     spacing={1.5}
-                    sx={{ px: { xs: 1.5, sm: 2 }, py: 1.25, alignItems: { md: 'center' }, boxShadow: dirty ? (t) => `inset 3px 0 0 ${t.vars.palette.primary.main}` : 'none' }}
+                    sx={{ px: { xs: 1.5, sm: 2 }, py: 1.25, alignItems: { md: 'center' }, boxShadow: dirty ? (theme) => `inset 3px 0 0 ${theme.vars.palette.primary.main}` : 'none' }}
                   >
                     <Stack direction="row" spacing={1.5} sx={{ flex: 1, minWidth: 0, alignItems: 'center' }}>
                       {e.photoFileId ? (
@@ -235,7 +236,7 @@ function DailyAttendance({ branchId, branchPicker }) {
                         <EmployeeAvatar
                           employee={e}
                           size={36}
-                          sx={{ boxShadow: 'none', outline: '2.5px solid', outlineOffset: 1.5, outlineColor: (t) => (!value ? t.vars.palette.divider : value === 'holiday' ? t.vars.palette.grey[600] : t.vars.palette[TONE_PALETTE[value]].main), transition: 'outline-color 150ms' }}
+                          sx={{ boxShadow: 'none', outline: '2.5px solid', outlineOffset: 1.5, outlineColor: (theme) => (!value ? theme.vars.palette.divider : value === 'holiday' ? theme.vars.palette.grey[600] : theme.vars.palette[TONE_PALETTE[value]].main), transition: 'outline-color 150ms' }}
                         />
                       ) : (
                         <Avatar sx={{ width: 36, height: 36, fontSize: 13, fontWeight: 700, transition: 'background-color 150ms', ...(value ? TONE[value].filled : { bgcolor: 'action.selected', color: 'text.secondary' }) }}>
@@ -251,24 +252,24 @@ function DailyAttendance({ branchId, branchPicker }) {
                         </Typography>
                         {monthMarks.length === 0 ? (
                           <Typography variant="caption" sx={{ color: 'success.main', fontWeight: 600 }} noWrap>
-                            Full month
+                            {t('Full month')}
                           </Typography>
                         ) : (
                           monthMarks.map(([st, n]) => (
-                            <Tooltip key={st} title="This month">
+                            <Tooltip key={st} title={t('This month')}>
                               <Box component="span" sx={{ px: 0.75, borderRadius: 1, fontSize: 11, fontWeight: 700, lineHeight: '18px', whiteSpace: 'nowrap', ...TONE[st].soft }}>
                                 {n} {STATUS_SHORT[st]}
                               </Box>
                             </Tooltip>
                           ))
                         )}
-                        {dirty && <Chip label="Unsaved" size="small" color="primary" variant="outlined" sx={{ height: 20, fontSize: 11 }} />}
+                        {dirty && <Chip label={t('Unsaved')} size="small" color="primary" variant="outlined" sx={{ height: 20, fontSize: 11 }} />}
                       </Stack>
                     </Stack>
                     {/* Phones / tablets: the five buttons share the full width — bigger targets, with a short word under each. */}
                     <Box
                       role="radiogroup"
-                      aria-label={`Attendance for ${e.name}`}
+                      aria-label={t('Attendance for {{name}}', { name: e.name })}
                       sx={compact ? { display: 'grid', gridTemplateColumns: `repeat(${ATTENDANCE_STATUSES.length}, minmax(0, 1fr))`, gap: 0.75, width: '100%' } : { display: 'flex', flexWrap: 'wrap', gap: 0.5 }}
                     >
                       {ATTENDANCE_STATUSES.map((s) => {
@@ -292,7 +293,7 @@ function DailyAttendance({ branchId, branchPicker }) {
                             }}
                           >
                             <StatusBadge status={s.value} size={compact ? 20 : 18} filled={!on} inverse={on} />
-                            {compact ? <Box component="span" sx={{ lineHeight: 1.1, whiteSpace: 'nowrap' }}>{SHORT_LABEL[s.value]}</Box> : s.value === 'holiday' ? 'Holiday' : s.label}
+                            {compact ? <Box component="span" sx={{ lineHeight: 1.1, whiteSpace: 'nowrap' }}>{SHORT_LABEL[s.value]}</Box> : s.value === 'holiday' ? t('Holiday') : s.label}
                           </ButtonBase>
                         );
                       })}
@@ -303,7 +304,7 @@ function DailyAttendance({ branchId, branchPicker }) {
             })}
             <Divider />
             <Typography variant="caption" color="textSecondary" sx={{ display: 'block', px: 2, py: 1.25 }}>
-              {data.dayOff ? 'Grey avatar = not marked (on holiday today).' : 'Grey avatar = not marked yet (counts as present).'} Set weekly off and holidays in the Holidays & week off tab.
+              {data.dayOff ? t('Grey avatar = not marked (on holiday today).') : t('Grey avatar = not marked yet (counts as present).')} {t('Set weekly off and holidays in the Holidays & week off tab.')}
             </Typography>
           </Card>
         </Box>
@@ -314,9 +315,9 @@ function DailyAttendance({ branchId, branchPicker }) {
 
 const VIEWS = [
   // `short` is the label on phones, where the three share one row.
-  { value: 'mark', label: 'Mark attendance', short: 'Mark', icon: TodayOutlinedIcon },
-  { value: 'records', label: 'Records', short: 'Records', icon: CalendarMonthOutlinedIcon },
-  { value: 'holidays', label: 'Holidays & week off', short: 'Holidays', icon: CelebrationOutlinedIcon },
+  { value: 'mark', label: t('Mark attendance'), short: t('Mark'), icon: TodayOutlinedIcon },
+  { value: 'records', label: t('Records'), short: t('Records'), icon: CalendarMonthOutlinedIcon },
+  { value: 'holidays', label: t('Holidays & week off'), short: t('Holidays'), icon: CelebrationOutlinedIcon },
 ];
 
 export default function AttendancePage() {
@@ -329,7 +330,7 @@ export default function AttendancePage() {
 
   const branchPicker =
     session.branches.length > 1 ? (
-      <TextField select label="Branch" value={branchId} onChange={(e) => setBranchId(e.target.value)} sx={{ width: { md: 220 }, flexShrink: 0 }}>
+      <TextField select label={t('Branch')} value={branchId} onChange={(e) => setBranchId(e.target.value)} sx={{ width: { md: 220 }, flexShrink: 0 }}>
         {session.branches.map((b) => (
           <MenuItem key={b.id} value={b.id}>
             {b.name}
@@ -340,7 +341,7 @@ export default function AttendancePage() {
 
   return (
     <>
-      <PageHeader title="Attendance" subtitle="Mark only who was absent, on leave or a half day — everyone else counts as present." />
+      <PageHeader title={t('Attendance')} subtitle={t('Mark only who was absent, on leave or a half day — everyone else counts as present.')} />
       <ViewTabs value={view} onChange={openView} items={VIEWS} />
       {view === 'mark' && <DailyAttendance branchId={branchId} branchPicker={branchPicker} />}
       {view === 'records' && <AttendanceRecords branchId={branchId} branchPicker={branchPicker} />}

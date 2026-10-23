@@ -1,6 +1,7 @@
 import { Box, Stack, Typography } from '@mui/material';
 import { formatINR } from '@jerp/shared';
 import { useEffect, useRef, useState } from 'react';
+import { t } from '../../i18n/index.js';
 
 // Single-series mark colour, validated (dataviz validator) against the card surface:
 // light #9C7A16 on #FFFFFF, dark #B38D1E on #232220 - both pass band, chroma and 3:1 contrast.
@@ -38,7 +39,7 @@ export const niceMax = (v) => {
  * Columns over time (one per day). Hover or focus a column for its exact value.
  * data: [{ key, label, value, detail }]
  */
-export function ColumnChart({ data, height = 220, formatValue = (v) => formatINR(v, { decimals: 0 }), formatAxis = compactINR, emptyLabel = 'No sales in this period' }) {
+export function ColumnChart({ data, height = 220, formatValue = (v) => formatINR(v, { decimals: 0 }), formatAxis = compactINR, emptyLabel = t('No sales in this period') }) {
   const [ref, width] = useWidth();
   const [active, setActive] = useState(null);
   const pad = { top: 12, right: 8, bottom: 26, left: 52 };
@@ -56,12 +57,12 @@ export function ColumnChart({ data, height = 220, formatValue = (v) => formatINR
 
   return (
     <Box ref={ref} sx={{ position: 'relative', width: '100%' }} onMouseLeave={() => setActive(null)}>
-      <Box component="svg" width={width} height={height} role="img" aria-label="Daily sales" sx={{ display: 'block', overflow: 'visible' }}>
-        {ticks.map((t) => (
-          <g key={t}>
-            <Box component="line" x1={pad.left} x2={width - pad.right} y1={y(t)} y2={y(t)} sx={{ stroke: t === 0 ? 'var(--mui-palette-text-disabled)' : 'var(--mui-palette-divider)', strokeWidth: 1 }} />
-            <Box component="text" x={pad.left - 8} y={y(t)} dy="0.32em" textAnchor="end" sx={{ fontSize: 11, fill: 'var(--mui-palette-text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
-              {formatAxis(t)}
+      <Box component="svg" width={width} height={height} role="img" aria-label={t('Daily sales')} sx={{ display: 'block', overflow: 'visible' }}>
+        {ticks.map((tick) => (
+          <g key={tick}>
+            <Box component="line" x1={pad.left} x2={width - pad.right} y1={y(tick)} y2={y(tick)} sx={{ stroke: tick === 0 ? 'var(--mui-palette-text-disabled)' : 'var(--mui-palette-divider)', strokeWidth: 1 }} />
+            <Box component="text" x={pad.left - 8} y={y(tick)} dy="0.32em" textAnchor="end" sx={{ fontSize: 11, fill: 'var(--mui-palette-text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
+              {formatAxis(tick)}
             </Box>
           </g>
         ))}
@@ -137,7 +138,7 @@ export function ColumnChart({ data, height = 220, formatValue = (v) => formatINR
  * Ranked horizontal bars with the label and value written out (no legend needed, never colour alone).
  * rows: [{ key, label, value, caption }]
  */
-export function BarList({ rows, formatValue = (v) => formatINR(v, { decimals: 0 }), empty = 'Nothing yet' }) {
+export function BarList({ rows, formatValue = (v) => formatINR(v, { decimals: 0 }), empty = t('Nothing yet') }) {
   const max = Math.max(0, ...rows.map((r) => r.value));
   if (!rows.length || max === 0) {
     return (

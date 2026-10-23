@@ -9,6 +9,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import ConfirmDialog from '../components/ConfirmDialog.jsx';
 import { useSignOut } from '../features/auth/useSignOut.js';
+import { t } from '../i18n/index.js';
 
 const initials = (name = '') =>
   name
@@ -33,7 +34,7 @@ export default function UserMenu({ user, caption }) {
     <>
       <ButtonBase
         onClick={(e) => setAnchor(e.currentTarget)}
-        aria-label="Account menu"
+        aria-label={t('Account menu')}
         sx={{ flexShrink: 0, gap: 1, p: { xs: 0.25, lg: 0.5 }, pr: { lg: 1 }, borderRadius: 999, border: { lg: 1 }, borderColor: { lg: 'divider' }, bgcolor: { lg: 'background.paper' }, transition: 'border-color 160ms ease', '&:hover': { borderColor: 'rgba(var(--brand-rgb), 0.5)' } }}
       >
         <Box sx={{ p: '2px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--brand-light), var(--brand) 55%, var(--brand-deep))' }}>
@@ -61,7 +62,7 @@ export default function UserMenu({ user, caption }) {
           <ListItemIcon>
             <PersonOutlineRoundedIcon fontSize="small" />
           </ListItemIcon>
-          Profile & security
+          {t('Profile & security')}
         </MenuItem>
         <MenuItem
           onClick={() => {
@@ -70,7 +71,7 @@ export default function UserMenu({ user, caption }) {
           }}
         >
           <ListItemIcon>{dark ? <LightModeOutlinedIcon fontSize="small" /> : <DarkModeOutlinedIcon fontSize="small" />}</ListItemIcon>
-          {dark ? 'Light mode' : 'Dark mode'}
+          {dark ? t('Light mode') : t('Dark mode')}
         </MenuItem>
         <Divider />
         <MenuItem
@@ -82,14 +83,14 @@ export default function UserMenu({ user, caption }) {
           <ListItemIcon>
             <LogoutRoundedIcon fontSize="small" />
           </ListItemIcon>
-          Sign out
+          {t('Sign out')}
         </MenuItem>
       </Menu>
       <ConfirmDialog
         open={confirmSignOut}
-        title="Sign out?"
-        message="You will be signed out on this device. Any unsaved changes will be lost."
-        confirmLabel="Sign out"
+        title={t('Sign out?')}
+        message={t('You will be signed out on this device. Any unsaved changes will be lost.')}
+        confirmLabel={t('Sign out')}
         danger
         loading={signingOut}
         onConfirm={signOut}

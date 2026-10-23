@@ -6,6 +6,7 @@ import { Button, Divider, ListItemIcon, ListItemText, Menu, MenuItem } from '@mu
 import { useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { allBranchesSelected, branchSelected } from '../store/authSlice.js';
+import { t } from '../i18n/index.js';
 
 /**
  * The navbar branch filter. Options: Head Office (the default), All branches, then each branch.
@@ -27,7 +28,7 @@ export default function BranchSwitcher({ branches, allowAll = true }) {
   const canAll = allowAll && branches.length > 1;
   const showingAll = canAll && view === 'all';
   const active = branches.find((b) => b.id === activeId);
-  const label = showingAll ? 'All branches' : (active?.name ?? 'Select branch');
+  const label = showingAll ? t('All branches') : (active?.name ?? t('Select branch'));
   const close = () => setAnchor(null);
   const pick = (id) => {
     dispatch(branchSelected(id));
@@ -45,7 +46,7 @@ export default function BranchSwitcher({ branches, allowAll = true }) {
         startIcon={showingAll ? <HubOutlinedIcon fontSize="small" /> : <AccountTreeOutlinedIcon fontSize="small" />}
         endIcon={<ExpandMoreRoundedIcon />}
         sx={{ borderColor: 'divider', borderRadius: 999, bgcolor: 'background.paper', px: 1.5, maxWidth: { xs: 150, sm: 240 }, minHeight: 36, fontWeight: 600, '& .MuiButton-startIcon': { color: 'var(--brand-strong)' }, '&:hover': { borderColor: 'rgba(var(--brand-rgb), 0.5)', bgcolor: 'rgba(var(--brand-rgb), 0.05)' } }}
-        aria-label="Branch filter"
+        aria-label={t('Branch filter')}
       >
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
       </Button>
@@ -53,7 +54,7 @@ export default function BranchSwitcher({ branches, allowAll = true }) {
         {headOffice && (
           <MenuItem selected={isOn(headOffice)} onClick={() => pick(headOffice.id)}>
             <ListItemIcon>{isOn(headOffice) && <CheckRoundedIcon fontSize="small" color="primary" />}</ListItemIcon>
-            <ListItemText primary={headOffice.name} secondary="Head office" />
+            <ListItemText primary={headOffice.name} secondary={t('Head office')} />
           </MenuItem>
         )}
         {canAll && (
@@ -65,7 +66,7 @@ export default function BranchSwitcher({ branches, allowAll = true }) {
             }}
           >
             <ListItemIcon>{showingAll && <CheckRoundedIcon fontSize="small" color="primary" />}</ListItemIcon>
-            <ListItemText primary="All branches" secondary="Every branch together" />
+            <ListItemText primary={t('All branches')} secondary={t('Every branch together')} />
           </MenuItem>
         )}
         {others.length > 0 && <Divider />}

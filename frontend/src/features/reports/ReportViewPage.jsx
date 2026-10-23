@@ -10,6 +10,7 @@ import { EmptyState, ErrorState, LoadingState } from '../../components/StateView
 import { usePermission, useSession } from '../../hooks/usePermission.js';
 import { formatDate, formatDateTime } from '../../utils/format.js';
 import { useReportQuery } from './reportApi.js';
+import { getLocale, t, tValue } from '../../i18n/index.js';
 
 // Print only the report sheet.
 export const printStyles = (
@@ -20,7 +21,7 @@ export const printStyles = (
         '#report-sheet, #report-sheet *': { visibility: 'visible' },
         '#report-sheet': { position: 'absolute', inset: 0, margin: 0 },
         '#report-sheet .no-print': { display: 'none' },
-        '@page': { size: 'A4 landscape', margin: '10mm' },
+        '@page': { size: t('A4 landscape'), margin: '10mm' },
       },
     }}
   />
@@ -33,10 +34,10 @@ export function presets() {
   const m = now.getMonth();
   const fyStart = m >= 3 ? y : y - 1;
   return [
-    { label: 'Today', from: iso(now), to: iso(now) },
-    { label: 'This month', from: iso(new Date(y, m, 1)), to: iso(now) },
-    { label: 'Last month', from: iso(new Date(y, m - 1, 1)), to: iso(new Date(y, m, 0)) },
-    { label: 'This FY', from: `${fyStart}-04-01`, to: iso(now) },
+    { label: t('Today'), from: iso(now), to: iso(now) },
+    { label: t('This month'), from: iso(new Date(y, m, 1)), to: iso(now) },
+    { label: t('Last month'), from: iso(new Date(y, m - 1, 1)), to: iso(new Date(y, m, 0)) },
+    { label: t('This FY'), from: `${fyStart}-04-01`, to: iso(now) },
   ];
 }
 
@@ -70,9 +71,9 @@ function csvValue(type, v) {
 }
 
 export function downloadCsv(report) {
-  const head = report.columns.map((c) => c.label + (c.type === 'money' ? ' (₹)' : c.type === 'weight' ? ' (g)' : ''));
+  const head = report.columns.map((c) => t(c.label) + (c.type === 'money' ? ' (₹)' : c.type === 'weight' ? t(' (g)') : ''));
   const body = report.rows.map((r) => report.columns.map((c) => csvValue(c.type, r[c.key])));
-  const totals = report.totals && Object.keys(report.totals).length ? [report.columns.map((c, i) => (i === 0 ? 'Total' : c.key in report.totals ? csvValue(c.type, report.totals[c.key]) : ''))] : [];
+  const totals = report.totals && Object.keys(report.totals).length ? [report.columns.map((c, i) => (i === 0 ? t('Total') : c.key in report.totals ? csvValue(c.type, report.totals[c.key]) : ''))] : [];
   const esc = (s) => (/[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s);
   const csv = [head, ...body, ...totals].map((line) => line.map((x) => esc(String(x))).join(',')).join('\r\n');
   const url = URL.createObjectURL(new Blob([`﻿${csv}`], { type: 'text/csv;charset=utf-8' }));
@@ -89,7 +90,7 @@ function Cell({ column, row, value, total }) {
   const tone = column.toneFromRow ? row?._tone : column.tone;
   const negative = column.signed && typeof value === 'number' && value < 0;
   const color = negative ? MONEY_TONE.due : value && tone ? MONEY_TONE[tone] : undefined;
-  const text = formatValue(column.type, value);
+  const text = tValue(formatValue(column.type, value));
   const link = row?._links?.[column.key];
   return (
     <TableCell align={numeric(column.type) ? 'right' : 'left'} sx={{ whiteSpace: numeric(column.type) || column.type === 'date' || (typeof value === 'string' && !value.includes(' ')) ? 'nowrap' : 'normal', fontWeight: total || column.strong ? 700 : 400, color, fontVariantNumeric: 'tabular-nums' }}>
@@ -112,23 +113,23 @@ export function ReportSheet({ report, isFetching, period, scope, printTitle, emp
       {/* Print heading: hidden on screen, shown on paper. */}
       <Box sx={{ display: 'none', '@media print': { display: 'block' }, mb: 2 }}>
         <Typography variant="h2">{printTitle}</Typography>
-        <Typography variant="h3">{report.title}</Typography>
+        <Typography variant="h3">{t(report.title)}</Typography>
         <Typography variant="body2">
-          {period}{scope ? ` · ${scope}` : ''} · printed {formatDateTime(new Date())}
+          {period}{scope ? ` · ${scope}` : ''} {t('· printed {{formatDateTime}}', { formatDateTime: formatDateTime(new Date()) })}
         </Typography>
       </Box>
 
       {report.summary?.length > 0 && (
         <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: `repeat(${Math.min(report.summary.length, 4)}, minmax(0, 1fr))` }, gap: 1.5, mb: 2 }}>
           {report.summary.map((s) => (
-            <StatTile key={s.label} label={s.label} value={formatValue(s.type, s.value ?? 0)} tone={s.tone && s.value ? MONEY_TONE[s.tone] : undefined} />
+            <StatTile key={s.label} label={t(s.label)} value={formatValue(s.type, s.value ?? 0)} tone={s.tone && s.value ? MONEY_TONE[s.tone] : undefined} />
           ))}
         </Box>
       )}
 
       {report.note && (
         <Alert severity="info" sx={{ mb: 2 }}>
-          {report.note}
+          {t(report.note)}
         </Alert>
       )}
 
@@ -139,11 +140,11 @@ export function ReportSheet({ report, isFetching, period, scope, printTitle, emp
             {scope ? ` · ${scope}` : ''}
           </Typography>
           <Typography variant="body2" color="textSecondary">
-            {report.rows.length} row{report.rows.length === 1 ? '' : 's'}
+            {(report.rows.length === 1 ? t('{{count}} row', { count: report.rows.length }) : t('{{count}} rows', { count: report.rows.length }))}
           </Typography>
         </Stack>
         {report.rows.length === 0 ? (
-          <EmptyState title="Nothing in this period" description={emptyHint} />
+          <EmptyState title={t('Nothing in this period')} description={emptyHint} />
         ) : (
           <TableContainer>
             <Table size="small" stickyHeader sx={{ '& th, & td': { px: 1.25 }, '& th:first-of-type, & td:first-of-type': { pl: 2 }, '& th:last-of-type, & td:last-of-type': { pr: 2 }, '& th': { fontSize: 11, fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'text.secondary', whiteSpace: 'nowrap', py: 1.25 }, '& td': { fontSize: 13, py: 1 } }}>
@@ -151,7 +152,7 @@ export function ReportSheet({ report, isFetching, period, scope, printTitle, emp
                 <TableRow>
                   {report.columns.map((c) => (
                     <TableCell key={c.key} align={numeric(c.type) ? 'right' : 'left'}>
-                      {c.label}
+                      {t(c.label)}
                     </TableCell>
                   ))}
                 </TableRow>
@@ -169,7 +170,7 @@ export function ReportSheet({ report, isFetching, period, scope, printTitle, emp
                     {report.columns.map((c, i) =>
                       i === 0 ? (
                         <TableCell key={c.key} sx={{ fontWeight: 700 }}>
-                          Total
+                          {t('Total')}
                         </TableCell>
                       ) : c.key in report.totals ? (
                         <Cell key={c.key} column={c} value={report.totals[c.key]} total />
@@ -185,7 +186,7 @@ export function ReportSheet({ report, isFetching, period, scope, printTitle, emp
         )}
       </Card>
       <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 1 }} className="no-print">
-        Generated {formatDateTime(report.generatedAt)}
+        {t('Generated {{generatedAt}}', { generatedAt: formatDateTime(report.generatedAt) })}
       </Typography>
     </Box>
   );
@@ -209,26 +210,26 @@ export default function ReportViewPage() {
   const f = report.filters;
   const p = report.params;
   const multiBranch = session.branches.length > 1;
-  const branchName = p.branchId ? (session.branches.find((b) => b.id === p.branchId)?.name ?? '') : 'All branches';
-  const period = f.includes('month') ? new Date(`${p.month}-01T00:00:00Z`).toLocaleString('en-IN', { month: 'long', year: 'numeric', timeZone: 'UTC' }) : f.includes('range') ? `${formatDate(p.from)} – ${formatDate(p.to)}` : f.includes('asOf') ? `As on ${formatDate(p.to)}` : 'As on today';
+  const branchName = p.branchId ? (session.branches.find((b) => b.id === p.branchId)?.name ?? '') : t('All branches');
+  const period = f.includes('month') ? new Date(`${p.month}-01T00:00:00Z`).toLocaleString(getLocale(), { month: 'long', year: 'numeric', timeZone: 'UTC' }) : f.includes('range') ? `${formatDate(p.from)} – ${formatDate(p.to)}` : f.includes('asOf') ? t('As on {{to}}', { to: formatDate(p.to) }) : t('As on today');
 
   return (
     <>
       {printStyles}
       <PageHeader
-        title={report.title}
-        subtitle={report.description}
-        back={{ to: '/reports', label: 'Reports' }}
+        title={t(report.title)}
+        subtitle={t(report.description)}
+        back={{ to: '/reports', label: t('Reports') }}
         actions={
           <Stack direction="row" spacing={1}>
             {/* Reports → Export: downloading the rows. */}
             {canExport && (
               <Button variant="outlined" color="secondary" startIcon={<FileDownloadOutlinedIcon />} onClick={() => downloadCsv(report)} disabled={!report.rows.length}>
-                Excel (CSV)
+                {t('Excel (CSV)')}
               </Button>
             )}
             <Button variant="contained" startIcon={<PrintOutlinedIcon />} onClick={() => window.print()}>
-              Print
+              {t('Print')}
             </Button>
           </Stack>
         }
@@ -250,12 +251,12 @@ export default function ReportViewPage() {
         >
           {f.includes('range') && (
             <>
-              <TextField label="From" type="date" value={p.from} onChange={(e) => e.target.value && set({ from: e.target.value })} slotProps={{ inputLabel: { shrink: true } }} sx={{ order: 1 }} />
-              <TextField label="To" type="date" value={p.to} onChange={(e) => e.target.value && set({ to: e.target.value })} slotProps={{ inputLabel: { shrink: true } }} sx={{ order: 2 }} />
+              <TextField label={t('From')} type="date" value={p.from} onChange={(e) => e.target.value && set({ from: e.target.value })} slotProps={{ inputLabel: { shrink: true } }} sx={{ order: 1 }} />
+              <TextField label={t('To')} type="date" value={p.to} onChange={(e) => e.target.value && set({ to: e.target.value })} slotProps={{ inputLabel: { shrink: true } }} sx={{ order: 2 }} />
               <ToggleButtonGroup
                 exclusive
                 size="small"
-                aria-label="Quick period"
+                aria-label={t('Quick period')}
                 value={presets().find((x) => p.from === x.from && p.to === x.to)?.label ?? null}
                 onChange={(e, label) => {
                   const x = presets().find((y) => y.label === label);
@@ -280,24 +281,24 @@ export default function ReportViewPage() {
               </ToggleButtonGroup>
             </>
           )}
-          {f.includes('asOf') && <TextField label="As on" type="date" value={p.to} onChange={(e) => e.target.value && set({ to: e.target.value })} slotProps={{ inputLabel: { shrink: true } }} sx={{ gridColumn: { xs: '1 / -1', sm: 'auto' } }} />}
-          {f.includes('month') && <TextField label="Month" type="month" value={p.month} onChange={(e) => e.target.value && set({ month: e.target.value })} slotProps={{ inputLabel: { shrink: true } }} sx={{ gridColumn: { xs: '1 / -1', sm: 'auto' } }} />}
+          {f.includes('asOf') && <TextField label={t('As on')} type="date" value={p.to} onChange={(e) => e.target.value && set({ to: e.target.value })} slotProps={{ inputLabel: { shrink: true } }} sx={{ gridColumn: { xs: '1 / -1', sm: 'auto' } }} />}
+          {f.includes('month') && <TextField label={t('Month')} type="month" value={p.month} onChange={(e) => e.target.value && set({ month: e.target.value })} slotProps={{ inputLabel: { shrink: true } }} sx={{ gridColumn: { xs: '1 / -1', sm: 'auto' } }} />}
           {f.includes('account') && (
-            <TextField select label="Account" value={p.account ?? 'cash'} onChange={(e) => set({ account: e.target.value })} sx={{ gridColumn: { xs: '1 / -1', sm: 'auto' } }}>
-              <MenuItem value="cash">Cash in hand</MenuItem>
-              <MenuItem value="bank">Bank accounts</MenuItem>
+            <TextField select label={t('Account')} value={p.account ?? 'cash'} onChange={(e) => set({ account: e.target.value })} sx={{ gridColumn: { xs: '1 / -1', sm: 'auto' } }}>
+              <MenuItem value="cash">{t('Cash in hand')}</MenuItem>
+              <MenuItem value="bank">{t('Bank accounts')}</MenuItem>
             </TextField>
           )}
           {f.includes('branch') && multiBranch && (
             <TextField
               select
-              label="Branch"
+              label={t('Branch')}
               value={p.branchId ?? ''}
               onChange={(e) => set({ branchId: e.target.value })}
               slotProps={{ inputLabel: { shrink: true }, select: { displayEmpty: true } }}
               sx={{ order: { xs: 4, sm: 3, xl: 4 }, gridColumn: { xs: '1 / -1', sm: 'auto' } }}
             >
-              <MenuItem value="">All branches</MenuItem>
+              <MenuItem value="">{t('All branches')}</MenuItem>
               {session.branches.map((b) => (
                 <MenuItem key={b.id} value={b.id}>
                   {b.name}
@@ -308,7 +309,7 @@ export default function ReportViewPage() {
         </Box>
       </Card>
 
-      <ReportSheet report={report} isFetching={isFetching} period={period} scope={f.includes('branch') ? branchName : null} printTitle={session.organisation.name} emptyHint="Try a wider date range or another branch." />
+      <ReportSheet report={report} isFetching={isFetching} period={period} scope={f.includes('branch') ? branchName : null} printTitle={session.organisation.name} emptyHint={t('Try a wider date range or another branch.')} />
     </>
   );
 }

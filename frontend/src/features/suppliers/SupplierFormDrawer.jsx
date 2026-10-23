@@ -15,6 +15,7 @@ import KeepOnPhone from '../../components/KeepOnPhone.jsx';
 import MoreDetails from '../../components/MoreDetails.jsx';
 import { applyServerErrors, getErrorMessage } from '../../utils/errors.js';
 import { useCreateSupplierMutation, useUpdateSupplierMutation } from './supplierApi.js';
+import { t } from '../../i18n/index.js';
 
 const EMPTY_ADDRESS = { line1: '', line2: '', city: '', stateCode: '', pincode: '' };
 const EMPTY_BANK = { accountName: '', accountNumber: '', ifsc: '', bankName: '', branchName: '', upiId: '' };
@@ -30,27 +31,27 @@ const decimal = (scale) =>
     } catch {
       return false;
     }
-  }, 'Enter a valid number');
+  }, t('Enter a valid number'));
 
 // Old balance: what we owe the supplier from before — only a plus amount.
 const oldBalance = z
   .string()
   .trim()
-  .refine((v) => /^\d*(\.\d{0,2})?$/.test(v),'Enter an amount (no minus) — what you owe them')
+  .refine((v) => /^\d*(\.\d{0,2})?$/.test(v),t('Enter an amount (no minus) — what you owe them'))
   .refine((v) => {
     try {
       return (toPaise(v || '0') ?? -1) >= 0;
     } catch {
       return false;
     }
-  }, 'Enter a valid amount');
+  }, t('Enter a valid amount'));
 
 // The server names the saved fields; errors on them show on the form field they come from.
 const SERVER_FIELD = { openingBalancePaise: 'openingBalance', openingFineGoldMg: 'openingGold', openingFineSilverMg: 'openingSilver' };
 
 const formSchema = supplierSchema
   .omit({ openingBalancePaise: true, openingFineGoldMg: true, openingFineSilverMg: true, paymentTermsDays: true })
-  .extend({ openingBalance: oldBalance, openingGold: decimal(3), openingSilver: decimal(3), paymentTermsDays: z.string().regex(/^\d{1,3}$/, 'Enter days (0–365)') });
+  .extend({ openingBalance: oldBalance, openingGold: decimal(3), openingSilver: decimal(3), paymentTermsDays: z.string().regex(/^\d{1,3}$/, t('Enter days (0–365)')) });
 
 const blank = (v) => v ?? '';
 const blanks = (obj, empty) => ({ ...empty, ...Object.fromEntries(Object.entries(obj ?? {}).map(([k, v]) => [k, blank(v)])) });
@@ -109,11 +110,11 @@ export default function SupplierFormDrawer({ open, supplier, onClose }) {
     try {
       if (editing) {
         await update({ id: supplier.id, ...payload }).unwrap();
-        toast.success('Supplier updated');
+        toast.success(t('Supplier updated'));
         onClose();
       } else {
         const created = await create(payload).unwrap();
-        toast.success(`Supplier ${created.code} created`);
+        toast.success(t('Supplier {{code}} created', { code: created.code }));
         onClose();
         navigate('/suppliers');
       }
@@ -126,12 +127,12 @@ export default function SupplierFormDrawer({ open, supplier, onClose }) {
   return (
     <FormDrawer
       open={open}
-      title={editing ? 'Edit supplier' : 'New supplier'}
-      subtitle={editing ? `${supplier.companyName} · ${supplier.code}` : 'Bullion dealers, manufacturers, stone and packaging vendors.'}
+      title={editing ? t('Edit supplier') : t('New supplier')}
+      subtitle={editing ? `${supplier.companyName} · ${supplier.code}` : t('Bullion dealers, manufacturers, stone and packaging vendors.')}
       onClose={onClose}
       onSubmit={onSubmit}
       submitting={createState.isLoading || updateState.isLoading}
-      submitLabel={editing ? 'Save changes' : 'Create supplier'}
+      submitLabel={editing ? t('Save changes') : t('Create supplier')}
       width={560}
     >
       <Grid container spacing={2}>
@@ -141,78 +142,78 @@ export default function SupplierFormDrawer({ open, supplier, onClose }) {
           </Grid>
         )}
         <Grid size={12}>
-          <RHFTextField control={control} name="companyName" label="Company name" autoFocus={!editing} />
+          <RHFTextField control={control} name="companyName" label={t('Company name')} autoFocus={!editing} />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
-          <RHFTextField control={control} name="contactPerson" label="Contact person" />
+          <RHFTextField control={control} name="contactPerson" label={t('Contact person')} />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
-          <RHFTextField control={control} name="mobile" label="Mobile" slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 10 } }} />
+          <RHFTextField control={control} name="mobile" label={t('Mobile')} slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 10 } }} />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
-          <RHFTextField control={control} name="gstin" label="GSTIN" transform={upper} slotProps={{ htmlInput: { maxLength: 15 } }} />
+          <RHFTextField control={control} name="gstin" label={t('GSTIN')} transform={upper} slotProps={{ htmlInput: { maxLength: 15 } }} />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
           <RHFTextField
             control={control}
             name="openingBalance"
-            label="Old balance (optional)"
+            label={t('Old balance (optional)')}
             transform={amountOnly}
             // Locked after the first purchase or payment with them: bills and payments are already settled against it.
             disabled={Boolean(supplier?.openingBalanceLocked)}
             helperText={
               supplier?.openingBalanceLocked
-                ? <KeepOnPhone>{`Locked — ${supplier.companyName} already has purchases or payments.${supplier.openingDuePaidPaise > 0 ? ` ${formatINR(supplier.openingDuePaidPaise, { decimals: 0 })} of it is paid.` : ''}`}</KeepOnPhone>
-                : 'What you owe them from before — added to their due. Can be changed until the first purchase or payment.'
+                ? <KeepOnPhone>{(supplier.openingDuePaidPaise > 0 ? t('Locked — {{companyName}} already has purchases or payments. {{openingDuePaid}} of it is paid.', { companyName: supplier.companyName, openingDuePaid: formatINR(supplier.openingDuePaidPaise, { decimals: 0 }) }) : t('Locked — {{companyName}} already has purchases or payments.', { companyName: supplier.companyName }))}</KeepOnPhone>
+                : t('What you owe them from before — added to their due. Can be changed until the first purchase or payment.')
             }
             slotProps={unit('₹', 'start')}
           />
         </Grid>
         <Grid size={12}>
           <MoreDetails
-            hint="Address, bank / UPI, metal balance, payment terms, notes"
+            hint={t('Address, bank / UPI, metal balance, payment terms, notes')}
             defaultOpen={Boolean(supplier && (supplier.email || supplier.pan || supplier.address?.line1 || supplier.bankDetails?.accountNumber || supplier.bankDetails?.upiId || supplier.notes))}
             forceOpen={Boolean(Object.keys(formState.errors).some((k) => !['companyName', 'contactPerson', 'mobile', 'gstin', 'openingBalance'].includes(k)))}
           >
             <Grid container spacing={2}>
               <Grid size={{ xs: 12, sm: 6 }}>
-                <RHFTextField control={control} name="alternateMobile" label="Alternate mobile" slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 10 } }} />
+                <RHFTextField control={control} name="alternateMobile" label={t('Alternate mobile')} slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 10 } }} />
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
-                <RHFTextField control={control} name="email" label="Email" type="email" />
+                <RHFTextField control={control} name="email" label={t('Email')} type="email" />
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
-                <RHFTextField control={control} name="pan" label="PAN" transform={upper} slotProps={{ htmlInput: { maxLength: 10 } }} />
+                <RHFTextField control={control} name="pan" label={t('PAN')} transform={upper} slotProps={{ htmlInput: { maxLength: 10 } }} />
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
-                <RHFMultiSelect control={control} name="supplies" label="Supplies" options={SUPPLIER_SUPPLIES} />
+                <RHFMultiSelect control={control} name="supplies" label={t('Supplies')} options={SUPPLIER_SUPPLIES} />
               </Grid>
               <Grid size={12}>
                 <AddressFields control={control} />
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
-                <RHFTextField control={control} name="bankDetails.accountNumber" label="Bank account no." slotProps={{ htmlInput: { inputMode: 'numeric' } }} />
+                <RHFTextField control={control} name="bankDetails.accountNumber" label={t('Bank account no.')} slotProps={{ htmlInput: { inputMode: 'numeric' } }} />
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
-                <RHFTextField control={control} name="bankDetails.ifsc" label="IFSC" transform={upper} slotProps={{ htmlInput: { maxLength: 11 } }} />
+                <RHFTextField control={control} name="bankDetails.ifsc" label={t('IFSC')} transform={upper} slotProps={{ htmlInput: { maxLength: 11 } }} />
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
-                <RHFTextField control={control} name="bankDetails.accountName" label="Account name" />
+                <RHFTextField control={control} name="bankDetails.accountName" label={t('Account name')} />
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
-                <RHFTextField control={control} name="bankDetails.upiId" label="UPI ID" />
+                <RHFTextField control={control} name="bankDetails.upiId" label={t('UPI ID')} />
               </Grid>
               <Grid size={{ xs: 12, sm: 4 }}>
-                <RHFTextField control={control} name="openingGold" label="Old fine gold" helperText="You owe, in 24K g" slotProps={unit('g')} />
+                <RHFTextField control={control} name="openingGold" label={t('Old fine gold')} helperText={t('You owe, in 24K g')} slotProps={unit('g')} />
               </Grid>
               <Grid size={{ xs: 12, sm: 4 }}>
-                <RHFTextField control={control} name="openingSilver" label="Old fine silver" slotProps={unit('g')} />
+                <RHFTextField control={control} name="openingSilver" label={t('Old fine silver')} slotProps={unit('g')} />
               </Grid>
               <Grid size={{ xs: 12, sm: 4 }}>
-                <RHFTextField control={control} name="paymentTermsDays" label="Payment terms" slotProps={{ input: { endAdornment: <InputAdornment position="end">days</InputAdornment> }, htmlInput: { inputMode: 'numeric' } }} />
+                <RHFTextField control={control} name="paymentTermsDays" label={t('Payment terms')} slotProps={{ input: { endAdornment: <InputAdornment position="end">{t('days')}</InputAdornment> }, htmlInput: { inputMode: 'numeric' } }} />
               </Grid>
               <Grid size={12}>
-                <RHFTextField control={control} name="notes" label="Notes" multiline minRows={2} />
+                <RHFTextField control={control} name="notes" label={t('Notes')} multiline minRows={2} />
               </Grid>
             </Grid>
           </MoreDetails>

@@ -7,6 +7,7 @@ import { isAdminPath, useAdminBootstrap } from '../features/platform/adminGuards
 import { usePermission } from '../hooks/usePermission.js';
 import { refreshAccessToken } from '../services/http.js';
 import { sessionEnded } from '../store/authSlice.js';
+import { t } from '../i18n/index.js';
 
 export function AuthBootstrap({ children }) {
   const status = useSelector((s) => s.auth.status);
@@ -43,6 +44,6 @@ export function RequirePermission({ perm, children }) {
   return usePermission(perm) ? (
     children
   ) : (
-    <EmptyState icon={LockOutlinedIcon} title="Access restricted" description="You do not have permission to view this page. Ask your administrator for access." />
+    <EmptyState icon={LockOutlinedIcon} title={t('Access restricted')} description={t('You do not have permission to view this page. Ask your administrator for access.')} />
   );
 }

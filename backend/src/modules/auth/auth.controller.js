@@ -89,6 +89,10 @@ export async function updateProfile(req, res) {
   sendOk(res, await authService.updateProfile(req.auth.userId, req.valid.body), { message: 'Profile updated' });
 }
 
+export async function setLanguage(req, res) {
+  sendOk(res, await authService.setLanguage(req.auth.userId, req.valid.body.language));
+}
+
 export async function listSessions(req, res) {
   sendOk(res, await authService.listSessions(req.auth.userId, req.auth.sessionId));
 }

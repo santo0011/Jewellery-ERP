@@ -12,6 +12,7 @@ import { ErrorState, LoadingState } from '../../components/StateViews.jsx';
 import { getErrorMessage } from '../../utils/errors.js';
 import { PlanCard } from '../billing/billingUi.jsx';
 import { useCreatePlanMutation, useDeletePlanMutation, usePlansQuery, useUpdatePlanMutation } from './platformApi.js';
+import { t } from '../../i18n/index.js';
 
 const blank = { name: '', description: '', price: '', durationMonths: 1, users: '', branches: '', products: '', features: '', isActive: true, isDefault: false, isPopular: false, sortOrder: '0' };
 const toForm = (p) => ({
@@ -53,8 +54,8 @@ function PlanDrawer({ open, plan, onClose }) {
       pricePaise = null;
     }
     const errs = {};
-    if (f.name.trim().length < 2) errs.name = 'Enter the plan name';
-    if (pricePaise == null) errs.price = 'Enter the price (0 for free)';
+    if (f.name.trim().length < 2) errs.name = t('Enter the plan name');
+    if (pricePaise == null) errs.price = t('Enter the price (0 for free)');
     setErrors(errs);
     if (Object.keys(errs).length) return;
     const body = {
@@ -71,65 +72,65 @@ function PlanDrawer({ open, plan, onClose }) {
     };
     try {
       await (plan ? update({ id: plan.id, ...body }) : create(body)).unwrap();
-      toast.success(plan ? 'Plan updated' : `${body.name} plan created`);
+      toast.success(plan ? t('Plan updated') : t('{{name}} plan created', { name: body.name }));
       onClose();
     } catch (err) {
       const d = err?.data?.error?.details;
-      if (d?.length) setErrors(Object.fromEntries(d.map((x) => [x.path.split('.').pop(), x.message])));
+      if (d?.length) setErrors(Object.fromEntries(d.map((x) => [x.path.split('.').pop(), t(x.message)])));
       else toast.error(getErrorMessage(err));
     }
   };
 
   return (
-    <FormDrawer open={open} title={plan ? `Edit ${plan.name}` : 'New plan'} subtitle="Price, how long it lasts and limits. Free days are set on each organisation." onClose={onClose} onSubmit={submit} submitting={createState.isLoading || updateState.isLoading} submitLabel={plan ? 'Save plan' : 'Create plan'} width={520}>
+    <FormDrawer open={open} title={plan ? t('Edit {{name}}', { name: plan.name }) : t('New plan')} subtitle={t('Price, how long it lasts and limits. Free days are set on each organisation.')} onClose={onClose} onSubmit={submit} submitting={createState.isLoading || updateState.isLoading} submitLabel={plan ? t('Save plan') : t('Create plan')} width={520}>
       <Grid container spacing={2}>
         <Grid size={12}>
-          <TextField label="Plan name" value={f.name} onChange={set('name')} error={Boolean(errors.name)} helperText={errors.name} autoFocus />
+          <TextField label={t('Plan name')} value={f.name} onChange={set('name')} error={Boolean(errors.name)} helperText={errors.name} autoFocus />
         </Grid>
         <Grid size={12}>
-          <TextField label="Short description (optional)" value={f.description} onChange={set('description')} slotProps={{ htmlInput: { maxLength: 200 } }} />
+          <TextField label={t('Short description (optional)')} value={f.description} onChange={set('description')} slotProps={{ htmlInput: { maxLength: 200 } }} />
         </Grid>
         <Grid size={6}>
-          <TextField label="Price" value={f.price} onChange={set('price', true)} error={Boolean(errors.price)} helperText={errors.price ?? '0 = free plan'} slotProps={{ input: { startAdornment: <InputAdornment position="start">₹</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }} />
+          <TextField label={t('Price')} value={f.price} onChange={set('price', true)} error={Boolean(errors.price)} helperText={errors.price ?? t('0 = free plan')} slotProps={{ input: { startAdornment: <InputAdornment position="start">₹</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }} />
         </Grid>
         <Grid size={6}>
-          <TextField select label="For" value={f.durationMonths} onChange={set('durationMonths')}>
+          <TextField select label={t('For')} value={f.durationMonths} onChange={set('durationMonths')}>
             {[1, 3, 6, 12, 24].map((m) => (
               <MenuItem key={m} value={m}>
-                {m === 12 ? '1 year' : m === 24 ? '2 years' : `${m} month${m > 1 ? 's' : ''}`}
+                {m === 12 ? t('1 year') : m === 24 ? t('2 years') : (m > 1 ? t('{{m}} months', { m }) : t('{{m}} month', { m }))}
               </MenuItem>
             ))}
           </TextField>
         </Grid>
         <Grid size={6}>
-          <TextField label="Display order" value={f.sortOrder} onChange={set('sortOrder', true)} helperText="Lower shows first" />
+          <TextField label={t('Display order')} value={f.sortOrder} onChange={set('sortOrder', true)} helperText={t('Lower shows first')} />
         </Grid>
 
         <Grid size={12}>
           <Typography variant="overline" color="textSecondary">
-            Limits — leave blank for unlimited
+            {t('Limits — leave blank for unlimited')}
           </Typography>
           <Typography variant="caption" color="textSecondary" component="div">
-            An organisation on this plan can add branches and users up to these limits. During the free trial it gets {TRIAL_BRANCH_LIMIT} branches, whatever the plan.
+            {t('An organisation on this plan can add branches and users up to these limits. During the free trial it gets {{TRIAL_BRANCH_LIMIT}} branches, whatever the plan.', { TRIAL_BRANCH_LIMIT })}
           </Typography>
         </Grid>
         {[
-          ['users', 'User limit', 'Active users'],
-          ['branches', 'Branch limit', 'Incl. head office'],
-          ['products', 'Product limit', 'Pieces in stock'],
+          ['users', t('User limit'), t('Active users')],
+          ['branches', t('Branch limit'), t('Incl. head office')],
+          ['products', t('Product limit'), t('Pieces in stock')],
         ].map(([k, label, hint]) => (
           <Grid key={k} size={{ xs: 12, sm: 4 }}>
-            <TextField label={label} value={f[k]} onChange={set(k, true)} placeholder="Unlimited" helperText={hint} />
+            <TextField label={label} value={f[k]} onChange={set(k, true)} placeholder={t('Unlimited')} helperText={hint} />
           </Grid>
         ))}
         <Grid size={12}>
-          <TextField label="Features (one per line)" value={f.features} onChange={set('features')} multiline minRows={3} helperText="Shown as ticks on the pricing card" />
+          <TextField label={t('Features (one per line)')} value={f.features} onChange={set('features')} multiline minRows={3} helperText={t('Shown as ticks on the pricing card')} />
         </Grid>
         <Grid size={12}>
           <Stack>
-            <FormControlLabel control={<Switch checked={f.isActive} onChange={flag('isActive')} />} label="Offered — organisations can buy it" />
-            <FormControlLabel control={<Switch checked={f.isPopular} onChange={flag('isPopular')} />} label="Highlight as “Most popular”" />
-            <FormControlLabel control={<Switch checked={f.isDefault} onChange={flag('isDefault')} />} label="New organisations use this plan during their free days" />
+            <FormControlLabel control={<Switch checked={f.isActive} onChange={flag('isActive')} />} label={t('Offered — organisations can buy it')} />
+            <FormControlLabel control={<Switch checked={f.isPopular} onChange={flag('isPopular')} />} label={t('Highlight as “Most popular”')} />
+            <FormControlLabel control={<Switch checked={f.isDefault} onChange={flag('isDefault')} />} label={t('New organisations use this plan during their free days')} />
           </Stack>
         </Grid>
       </Grid>
@@ -148,22 +149,22 @@ export default function PlansPage() {
   const doDelete = async () => {
     try {
       await removePlan(toDelete.id).unwrap();
-      toast.success(`${toDelete.name} plan deleted`);
+      toast.success(t('{{name}} plan deleted', { name: toDelete.name }));
     } catch (err) {
       toast.error(getErrorMessage(err));
     }
     setToDelete(null);
   };
-  const whyNot = (p) => (p.canDelete ? 'Delete plan' : p.isDefault && !p.organisations ? 'Default plan for new organisations — make another plan the default first' : 'Already taken by an organisation, so it cannot be deleted. Turn off “Offered” to hide it.');
+  const whyNot = (p) => (p.canDelete ? t('Delete plan') : p.isDefault && !p.organisations ? t('Default plan for new organisations — make another plan the default first') : t('Already taken by an organisation, so it cannot be deleted. Turn off “Offered” to hide it.'));
 
   return (
     <>
       <PageHeader
-        title="Plans"
-        subtitle="What organisations can subscribe to: price, period and limits."
+        title={t('Plans')}
+        subtitle={t('What organisations can subscribe to: price, period and limits.')}
         actions={
           <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setEditing('new')}>
-            New plan
+            {t('New plan')}
           </Button>
         }
       />
@@ -176,11 +177,11 @@ export default function PlansPage() {
               action={
                 <Stack direction="row" spacing={1}>
                   <Button fullWidth variant="outlined" startIcon={<EditOutlinedIcon />} onClick={() => setEditing(p)}>
-                    Edit plan
+                    {t('Edit plan')}
                   </Button>
                   <Tooltip title={whyNot(p)}>
                     <span>
-                      <IconButton color="error" disabled={!p.canDelete} onClick={() => setToDelete(p)} aria-label={`Delete ${p.name}`} sx={{ border: 1, borderColor: 'divider', borderRadius: 2, height: '100%' }}>
+                      <IconButton color="error" disabled={!p.canDelete} onClick={() => setToDelete(p)} aria-label={t('Delete {{name}}', { name: p.name })} sx={{ border: 1, borderColor: 'divider', borderRadius: 2, height: '100%' }}>
                         <DeleteOutlineRoundedIcon fontSize="small" />
                       </IconButton>
                     </span>
@@ -190,9 +191,7 @@ export default function PlansPage() {
               footer={
                 <Box sx={{ mt: 1.5, display: 'flex', gap: 1, flexWrap: 'wrap', justifyContent: 'center' }}>
                   <Typography variant="caption" color="textSecondary">
-                    {p.organisations} organisation{p.organisations === 1 ? '' : 's'}
-                    {p.isDefault ? ' · default for new' : ''}
-                    {!p.isActive ? ' · not offered' : ''}
+                    {(p.organisations === 1 ? (p.isDefault ? (!p.isActive ? t('{{organisations}} organisation · default for new · not offered', { organisations: p.organisations }) : t('{{organisations}} organisation · default for new', { organisations: p.organisations })) : (!p.isActive ? t('{{organisations}} organisation · not offered', { organisations: p.organisations }) : t('{{organisations}} organisation', { organisations: p.organisations }))) : (p.isDefault ? (!p.isActive ? t('{{organisations}} organisations · default for new · not offered', { organisations: p.organisations }) : t('{{organisations}} organisations · default for new', { organisations: p.organisations })) : (!p.isActive ? t('{{organisations}} organisations · not offered', { organisations: p.organisations }) : t('{{organisations}} organisations', { organisations: p.organisations }))))}
                   </Typography>
                 </Box>
               }
@@ -202,9 +201,9 @@ export default function PlansPage() {
       </Grid>
       <ConfirmDialog
         open={Boolean(toDelete)}
-        title={`Delete ${toDelete?.name} plan?`}
-        message="No organisation has taken this plan, so it will be removed completely. This cannot be undone."
-        confirmLabel="Delete plan"
+        title={t('Delete {{name}} plan?', { name: toDelete?.name })}
+        message={t('No organisation has taken this plan, so it will be removed completely. This cannot be undone.')}
+        confirmLabel={t('Delete plan')}
         danger
         loading={deleting}
         onConfirm={doDelete}

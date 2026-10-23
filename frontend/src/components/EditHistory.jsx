@@ -7,13 +7,14 @@ import { useState } from 'react';
 import { tokens } from '../theme/tokens.js';
 import { getErrorMessage } from '../utils/errors.js';
 import { formatDate, formatDateTime } from '../utils/format.js';
+import { t, tValue } from '../i18n/index.js';
 
 const FIRST = 6;
 
 /** Who made a change: the platform's Super Admin (gold) or someone inside the organisation (blue). */
 const WHO = {
-  admin: { label: 'Super Admin', Icon: AdminPanelSettingsOutlinedIcon, dot: tokens.sidebar.goldGradient, ink: 'var(--brand-contrast)', chipBg: 'rgba(var(--brand-rgb), 0.14)', chipInk: '#7A5E0F' },
-  user: { label: 'Organisation', Icon: PersonOutlineRoundedIcon, dot: 'linear-gradient(135deg, #7FA8C9, #2F5D7C)', ink: '#fff', chipBg: 'rgba(47, 93, 124, 0.12)', chipInk: '#2F5D7C' },
+  admin: { label: t('Super Admin'), Icon: AdminPanelSettingsOutlinedIcon, dot: tokens.sidebar.goldGradient, ink: 'var(--brand-contrast)', chipBg: 'rgba(var(--brand-rgb), 0.14)', chipInk: '#7A5E0F' },
+  user: { label: t('Organisation'), Icon: PersonOutlineRoundedIcon, dot: 'linear-gradient(135deg, #7FA8C9, #2F5D7C)', ink: '#fff', chipBg: 'rgba(47, 93, 124, 0.12)', chipInk: '#2F5D7C' },
 };
 
 function ChangeRow({ c }) {
@@ -22,24 +23,24 @@ function ChangeRow({ c }) {
   return (
     <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '140px 1fr' }, columnGap: 1.5, rowGap: 0.25, py: 0.75, '&:not(:last-of-type)': { borderBottom: 1, borderColor: 'divider' } }}>
       <Typography variant="caption" color="textSecondary" sx={{ fontWeight: 600, pt: 0.25 }}>
-        {c.label}
+        {t(c.label)}
       </Typography>
       {valueless ? (
         <Typography variant="body2" sx={{ fontWeight: 600 }}>
-          {c.field === 'password' ? 'Reset' : 'Changed'}
+          {c.field === 'password' ? t('Reset') : t('Changed')}
         </Typography>
       ) : (
         <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', flexWrap: 'wrap', rowGap: 0.25, minWidth: 0 }}>
           {c.from != null && (
             <>
               <Typography variant="body2" sx={{ color: 'text.secondary', textDecoration: 'line-through', textDecorationColor: 'rgba(155, 44, 44, 0.5)', wordBreak: 'break-word' }}>
-                {c.from}
+                {tValue(c.from)}
               </Typography>
               <ArrowForwardRoundedIcon sx={{ fontSize: 15, color: 'text.disabled' }} />
             </>
           )}
           <Typography variant="body2" sx={{ fontWeight: 700, wordBreak: 'break-word' }}>
-            {c.to ?? 'Removed'}
+            {c.to != null ? tValue(c.to) : t('Removed')}
           </Typography>
         </Stack>
       )}
@@ -60,18 +61,18 @@ function Entry({ e, last, showSource = true }) {
       </Box>
       <Box sx={{ flex: 1, minWidth: 0, pb: last ? 0 : 2.5 }}>
         <Stack direction="row" spacing={1} sx={{ alignItems: 'center', flexWrap: 'wrap', rowGap: 0.5, minHeight: 34 }}>
-          <Typography sx={{ fontWeight: 700, fontSize: '0.9375rem' }}>{e.title}</Typography>
+          <Typography sx={{ fontWeight: 700, fontSize: '0.9375rem' }}>{t(e.title)}</Typography>
           {showSource && <Chip size="small" label={who.label} sx={{ height: 20, fontSize: '0.6875rem', fontWeight: 700, bgcolor: who.chipBg, color: who.chipInk }} />}
           <Typography variant="caption" color="textSecondary" sx={{ ml: { sm: 'auto !important' } }}>
             {formatDateTime(e.at)}
           </Typography>
         </Stack>
         <Typography variant="caption" color="textSecondary">
-          by <b>{e.by.name}</b>
+          {t('by')} <b>{tValue(e.by.name)}</b>
         </Typography>
         {e.note && (
           <Typography variant="body2" sx={{ mt: 0.75 }}>
-            {e.note}
+            {t(e.note)}
           </Typography>
         )}
         {e.changes.length > 0 && (
@@ -88,7 +89,7 @@ function Entry({ e, last, showSource = true }) {
 
 /** Timeline of every change to the organisation, who made it and old → new. Shared by the Super Admin and Organisation panels. */
 // showSource: the Super Admin / Organisation chips and legend (off where every change is made inside the organisation).
-export default function EditHistory({ entries, isLoading, error, title = 'Edit history', showSource = true }) {
+export default function EditHistory({ entries, isLoading, error, title = t('Edit history'), showSource = true }) {
   const [all, setAll] = useState(false);
   const shown = all ? entries : entries?.slice(0, FIRST);
   return (
@@ -100,7 +101,7 @@ export default function EditHistory({ entries, isLoading, error, title = 'Edit h
         <Box sx={{ flex: 1 }}>
           <Typography variant="h4">{title}</Typography>
           <Typography variant="caption" color="textSecondary">
-            {entries?.length ? `${entries.length} change${entries.length === 1 ? '' : 's'} · last on ${formatDate(entries[0].at)}` : 'Every change, who made it and when'}
+            {entries?.length ? (entries.length === 1 ? t('{{count}} change · last on {{at}}', { count: entries.length, at: formatDate(entries[0].at) }) : t('{{count}} changes · last on {{at}}', { count: entries.length, at: formatDate(entries[0].at) })) : t('Every change, who made it and when')}
           </Typography>
         </Box>
         <Stack direction="row" spacing={1.5} sx={{ display: { xs: 'none', sm: showSource ? 'flex' : 'none' } }}>
@@ -131,7 +132,7 @@ export default function EditHistory({ entries, isLoading, error, title = 'Edit h
           <Alert severity="error">{getErrorMessage(error)}</Alert>
         ) : !entries.length ? (
           <Typography color="textSecondary" sx={{ textAlign: 'center', py: 2 }}>
-            No changes yet.
+            {t('No changes yet.')}
           </Typography>
         ) : (
           <>
@@ -141,7 +142,7 @@ export default function EditHistory({ entries, isLoading, error, title = 'Edit h
             {entries.length > FIRST && (
               <Box sx={{ textAlign: 'center', mt: 2 }}>
                 <Button size="small" color="secondary" variant="outlined" onClick={() => setAll((x) => !x)}>
-                  {all ? 'Show fewer' : `Show all ${entries.length} changes`}
+                  {all ? t('Show fewer') : t('Show all {{count}} changes', { count: entries.length })}
                 </Button>
               </Box>
             )}

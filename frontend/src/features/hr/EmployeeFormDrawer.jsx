@@ -16,6 +16,7 @@ import { applyServerErrors, getErrorMessage } from '../../utils/errors.js';
 import { PhotoPicker } from './EmployeePhoto.jsx';
 import { useCreateEmployeeMutation, useRemoveEmployeePhotoMutation, useSetEmployeePhotoMutation, useUpdateEmployeeMutation } from './hrApi.js';
 import { remapErrors, todayIso } from './hrUi.jsx';
+import { t } from '../../i18n/index.js';
 
 const rupees = (label, { required } = {}) =>
   z.string().refine((v) => {
@@ -26,9 +27,9 @@ const rupees = (label, { required } = {}) =>
     } catch {
       return false;
     }
-  }, required ? `Enter the ${label}` : 'Enter a valid amount');
+  }, required ? t('Enter the {{label}}', { label }) : t('Enter a valid amount'));
 
-const formSchema = employeeSchema.omit({ basicPaise: true, allowancePaise: true }).extend({ basic: rupees('basic salary', { required: true }), allowance: rupees('allowance') });
+const formSchema = employeeSchema.omit({ basicPaise: true, allowancePaise: true }).extend({ basic: rupees(t('basic salary'), { required: true }), allowance: rupees('allowance') });
 
 const EMPTY = { name: '', mobile: '', email: '', designation: '', branchId: '', joiningDate: todayIso(), basic: '', allowance: '', pan: '', bank: { accountName: '', accountNumber: '', ifsc: '' }, address: '', notes: '' };
 const blank = (v) => v ?? '';
@@ -89,7 +90,7 @@ export default function EmployeeFormDrawer({ open, employee, onClose }) {
       if (photo) await setPhoto({ id, file: photo }).unwrap();
       else if (photoRemoved) await removePhoto(id).unwrap();
     } catch (err) {
-      toast.error(`Saved, but the photo was not: ${getErrorMessage(err)}`);
+      toast.error(t('Saved, but the photo was not: {{getErrorMessage}}', { getErrorMessage: getErrorMessage(err) }));
     }
   };
 
@@ -99,12 +100,12 @@ export default function EmployeeFormDrawer({ open, employee, onClose }) {
       if (editing) {
         await update({ id: employee.id, ...payload }).unwrap();
         await savePhoto(employee.id);
-        toast.success('Employee updated');
+        toast.success(t('Employee updated'));
         onClose();
       } else {
         const created = await create(payload).unwrap();
         await savePhoto(created.id);
-        toast.success(`${created.name} added as ${created.code}`);
+        toast.success(t('{{name}} added as {{code}}', { name: created.name, code: created.code }));
         onClose();
         navigate('/hr/employees');
       }
@@ -124,12 +125,12 @@ export default function EmployeeFormDrawer({ open, employee, onClose }) {
   return (
     <FormDrawer
       open={open}
-      title={editing ? 'Edit employee' : 'New employee'}
-      subtitle={editing ? `${employee.name} · ${employee.code}` : 'Staff on the payroll of one branch.'}
+      title={editing ? t('Edit employee') : t('New employee')}
+      subtitle={editing ? `${employee.name} · ${employee.code}` : t('Staff on the payroll of one branch.')}
       onClose={onClose}
       onSubmit={onSubmit}
       submitting={createState.isLoading || updateState.isLoading || setPhotoState.isLoading || removePhotoState.isLoading}
-      submitLabel={editing ? 'Save changes' : 'Add employee'}
+      submitLabel={editing ? t('Save changes') : t('Add employee')}
       width={600}
     >
       <Grid container spacing={2}>
@@ -142,60 +143,60 @@ export default function EmployeeFormDrawer({ open, employee, onClose }) {
           <PhotoPicker employee={employee} name={name} file={photo} onChange={setPhotoFile} removed={photoRemoved} onRemove={() => setPhotoRemoved(true)} />
         </Grid>
         <Grid size={12}>
-          <RHFTextField control={control} name="name" label="Full name" autoFocus={!editing} />
+          <RHFTextField control={control} name="name" label={t('Full name')} autoFocus={!editing} />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
-          <RHFTextField control={control} name="mobile" label="Mobile" slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 10 } }} />
+          <RHFTextField control={control} name="mobile" label={t('Mobile')} slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 10 } }} />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
-          <RHFTextField control={control} name="email" label="Email (optional)" type="email" />
+          <RHFTextField control={control} name="email" label={t('Email (optional)')} type="email" />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
-          <RHFTextField control={control} name="designation" label="Designation" helperText="e.g. Salesman, Cashier, Polisher" />
+          <RHFTextField control={control} name="designation" label={t('Designation')} helperText={t('e.g. Salesman, Cashier, Polisher')} />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
-          <RHFSelect control={control} name="branchId" label="Branch" options={session.branches.map((b) => ({ value: b.id, label: b.name }))} />
+          <RHFSelect control={control} name="branchId" label={t('Branch')} options={session.branches.map((b) => ({ value: b.id, label: b.name }))} />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
-          <RHFTextField control={control} name="joiningDate" label="Joining date" type="date" slotProps={{ inputLabel: { shrink: true } }} />
+          <RHFTextField control={control} name="joiningDate" label={t('Joining date')} type="date" slotProps={{ inputLabel: { shrink: true } }} />
         </Grid>
 
-        {section('Monthly salary')}
+        {section(t('Monthly salary'))}
         <Grid size={{ xs: 12, sm: 6 }}>
-          <RHFTextField control={control} name="basic" label="Basic salary" {...money} />
+          <RHFTextField control={control} name="basic" label={t('Basic salary')} {...money} />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
-          <RHFTextField control={control} name="allowance" label="Allowance (optional)" helperText="Travel, food, etc. — paid with salary" {...money} />
+          <RHFTextField control={control} name="allowance" label={t('Allowance (optional)')} helperText={t('Travel, food, etc. — paid with salary')} {...money} />
         </Grid>
         {gross > 0 && (
           <Grid size={12}>
             <Alert severity="info" icon={false}>
-              Gross monthly salary <strong>{formatINR(gross, { decimals: 0 })}</strong>. Absent days are cut pro-rata; a half day is cut by half.
+              {t('Gross monthly salary {{amount}}. Absent days are cut pro-rata; a half day is cut by half.', { amount: <strong>{formatINR(gross, { decimals: 0 })}</strong> })}
             </Alert>
           </Grid>
         )}
 
         <Grid size={12}>
-          <MoreDetails hint="Bank account, PAN, address, notes" defaultOpen={Boolean(employee && (employee.bank?.accountNumber || employee.pan || employee.address || employee.notes))}>
+          <MoreDetails hint={t('Bank account, PAN, address, notes')} defaultOpen={Boolean(employee && (employee.bank?.accountNumber || employee.pan || employee.address || employee.notes))}>
             <Grid container spacing={2}>
               <Grid size={{ xs: 12, sm: 6 }}>
-                <RHFTextField control={control} name="bank.accountName" label="Account holder" />
+                <RHFTextField control={control} name="bank.accountName" label={t('Account holder')} />
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
-                <RHFTextField control={control} name="bank.accountNumber" label="Account number" slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 20 } }} />
+                <RHFTextField control={control} name="bank.accountNumber" label={t('Account number')} slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 20 } }} />
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
-                <RHFTextField control={control} name="bank.ifsc" label="IFSC" transform={upper} slotProps={{ htmlInput: { maxLength: 11 } }} />
+                <RHFTextField control={control} name="bank.ifsc" label={t('IFSC')} transform={upper} slotProps={{ htmlInput: { maxLength: 11 } }} />
               </Grid>
               <Grid size={{ xs: 12, sm: 6 }}>
-                <RHFTextField control={control} name="pan" label="PAN" transform={upper} slotProps={{ htmlInput: { maxLength: 10 } }} />
+                <RHFTextField control={control} name="pan" label={t('PAN')} transform={upper} slotProps={{ htmlInput: { maxLength: 10 } }} />
               </Grid>
 
               <Grid size={12}>
-                <RHFTextField control={control} name="address" label="Address" multiline minRows={2} />
+                <RHFTextField control={control} name="address" label={t('Address')} multiline minRows={2} />
               </Grid>
               <Grid size={12}>
-                <RHFTextField control={control} name="notes" label="Notes" multiline minRows={2} />
+                <RHFTextField control={control} name="notes" label={t('Notes')} multiline minRows={2} />
               </Grid>
             </Grid>
           </MoreDetails>

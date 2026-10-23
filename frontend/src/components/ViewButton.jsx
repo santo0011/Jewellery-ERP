@@ -1,9 +1,10 @@
 import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import { IconButton, Stack, Tooltip } from '@mui/material';
 import DisabledDelete from './DisabledDelete.jsx';
+import { t } from '../i18n/index.js';
 
 /** The one way into a record's details from a table: rows themselves are not clickable. */
-export default function ViewButton({ onClick, title = 'View details', name, icon: Icon = VisibilityOutlinedIcon }) {
+export default function ViewButton({ onClick, title = t('View details'), name, icon: Icon = VisibilityOutlinedIcon }) {
   return (
     <Tooltip title={title}>
       <IconButton size="small" onClick={onClick} aria-label={name ? `${title}: ${name}` : title}>
@@ -19,7 +20,7 @@ export default function ViewButton({ onClick, title = 'View details', name, icon
  */
 export const viewColumn = (onView, { title, name, deleteDisabled } = {}) => ({
   key: 'actions',
-  label: 'Action',
+  label: t('Action'),
   align: 'right',
   width: deleteDisabled ? 96 : 80,
   render: (row) =>

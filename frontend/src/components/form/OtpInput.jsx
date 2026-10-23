@@ -1,5 +1,6 @@
 import { Box, Stack } from '@mui/material';
 import { useEffect, useRef } from 'react';
+import { t } from '../../i18n/index.js';
 
 /**
  * A 6-digit code in six boxes: typing moves to the next box, Backspace goes back, and pasting a whole code
@@ -59,7 +60,7 @@ export default function OtpInput({ value = '', onChange, length = 6, error = fal
   };
 
   return (
-    <Stack direction="row" spacing={{ xs: 0.75, sm: 1 }} sx={{ justifyContent: 'center' }} role="group" aria-label="6-digit code">
+    <Stack direction="row" spacing={{ xs: 0.75, sm: 1 }} sx={{ justifyContent: 'center' }} role="group" aria-label={t('6-digit code')}>
       {digits.map((d, i) => (
         <Box
           key={i}
@@ -74,7 +75,7 @@ export default function OtpInput({ value = '', onChange, length = 6, error = fal
           autoComplete={i === 0 ? 'one-time-code' : 'off'}
           maxLength={length}
           disabled={disabled}
-          aria-label={`Digit ${i + 1}`}
+          aria-label={t('Digit {{value}}', { value: i + 1 })}
           sx={(theme) => ({
             width: { xs: 42, sm: 48 },
             height: { xs: 50, sm: 56 },

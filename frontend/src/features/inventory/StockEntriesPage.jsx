@@ -13,21 +13,22 @@ import StockDocDialog from './StockDocDialog.jsx';
 import StockEntryDrawer from './StockEntryDrawer.jsx';
 import { DocStatusChip, docTotals } from './stockUi.jsx';
 import { viewColumn } from '../../components/ViewButton.jsx';
+import { t } from '../../i18n/index.js';
 
 const PAGES = {
   opening: {
-    title: 'Opening stock',
-    subtitle: 'Bring draft products and existing bullion, old gold or scrap into stock with a ledger entry.',
-    button: 'New opening stock',
+    title: t('Opening stock'),
+    subtitle: t('Bring draft products and existing bullion, old gold or scrap into stock with a ledger entry.'),
+    button: t('New opening stock'),
     useQuery: useOpeningEntriesQuery,
-    empty: 'No opening stock entries yet',
+    empty: t('No opening stock entries yet'),
   },
   adjustment: {
-    title: 'Stock adjustments',
-    subtitle: 'Write-offs and metal corrections. Each one is reviewed before it changes stock.',
-    button: 'New adjustment',
+    title: t('Stock adjustments'),
+    subtitle: t('Write-offs and metal corrections. Each one is reviewed before it changes stock.'),
+    button: t('New adjustment'),
     useQuery: useAdjustmentsQuery,
-    empty: 'No adjustments yet',
+    empty: t('No adjustments yet'),
   },
 };
 
@@ -42,7 +43,7 @@ export default function StockEntriesPage({ mode }) {
   const columns = [
     {
       key: 'docNo',
-      label: 'Document',
+      label: t('Document'),
       render: (d) => (
         <Box>
           <Typography variant="subtitle2">{d.docNo}</Typography>
@@ -52,11 +53,11 @@ export default function StockEntriesPage({ mode }) {
         </Box>
       ),
     },
-    { key: 'branch', label: 'Branch', render: (d) => d.branch?.name },
-    ...(mode === 'adjustment' ? [{ key: 'reason', label: 'Reason', render: (d) => ADJUSTMENT_REASONS.find((r) => r.value === d.reason)?.label }] : []),
-    { key: 'contents', label: 'Contents', render: docTotals },
-    { key: 'by', label: 'By', render: (d) => d.createdBy?.name },
-    { key: 'status', label: 'Status', render: (d) => <DocStatusChip status={d.status} /> },
+    { key: 'branch', label: t('Branch'), render: (d) => d.branch?.name },
+    ...(mode === 'adjustment' ? [{ key: 'reason', label: t('Reason'), render: (d) => ADJUSTMENT_REASONS.find((r) => r.value === d.reason)?.label }] : []),
+    { key: 'contents', label: t('Contents'), render: docTotals },
+    { key: 'by', label: t('By'), render: (d) => d.createdBy?.name },
+    { key: 'status', label: t('Status'), render: (d) => <DocStatusChip status={d.status} /> },
   ];
 
   return (
@@ -64,7 +65,7 @@ export default function StockEntriesPage({ mode }) {
       <PageHeader
         title={page.title}
         subtitle={page.subtitle}
-        breadcrumbs={[{ label: 'Stock' }, { label: page.title }]}
+        breadcrumbs={[{ label: t('Stock') }, { label: page.title }]}
         actions={
           canCreate && (
             <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setDrawer(true)}>
@@ -74,23 +75,23 @@ export default function StockEntriesPage({ mode }) {
         }
       />
       <DataTable
-        columns={[...columns, viewColumn(setViewing, { name: (e) => e.docNo, deleteDisabled: 'Stock entries are part of the stock ledger and cannot be deleted. Make a correcting entry instead.' })]}
+        columns={[...columns, viewColumn(setViewing, { name: (e) => e.docNo, deleteDisabled: t('Stock entries are part of the stock ledger and cannot be deleted. Make a correcting entry instead.') })]}
         rows={data?.items}
         loading={isLoading}
         fetching={isFetching}
         error={error}
         onRetry={refetch}
-        empty={{ title: list.filtered ? 'No matching entries' : page.empty }}
+        empty={{ title: list.filtered ? t('No matching entries') : page.empty }}
         pagination={list.pagination(data?.meta)}
         toolbar={
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-            <SearchField value={list.search} onChange={list.setSearch} placeholder="Search document number or note" />
+            <SearchField value={list.search} onChange={list.setSearch} placeholder={t('Search document number or note')} />
             {mode === 'adjustment' && (
-              <TextField select label="Status" value={list.filters.status} onChange={(e) => list.setFilter('status', e.target.value)} sx={{ maxWidth: { sm: 200 } }}>
-                <MenuItem value="">All</MenuItem>
-                <MenuItem value="pending_approval">Awaiting approval</MenuItem>
-                <MenuItem value="posted">Posted</MenuItem>
-                <MenuItem value="rejected">Rejected</MenuItem>
+              <TextField select slotProps={{ inputLabel: { shrink: true }, select: { displayEmpty: true } }} label={t('Status')} value={list.filters.status} onChange={(e) => list.setFilter('status', e.target.value)} sx={{ maxWidth: { sm: 200 } }}>
+                <MenuItem value="">{t('All')}</MenuItem>
+                <MenuItem value="pending_approval">{t('Awaiting approval')}</MenuItem>
+                <MenuItem value="posted">{t('Posted')}</MenuItem>
+                <MenuItem value="rejected">{t('Rejected')}</MenuItem>
               </TextField>
             )}
           </Stack>

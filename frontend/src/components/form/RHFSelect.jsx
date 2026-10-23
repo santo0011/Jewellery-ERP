@@ -1,5 +1,6 @@
 import { MenuItem, TextField } from '@mui/material';
 import { Controller } from 'react-hook-form';
+import { t } from '../../i18n/index.js';
 
 // Open as a dropdown under the field (MUI's default overlays the field and can grow to full screen height).
 const MENU_PROPS = {
@@ -19,8 +20,14 @@ export default function RHFSelect({ name, control, options, placeholder, helperT
           select
           value={field.value ?? ''}
           error={Boolean(fieldState.error)}
-          helperText={fieldState.error?.message ?? helperText}
-          slotProps={{ ...slotProps, select: { ...slotProps?.select, MenuProps: { ...MENU_PROPS, ...slotProps?.select?.MenuProps } } }}
+          helperText={t(fieldState.error?.message) ?? helperText}
+          // With a placeholder ("Any", "None", "Select state"), the empty choice is shown in the box like any other,
+          // so the label sits above it instead of covering it.
+          slotProps={{
+            ...slotProps,
+            ...(placeholder && { inputLabel: { shrink: true, ...slotProps?.inputLabel } }),
+            select: { ...(placeholder && { displayEmpty: true }), ...slotProps?.select, MenuProps: { ...MENU_PROPS, ...slotProps?.select?.MenuProps } },
+          }}
           {...props}
         >
           {placeholder && (

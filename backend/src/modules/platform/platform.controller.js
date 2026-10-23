@@ -28,8 +28,8 @@ export async function logout(req, res) {
 }
 
 export const me = (req, res) => {
-  const { adminId, name, email, role } = req.platformAdmin;
-  sendOk(res, { id: adminId, name, email, role });
+  const { adminId, name, email, role, language } = req.platformAdmin;
+  sendOk(res, { id: adminId, name, email, role, language });
 };
 
 

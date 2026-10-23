@@ -19,13 +19,14 @@ import SavingsOutlinedIcon from '@mui/icons-material/SavingsOutlined';
 import { OrderStatusChip } from './orderUi.jsx';
 import { useDeleteStatus } from '../../services/recordApi.js';
 import ViewTabs from '../../components/ViewTabs.jsx';
+import { t } from '../../i18n/index.js';
 
 const TABS = [
-  { value: 'open', label: 'Open', count: (c) => (c.booked ?? 0) + (c.in_progress ?? 0) + (c.ready ?? 0) },
-  { value: 'ready', label: 'Ready to deliver', short: 'Ready', count: (c) => c.ready ?? 0 },
-  { value: 'delivered', label: 'Delivered', count: (c) => c.delivered ?? 0 },
-  { value: 'cancelled', label: 'Cancelled', count: (c) => c.cancelled ?? 0 },
-  { value: '', label: 'All', count: (c) => Object.values(c).reduce((s, n) => s + n, 0) },
+  { value: 'open', label: t('Open'), count: (c) => (c.booked ?? 0) + (c.in_progress ?? 0) + (c.ready ?? 0) },
+  { value: 'ready', label: t('Ready to deliver'), short: t('Ready'), count: (c) => c.ready ?? 0 },
+  { value: 'delivered', label: t('Delivered'), count: (c) => c.delivered ?? 0 },
+  { value: 'cancelled', label: t('Cancelled'), count: (c) => c.cancelled ?? 0 },
+  { value: '', label: t('All'), count: (c) => Object.values(c).reduce((s, n) => s + n, 0) },
 ];
 
 export default function OrdersPage() {
@@ -42,12 +43,12 @@ export default function OrdersPage() {
   const columns = [
     {
       key: 'orderNo',
-      label: 'Order',
+      label: t('Order'),
       render: (o) => (
         <Box>
           <Typography variant="subtitle2" sx={{ fontWeight: 600 }}>
             {o.orderNo}
-            {o.priority === 'urgent' && <Chip size="small" color="error" label="Urgent" sx={{ ml: 0.75, height: 18, fontSize: '0.625rem', fontWeight: 700 }} />}
+            {o.priority === 'urgent' && <Chip size="small" color="error" label={t('Urgent')} sx={{ ml: 0.75, height: 18, fontSize: '0.625rem', fontWeight: 700 }} />}
           </Typography>
           <Typography variant="caption" color="textSecondary">
             {formatDate(o.createdAt)}
@@ -58,7 +59,7 @@ export default function OrdersPage() {
     },
     {
       key: 'customer',
-      label: 'Customer',
+      label: t('Customer'),
       render: (o) => (
         <Box>
           <Typography variant="body2" sx={{ fontWeight: 500 }}>
@@ -72,7 +73,7 @@ export default function OrdersPage() {
     },
     {
       key: 'items',
-      label: 'Items',
+      label: t('Items'),
       render: (o) => (
         <Typography variant="body2" sx={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', maxWidth: 280 }}>
           {o.summary}
@@ -81,14 +82,14 @@ export default function OrdersPage() {
     },
     {
       key: 'expectedDate',
-      label: 'Delivery',
+      label: t('Delivery'),
       render: (o) =>
         o.expectedDate ? (
           <Typography variant="body2" sx={{ fontWeight: o.overdue ? 600 : 400, color: o.overdue ? 'error.main' : 'text.primary', whiteSpace: 'nowrap' }}>
             {formatDate(o.expectedDate)}
             {o.overdue && (
               <Typography component="span" variant="caption" sx={{ display: 'block', color: 'error.main' }}>
-                Overdue
+                {t('Overdue')}
               </Typography>
             )}
           </Typography>
@@ -100,57 +101,57 @@ export default function OrdersPage() {
     },
     {
       key: 'amount',
-      label: 'Paid / Due',
+      label: t('Paid / Due'),
       align: 'right',
       render: (o) => {
         const due = ['booked', 'in_progress', 'ready'].includes(o.status) && o.estimatedPaise > o.advancePaise ? o.estimatedPaise - o.advancePaise : 0;
         return (
           <Box sx={{ whiteSpace: 'nowrap' }}>
-            <Amount paise={o.advancePaise} tone="paid" decimals={0} prefix="Paid " sx={{ display: 'block' }} />
+            <Amount paise={o.advancePaise} tone="paid" decimals={0} prefix={t('Paid ')} sx={{ display: 'block' }} />
             {due > 0 ? (
-              <Amount paise={due} tone="due" decimals={0} prefix="Due " variant="caption" sx={{ display: 'block' }} />
+              <Amount paise={due} tone="due" decimals={0} prefix={t('Due ')} variant="caption" sx={{ display: 'block' }} />
             ) : (
               <Typography variant="caption" color="textSecondary">
-                {o.estimatedPaise ? `of ${formatINR(o.estimatedPaise, { decimals: 0 })}` : '—'}
+                {o.estimatedPaise ? t('of {{estimated}}', { estimated: formatINR(o.estimatedPaise, { decimals: 0 }) }) : '—'}
               </Typography>
             )}
           </Box>
         );
       },
     },
-    { key: 'status', label: 'Status', render: (o) => <OrderStatusChip status={o.status} /> },
+    { key: 'status', label: t('Status'), render: (o) => <OrderStatusChip status={o.status} /> },
     {
       key: 'actions',
-      label: 'Action',
+      label: t('Action'),
       align: 'right',
       width: actionsWidth(2),
       // An order with an advance is cancelled (so the money is settled), not deleted.
-      render: (o) => <RowActions onView={() => navigate(`/orders/${o.id}`)} viewTitle="View order" deleteType="order" deleteStatus={deleteStatus(o.id)} id={o.id} name={o.orderNo} />,
+      render: (o) => <RowActions onView={() => navigate(`/orders/${o.id}`)} viewTitle={t('View order')} deleteType="order" deleteStatus={deleteStatus(o.id)} id={o.id} name={o.orderNo} />,
     },
   ];
 
   return (
     <>
       <PageHeader
-        title="Orders"
-        subtitle="Custom orders and bookings: what the customer wants, the advance paid, and when it is due."
+        title={t('Orders')}
+        subtitle={t('Custom orders and bookings: what the customer wants, the advance paid, and when it is due.')}
         actions={
           canCreate && (
             <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => navigate('/orders/new')}>
-              New order
+              {t('New order')}
             </Button>
           )
         }
       />
       {data?.meta?.summary && (
         <SummaryCards>
-          <SummaryCard icon={AssignmentOutlinedIcon} label="Open orders" value={data.meta.summary.open} caption={data.meta.summary.estimatedPaise ? `Worth about ${formatINR(data.meta.summary.estimatedPaise, { decimals: 0 })}` : 'Being made or waiting'} onClick={() => list.setFilter('status', 'open')} />
-          <SummaryCard icon={Inventory2OutlinedIcon} label="Ready to deliver" value={data.meta.summary.ready} caption={data.meta.summary.ready ? 'Call the customer' : 'Nothing ready yet'} tone="green" onClick={() => list.setFilter('status', 'ready')} />
-          <SummaryCard icon={EventBusyOutlinedIcon} label="Overdue" value={data.meta.summary.overdue} caption={data.meta.summary.overdue ? 'Past the promised date' : 'All on time'} tone={data.meta.summary.overdue ? 'red' : 'green'} valueTone={data.meta.summary.overdue ? 'due' : undefined} />
-          <SummaryCard icon={SavingsOutlinedIcon} label="Advance held" value={formatINR(data.meta.summary.advancePaise, { decimals: 0 })} caption="Taken on open orders" tone="blue" />
+          <SummaryCard icon={AssignmentOutlinedIcon} label={t('Open orders')} value={data.meta.summary.open} caption={data.meta.summary.estimatedPaise ? t('Worth about {{estimated}}', { estimated: formatINR(data.meta.summary.estimatedPaise, { decimals: 0 }) }) : t('Being made or waiting')} onClick={() => list.setFilter('status', 'open')} />
+          <SummaryCard icon={Inventory2OutlinedIcon} label={t('Ready to deliver')} value={data.meta.summary.ready} caption={data.meta.summary.ready ? t('Call the customer') : t('Nothing ready yet')} tone="green" onClick={() => list.setFilter('status', 'ready')} />
+          <SummaryCard icon={EventBusyOutlinedIcon} label={t('Overdue')} value={data.meta.summary.overdue} caption={data.meta.summary.overdue ? t('Past the promised date') : t('All on time')} tone={data.meta.summary.overdue ? 'red' : 'green'} valueTone={data.meta.summary.overdue ? 'due' : undefined} />
+          <SummaryCard icon={SavingsOutlinedIcon} label={t('Advance held')} value={formatINR(data.meta.summary.advancePaise, { decimals: 0 })} caption={t('Taken on open orders')} tone="blue" />
         </SummaryCards>
       )}
-      <ViewTabs value={list.filters.status} onChange={(v) => list.setFilter('status', v)} items={TABS.map((t) => ({ value: t.value, label: t.label, short: t.short, count: t.count(counts) }))} />
+      <ViewTabs value={list.filters.status} onChange={(v) => list.setFilter('status', v)} items={TABS.map((tab) => ({ value: tab.value, label: tab.label, short: tab.short, count: tab.count(counts) }))} />
       <DataTable
         columns={columns}
         rows={data?.items}
@@ -159,9 +160,9 @@ export default function OrdersPage() {
         fetching={isFetching}
         error={error}
         onRetry={refetch}
-        empty={list.filtered && list.search ? { title: 'No matching orders' } : { title: 'No orders here', description: canCreate ? 'Book a customer order with New order.' : undefined }}
+        empty={list.filtered && list.search ? { title: t('No matching orders') } : { title: t('No orders here'), description: canCreate ? t('Book a customer order with New order.') : undefined }}
         pagination={list.pagination(data?.meta)}
-        toolbar={<SearchField value={list.search} onChange={list.setSearch} placeholder="Search order no., customer, mobile or item" />}
+        toolbar={<SearchField value={list.search} onChange={list.setSearch} placeholder={t('Search order no., customer, mobile or item')} />}
       />
     </>
   );

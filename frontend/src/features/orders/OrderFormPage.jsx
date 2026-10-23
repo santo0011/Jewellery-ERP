@@ -24,6 +24,7 @@ import { useCategoriesQuery } from '../categories/categoryApi.js';
 import { ErrorState, LoadingState } from '../../components/StateViews.jsx';
 import { useAddOrderImageMutation, useCreateOrderMutation, useEstimateOrderMutation, useOrderQuery, useUpdateOrderMutation } from './orderApi.js';
 import { ADVANCE_MODE_OPTIONS } from './orderUi.jsx';
+import { t } from '../../i18n/index.js';
 
 const safe = (fn, fallback = null) => {
   try {
@@ -37,18 +38,18 @@ const number = (label, places) =>
   z
     .string()
     .trim()
-    .refine((v) => v === '' || new RegExp(`^\\d+(\\.\\d{0,${places}})?$`).test(v), `Enter a valid ${label}`);
+    .refine((v) => v === '' || new RegExp(`^\\d+(\\.\\d{0,${places}})?$`).test(v), t('Enter a valid {{label}}', { label }));
 
 const stoneSchema = z.object({
   type: z.string().min(1, 'Select a stone'),
   name: z.string().trim().max(60, 'Up to 60 characters'),
-  count: z.string().trim().regex(/^[1-9]\d{0,4}$/, 'At least 1'),
+  count: z.string().trim().regex(/^[1-9]\d{0,4}$/, t('At least 1')),
   weight: z
     .string()
     .trim()
-    .min(1, 'Enter the weight')
-    .regex(/^\d+(\.\d{0,3})?$/, 'Up to 3 decimals')
-    .refine((v) => Number(v) > 0, 'Must be more than 0'),
+    .min(1, t('Enter the weight'))
+    .regex(/^\d+(\.\d{0,3})?$/, t('Up to 3 decimals'))
+    .refine((v) => Number(v) > 0, t('Must be more than 0')),
   weightUnit: z.enum(['ct', 'g']),
   rate: number('rate', 2),
 });
@@ -58,41 +59,41 @@ const stonesMg = (stones) => stones.reduce((sum, st) => sum + safe(() => stoneWe
 
 const itemSchema = z
   .object({
-    description: z.string().trim().min(2, 'Describe the item'),
+    description: z.string().trim().min(2, t('Describe the item')),
     categoryId: z.string(),
     jewelleryType: z.string(),
-    metal: z.string().min(1, 'Select a metal'),
+    metal: z.string().min(1, t('Select a metal')),
     purity: z.string(),
     weight: number('weight', 3),
     size: z.string().trim().max(40),
-    quantity: z.string().regex(/^[1-9]\d{0,3}$/, 'At least 1'),
+    quantity: z.string().regex(/^[1-9]\d{0,3}$/, t('At least 1')),
     stones: z.array(stoneSchema),
     pricingMode: z.enum(['rate_based', 'fixed']),
     fixedPrice: number('price', 2),
-    wastage: number('percentage', 2).refine((v) => v === '' || Number(v) <= 50, 'Up to 50%'),
+    wastage: number('percentage', 2).refine((v) => v === '' || Number(v) <= 50, t('Up to 50%')),
     makingType: z.enum(['per_gram', 'percent', 'fixed']),
     making: number('amount', 2),
     otherCharges: number('amount', 2),
     estimate: number('amount', 2),
-    huid: z.string().trim().toUpperCase().refine((v) => v === '' || /^[A-Z0-9]{6}$/.test(v), 'HUID is 6 letters or digits'),
+    huid: z.string().trim().toUpperCase().refine((v) => v === '' || /^[A-Z0-9]{6}$/.test(v), t('HUID is 6 letters or digits')),
     notes: z.string().trim().max(500),
   })
-  .refine((i) => i.pricingMode !== 'fixed' || Number(i.fixedPrice) > 0, { path: ['fixedPrice'], message: 'Enter the agreed price' })
-  .refine((i) => !Number(i.weight) || stonesMg(i.stones) < safe(() => toMg(i.weight), 0), { path: ['weight'], message: 'Must be more than the stone weight' });
+  .refine((i) => i.pricingMode !== 'fixed' || Number(i.fixedPrice) > 0, { path: ['fixedPrice'], message: t('Enter the agreed price') })
+  .refine((i) => !Number(i.weight) || stonesMg(i.stones) < safe(() => toMg(i.weight), 0), { path: ['weight'], message: t('Must be more than the stone weight') });
 
 const formSchema = z
   .object({
-    customer: z.object({ id: z.string() }, { error: 'Select the customer' }).passthrough().nullable().refine(Boolean, 'Select the customer'),
-    branchId: z.string().min(1, 'Select a branch'),
+    customer: z.object({ id: z.string() }, { error: t('Select the customer') }).passthrough().nullable().refine(Boolean, t('Select the customer')),
+    branchId: z.string().min(1, t('Select a branch')),
     expectedDate: z.string(),
     priority: z.enum(['normal', 'urgent']),
-    items: z.array(itemSchema).min(1, 'Add at least one item'),
+    items: z.array(itemSchema).min(1, t('Add at least one item')),
     advanceAmount: number('amount', 2),
     advanceMode: z.string(),
     advanceReference: z.string().trim().max(60),
     notes: z.string().trim().max(1000),
   })
-  .refine((v) => !v.advanceAmount || Number(v.advanceAmount) === 0 || v.advanceMode, { path: ['advanceMode'], message: 'How was the advance paid?' });
+  .refine((v) => !v.advanceAmount || Number(v.advanceAmount) === 0 || v.advanceMode, { path: ['advanceMode'], message: t('How was the advance paid?') });
 
 const DEFAULT_TYPE = { gold: 'plain_gold', silver: 'silver', platinum: 'platinum' };
 const emptyItem = (catalog) => ({
@@ -118,11 +119,11 @@ const emptyItem = (catalog) => ({
 /** Width of the side column: its share of the 12-column grid (same formula as MUI Grid), less 20px. */
 const SIDE_WIDTH = (size) => `calc(100% * ${size} / 12 - (12 - ${size}) * (var(--Grid-parent-columnSpacing) / 12) - 20px)`;
 const STONE_UNITS = [
-  { value: 'ct', label: 'ct' },
-  { value: 'g', label: 'g' },
+  { value: 'ct', label: t('ct') },
+  { value: 'g', label: t('g') },
 ];
 const EMPTY_STONE ={ type: 'diamond', name: '', count: '1', weight: '', weightUnit: 'ct', rate: '' };
-const MAKING_LABEL = { per_gram: 'Making (₹ per gram)', percent: 'Making (% of metal)', fixed: 'Making (₹ for the piece)' };
+const MAKING_LABEL = { per_gram: t('Making (₹ per gram)'), percent: t('Making (% of metal)'), fixed: t('Making (₹ for the piece)') };
 const today = () => new Date().toISOString().slice(0, 10);
 const paiseOf = (v) => (v ? toPaise(v) : 0);
 
@@ -136,7 +137,7 @@ function typeFor(i) {
 
 /** Form item -> API item (shared by booking and estimating). */
 const toApiItem = (i) => ({
-  description: i.description || 'Item',
+  description: i.description || t('Item'),
   categoryId: i.categoryId || null,
   jewelleryType: typeFor(i),
   metal: i.metal,
@@ -197,41 +198,41 @@ function StonesEditor({ control, index }) {
   const stones = useWatch({ control, name });
   return (
     <Section
-      title={`Stones${fields.length ? ` (${fields.length})` : ''}`}
+      title={t('Stones{{value}}', { value: fields.length ? ` (${fields.length})` : '' })}
       action={
         <Button size="small" startIcon={<AddRoundedIcon />} onClick={() => append(EMPTY_STONE)}>
-          Add stone
+          {t('Add stone')}
         </Button>
       }
     >
       {fields.length === 0 ? (
         <Typography variant="caption" color="textSecondary">
-          No stones. Add diamonds or gemstones the customer chose.
+          {t('No stones. Add diamonds or gemstones the customer chose.')}
         </Typography>
       ) : (
         <Stack spacing={1.25}>
           {fields.map((f, i) => (
             <Grid container spacing={1.25} key={f.id} sx={{ alignItems: 'flex-start' }}>
               <Grid size={{ xs: 6, md: 3 }}>
-                <RHFSelect control={control} name={`${name}.${i}.type`} label="Stone" options={STONE_TYPES} />
+                <RHFSelect control={control} name={`${name}.${i}.type`} label={t('Stone')} options={STONE_TYPES} />
               </Grid>
               <Grid size={{ xs: 6, md: 2.5 }}>
-                <RHFTextField control={control} name={`${name}.${i}.name`} label="Details" placeholder="e.g. VVS1 round" />
+                <RHFTextField control={control} name={`${name}.${i}.name`} label={t('Details')} placeholder={t('e.g. VVS1 round')} />
               </Grid>
               <Grid size={{ xs: 4, md: 1.25 }}>
-                <RHFTextField control={control} name={`${name}.${i}.count`} label="Pcs" slotProps={{ htmlInput: { inputMode: 'numeric' } }} />
+                <RHFTextField control={control} name={`${name}.${i}.count`} label={t('Pcs')} slotProps={{ htmlInput: { inputMode: 'numeric' } }} />
               </Grid>
               <Grid size={{ xs: 4, md: 1.75 }}>
-                <RHFTextField control={control} name={`${name}.${i}.weight`} label="Weight" slotProps={{ htmlInput: { inputMode: 'decimal' } }} />
+                <RHFTextField control={control} name={`${name}.${i}.weight`} label={t('Weight')} slotProps={{ htmlInput: { inputMode: 'decimal' } }} />
               </Grid>
               <Grid size={{ xs: 4, md: 1.5 }}>
-                <RHFSelect control={control} name={`${name}.${i}.weightUnit`} label="Unit" options={STONE_UNITS} />
+                <RHFSelect control={control} name={`${name}.${i}.weightUnit`} label={t('Unit')} options={STONE_UNITS} />
               </Grid>
               <Grid size={{ xs: 10, md: 2 }}>
-                <RHFTextField control={control} name={`${name}.${i}.rate`} label={`₹ per ${stones?.[i]?.weightUnit === 'g' ? 'g' : 'ct'}`} slotProps={{ htmlInput: { inputMode: 'decimal' } }} />
+                <RHFTextField control={control} name={`${name}.${i}.rate`} label={(stones?.[i]?.weightUnit === 'g' ? t('₹ per g') : t('₹ per ct'))} slotProps={{ htmlInput: { inputMode: 'decimal' } }} />
               </Grid>
               <Grid size={{ xs: 2, md: 0.5 }} sx={{ display: 'flex', justifyContent: 'center' }}>
-                <IconButton size="small" onClick={() => remove(i)} aria-label="Remove stone" sx={{ mt: 1 }}>
+                <IconButton size="small" onClick={() => remove(i)} aria-label={t('Remove stone')} sx={{ mt: 1 }}>
                   <CloseRoundedIcon fontSize="small" />
                 </IconButton>
               </Grid>
@@ -253,12 +254,12 @@ function ItemCard({ index, control, setValue, categories, onRemove, canRemove, e
         <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
           <Box sx={{ width: 26, height: 26, borderRadius: '50%', display: 'grid', placeItems: 'center', background: tokens.sidebar.goldGradient, color: 'var(--brand-contrast)', fontSize: 12, fontWeight: 800 }}>{index + 1}</Box>
           <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-            Item {index + 1}
+            {t('Item {{value}}', { value: index + 1 })}
           </Typography>
         </Stack>
         {canRemove && (
-          <Tooltip title="Remove item">
-            <IconButton size="small" onClick={onRemove} aria-label={`Remove item ${index + 1}`}>
+          <Tooltip title={t('Remove item')}>
+            <IconButton size="small" onClick={onRemove} aria-label={t('Remove item {{value}}', { value: index + 1 })}>
               <DeleteOutlineRoundedIcon fontSize="small" />
             </IconButton>
           </Tooltip>
@@ -267,10 +268,10 @@ function ItemCard({ index, control, setValue, categories, onRemove, canRemove, e
 
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, md: 8 }}>
-          <RHFTextField control={control} name={`${p}.description`} label="What does the customer want?" placeholder="e.g. 22K bridal necklace with matching earrings" />
+          <RHFTextField control={control} name={`${p}.description`} label={t('What does the customer want?')} placeholder={t('e.g. 22K bridal necklace with matching earrings')} />
         </Grid>
         <Grid size={{ xs: 12, md: 4 }}>
-          <RHFSelect control={control} name={`${p}.categoryId`} label="Category" options={categories} placeholder="None" />
+          <RHFSelect control={control} name={`${p}.categoryId`} label={t('Category')} options={categories} placeholder={t('None')} />
         </Grid>
         <Grid size={{ xs: 6, md: 3 }}>
           <Controller
@@ -279,7 +280,7 @@ function ItemCard({ index, control, setValue, categories, onRemove, canRemove, e
             render={({ field, fieldState }) => (
               <TextField
                 select
-                label="Metal"
+                label={t('Metal')}
                 {...field}
                 onChange={(e) => {
                   field.onChange(e);
@@ -287,7 +288,7 @@ function ItemCard({ index, control, setValue, categories, onRemove, canRemove, e
                   setValue(`${p}.jewelleryType`, DEFAULT_TYPE[e.target.value] ?? 'plain_gold');
                 }}
                 error={Boolean(fieldState.error)}
-                helperText={fieldState.error?.message}
+                helperText={t(fieldState.error?.message)}
               >
                 {METAL_OPTIONS.map((m) => (
                   <MenuItem key={m.value} value={m.value}>
@@ -299,45 +300,45 @@ function ItemCard({ index, control, setValue, categories, onRemove, canRemove, e
           />
         </Grid>
         <Grid size={{ xs: 6, md: 3 }}>
-          <RHFSelect control={control} name={`${p}.purity`} label="Purity" options={purities.map((x) => ({ value: String(x.fineness), label: x.label }))} placeholder="Not decided" />
+          <RHFSelect control={control} name={`${p}.purity`} label={t('Purity')} options={purities.map((x) => ({ value: String(x.fineness), label: x.label }))} placeholder={t('Not decided')} />
         </Grid>
         <Grid size={{ xs: 6, md: 2 }}>
-          <RHFTextField control={control} name={`${p}.weight`} label="Weight" slotProps={{ input: { endAdornment: <InputAdornment position="end">g</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }} />
+          <RHFTextField control={control} name={`${p}.weight`} label={t('Weight')} slotProps={{ input: { endAdornment: <InputAdornment position="end">{t('g')}</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }} />
         </Grid>
         <Grid size={{ xs: 6, md: 2 }}>
-          <RHFTextField control={control} name={`${p}.size`} label="Size" placeholder="e.g. 14, 2.6" />
+          <RHFTextField control={control} name={`${p}.size`} label={t('Size')} placeholder={t('e.g. 14, 2.6')} />
         </Grid>
         <Grid size={{ xs: 12, md: 2 }}>
-          <RHFTextField control={control} name={`${p}.quantity`} label="Qty" slotProps={{ htmlInput: { inputMode: 'numeric' } }} />
+          <RHFTextField control={control} name={`${p}.quantity`} label={t('Qty')} slotProps={{ htmlInput: { inputMode: 'numeric' } }} />
         </Grid>
         <Grid size={12}>
-          <RHFTextField control={control} name={`${p}.notes`} label="Design notes" placeholder="Finish, engraving, design reference, chain length…" multiline minRows={1} />
+          <RHFTextField control={control} name={`${p}.notes`} label={t('Design notes')} placeholder={t('Finish, engraving, design reference, chain length…')} multiline minRows={1} />
         </Grid>
       </Grid>
 
       <StonesEditor control={control} index={index} />
 
-      <Section title="Pricing">
+      <Section title={t('Pricing')}>
         <Controller
           control={control}
           name={`${p}.pricingMode`}
           render={({ field }) => (
             <ToggleButtonGroup exclusive size="small" value={field.value} onChange={(e, v) => v && field.onChange(v)} sx={{ mb: 2 }}>
-              <ToggleButton value="rate_based">At day&apos;s metal rate</ToggleButton>
-              <ToggleButton value="fixed">Fixed agreed price</ToggleButton>
+              <ToggleButton value="rate_based">{t('At day\'s metal rate')}</ToggleButton>
+              <ToggleButton value="fixed">{t('Fixed agreed price')}</ToggleButton>
             </ToggleButtonGroup>
           )}
         />
         {pricingMode === 'fixed' ? (
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, sm: 6 }}>
-              <RHFTextField control={control} name={`${p}.fixedPrice`} label="Agreed price (₹ each, before GST)" slotProps={{ htmlInput: { inputMode: 'decimal' } }} />
+              <RHFTextField control={control} name={`${p}.fixedPrice`} label={t('Agreed price (₹ each, before GST)')} slotProps={{ htmlInput: { inputMode: 'decimal' } }} />
             </Grid>
           </Grid>
         ) : (
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, sm: 3 }}>
-              <RHFTextField control={control} name={`${p}.wastage`} label="Wastage" placeholder="0" slotProps={{ input: { endAdornment: <InputAdornment position="end">%</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }} />
+              <RHFTextField control={control} name={`${p}.wastage`} label={t('Wastage')} placeholder="0" slotProps={{ input: { endAdornment: <InputAdornment position="end">%</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }} />
             </Grid>
             <Grid size={{ xs: 12, sm: 6 }}>
               {/* Phones: the making type as a full-width switch above its amount. */}
@@ -346,8 +347,8 @@ function ItemCard({ index, control, setValue, categories, onRemove, canRemove, e
                   control={control}
                   name={`${p}.makingType`}
                   render={({ field }) => (
-                    <ToggleButtonGroup exclusive size="small" value={field.value} onChange={(e, v) => v && field.onChange(v)} aria-label="Making charge type" sx={{ height: 41, flexShrink: 0, width: { xs: '100%', sm: 'auto' }, '& .MuiToggleButton-root': { flex: { xs: 1, sm: 'none' }, minWidth: 44, fontWeight: 700 } }}>
-                      <ToggleButton value="per_gram">₹/g</ToggleButton>
+                    <ToggleButtonGroup exclusive size="small" value={field.value} onChange={(e, v) => v && field.onChange(v)} aria-label={t('Making charge type')} sx={{ height: 41, flexShrink: 0, width: { xs: '100%', sm: 'auto' }, '& .MuiToggleButton-root': { flex: { xs: 1, sm: 'none' }, minWidth: 44, fontWeight: 700 } }}>
+                      <ToggleButton value="per_gram">{t('₹/g')}</ToggleButton>
                       <ToggleButton value="percent">%</ToggleButton>
                       <ToggleButton value="fixed">₹</ToggleButton>
                     </ToggleButtonGroup>
@@ -357,7 +358,7 @@ function ItemCard({ index, control, setValue, categories, onRemove, canRemove, e
               </Stack>
             </Grid>
             <Grid size={{ xs: 12, sm: 3 }}>
-              <RHFTextField control={control} name={`${p}.otherCharges`} label="Other charges (₹)" placeholder="0" slotProps={{ htmlInput: { inputMode: 'decimal' } }} />
+              <RHFTextField control={control} name={`${p}.otherCharges`} label={t('Other charges (₹)')} placeholder="0" slotProps={{ htmlInput: { inputMode: 'decimal' } }} />
             </Grid>
           </Grid>
         )}
@@ -366,22 +367,22 @@ function ItemCard({ index, control, setValue, categories, onRemove, canRemove, e
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mt: 2.5, p: 1.75, borderRadius: 2, bgcolor: 'rgba(var(--brand-rgb), 0.07)', border: '1px solid rgba(var(--brand-rgb), 0.25)', alignItems: { sm: 'center' } }}>
         <Box sx={{ flex: 1 }}>
           <Typography variant="body2" sx={{ fontWeight: 600 }}>
-            Estimated price (each, incl. GST)
+            {t('Estimated price (each, incl. GST)')}
           </Typography>
           {estimate?.estimatedPaise != null ? (
             <Typography variant="caption" color="textSecondary">
-              {estimate.ratePerGramPaise != null ? `At ${formatINR(estimate.ratePerGramPaise, { decimals: 0 })}/g${estimate.rateIsToday ? ' (today)' : ` (rate of ${estimate.rateDate})`} · ` : ''}
-              metal {formatINR(estimate.breakdown.metalPaise + estimate.breakdown.wastagePaise, { decimals: 0 })} · making {formatINR(estimate.breakdown.makingPaise, { decimals: 0 })}
-              {estimate.breakdown.stonePaise ? ` · stones ${formatINR(estimate.breakdown.stonePaise, { decimals: 0 })}` : ''} · GST {formatINR(estimate.breakdown.gstPaise, { decimals: 0 })}
+              {estimate.ratePerGramPaise != null ? (estimate.rateIsToday ? t('At {{ratePerGram}}/g (today) · ', { ratePerGram: formatINR(estimate.ratePerGramPaise, { decimals: 0 }) }) : t('At {{ratePerGram}}/g (rate of {{rateDate}}) · ', { ratePerGram: formatINR(estimate.ratePerGramPaise, { decimals: 0 }), rateDate: estimate.rateDate })) : ''}
+              {t('metal {{formatINR}} · making {{making}}', { formatINR: formatINR(estimate.breakdown.metalPaise + estimate.breakdown.wastagePaise, { decimals: 0 }), making: formatINR(estimate.breakdown.makingPaise, { decimals: 0 }) })}
+              {estimate.breakdown.stonePaise ? t(' · stones {{stone}}', { stone: formatINR(estimate.breakdown.stonePaise, { decimals: 0 }) }) : ''} {t('· GST {{gst}}', { gst: formatINR(estimate.breakdown.gstPaise, { decimals: 0 }) })}
             </Typography>
           ) : (
             <Typography variant="caption" color={estimate?.reason ? 'warning.main' : 'textSecondary'}>
-              {estimate?.reason ?? 'Use Calculate estimate, or type an amount you agreed.'}
+              {estimate?.reason ?? t('Use Calculate estimate, or type an amount you agreed.')}
             </Typography>
           )}
         </Box>
         <Box sx={{ width: { sm: 200 } }}>
-          <RHFTextField control={control} name={`${p}.estimate`} label="Estimate (₹ each)" slotProps={{ htmlInput: { inputMode: 'decimal' } }} />
+          <RHFTextField control={control} name={`${p}.estimate`} label={t('Estimate (₹ each)')} slotProps={{ htmlInput: { inputMode: 'decimal' } }} />
         </Box>
       </Stack>
     </Box>
@@ -396,7 +397,7 @@ function PhotoPicker({ files, onChange }) {
       {previews.map(({ file, url }, i) => (
         <Box key={url} sx={{ position: 'relative', width: 84, height: 84, borderRadius: 2, overflow: 'hidden', border: 1, borderColor: 'divider' }}>
           <Box component="img" src={url} alt={file.name} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          <IconButton size="small" onClick={() => onChange(files.filter((_, n) => n !== i))} aria-label="Remove photo" sx={{ position: 'absolute', top: 2, right: 2, bgcolor: 'rgba(0,0,0,0.55)', color: '#fff', '&:hover': { bgcolor: 'rgba(0,0,0,0.75)' } }}>
+          <IconButton size="small" onClick={() => onChange(files.filter((_, n) => n !== i))} aria-label={t('Remove photo')} sx={{ position: 'absolute', top: 2, right: 2, bgcolor: 'rgba(0,0,0,0.55)', color: '#fff', '&:hover': { bgcolor: 'rgba(0,0,0,0.75)' } }}>
             <CloseRoundedIcon sx={{ fontSize: 14 }} />
           </IconButton>
         </Box>
@@ -404,7 +405,7 @@ function PhotoPicker({ files, onChange }) {
       {files.length < 6 && (
         <Button component="label" variant="outlined" color="secondary" sx={{ width: 84, height: 84, flexDirection: 'column', gap: 0.5, borderStyle: 'dashed' }}>
           <AddPhotoAlternateOutlinedIcon />
-          <Typography variant="caption">Add</Typography>
+          <Typography variant="caption">{t('Add')}</Typography>
           <input hidden type="file" accept="image/png,image/jpeg,image/webp" multiple onChange={(e) => onChange([...files, ...Array.from(e.target.files ?? [])].slice(0, 6))} />
         </Button>
       )}
@@ -475,22 +476,22 @@ export default function OrderFormPage() {
     let missing = false;
     v.items.forEach((i, n) => {
       if (i.pricingMode === 'rate_based' && !(Number(i.weight) > 0)) {
-        setError(`items.${n}.weight`, { type: 'estimate', message: 'Enter the weight to estimate' });
+        setError(`items.${n}.weight`, { type: 'estimate', message: t('Enter the weight to estimate') });
         missing = true;
       }
       if (i.pricingMode === 'rate_based' && !i.purity) {
-        setError(`items.${n}.purity`, { type: 'estimate', message: 'Select the purity' });
+        setError(`items.${n}.purity`, { type: 'estimate', message: t('Select the purity') });
         missing = true;
       }
     });
-    if (!valid || missing) return toast.error('Fill in the highlighted fields first');
+    if (!valid || missing) return toast.error(t('Fill in the highlighted fields first'));
     const apiItems = safe(() => v.items.map(toApiItem));
-    if (!apiItems) return toast.error('Fix the highlighted numbers first');
+    if (!apiItems) return toast.error(t('Fix the highlighted numbers first'));
     try {
       const res = await estimateOrder({ branchId: v.branchId, items: apiItems }).unwrap();
       setEstimates(res.items);
       res.items.forEach((line, n) => line.estimatedPaise != null && setValue(`items.${n}.estimate`, String(line.estimatedPaise / 100)));
-      toast.success(`Estimate ${formatINR(res.totalPaise, { decimals: 0 })} at today's rates`);
+      toast.success(t('Estimate {{total}} at today\'s rates', { total: formatINR(res.totalPaise, { decimals: 0 }) }));
     } catch (err) {
       toast.error(getErrorMessage(err));
     }
@@ -502,7 +503,7 @@ export default function OrderFormPage() {
       try {
         const items = v.items.map((i) => ({ ...toApiItem(i), description: i.description, estimatedPaise: paiseOf(i.estimate), huid: i.metal === 'gold' && i.huid ? i.huid : null, notes: i.notes || null }));
         await updateOrder({ id: editId, items, expectedDate: v.expectedDate || null, priority: v.priority, notes: v.notes || null }).unwrap();
-        toast.success(`Order ${editOrder.orderNo} updated`);
+        toast.success(t('Order {{orderNo}} updated', { orderNo: editOrder.orderNo }));
         navigate(`/orders/${editId}`, { replace: true });
       } catch (err) {
         const details = err?.data?.error?.details?.map((d) => ({ ...d, path: d.path.replace(/\.fixedPricePaise$/, '.fixedPrice').replace(/\.approxWeightMg$/, '.weight').replace(/\.ratePaise$/, '.rate') }));
@@ -531,8 +532,8 @@ export default function OrderFormPage() {
         }
       }
       const uploaded = photos.length - failed;
-      toast.success(`Order ${order.orderNo} booked${uploaded ? ` with ${uploaded} photo${uploaded === 1 ? '' : 's'}` : ''}`);
-      if (failed) toast.error(`${failed} photo${failed === 1 ? '' : 's'} could not be uploaded`);
+      toast.success((uploaded ? (uploaded === 1 ? t('Order {{orderNo}} booked with {{uploaded}} photo', { orderNo: order.orderNo, uploaded }) : t('Order {{orderNo}} booked with {{uploaded}} photos', { orderNo: order.orderNo, uploaded })) : t('Order {{orderNo}} booked', { orderNo: order.orderNo })));
+      if (failed) toast.error((failed === 1 ? t('{{failed}} photo could not be uploaded', { failed }) : t('{{failed}} photos could not be uploaded', { failed })));
       navigate('/orders', { replace: true });
     } catch (err) {
       const details = err?.data?.error?.details?.map((d) => ({
@@ -548,15 +549,15 @@ export default function OrderFormPage() {
   if (editing && loadingOrder) return <LoadingState />;
   if (editing && loadError) return <ErrorState error={loadError} onRetry={refetch} />;
   if (editing && editOrder && !['booked', 'in_progress'].includes(editOrder.status)) {
-    return <ErrorState error={{ data: { error: { message: `Order ${editOrder.orderNo} is ${editOrder.status.replace('_', ' ')} and can no longer be edited.` } } }} title="This order can't be edited" />;
+    return <ErrorState error={{ data: { error: { message: t('Order {{orderNo}} is {{status}} and can no longer be edited.', { orderNo: editOrder.orderNo, status: editOrder.status.replace('_', ' ') }) } } }} title={t('This order can\'t be edited')} />;
   }
 
   return (
     <Box component="form" noValidate onSubmit={onSubmit}>
       {editing ? (
-        <PageHeader title={`Edit order ${editOrder?.orderNo ?? ''}`} subtitle="Change the items, charges or delivery until the order is ready." back={{ to: `/orders/${editId}`, label: editOrder?.orderNo ?? 'Order' }} />
+        <PageHeader title={t('Edit order {{value}}', { value: editOrder?.orderNo ?? '' })} subtitle={t('Change the items, charges or delivery until the order is ready.')} back={{ to: `/orders/${editId}`, label: editOrder?.orderNo ?? t('Order') }} />
       ) : (
-        <PageHeader title="New order" subtitle="Book exactly what the customer wants, at the agreed charges, and take an advance." back={{ to: '/orders', label: 'Orders' }} />
+        <PageHeader title={t('New order')} subtitle={t('Book exactly what the customer wants, at the agreed charges, and take an advance.')} back={{ to: '/orders', label: t('Orders') }} />
       )}
       <Grid container spacing={3}>
         <Grid size={{ xs: 12, lg: 'grow' }}>
@@ -564,33 +565,33 @@ export default function OrderFormPage() {
             <Card>
               <CardContent>
                 <Typography variant="h4" sx={{ mb: 2 }}>
-                  Customer &amp; delivery
+                  {t('Customer & delivery')}
                 </Typography>
                 <Grid container spacing={2}>
                   <Grid size={12}>
                     {editing ? (
-                      <TextField label="Customer" value={editOrder ? `${editOrder.customer.name} · ${editOrder.customer.mobile ?? ''}` : ''} disabled helperText="The customer and branch of a booked order stay the same" />
+                      <TextField label={t('Customer')} value={editOrder ? `${editOrder.customer.name} · ${editOrder.customer.mobile ?? ''}` : ''} disabled helperText={t('The customer and branch of a booked order stay the same')} />
                     ) : (
-                      <Controller control={control} name="customer" render={({ field, fieldState }) => <CustomerPicker value={field.value} onChange={field.onChange} error={fieldState.error?.message} autoFocus />} />
+                      <Controller control={control} name="customer" render={({ field, fieldState }) => <CustomerPicker value={field.value} onChange={field.onChange} error={t(fieldState.error?.message)} autoFocus />} />
                     )}
                   </Grid>
                   {session.branches.length > 1 && !editing && (
                     <Grid size={{ xs: 12, sm: 4 }}>
-                      <RHFSelect control={control} name="branchId" label="Branch" options={session.branches.map((b) => ({ value: b.id, label: b.name }))} />
+                      <RHFSelect control={control} name="branchId" label={t('Branch')} options={session.branches.map((b) => ({ value: b.id, label: b.name }))} />
                     </Grid>
                   )}
                   <Grid size={{ xs: 12, sm: 4 }}>
-                    <RHFTextField control={control} name="expectedDate" label="Delivery date" type="date" slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: today() } }} helperText="When the customer will collect" />
+                    <RHFTextField control={control} name="expectedDate" label={t('Delivery date')} type="date" slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: today() } }} helperText={t('When the customer will collect')} />
                   </Grid>
                   <Grid size={{ xs: 12, sm: 4 }}>
                     <Controller
                       control={control}
                       name="priority"
                       render={({ field }) => (
-                        <ToggleButtonGroup exclusive fullWidth value={field.value} onChange={(e, v) => v && field.onChange(v)} sx={{ height: 41 }} aria-label="Priority">
-                          <ToggleButton value="normal">Normal</ToggleButton>
+                        <ToggleButtonGroup exclusive fullWidth value={field.value} onChange={(e, v) => v && field.onChange(v)} sx={{ height: 41 }} aria-label={t('Priority')}>
+                          <ToggleButton value="normal">{t('Normal')}</ToggleButton>
                           <ToggleButton value="urgent" sx={{ '&.Mui-selected': { color: 'error.main', bgcolor: 'rgba(155, 44, 44, 0.08)' } }}>
-                            Urgent
+                            {t('Urgent')}
                           </ToggleButton>
                         </ToggleButtonGroup>
                       )}
@@ -603,9 +604,9 @@ export default function OrderFormPage() {
             <Card>
               <CardContent>
                 <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                  <Typography variant="h4">Items</Typography>
+                  <Typography variant="h4">{t('Items')}</Typography>
                   <Button startIcon={<AddRoundedIcon />} onClick={() => append(emptyItem(session.catalog))}>
-                    Add item
+                    {t('Add item')}
                   </Button>
                 </Stack>
                 <Stack spacing={2.5}>
@@ -620,10 +621,10 @@ export default function OrderFormPage() {
             <Card>
               <CardContent>
                 <Typography variant="h4" sx={{ mb: 0.5 }}>
-                  Design photos
+                  {t('Design photos')}
                 </Typography>
                 <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-                  The customer&apos;s reference design or sketch, for the karigar. Up to 6.
+                  {t('The customer\'s reference design or sketch, for the karigar. Up to 6.')}
                 </Typography>
                 <PhotoPicker files={photos} onChange={setPhotos} />
               </CardContent>
@@ -637,35 +638,35 @@ export default function OrderFormPage() {
           <Card sx={{ position: { lg: 'sticky' }, top: { lg: 88 } }}>
             <CardContent>
               <Typography variant="h4" sx={{ mb: 2 }}>
-                {editing ? 'Notes & estimate' : 'Advance'}
+                {editing ? t('Notes & estimate') : t('Advance')}
               </Typography>
               <Stack spacing={2}>
                 {editing ? (
                   <Alert severity="info" variant="outlined">
-                    Advance received: {formatINR(editOrder?.advancePaise ?? 0)}. Add more with “Add advance” on the order; photos are on the order page too.
+                    {t('Advance received: {{formatINR}}. Add more with “Add advance” on the order; photos are on the order page too.', { formatINR: formatINR(editOrder?.advancePaise ?? 0) })}
                   </Alert>
                 ) : (
                   <>
-                    <RHFTextField control={control} name="advanceAmount" label="Advance received (₹)" placeholder="0" slotProps={{ htmlInput: { inputMode: 'decimal' } }} />
-                    <RHFSelect control={control} name="advanceMode" label="Paid by" options={ADVANCE_MODE_OPTIONS} />
-                    <RHFTextField control={control} name="advanceReference" label="Reference" placeholder="UPI / card ref. (optional)" />
+                    <RHFTextField control={control} name="advanceAmount" label={t('Advance received (₹)')} placeholder="0" slotProps={{ htmlInput: { inputMode: 'decimal' } }} />
+                    <RHFSelect control={control} name="advanceMode" label={t('Paid by')} options={ADVANCE_MODE_OPTIONS} />
+                    <RHFTextField control={control} name="advanceReference" label={t('Reference')} placeholder={t('UPI / card ref. (optional)')} />
                   </>
                 )}
-                <RHFTextField control={control} name="notes" label="Order notes" multiline minRows={2} />
+                <RHFTextField control={control} name="notes" label={t('Order notes')} multiline minRows={2} />
               </Stack>
               <Divider sx={{ my: 2.5 }} />
               <Button fullWidth variant="outlined" startIcon={<CalculateOutlinedIcon />} onClick={calculate} loading={estimating} sx={{ mb: 2 }}>
-                Calculate estimate
+                {t('Calculate estimate')}
               </Button>
               <Stack spacing={1}>
-                <Row label="Estimated total" value={estimate ? formatINR(estimate) : '—'} />
-                <Row label="Advance" value={formatINR(advance)} tone={advance ? 'paid' : undefined} />
-                <Row label="Balance due at delivery" value={estimate ? formatINR(Math.max(0, estimate - advance)) : '—'} strong tone={estimate > advance ? 'due' : undefined} />
+                <Row label={t('Estimated total')} value={estimate ? formatINR(estimate) : '—'} />
+                <Row label={t('Advance')} value={formatINR(advance)} tone={advance ? 'paid' : undefined} />
+                <Row label={t('Balance due at delivery')} value={estimate ? formatINR(Math.max(0, estimate - advance)) : '—'} strong tone={estimate > advance ? 'due' : undefined} />
               </Stack>
               <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 1 }}>
-                Rate-based items are billed at the metal rate on the delivery day; the advance is deducted then.
+                {t('Rate-based items are billed at the metal rate on the delivery day; the advance is deducted then.')}
               </Typography>
-              {items.some((i) => i.pricingMode === 'fixed') && <Chip size="small" label="Includes fixed-price items" sx={{ mt: 1 }} />}
+              {items.some((i) => i.pricingMode === 'fixed') && <Chip size="small" label={t('Includes fixed-price items')} sx={{ mt: 1 }} />}
               {error && !error.data?.error?.details && (
                 <Alert severity="error" sx={{ mt: 2 }}>
                   {getErrorMessage(error)}
@@ -673,10 +674,10 @@ export default function OrderFormPage() {
               )}
               <Stack direction="row" spacing={1} sx={{ mt: 2.5 }}>
                 <Button color="secondary" onClick={() => navigate(editing ? `/orders/${editId}` : '/orders')} disabled={isLoading || saving || updating}>
-                  Cancel
+                  {t('Cancel')}
                 </Button>
                 <Button type="submit" variant="contained" size="large" loading={isLoading || saving || updating} sx={{ flex: 1 }}>
-                  {editing ? 'Save changes' : 'Book order'}
+                  {editing ? t('Save changes') : t('Book order')}
                 </Button>
               </Stack>
             </CardContent>

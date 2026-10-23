@@ -18,6 +18,7 @@ import Amount from '../../components/Amount.jsx';
 import { tokens } from '../../theme/tokens.js';
 import { formatDate } from '../../utils/format.js';
 import { EmploymentChip, monthLabel, todayIso } from './hrUi.jsx';
+import { t } from '../../i18n/index.js';
 
 const GOLD_TINT = 'rgba(var(--brand-rgb), 0.12)';
 
@@ -26,10 +27,10 @@ function tenure(from, to) {
   if (!from) return null;
   const a = new Date(`${from}T00:00:00Z`);
   const b = new Date(`${to}T00:00:00Z`);
-  if (b < a) return 'Joins soon';
+  if (b < a) return t('Joins soon');
   let months = (b.getUTCFullYear() - a.getUTCFullYear()) * 12 + (b.getUTCMonth() - a.getUTCMonth());
   if (b.getUTCDate() < a.getUTCDate()) months -= 1;
-  const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+  const plural = (n, w) => t(n === 1 ? `{{n}} ${w}` : `{{n}} ${w}s`, { n });
   if (months < 1) return plural(Math.round((b - a) / 86400000) + 1, 'day');
   const years = Math.floor(months / 12);
   const rest = months % 12;
@@ -74,7 +75,7 @@ function Row({ icon: Icon, label, children, multiline }) {
         {label}
       </Typography>
       <Box sx={{ flex: 1, minWidth: 0, fontSize: '0.875rem', fontWeight: empty ? 400 : 600, color: empty ? 'text.disabled' : 'text.primary', textAlign: 'right', overflowWrap: 'anywhere', whiteSpace: multiline ? 'pre-line' : 'normal' }}>
-        {empty ? 'Not added' : children}
+        {empty ? t('Not added') : children}
       </Box>
     </Stack>
   );
@@ -100,8 +101,8 @@ function AccountNumber({ value }) {
       <Box component="span" sx={{ fontVariantNumeric: 'tabular-nums', letterSpacing: shown ? 0 : '0.04em' }}>
         {shown ? value : masked}
       </Box>
-      <Tooltip title={shown ? 'Hide' : 'Show full number'}>
-        <IconButton size="small" onClick={() => setShown((s) => !s)} aria-label={shown ? 'Hide account number' : 'Show account number'} sx={{ p: 0.25 }}>
+      <Tooltip title={shown ? t('Hide') : t('Show full number')}>
+        <IconButton size="small" onClick={() => setShown((s) => !s)} aria-label={shown ? t('Hide account number') : t('Show account number')} sx={{ p: 0.25 }}>
           {shown ? <VisibilityOffOutlinedIcon sx={{ fontSize: 16 }} /> : <VisibilityOutlinedIcon sx={{ fontSize: 16 }} />}
         </IconButton>
       </Tooltip>
@@ -121,8 +122,8 @@ function SalarySplit({ basicPaise, allowancePaise }) {
       </Box>
       <Stack direction="row" sx={{ justifyContent: 'space-between', mt: 1 }}>
         {[
-          ['Basic', basicPaise, tokens.brand.main],
-          ['Allowance', allowancePaise, 'rgba(var(--brand-rgb), 0.45)'],
+          [t('Basic'), basicPaise, tokens.brand.main],
+          [t('Allowance'), allowancePaise, 'rgba(var(--brand-rgb), 0.45)'],
         ].map(([label, paise, color]) => (
           <Stack key={label} direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
             <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: color }} />
@@ -130,7 +131,7 @@ function SalarySplit({ basicPaise, allowancePaise }) {
               {label}
             </Typography>
             <Typography variant="caption" sx={{ fontWeight: 700 }}>
-              {paise ? formatINR(paise, { decimals: 0 }) : 'Nil'}
+              {paise ? formatINR(paise, { decimals: 0 }) : t('Nil')}
             </Typography>
           </Stack>
         ))}
@@ -151,59 +152,59 @@ export default function EmployeeDetailsTab({ employee: e }) {
     <Grid container spacing={2}>
       <Grid size={{ xs: 12, md: 7 }}>
         <Stack spacing={2} sx={{ height: '100%' }}>
-          <Section icon={WorkOutlineOutlinedIcon} title="Employment" caption={left ? `Worked ${tenure(e.joiningDate, e.exitDate)}` : `With you for ${tenure(e.joiningDate, today)}`} action={<EmploymentChip status={e.status} />}>
-            <Row icon={BadgeOutlinedIcon} label="Employee code">
+          <Section icon={WorkOutlineOutlinedIcon} title={t('Employment')} caption={left ? t('Worked {{tenure}}', { tenure: tenure(e.joiningDate, e.exitDate) }) : t('With you for {{tenure}}', { tenure: tenure(e.joiningDate, today) })} action={<EmploymentChip status={e.status} />}>
+            <Row icon={BadgeOutlinedIcon} label={t('Employee code')}>
               {e.code}
             </Row>
-            <Row icon={WorkOutlineOutlinedIcon} label="Designation">
+            <Row icon={WorkOutlineOutlinedIcon} label={t('Designation')}>
               {e.designation}
             </Row>
-            <Row icon={StorefrontOutlinedIcon} label="Branch">
+            <Row icon={StorefrontOutlinedIcon} label={t('Branch')}>
               {e.branch?.name}
             </Row>
-            <Row icon={EventAvailableOutlinedIcon} label="Joined">
+            <Row icon={EventAvailableOutlinedIcon} label={t('Joined')}>
               {formatDate(e.joiningDate)}
             </Row>
             {left && (
-              <Row icon={EventAvailableOutlinedIcon} label="Left on">
+              <Row icon={EventAvailableOutlinedIcon} label={t('Left on')}>
                 {formatDate(e.exitDate)}
               </Row>
             )}
             {att && !left && (
               <Box sx={{ pt: 1.5, borderTop: 1, borderColor: 'divider' }}>
                 <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mb: 1 }}>
-                  {monthLabel(att.month)} so far
+                  {t('{{monthLabel}} so far', { monthLabel: monthLabel(att.month) })}
                 </Typography>
                 <Stack direction="row" spacing={1}>
-                  <MonthStat label="Absent" value={att.absent} tone="error.main" />
-                  <MonthStat label="Half days" value={att.halfDay} tone="warning.main" />
-                  <MonthStat label="Paid leave" value={att.paidLeave} tone="info.main" />
-                  <MonthStat label="Holidays" value={att.holiday} tone="text.primary" />
+                  <MonthStat label={t('Absent')} value={att.absent} tone="error.main" />
+                  <MonthStat label={t('Half days')} value={att.halfDay} tone="warning.main" />
+                  <MonthStat label={t('Paid leave')} value={att.paidLeave} tone="info.main" />
+                  <MonthStat label={t('Holidays')} value={att.holiday} tone="text.primary" />
                 </Stack>
               </Box>
             )}
           </Section>
 
-          <Section icon={ContactPhoneOutlinedIcon} title="Contact">
-            <Row icon={CallOutlinedIcon} label="Mobile">
+          <Section icon={ContactPhoneOutlinedIcon} title={t('Contact')}>
+            <Row icon={CallOutlinedIcon} label={t('Mobile')}>
               {e.mobile && (
                 <Link href={`tel:${e.mobile}`} underline="hover" color="inherit">
                   {e.mobile}
                 </Link>
               )}
             </Row>
-            <Row icon={EmailOutlinedIcon} label="Email">
+            <Row icon={EmailOutlinedIcon} label={t('Email')}>
               {e.email && (
                 <Link href={`mailto:${e.email}`} underline="hover" color="inherit">
                   {e.email}
                 </Link>
               )}
             </Row>
-            <Row icon={HomeOutlinedIcon} label="Address" multiline>
+            <Row icon={HomeOutlinedIcon} label={t('Address')} multiline>
               {e.address}
             </Row>
             {e.notes && (
-              <Row icon={NotesOutlinedIcon} label="Notes" multiline>
+              <Row icon={NotesOutlinedIcon} label={t('Notes')} multiline>
                 {e.notes}
               </Row>
             )}
@@ -214,30 +215,30 @@ export default function EmployeeDetailsTab({ employee: e }) {
       {e.payVisible && (
         <Grid size={{ xs: 12, md: 5 }}>
           <Stack spacing={2} sx={{ height: '100%' }}>
-            <Section icon={PaymentsOutlinedIcon} title="Salary" caption="Per month, before deductions">
+            <Section icon={PaymentsOutlinedIcon} title={t('Salary')} caption={t('Per month, before deductions')}>
               <Typography sx={{ fontSize: '1.75rem', fontWeight: 700, lineHeight: 1.1, fontVariantNumeric: 'tabular-nums' }}>
                 {formatINR(e.grossPaise, { decimals: 0 })}
                 <Typography component="span" variant="body2" color="textSecondary" sx={{ fontWeight: 500 }}>
                   {' '}
-                  / month
+                  {t('/ month')}
                 </Typography>
               </Typography>
               <SalarySplit basicPaise={e.basicPaise} allowancePaise={e.allowancePaise} />
-              <Row label="Per day">
+              <Row label={t('Per day')}>
                 {formatINR(Math.round(e.grossPaise / daysInMonth), { decimals: 0 })}
                 <Typography component="span" variant="caption" color="textSecondary">
                   {' '}
-                  ({daysInMonth}-day month)
+                  {t('({{daysInMonth}}-day month)', { daysInMonth })}
                 </Typography>
               </Row>
-              <Row label="Advance due">{e.advanceBalancePaise ? <Amount paise={e.advanceBalancePaise} tone="due" decimals={0} /> : <Box component="span" sx={{ color: 'success.main' }}>Nil</Box>}</Row>
+              <Row label={t('Advance due')}>{e.advanceBalancePaise ? <Amount paise={e.advanceBalancePaise} tone="due" decimals={0} /> : <Box component="span" sx={{ color: 'success.main' }}>{t('Nil')}</Box>}</Row>
             </Section>
 
-            <Section icon={AccountBalanceOutlinedIcon} title="Bank & tax" caption="Where salary is paid">
-              <Row label="Account name">{e.bank?.accountName}</Row>
-              <Row label="Account no.">{e.bank?.accountNumber && <AccountNumber value={e.bank.accountNumber} />}</Row>
-              <Row label="IFSC">{e.bank?.ifsc}</Row>
-              <Row label="PAN">{e.pan}</Row>
+            <Section icon={AccountBalanceOutlinedIcon} title={t('Bank & tax')} caption={t('Where salary is paid')}>
+              <Row label={t('Account name')}>{e.bank?.accountName}</Row>
+              <Row label={t('Account no.')}>{e.bank?.accountNumber && <AccountNumber value={e.bank.accountNumber} />}</Row>
+              <Row label={t('IFSC')}>{e.bank?.ifsc}</Row>
+              <Row label={t('PAN')}>{e.pan}</Row>
             </Section>
           </Stack>
         </Grid>

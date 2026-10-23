@@ -3,6 +3,7 @@ import VisibilityOutlinedIcon from '@mui/icons-material/VisibilityOutlined';
 import { IconButton, InputAdornment } from '@mui/material';
 import { useState } from 'react';
 import RHFTextField from './RHFTextField.jsx';
+import { t } from '../../i18n/index.js';
 
 /** `startIcon` (optional): an icon component shown at the start of the field, as on the sign-in screen. */
 export default function PasswordField({ startIcon: StartIcon, ...props }) {
@@ -21,7 +22,7 @@ export default function PasswordField({ startIcon: StartIcon, ...props }) {
           }),
           endAdornment: (
             <InputAdornment position="end">
-              <IconButton onClick={() => setVisible((v) => !v)} edge="end" size="small" aria-label={visible ? 'Hide password' : 'Show password'}>
+              <IconButton onClick={() => setVisible((v) => !v)} edge="end" size="small" aria-label={visible ? t('Hide password') : t('Show password')}>
                 {visible ? <VisibilityOffOutlinedIcon fontSize="small" /> : <VisibilityOutlinedIcon fontSize="small" />}
               </IconButton>
             </InputAdornment>

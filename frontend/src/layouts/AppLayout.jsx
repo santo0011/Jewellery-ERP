@@ -18,6 +18,9 @@ import UserMenu from './UserMenu.jsx';
 import ForcePasswordChange from '../features/profile/ForcePasswordChange.jsx';
 import SubscriptionGate from '../features/billing/SubscriptionGate.jsx';
 import RateTicker from '../features/rates/RateTicker.jsx';
+import LanguageSwitcher from '../components/LanguageSwitcher.jsx';
+import { useSetLanguageMutation } from '../features/auth/authApi.js';
+import { syncAccountLanguage, t } from '../i18n/index.js';
 
 const SIDEBAR_WIDTH = 260;
 const SIDEBAR_COLLAPSED = 72;
@@ -25,7 +28,7 @@ const COLLAPSE_KEY = 'jerp.sidebarCollapsed';
 
 /** Owners and organisation admins run the whole business; everyone else works in their role's panel. */
 const panelNameFor = ({ isOwner, roles = [] }) =>
-  isOwner || roles.some((r) => r.key === ORG_ADMIN_ROLE_KEY) ? 'Organisation Panel' : `${roles[0]?.name ?? 'Staff'} Panel`;
+  isOwner || roles.some((r) => r.key === ORG_ADMIN_ROLE_KEY) ? t('Organisation Panel') : t('{{role}} Panel', { role: roles[0]?.name ?? t('Staff') });
 
 const readCollapsed = () => {
   try {
@@ -70,7 +73,7 @@ function MobileBottomNav({ onMore }) {
   const tab = (i) => <NavTab key={i.path} icon={i.icon} label={i.mobileLabel ?? i.label} active={isActive(i)} onClick={() => navigate(i.path)} />;
 
   return (
-    <Box component="nav" aria-label="Main" sx={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: (t) => t.zIndex.appBar, px: 1.25, pb: 'calc(8px + env(safe-area-inset-bottom))', pointerEvents: 'none' }}>
+    <Box component="nav" aria-label={t('Main')} sx={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: (theme) => theme.zIndex.appBar, px: 1.25, pb: 'calc(8px + env(safe-area-inset-bottom))', pointerEvents: 'none' }}>
       <Box
         sx={{
           pointerEvents: 'auto',
@@ -99,12 +102,12 @@ function MobileBottomNav({ onMore }) {
               sx={{ mt: -3.5, width: 58, height: 58, borderRadius: '50%', flexDirection: 'column', background: tokens.sidebar.goldGradient, color: 'var(--brand-contrast)', boxShadow: '0 10px 22px -6px rgba(var(--brand-rgb), 0.7), 0 0 0 5px var(--mui-palette-background-default)' }}
             >
               <centre.icon sx={{ fontSize: 24 }} />
-              <Typography sx={{ fontSize: '0.5625rem', fontWeight: 800, letterSpacing: '0.04em', color: 'inherit' }}>BILL</Typography>
+              <Typography sx={{ fontSize: '0.5625rem', fontWeight: 800, letterSpacing: '0.04em', color: 'inherit' }}>{t('BILL')}</Typography>
             </ButtonBase>
           </Box>
         )}
         {side.slice(half).map(tab)}
-        <NavTab icon={MoreHorizRoundedIcon} label="More" active={false} onClick={onMore} />
+        <NavTab icon={MoreHorizRoundedIcon} label={t('More')} active={false} onClick={onMore} />
       </Box>
     </Box>
   );
@@ -124,6 +127,15 @@ export default function AppLayout() {
   const logoUrl = useOrganisationLogo(); // shown at the top of the sidebar
   // The panel's colours follow the logo's main colour (gold when there is no logo or it has no clear colour).
   useBrandTheme(logoUrl, session?.organisation?.logoVersion);
+
+  // The language is kept on the account too: it follows the user to this device once they are signed in.
+  const [saveLanguage] = useSetLanguageMutation();
+  const saveLanguageToAccount = (code) => saveLanguage(code).unwrap();
+  const userId = session?.user?.id;
+  useEffect(() => {
+    if (userId) syncAccountLanguage(session.user.language, saveLanguageToAccount);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
 
   useEffect(() => {
     if (!session) return;
@@ -152,7 +164,7 @@ export default function AppLayout() {
   };
 
   if (isLoading) return <FullScreenLoader />;
-  if (error || !session) return <ErrorState error={error} onRetry={refetch} title="Could not load your account" />;
+  if (error || !session) return <ErrorState error={error} onRetry={refetch} title={t('Could not load your account')} />;
 
   const width = collapsed ? SIDEBAR_COLLAPSED : SIDEBAR_WIDTH;
   // The branch picker shows only when there is more than one branch to choose from.
@@ -163,7 +175,7 @@ export default function AppLayout() {
     <Box sx={{ display: 'flex', minHeight: '100dvh', bgcolor: 'background.default' }}>
       {desktop ? (
         <Box component="aside" sx={{ width, flexShrink: 0, transition: 'width 160ms ease' }}>
-          <Box sx={{ position: 'fixed', top: 0, bottom: 0, width, transition: 'width 160ms ease', zIndex: (t) => t.zIndex.drawer }}>
+          <Box sx={{ position: 'fixed', top: 0, bottom: 0, width, transition: 'width 160ms ease', zIndex: (theme) => theme.zIndex.drawer }}>
             <Sidebar collapsed={collapsed} onToggleCollapse={toggleCollapsed} organisationName={session.organisation.name} panelName={panelName} logoUrl={logoUrl} />
           </Box>
         </Box>
@@ -192,7 +204,7 @@ export default function AppLayout() {
         >
           <Toolbar sx={{ gap: { xs: 1, sm: 1.5 }, minHeight: { xs: 60, md: 72 }, px: { xs: 1.25, sm: 2, md: 3 } }}>
             {!desktop && (
-              <IconButton onClick={() => setMobileOpen(true)} aria-label="Open navigation" sx={{ ml: -0.25, width: 40, height: 40, borderRadius: 2.5, border: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
+              <IconButton onClick={() => setMobileOpen(true)} aria-label={t('Open navigation')} sx={{ ml: -0.25, width: 40, height: 40, borderRadius: 2.5, border: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
                 <MenuRoundedIcon sx={{ fontSize: 21 }} />
               </IconButton>
             )}
@@ -200,6 +212,7 @@ export default function AppLayout() {
             {!(phone && branchControl) && <RateTicker />}
             {/* Branch filter on list pages of modules shared with a branch; one-branch picker on dashboard and billing. */}
             {branchControl && <BranchSwitcher branches={session.branches} allowAll={branchControl === 'filter'} />}
+            <LanguageSwitcher onSave={saveLanguageToAccount} compact={phone} />
             <UserMenu user={session.user} caption={panelName} />
           </Toolbar>
         </AppBar>

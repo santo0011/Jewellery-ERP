@@ -7,6 +7,7 @@ import { useSession } from '../../hooks/usePermission.js';
 import { getErrorMessage } from '../../utils/errors.js';
 import { useCategoriesQuery } from '../categories/categoryApi.js';
 import { useCreateItemMutation, useUpdateItemMutation } from './itemApi.js';
+import { t } from '../../i18n/index.js';
 
 const num = (v) => v.replace(/[^\d.]/g, '');
 const scaled = (v, places) => {
@@ -80,10 +81,10 @@ export default function ItemFormDrawer({ open, item, defaultName = '', onClose, 
     const wastageValue = f.wastageMode === 'none' ? 0 : f.wastageMode === 'weight' ? scaled(f.wastage, 3) : scaled(f.wastage, 2);
     const makingValue = f.makingType === 'percent' ? scaled(f.making, 2) : paise(f.making);
     const errs = {};
-    if (f.name.trim().length < 2) errs.name = 'Enter the item name';
-    if (!f.categoryId) errs.categoryId = 'Pick a category';
-    if (wastageValue === null) errs.wastage = 'Enter a valid number';
-    if (makingValue === null) errs.making = 'Enter a valid number';
+    if (f.name.trim().length < 2) errs.name = t('Enter the item name');
+    if (!f.categoryId) errs.categoryId = t('Pick a category');
+    if (wastageValue === null) errs.wastage = t('Enter a valid number');
+    if (makingValue === null) errs.making = t('Enter a valid number');
     if (f.hsnCode && !/^\d{4,8}$/.test(f.hsnCode)) errs.hsnCode = '4 to 8 digits';
     setErrors(errs);
     if (Object.keys(errs).length) return;
@@ -100,12 +101,12 @@ export default function ItemFormDrawer({ open, item, defaultName = '', onClose, 
     };
     try {
       const saved = editing ? await update({ id: item.id, ...body }).unwrap() : await create(body).unwrap();
-      toast.success(editing ? `${saved.name} updated` : `${saved.name} saved as ${saved.code}`);
+      toast.success(editing ? t('{{name}} updated', { name: saved.name }) : t('{{name}} saved as {{code}}', { name: saved.name, code: saved.code }));
       onSaved?.(saved);
       onClose();
     } catch (err) {
       const details = err?.data?.error?.details;
-      if (details?.length) setErrors(Object.fromEntries(details.map((d) => [d.path, d.message])));
+      if (details?.length) setErrors(Object.fromEntries(details.map((d) => [d.path, t(d.message)])));
       else toast.error(getErrorMessage(err));
     }
   };
@@ -113,20 +114,20 @@ export default function ItemFormDrawer({ open, item, defaultName = '', onClose, 
   return (
     <FormDrawer
       open={open}
-      title={editing ? `Edit ${item.code}` : 'New item'}
-      subtitle="Save the details once — then just pick it on purchases."
+      title={editing ? t('Edit {{code}}', { code: item.code }) : t('New item')}
+      subtitle={t('Save the details once — then just pick it on purchases.')}
       onClose={onClose}
       onSubmit={submit}
       submitting={createState.isLoading || updateState.isLoading}
-      submitLabel={editing ? 'Save changes' : 'Save item'}
+      submitLabel={editing ? t('Save changes') : t('Save item')}
       width={520}
     >
       <Grid container spacing={2}>
         <Grid size={12}>
-          <TextField label="Item name" placeholder="e.g. Plain gold ring, Kolkata bala" value={f.name} onChange={set('name')} error={Boolean(errors.name)} helperText={errors.name} autoFocus={!f.name} slotProps={{ htmlInput: { maxLength: 120 } }} />
+          <TextField label={t('Item name')} placeholder={t('e.g. Plain gold ring, Kolkata bala')} value={f.name} onChange={set('name')} error={Boolean(errors.name)} helperText={errors.name} autoFocus={!f.name} slotProps={{ htmlInput: { maxLength: 120 } }} />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
-          <TextField select label="Category" value={f.categoryId} onChange={set('categoryId')} error={Boolean(errors.categoryId)} helperText={errors.categoryId}>
+          <TextField select label={t('Category')} value={f.categoryId} onChange={set('categoryId')} error={Boolean(errors.categoryId)} helperText={errors.categoryId}>
             {topCategories.map((c) => (
               <MenuItem key={c.id} value={String(c.id)}>
                 {c.name}
@@ -135,16 +136,16 @@ export default function ItemFormDrawer({ open, item, defaultName = '', onClose, 
           </TextField>
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
-          <TextField select label="Type" value={f.jewelleryType} onChange={set('jewelleryType')}>
-            {JEWELLERY_TYPES.map((t) => (
-              <MenuItem key={t.value} value={t.value}>
-                {t.label}
+          <TextField select label={t('Type')} value={f.jewelleryType} onChange={set('jewelleryType')}>
+            {JEWELLERY_TYPES.map((type) => (
+              <MenuItem key={type.value} value={type.value}>
+                {type.label}
               </MenuItem>
             ))}
           </TextField>
         </Grid>
         <Grid size={6}>
-          <TextField select label="Metal" value={f.metal} onChange={(e) => setF((x) => ({ ...x, metal: e.target.value, purity: catalog.enabledPurities[e.target.value]?.[0] ?? '' }))}>
+          <TextField select label={t('Metal')} value={f.metal} onChange={(e) => setF((x) => ({ ...x, metal: e.target.value, purity: catalog.enabledPurities[e.target.value]?.[0] ?? '' }))}>
             {METAL_OPTIONS.map((m) => (
               <MenuItem key={m.value} value={m.value}>
                 {m.label}
@@ -153,7 +154,7 @@ export default function ItemFormDrawer({ open, item, defaultName = '', onClose, 
           </TextField>
         </Grid>
         <Grid size={6}>
-          <TextField select label="Purity" value={f.purity} onChange={set('purity')} error={Boolean(errors.purity)} helperText={errors.purity}>
+          <TextField select label={t('Purity')} value={f.purity} onChange={set('purity')} error={Boolean(errors.purity)} helperText={errors.purity}>
             {purities.map((p) => (
               <MenuItem key={p.fineness} value={p.fineness}>
                 {p.label}
@@ -164,56 +165,56 @@ export default function ItemFormDrawer({ open, item, defaultName = '', onClose, 
 
         <Grid size={12}>
           <Typography variant="overline" color="textSecondary">
-            Charges used when selling
+            {t('Charges used when selling')}
           </Typography>
         </Grid>
         <Grid size={6}>
-          <TextField select label="Wastage" value={f.wastageMode} onChange={set('wastageMode')}>
-            <MenuItem value="percent">Percent</MenuItem>
-            <MenuItem value="weight">Weight (g)</MenuItem>
-            <MenuItem value="none">None</MenuItem>
+          <TextField select label={t('Wastage')} value={f.wastageMode} onChange={set('wastageMode')}>
+            <MenuItem value="percent">{t('Percent')}</MenuItem>
+            <MenuItem value="weight">{t('Weight (g)')}</MenuItem>
+            <MenuItem value="none">{t('None')}</MenuItem>
           </TextField>
         </Grid>
         <Grid size={6}>
           <TextField
-            label="Wastage value"
+            label={t('Wastage value')}
             value={f.wastageMode === 'none' ? '' : f.wastage}
             disabled={f.wastageMode === 'none'}
             onChange={(e) => setF((x) => ({ ...x, wastage: num(e.target.value) }))}
             error={Boolean(errors.wastage)}
             helperText={errors.wastage}
-            slotProps={{ input: { endAdornment: <InputAdornment position="end">{f.wastageMode === 'weight' ? 'g' : '%'}</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }}
+            slotProps={{ input: { endAdornment: <InputAdornment position="end">{f.wastageMode === 'weight' ? t('g') : '%'}</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }}
           />
         </Grid>
         <Grid size={6}>
-          <TextField select label="Making charge" value={f.makingType} onChange={set('makingType')}>
-            <MenuItem value="per_gram">Per gram</MenuItem>
-            <MenuItem value="percent">Percent of metal</MenuItem>
-            <MenuItem value="fixed">Fixed per piece</MenuItem>
+          <TextField select label={t('Making charge')} value={f.makingType} onChange={set('makingType')}>
+            <MenuItem value="per_gram">{t('Per gram')}</MenuItem>
+            <MenuItem value="percent">{t('Percent of metal')}</MenuItem>
+            <MenuItem value="fixed">{t('Fixed per piece')}</MenuItem>
           </TextField>
         </Grid>
         <Grid size={6}>
           <TextField
-            label="Making value"
+            label={t('Making value')}
             value={f.making}
             onChange={(e) => setF((x) => ({ ...x, making: num(e.target.value) }))}
             error={Boolean(errors.making)}
             helperText={errors.making}
             slotProps={{
-              input: f.makingType === 'percent' ? { endAdornment: <InputAdornment position="end">%</InputAdornment> } : { startAdornment: <InputAdornment position="start">₹</InputAdornment>, ...(f.makingType === 'per_gram' && { endAdornment: <InputAdornment position="end">/g</InputAdornment> }) },
+              input: f.makingType === 'percent' ? { endAdornment: <InputAdornment position="end">%</InputAdornment> } : { startAdornment: <InputAdornment position="start">₹</InputAdornment>, ...(f.makingType === 'per_gram' && { endAdornment: <InputAdornment position="end">{t('/g')}</InputAdornment> }) },
               htmlInput: { inputMode: 'decimal' },
             }}
           />
         </Grid>
         <Grid size={{ xs: 12, sm: 5 }}>
-          <TextField label="HSN (optional)" value={f.hsnCode} onChange={(e) => setF((x) => ({ ...x, hsnCode: e.target.value.replace(/\D/g, '') }))} error={Boolean(errors.hsnCode)} helperText={errors.hsnCode ?? 'Blank = category’s HSN'} slotProps={{ htmlInput: { maxLength: 8 } }} />
+          <TextField label={t('HSN (optional)')} value={f.hsnCode} onChange={(e) => setF((x) => ({ ...x, hsnCode: e.target.value.replace(/\D/g, '') }))} error={Boolean(errors.hsnCode)} helperText={errors.hsnCode ?? t('Blank = category’s HSN')} slotProps={{ htmlInput: { maxLength: 8 } }} />
         </Grid>
         <Grid size={{ xs: 12, sm: 7 }}>
-          <TextField label="Description (optional)" value={f.description} onChange={set('description')} slotProps={{ htmlInput: { maxLength: 300 } }} />
+          <TextField label={t('Description (optional)')} value={f.description} onChange={set('description')} slotProps={{ htmlInput: { maxLength: 300 } }} />
         </Grid>
-        {errors.name?.startsWith('Already') && (
+        {errors.name?.startsWith(t('Already')) && (
           <Grid size={12}>
-            <Alert severity="info">This item is already saved — pick it from the list instead.</Alert>
+            <Alert severity="info">{t('This item is already saved — pick it from the list instead.')}</Alert>
           </Grid>
         )}
       </Grid>

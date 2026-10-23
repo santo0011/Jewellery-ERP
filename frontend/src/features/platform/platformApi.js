@@ -76,6 +76,7 @@ export const platformApi = createApi({
     // Reports read payments, subscriptions and organisations, so they refresh when billing or organisations change.
     platformProfile: build.query({ query: () => ({ url: '/profile' }), transformResponse: data, providesTags: ['Admin'] }),
     updatePlatformProfile: build.mutation({ query: (body) => ({ url: '/profile', method: 'patch', data: body }), transformResponse: data, invalidatesTags: ['Admin'] }),
+    setPlatformLanguage: build.mutation({ query: (language) => ({ url: '/profile/language', method: 'patch', data: { language } }) }),
     changePlatformPassword: build.mutation({ query: (body) => ({ url: '/profile/password', method: 'post', data: body }), transformResponse: data }),
     platformReports: build.query({ query: () => ({ url: '/reports' }), transformResponse: data }),
     platformReport: build.query({ query: ({ key, ...params }) => ({ url: `/reports/${key}`, params }), transformResponse: data, providesTags: ['Billing', 'Org'] }),
@@ -123,6 +124,7 @@ export const {
   usePlatformProfileQuery,
   useUpdatePlatformProfileMutation,
   useChangePlatformPasswordMutation,
+  useSetPlatformLanguageMutation,
   usePlatformReportQuery,
   useOrganisationsQuery,
   useOrganisationQuery,

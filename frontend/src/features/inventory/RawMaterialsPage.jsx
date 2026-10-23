@@ -15,10 +15,11 @@ import { formatDate } from '../../utils/format.js';
 import { purityLabel } from '../products/productForm.js';
 import ProductionDrawer from './ProductionDrawer.jsx';
 import { useProductionsQuery, useStockMovementsQuery, useStockSummaryQuery } from './inventoryApi.js';
+import { t } from '../../i18n/index.js';
 
 const inr = (p) => formatINR(p, { decimals: 0 });
 const kindLabel = (k) => METAL_POOL_KINDS.find((x) => x.value === k)?.label ?? k;
-const metalName = (m) => m.charAt(0).toUpperCase() + m.slice(1);
+const metalName = (m) => t(m.charAt(0).toUpperCase() + m.slice(1));
 const metalPurity = (l) => `${metalName(l.metal)} ${purityLabel(l.metal, l.purity)}`;
 const METALS = ['gold', 'silver', 'platinum'];
 
@@ -28,7 +29,7 @@ function StockTab({ pools, showCost, loading, error, onRetry }) {
       columns={[
         {
           key: 'metal',
-          label: 'Metal',
+          label: t('Metal'),
           render: (p) => (
             <Box>
               <Typography variant="subtitle2">{metalPurity(p)}</Typography>
@@ -38,13 +39,13 @@ function StockTab({ pools, showCost, loading, error, onRetry }) {
             </Box>
           ),
         },
-        { key: 'branch', label: 'Branch', render: (p) => p.branch?.name ?? '—' },
-        { key: 'gross', label: 'Weight', align: 'right', render: (p) => <Typography variant="body2" sx={{ fontWeight: 700 }}>{formatWeight(p.grossMg)}</Typography> },
-        { key: 'fine', label: 'Fine (pure)', align: 'right', render: (p) => formatWeight(p.fineMg) },
+        { key: 'branch', label: t('Branch'), render: (p) => p.branch?.name ?? '—' },
+        { key: 'gross', label: t('Weight'), align: 'right', render: (p) => <Typography variant="body2" sx={{ fontWeight: 700 }}>{formatWeight(p.grossMg)}</Typography> },
+        { key: 'fine', label: t('Fine (pure)'), align: 'right', render: (p) => formatWeight(p.fineMg) },
         ...(showCost
           ? [
-              { key: 'rate', label: 'Avg. cost / g', align: 'right', render: (p) => (p.grossMg > 0 ? inr(Math.round((p.valuePaise * 1000) / p.grossMg)) : '—') },
-              { key: 'value', label: 'Value', align: 'right', render: (p) => <Typography variant="body2" sx={{ fontWeight: 700 }}>{inr(p.valuePaise)}</Typography> },
+              { key: 'rate', label: t('Avg. cost / g'), align: 'right', render: (p) => (p.grossMg > 0 ? inr(Math.round((p.valuePaise * 1000) / p.grossMg)) : '—') },
+              { key: 'value', label: t('Value'), align: 'right', render: (p) => <Typography variant="body2" sx={{ fontWeight: 700 }}>{inr(p.valuePaise)}</Typography> },
             ]
           : []),
       ]}
@@ -53,7 +54,7 @@ function StockTab({ pools, showCost, loading, error, onRetry }) {
       loading={loading}
       error={error}
       onRetry={onRetry}
-      empty={{ title: 'No raw metal in stock', description: 'Bullion, old gold and scrap bought on a purchase bill (Loose metal) show here — not in Products.' }}
+      empty={{ title: t('No raw metal in stock'), description: t('Bullion, old gold and scrap bought on a purchase bill (Loose metal) show here — not in Products.') }}
     />
   );
 }
@@ -66,7 +67,7 @@ function MadeTab({ showCost }) {
       columns={[
         {
           key: 'no',
-          label: 'Made on',
+          label: t('Made on'),
           render: (d) => (
             <Box>
               <Typography variant="body2" sx={{ fontWeight: 600 }}>
@@ -80,7 +81,7 @@ function MadeTab({ showCost }) {
         },
         {
           key: 'metal',
-          label: 'Metal used',
+          label: t('Metal used'),
           render: (d) => (
             <Stack spacing={0.25}>
               {d.metalUsed.map((l, i) => (
@@ -93,7 +94,7 @@ function MadeTab({ showCost }) {
         },
         {
           key: 'pieces',
-          label: 'Pieces made',
+          label: t('Pieces made'),
           wide: true,
           render: (d) => (
             <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
@@ -103,7 +104,7 @@ function MadeTab({ showCost }) {
             </Stack>
           ),
         },
-        ...(showCost ? [{ key: 'cost', label: 'Cost', align: 'right', render: (d) => <Typography variant="body2" sx={{ fontWeight: 700 }}>{inr(d.totalCostPaise)}</Typography> }] : []),
+        ...(showCost ? [{ key: 'cost', label: t('Cost'), align: 'right', render: (d) => <Typography variant="body2" sx={{ fontWeight: 700 }}>{inr(d.totalCostPaise)}</Typography> }] : []),
       ]}
       rows={data?.items}
       loading={isLoading}
@@ -111,7 +112,7 @@ function MadeTab({ showCost }) {
       error={error}
       onRetry={refetch}
       pagination={data?.meta && { ...data.meta, onPageChange: setPage }}
-      empty={{ title: 'Nothing made yet', description: 'Use Make jewellery to turn raw metal into pieces ready to sell.' }}
+      empty={{ title: t('Nothing made yet'), description: t('Use Make jewellery to turn raw metal into pieces ready to sell.') }}
     />
   );
 }
@@ -122,12 +123,12 @@ function MovementsTab({ showCost }) {
   return (
     <DataTable
       columns={[
-        { key: 'date', label: 'Date', render: (m) => formatDate(m.businessDate) },
-        { key: 'type', label: 'What', render: (m) => MOVEMENT_TYPE_LABELS[m.type] ?? m.type },
-        { key: 'metal', label: 'Metal', render: (m) => `${metalPurity(m)} · ${kindLabel(m.kind)}` },
+        { key: 'date', label: t('Date'), render: (m) => formatDate(m.businessDate) },
+        { key: 'type', label: t('What'), render: (m) => MOVEMENT_TYPE_LABELS[m.type] ?? m.type },
+        { key: 'metal', label: t('Metal'), render: (m) => `${metalPurity(m)} · ${kindLabel(m.kind)}` },
         {
           key: 'weight',
-          label: 'In / out',
+          label: t('In / out'),
           align: 'right',
           render: (m) => (
             <Typography variant="body2" sx={{ fontWeight: 700, color: m.direction > 0 ? 'success.main' : 'error.main', whiteSpace: 'nowrap' }}>
@@ -136,8 +137,8 @@ function MovementsTab({ showCost }) {
             </Typography>
           ),
         },
-        ...(showCost ? [{ key: 'value', label: 'Value', align: 'right', render: (m) => inr(m.valuePaise ?? 0) }] : []),
-        { key: 'doc', label: 'Document', render: (m) => m.source?.docNo ?? '—' },
+        ...(showCost ? [{ key: 'value', label: t('Value'), align: 'right', render: (m) => inr(m.valuePaise ?? 0) }] : []),
+        { key: 'doc', label: t('Document'), render: (m) => m.source?.docNo ?? '—' },
       ]}
       rows={data?.items}
       loading={isLoading}
@@ -145,7 +146,7 @@ function MovementsTab({ showCost }) {
       error={error}
       onRetry={refetch}
       pagination={data?.meta && { ...data.meta, onPageChange: setPage }}
-      empty={{ title: 'No metal movements yet' }}
+      empty={{ title: t('No metal movements yet') }}
     />
   );
 }
@@ -167,31 +168,31 @@ export default function RawMaterialsPage() {
   return (
     <>
       <PageHeader
-        title="Raw materials"
-        subtitle="Bullion, old gold and scrap held by weight — kept apart from the jewellery you sell."
+        title={t('Raw materials')}
+        subtitle={t('Bullion, old gold and scrap held by weight — kept apart from the jewellery you sell.')}
         actions={
           canMake && (
             <Button variant="contained" startIcon={<BuildCircleOutlinedIcon />} onClick={() => setMaking(true)}>
-              Make jewellery
+              {t('Make jewellery')}
             </Button>
           )
         }
       />
       <SummaryCards>
         {byMetal.length ? (
-          byMetal.map((m) => <SummaryCard key={m.metal} icon={ScaleOutlinedIcon} label={`Raw ${m.metal}`} value={formatWeight(m.gross)} caption={`${formatWeight(m.fine)} fine (pure)`} tone={m.metal === 'gold' ? 'gold' : 'grey'} />)
+          byMetal.map((m) => <SummaryCard key={m.metal} icon={ScaleOutlinedIcon} label={t('Raw {{metal}}', { metal: m.metal })} value={formatWeight(m.gross)} caption={t('{{fine}} fine (pure)', { fine: formatWeight(m.fine) })} tone={m.metal === 'gold' ? 'gold' : 'grey'} />)
         ) : (
-          <SummaryCard icon={ScaleOutlinedIcon} label="Raw metal" value="Nil" caption="Buy it on a purchase bill" tone="grey" />
+          <SummaryCard icon={ScaleOutlinedIcon} label={t('Raw metal')} value={t('Nil')} caption={t('Buy it on a purchase bill')} tone="grey" />
         )}
-        {showCost && <SummaryCard icon={DiamondOutlinedIcon} label="Value of raw stock" value={inr(value)} caption="At what it cost" tone="green" />}
+        {showCost && <SummaryCard icon={DiamondOutlinedIcon} label={t('Value of raw stock')} value={inr(value)} caption={t('At what it cost')} tone="green" />}
       </SummaryCards>
       <ViewTabs
         value={tab}
         onChange={setTab}
         items={[
-          { value: 'stock', label: 'Stock', count: pools.length },
-          { value: 'made', label: 'Made jewellery', short: 'Made' },
-          { value: 'movements', label: 'Movements' },
+          { value: 'stock', label: t('Stock'), count: pools.length },
+          { value: 'made', label: t('Made jewellery'), short: t('Made') },
+          { value: 'movements', label: t('Movements') },
         ]}
       />
       {tab === 'stock' && <StockTab pools={pools} showCost={showCost} loading={isLoading} error={error} onRetry={refetch} />}

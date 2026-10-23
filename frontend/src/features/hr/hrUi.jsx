@@ -1,5 +1,6 @@
 import { Chip } from '@mui/material';
 import { ATTENDANCE_STATUSES } from '@jerp/shared';
+import { t, getLocale } from '../../i18n/index.js';
 
 export const attendanceLabel = (v) => ATTENDANCE_STATUSES.find((s) => s.value === v)?.label ?? v;
 
@@ -7,13 +8,13 @@ export const attendanceLabel = (v) => ATTENDANCE_STATUSES.find((s) => s.value ==
 export const ATTENDANCE_COLORS = { present: 'success', absent: 'error', half_day: 'warning', paid_leave: 'info', holiday: 'default' };
 
 export const PAY_MODES = [
-  { value: 'cash', label: 'Cash' },
-  { value: 'bank', label: 'Bank transfer' },
-  { value: 'upi', label: 'UPI' },
+  { value: 'cash', label: t('Cash') },
+  { value: 'bank', label: t('Bank transfer') },
+  { value: 'upi', label: t('UPI') },
 ];
 export const payModeLabel = (v) => PAY_MODES.find((m) => m.value === v)?.label ?? v ?? '—';
 
-const RUN_STATUS = { draft: ['Draft', 'warning', 'outlined'], finalised: ['Finalised · unpaid', 'info', 'outlined'], paid: ['Paid', 'success', 'filled'] };
+const RUN_STATUS = { draft: [t('Draft'), 'warning', 'outlined'], finalised: [t('Finalised · unpaid'), 'info', 'outlined'], paid: [t('Paid'), 'success', 'filled'] };
 
 export function PayrollStatusChip({ status }) {
   const [label, color, variant] = RUN_STATUS[status] ?? [status, 'default', 'outlined'];
@@ -21,10 +22,10 @@ export function PayrollStatusChip({ status }) {
 }
 
 export function EmploymentChip({ status }) {
-  return <Chip size="small" label={status === 'left' ? 'Left' : 'Active'} color={status === 'left' ? 'default' : 'success'} variant={status === 'left' ? 'outlined' : 'filled'} sx={{ height: 22 }} />;
+  return <Chip size="small" label={status === 'left' ? t('Left') : t('Active')} color={status === 'left' ? 'default' : 'success'} variant={status === 'left' ? 'outlined' : 'filled'} sx={{ height: 22 }} />;
 }
 
-export const monthLabel = (month) => (month ? new Date(`${month}-01T00:00:00Z`).toLocaleString('en-IN', { month: 'long', year: 'numeric', timeZone: 'UTC' }) : '');
+export const monthLabel = (month) => (month ? new Date(`${month}-01T00:00:00Z`).toLocaleString(getLocale(), { month: 'long', year: 'numeric', timeZone: 'UTC' }) : '');
 
 /** "2026-10" for this month (local time). */
 export const thisMonth = () => {

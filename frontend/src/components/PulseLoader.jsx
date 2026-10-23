@@ -1,5 +1,6 @@
 import { Box } from '@mui/material';
 import { keyframes } from '@mui/material/styles';
+import { t } from '../i18n/index.js';
 
 // A slow breath: the dot swells and fades, then settles — like ChatGPT's "thinking" dot.
 const breathe = keyframes`
@@ -8,7 +9,7 @@ const breathe = keyframes`
 `;
 
 /** The loading indicator: one soft dot in the brand colour, breathing. */
-export default function PulseLoader({ size = 16, label = 'Loading' }) {
+export default function PulseLoader({ size = 16, label = t('Loading') }) {
   return (
     <Box
       role="progressbar"
