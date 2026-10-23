@@ -25,7 +25,7 @@ import { visibleNav } from './navConfig.js';
 const s = tokens.sidebar;
 const INK = '#F7F3E8';
 
-/** An icon for each menu group's header (any other group falls back to a folder). */
+/** An icon for each menu group's header, unless the group brings its own `icon` (any other group falls back to a folder). */
 const GROUP_ICON = {
   Overview: InsightsOutlinedIcon,
   Sales: PointOfSaleOutlinedIcon,
@@ -175,7 +175,7 @@ function TreeList({ items, onNavigate, id }) {
 
 /** A group header: icon tile, name, and (when closed) how many pages it holds, or a gold dot when you are inside it. */
 function GroupHeader({ group, open, active, onClick, fixed }) {
-  const Icon = GROUP_ICON[group.label] ?? FolderOutlinedIcon;
+  const Icon = group.icon ?? GROUP_ICON[group.label] ?? FolderOutlinedIcon;
   return (
     <ButtonBase
       onClick={onClick}

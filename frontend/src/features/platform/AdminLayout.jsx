@@ -1,10 +1,13 @@
-import ApartmentOutlinedIcon from '@mui/icons-material/ApartmentOutlined';
-import AssessmentOutlinedIcon from '@mui/icons-material/AssessmentOutlined';
-import DashboardOutlinedIcon from '@mui/icons-material/DashboardOutlined';
-import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
-import SellOutlinedIcon from '@mui/icons-material/SellOutlined';
+import AlternateEmailOutlinedIcon from '@mui/icons-material/AlternateEmailOutlined';
+import AnalyticsOutlinedIcon from '@mui/icons-material/AnalyticsOutlined';
+import CorporateFareOutlinedIcon from '@mui/icons-material/CorporateFareOutlined';
+import CurrencyRupeeOutlinedIcon from '@mui/icons-material/CurrencyRupeeOutlined';
+import HubOutlinedIcon from '@mui/icons-material/HubOutlined';
+import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
+import QueryStatsOutlinedIcon from '@mui/icons-material/QueryStatsOutlined';
+import SpaceDashboardOutlinedIcon from '@mui/icons-material/SpaceDashboardOutlined';
+import WorkspacePremiumOutlinedIcon from '@mui/icons-material/WorkspacePremiumOutlined';
 import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
-import MailOutlineRoundedIcon from '@mui/icons-material/MailOutlineRounded';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import ManageAccountsOutlinedIcon from '@mui/icons-material/ManageAccountsOutlined';
@@ -23,17 +26,18 @@ const SIDEBAR_COLLAPSED = 72;
 const COLLAPSE_KEY = 'jerp.adminSidebarCollapsed';
 
 const NAV = [
-  { label: 'Dashboard', pinned: true, items: [{ label: 'Dashboard', path: '/admin', icon: DashboardOutlinedIcon, end: true }] },
-  { label: 'Platform', items: [{ label: 'Organisations', path: '/admin/organisations', icon: ApartmentOutlinedIcon }] },
+  { label: 'Dashboard', pinned: true, items: [{ label: 'Dashboard', path: '/admin', icon: SpaceDashboardOutlinedIcon, end: true }] },
+  { label: 'Platform', icon: HubOutlinedIcon, items: [{ label: 'Organisations', path: '/admin/organisations', icon: CorporateFareOutlinedIcon }] },
   {
     label: 'Billing',
+    icon: CurrencyRupeeOutlinedIcon,
     items: [
-      { label: 'Plans', path: '/admin/plans', icon: SellOutlinedIcon },
-      { label: 'Payments', path: '/admin/payments', icon: ReceiptLongOutlinedIcon },
+      { label: 'Plans', path: '/admin/plans', icon: WorkspacePremiumOutlinedIcon },
+      { label: 'Payments', path: '/admin/payments', icon: PaymentsOutlinedIcon },
     ],
   },
-  { label: 'Reports', items: [{ label: 'Reports', path: '/admin/reports', icon: AssessmentOutlinedIcon }] },
-  { label: 'Settings', items: [{ label: 'Email (SMTP)', path: '/admin/settings/email', icon: MailOutlineRoundedIcon }] },
+  { label: 'Reports', icon: AnalyticsOutlinedIcon, items: [{ label: 'Reports', path: '/admin/reports', icon: QueryStatsOutlinedIcon }] },
+  { label: 'Settings', items: [{ label: 'Email (SMTP)', path: '/admin/settings/email', icon: AlternateEmailOutlinedIcon }] },
 ];
 
 const initialsOf = (name = '') =>
