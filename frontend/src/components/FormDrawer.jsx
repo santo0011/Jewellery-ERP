@@ -6,7 +6,7 @@ import { t } from '../i18n/index.js';
  * A form that slides in from the right on tablets and desktops. On a phone it fills the screen like an app page:
  * a compact header, the form scrolling in between, and full-width Cancel / Save buttons always within thumb reach.
  */
-export default function FormDrawer({ open, title, subtitle, onClose, onSubmit, submitLabel = t('Save'), submitting = false, children, width = 520 }) {
+export default function FormDrawer({ open, title, subtitle, onClose, onSubmit, submitLabel = t('Save'), submitting = false, submitDisabled = false, children, width = 520 }) {
   const fullScreen = useMediaQuery((theme) => theme.breakpoints.down('sm'));
 
   return (
@@ -45,7 +45,7 @@ export default function FormDrawer({ open, title, subtitle, onClose, onSubmit, s
           <Button color="secondary" onClick={onClose} disabled={submitting} sx={{ flex: { xs: 1, sm: 'none' } }} variant={fullScreen ? 'outlined' : 'text'}>
             {t('Cancel')}
           </Button>
-          <Button type="submit" variant="contained" loading={submitting} sx={{ flex: { xs: 2, sm: 'none' } }}>
+          <Button type="submit" variant="contained" loading={submitting} disabled={submitDisabled} sx={{ flex: { xs: 2, sm: 'none' } }}>
             {submitLabel}
           </Button>
         </Stack>

@@ -19,6 +19,11 @@ export async function createOpening(req, res) {
   sendCreated(res, entry, { message: `${entry.docNo} posted` });
 }
 
+export async function updateOpening(req, res) {
+  const entry = await inventoryService.updateOpeningMetal(req.valid.params.id, req.valid.body);
+  sendOk(res, entry, { message: `${entry.docNo} updated` });
+}
+
 export async function createAdjustment(req, res) {
   const entry = await inventoryService.createAdjustment(req.valid.body);
   sendCreated(res, entry, { message: entry.status === 'posted' ? `${entry.docNo} posted` : `${entry.docNo} sent for approval` });

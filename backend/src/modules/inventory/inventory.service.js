@@ -3,7 +3,7 @@ import { withTransaction } from '../../config/db.js';
 import { registerApprovalHandler, requestApproval } from '../../core/approvals/approval.service.js';
 import { AUDIT_ACTIONS, recordAudit } from '../../core/audit/audit.service.js';
 import { requireContext } from '../../core/context/requestContext.js';
-import { postJournal } from '../../core/ledger/posting.service.js';
+import { postJournal, reverseJournalsFor } from '../../core/ledger/posting.service.js';
 import { nextDocumentNo } from '../../core/numbering/numbering.service.js';
 import { MetalStock } from '../../core/stock/metalStock.model.js';
 import { moveMetal, moveProducts } from '../../core/stock/stockLedger.service.js';
@@ -18,12 +18,42 @@ import { StockEntry } from './stockEntry.model.js';
 
 const withFine = (lines) => lines.map((l) => ({ ...l, fineWeightMg: fineWeightMg(l.grossWeightMg, l.purity) }));
 
+/**
+ * Why each opening entry can no longer be edited (null = it can). Only gold-only opening entries can be, and only
+ * while their gold is untouched: once anything has gone out of the metal they added to (made into jewellery,
+ * transferred, adjusted, sold), stock and costs have been worked out from it, so it stays as it is.
+ */
+async function openingEditLocks(entries) {
+  const locks = new Map();
+  const open = [];
+  for (const e of entries) {
+    if (e.type !== 'opening') continue;
+    if (e.status !== STOCK_DOC_STATUS.POSTED) locks.set(String(e._id), 'Only posted entries can be edited');
+    else if (e.productIds.length) locks.set(String(e._id), 'This entry has pieces — only gold-only entries can be edited');
+    else open.push(e);
+  }
+  if (!open.length) return locks;
+  // The form sends each line's value; someone who cannot see costs would save it as zero.
+  if (!canSeeCost()) {
+    for (const e of open) locks.set(String(e._id), 'Editing gold needs permission to see costs');
+    return locks;
+  }
+  const own =await StockMovement.find({ 'source.docType': 'stock_entry', 'source.docId': { $in: open.map((e) => e._id) }, metalStockId: { $ne: null } }, { metalStockId: 1, 'source.docId': 1 }).lean();
+  for (const e of open) {
+    const pools = [...new Set(own.filter((m) => String(m.source.docId) === String(e._id)).map((m) => String(m.metalStockId)))];
+    const used = pools.length && (await StockMovement.exists({ metalStockId: { $in: pools.map(oid) }, direction: -1, createdAt: { $gt: e.postedAt ?? e.createdAt }, 'source.docId': { $ne: e._id } }));
+    locks.set(String(e._id), used ? 'This gold has already been used (made into jewellery, moved or adjusted), so it cannot be edited' : null);
+  }
+  return locks;
+}
+
 async function serializeEntries(entries) {
   const maps = await nameMaps({
     branchIds: entries.map((e) => e.branchId),
     userIds: entries.map((e) => e.createdBy),
     productIds: entries.flatMap((e) => e.productIds),
   });
+  const locks = await openingEditLocks(entries);
   const cost = canSeeCost();
   return entries.map((e) => ({
     id: e._id,
@@ -41,6 +71,8 @@ async function serializeEntries(entries) {
     createdBy: pick(maps.users, e.createdBy),
     createdAt: e.createdAt,
     postedAt: e.postedAt,
+    updatedAt: e.updatedAt,
+    ...(e.type === 'opening' && { edit: { allowed: !locks.get(String(e._id)), reason: locks.get(String(e._id)) ?? null } }),
   }));
 }
 
@@ -100,6 +132,61 @@ export async function createOpeningStock({ branchId, productIds, metalLines, not
       { session },
     );
     await recordAudit({ action: AUDIT_ACTIONS.POST, module: 'inventory', recordType: 'StockEntry', recordId: doc._id, meta: { name: docNo, docNo, type: 'opening', pieces: doc.totals.pieces } }, { session });
+    return doc;
+  });
+  return (await serializeEntries([entry.toObject()]))[0];
+}
+
+/**
+ * Correct the gold on an opening entry: the old lines come back out of the metal stock and the new ones go in, and
+ * the opening journal is reversed and posted again for the new value. Refused once the gold has been used.
+ */
+export async function updateOpeningMetal(id, { metalLines, note }) {
+  if (!(await StockEntry.exists({ _id: id, type: 'opening', ...accessibleBranchFilter() }))) throw ApiError.notFound('Stock entry');
+  const lines = withFine(metalLines);
+  const today = await todayContext();
+
+  const entry = await withTransaction(async (session) => {
+    const doc = await StockEntry.findById(id).session(session);
+    const lock = (await openingEditLocks([doc.toObject()])).get(String(doc._id));
+    if (lock) throw ApiError.conflict(lock, 'OPENING_LOCKED');
+    const source = { docType: 'stock_entry', docId: doc._id, docNo: doc.docNo };
+    const why = `Corrected ${doc.docNo}`;
+    for (const old of doc.metalLines) {
+      try {
+        await moveMetal({ type: 'opening_edit', branchId: doc.branchId, line: { ...old.toObject(), direction: 'out' }, source, businessDate: today.businessDate, note: why }, { session });
+      } catch (err) {
+        if (err.code !== 'INSUFFICIENT_STOCK') throw err;
+        throw ApiError.conflict('This gold has already been used (made into jewellery, moved or adjusted), so it cannot be edited', 'OPENING_LOCKED');
+      }
+    }
+    let value = 0;
+    for (const line of lines) value += (await moveMetal({ type: 'opening', branchId: doc.branchId, line, source, businessDate: today.businessDate, note: why }, { session })).valuePaise;
+
+    await reverseJournalsFor(source, { date: today.now, businessDate: today.businessDate, financialYear: today.financialYear, narration: `${why} — old value reversed` }, { session });
+    await postJournal(
+      {
+        voucherType: 'opening_stock',
+        date: today.now,
+        businessDate: today.businessDate,
+        financialYear: today.financialYear,
+        narration: `Opening stock ${doc.docNo} (corrected)`,
+        source,
+        lines: [
+          { account: 'inventory', debit: value, branchId: doc.branchId },
+          { account: 'opening_equity', credit: value, branchId: doc.branchId },
+        ],
+      },
+      { session },
+    );
+
+    const before = doc.totals.grossMg;
+    doc.set({ metalLines: lines, totals: totalsFor([], lines), ...(note !== undefined && { note }) });
+    await doc.save({ session });
+    await recordAudit(
+      { action: AUDIT_ACTIONS.UPDATE, module: 'inventory', recordType: 'StockEntry', recordId: doc._id, meta: { name: doc.docNo, docNo: doc.docNo, type: 'opening' }, changes: [{ field: 'grossMg', from: before, to: doc.totals.grossMg }] },
+      { session },
+    );
     return doc;
   });
   return (await serializeEntries([entry.toObject()]))[0];

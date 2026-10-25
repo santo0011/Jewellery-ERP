@@ -1,5 +1,6 @@
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
-import { Box, Button, MenuItem, Stack, TextField, Typography } from '@mui/material';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import { Box, Button, IconButton, MenuItem, Stack, TextField, Tooltip, Typography } from '@mui/material';
 import { ADJUSTMENT_REASONS } from '@jerp/shared';
 import { useState } from 'react';
 import DataTable from '../../components/DataTable.jsx';
@@ -37,6 +38,7 @@ export default function StockEntriesPage({ mode }) {
   const canCreate = usePermission('inventory.adjust');
   const [drawer, setDrawer] = useState(false);
   const [viewing, setViewing] = useState(null);
+  const [editingId, setEditingId] = useState(null);
   const list = useListParams({ status: '' });
   const { data, isLoading, isFetching, error, refetch } = page.useQuery(list.params);
 
@@ -58,6 +60,26 @@ export default function StockEntriesPage({ mode }) {
     { key: 'contents', label: t('Contents'), render: docTotals },
     { key: 'by', label: t('By'), render: (d) => d.createdBy?.name },
     { key: 'status', label: t('Status'), render: (d) => <DocStatusChip status={d.status} /> },
+    // Gold-only opening entries can be corrected until the gold is used; otherwise the button says why not.
+    ...(mode === 'opening' && canCreate
+      ? [
+          {
+            key: 'edit',
+            label: '',
+            align: 'right',
+            width: 56,
+            render: (d) => (
+              <Tooltip title={d.edit?.allowed ? t('Edit') : t(d.edit?.reason ?? 'Cannot be edited')}>
+                <span>
+                  <IconButton size="small" disabled={!d.edit?.allowed} onClick={() => setEditingId(d.id)} aria-label={t('Edit {{name}}', { name: d.docNo })}>
+                    <EditOutlinedIcon fontSize="small" />
+                  </IconButton>
+                </span>
+              </Tooltip>
+            ),
+          },
+        ]
+      : []),
   ];
 
   return (
@@ -98,6 +120,7 @@ export default function StockEntriesPage({ mode }) {
         }
       />
       <StockEntryDrawer mode={mode} open={drawer} onClose={() => setDrawer(false)} />
+      <StockEntryDrawer mode={mode} editId={editingId} open={Boolean(editingId)} onClose={() => setEditingId(null)} />
       <StockDocDialog doc={viewing} onClose={() => setViewing(null)} />
     </>
   );

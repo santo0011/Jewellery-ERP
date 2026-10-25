@@ -210,7 +210,7 @@ export default function SupplierFormDrawer({ open, supplier, onClose }) {
                 <RHFTextField control={control} name="openingSilver" label={t('Old fine silver')} slotProps={unit('g')} />
               </Grid>
               <Grid size={{ xs: 12, sm: 4 }}>
-                <RHFTextField control={control} name="paymentTermsDays" label={t('Payment terms')} slotProps={{ input: { endAdornment: <InputAdornment position="end">{t('days')}</InputAdornment> }, htmlInput: { inputMode: 'numeric' } }} />
+                <RHFTextField control={control} name="paymentTermsDays" label={t('Payment terms')} slotProps={{ input: { endAdornment: <InputAdornment position="end">{t('days')}</InputAdornment> }, htmlInput: { inputMode: 'numeric', 'data-number': true } }} />
               </Grid>
               <Grid size={12}>
                 <RHFTextField control={control} name="notes" label={t('Notes')} multiline minRows={2} />

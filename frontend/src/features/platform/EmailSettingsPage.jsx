@@ -203,7 +203,7 @@ export default function EmailSettingsPage() {
                   <RHFTextField control={control} name="host" label={t('SMTP server')} placeholder={t('smtp.yourdomain.com')} />
                 </Grid>
                 <Grid size={{ xs: 6, sm: 2 }}>
-                  <RHFTextField control={control} name="port" label={t('Port')} slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 5 } }} />
+                  <RHFTextField control={control} name="port" label={t('Port')} slotProps={{ htmlInput: { inputMode: 'numeric', 'data-number': true, maxLength: 5 } }} />
                 </Grid>
                 <Grid size={{ xs: 6, sm: 4 }}>
                   <RHFSelect control={control} name="security" label={t('Security')} options={SECURITY} />

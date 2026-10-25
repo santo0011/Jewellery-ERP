@@ -12,10 +12,14 @@ import TopProgress from './components/TopProgress.jsx';
 import { router } from './routes/index.jsx';
 import { preloadPages } from './routes/lazyPage.jsx';
 import { setupNativeApp } from './native.js';
+import { installNoLeadingZeros } from './utils/noLeadingZeros.js';
 import { AuthBootstrap } from './routes/guards.jsx';
 import { store } from './store/index.js';
 import { applyRememberedBrand } from './theme/brandMemory.js';
 import { theme } from './theme/index.js';
+
+// Number boxes: typing after a "0" gives 25000, not 025000 (see utils/noLeadingZeros.js).
+installNoLeadingZeros();
 
 // Before the first paint: the colours and tab icon of the organisation last signed in on this device.
 applyRememberedBrand();

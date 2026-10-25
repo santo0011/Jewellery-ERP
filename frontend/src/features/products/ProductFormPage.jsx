@@ -103,7 +103,7 @@ function Stones({ control }) {
               <RHFTextField control={control} name={`stones.${i}.name`} label={t('Description')} placeholder={t('e.g. VVS1 round brilliant')} />
             </Grid>
             <Grid size={{ xs: 4, sm: 2 }}>
-              <RHFTextField control={control} name={`stones.${i}.count`} label={t('Pieces')} slotProps={{ htmlInput: { inputMode: 'numeric' } }} />
+              <RHFTextField control={control} name={`stones.${i}.count`} label={t('Pieces')} slotProps={{ htmlInput: { inputMode: 'numeric', 'data-number': true } }} />
             </Grid>
             <Grid size={{ xs: 8, sm: 3 }}>
               <RHFTextField control={control} name={`stones.${i}.weight`} label={t('Weight')} slotProps={adorn(stones?.[i]?.weightUnit === 'g' ? 'g' : 'ct')} />
@@ -345,7 +345,7 @@ export default function ProductFormPage() {
                 </Grid>
                 {stockType === 'lot' && (
                   <Grid size={{ xs: 12, sm: 6 }}>
-                    <RHFTextField control={control} name="quantity" label={t('Pieces in lot')} slotProps={{ htmlInput: { inputMode: 'numeric' } }} disabled={locked} helperText={t('Gross weight is for the whole lot')} />
+                    <RHFTextField control={control} name="quantity" label={t('Pieces in lot')} slotProps={{ htmlInput: { inputMode: 'numeric', 'data-number': true } }} disabled={locked} helperText={t('Gross weight is for the whole lot')} />
                   </Grid>
                 )}
                 <Grid size={{ xs: 12, sm: 6 }}>

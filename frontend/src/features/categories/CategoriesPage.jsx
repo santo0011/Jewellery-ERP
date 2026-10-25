@@ -115,7 +115,7 @@ function CategoryDialog({ state, roots, onClose }) {
               <RHFTextField control={control} name="hsnCode" label={t('HSN code')} helperText={t('Blank uses tax settings')} slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 8 } }} />
             </Grid>
             <Grid size={6}>
-              <RHFTextField control={control} name="sortOrder" label={t('Sort order')} helperText={t('Lower shows first')} slotProps={{ htmlInput: { inputMode: 'numeric' } }} />
+              <RHFTextField control={control} name="sortOrder" label={t('Sort order')} helperText={t('Lower shows first')} slotProps={{ htmlInput: { inputMode: 'numeric', 'data-number': true } }} />
             </Grid>
           </Grid>
         </DialogContent>

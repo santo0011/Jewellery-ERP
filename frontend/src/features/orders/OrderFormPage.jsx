@@ -220,7 +220,7 @@ function StonesEditor({ control, index }) {
                 <RHFTextField control={control} name={`${name}.${i}.name`} label={t('Details')} placeholder={t('e.g. VVS1 round')} />
               </Grid>
               <Grid size={{ xs: 4, md: 1.25 }}>
-                <RHFTextField control={control} name={`${name}.${i}.count`} label={t('Pcs')} slotProps={{ htmlInput: { inputMode: 'numeric' } }} />
+                <RHFTextField control={control} name={`${name}.${i}.count`} label={t('Pcs')} slotProps={{ htmlInput: { inputMode: 'numeric', 'data-number': true } }} />
               </Grid>
               <Grid size={{ xs: 4, md: 1.75 }}>
                 <RHFTextField control={control} name={`${name}.${i}.weight`} label={t('Weight')} slotProps={{ htmlInput: { inputMode: 'decimal' } }} />
@@ -309,7 +309,7 @@ function ItemCard({ index, control, setValue, categories, onRemove, canRemove, e
           <RHFTextField control={control} name={`${p}.size`} label={t('Size')} placeholder={t('e.g. 14, 2.6')} />
         </Grid>
         <Grid size={{ xs: 12, md: 2 }}>
-          <RHFTextField control={control} name={`${p}.quantity`} label={t('Qty')} slotProps={{ htmlInput: { inputMode: 'numeric' } }} />
+          <RHFTextField control={control} name={`${p}.quantity`} label={t('Qty')} slotProps={{ htmlInput: { inputMode: 'numeric', 'data-number': true } }} />
         </Grid>
         <Grid size={12}>
           <RHFTextField control={control} name={`${p}.notes`} label={t('Design notes')} placeholder={t('Finish, engraving, design reference, chain length…')} multiline minRows={1} />

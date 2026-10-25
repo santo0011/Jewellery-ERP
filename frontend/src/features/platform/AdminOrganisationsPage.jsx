@@ -121,7 +121,7 @@ function CreateOrganisationDrawer({ open, onClose }) {
             label={t('Free use')}
             placeholder={t('e.g. 14')}
             required
-            slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 3 }, input: { endAdornment: <InputAdornment position="end">{t('days')}</InputAdornment> } }}
+            slotProps={{ htmlInput: { inputMode: 'numeric', 'data-number': true, maxLength: 3 }, input: { endAdornment: <InputAdornment position="end">{t('days')}</InputAdornment> } }}
           />
         </Grid>
         <Grid size={12}>
@@ -234,7 +234,7 @@ export function EditOrganisationDrawer({ organisation, onClose }) {
             label={t('Free use')}
             placeholder={organisation?.freeDays == null ? t('Paid plan') : t('e.g. 14')}
             disabled={organisation?.freeDays == null}
-            slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 3 }, input: { endAdornment: <InputAdornment position="end">{t('days')}</InputAdornment> } }}
+            slotProps={{ htmlInput: { inputMode: 'numeric', 'data-number': true, maxLength: 3 }, input: { endAdornment: <InputAdornment position="end">{t('days')}</InputAdornment> } }}
           />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>

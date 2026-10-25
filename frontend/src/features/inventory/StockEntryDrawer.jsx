@@ -6,8 +6,8 @@ import { useSelector } from 'react-redux';
 import FormDrawer from '../../components/FormDrawer.jsx';
 import { usePermission, useSession } from '../../hooks/usePermission.js';
 import { getErrorMessage } from '../../utils/errors.js';
-import { useCreateAdjustmentMutation, useCreateOpeningMutation } from './inventoryApi.js';
-import MetalLinesEditor, { metalLinesToPayload } from './MetalLinesEditor.jsx';
+import { useCreateAdjustmentMutation, useCreateOpeningMutation, useStockEntryQuery, useUpdateOpeningMutation } from './inventoryApi.js';
+import MetalLinesEditor, { emptyMetalLine, metalLinesToPayload } from './MetalLinesEditor.jsx';
 import ProductPicker, { SelectedProducts } from './ProductPicker.jsx';
 import { t } from '../../i18n/index.js';
 
@@ -28,8 +28,27 @@ const COPY = {
   },
 };
 
-export default function StockEntryDrawer({ mode, open, onClose, initialProducts = [] }) {
-  const copy = COPY[mode];
+// Opening stock with only the metal part, opened from Raw materials: gold already in the shop, by weight.
+const METAL_ONLY = {
+  title: t('Add gold'),
+  subtitle: t('Gold or silver already in the shop — old gold, bullion or scrap. Enter its weight.'),
+  submit: t('Add to stock'),
+};
+
+// An opening entry's saved gold, back into the editor's lines (grams and rupees as typed).
+const toEditorLines = (entry) =>
+  entry.metalLines.map((l) => ({ metal: l.metal, purity: l.purity, kind: l.kind, direction: 'in', weight: String(l.grossWeightMg / 1000), value: l.valuePaise ? String(l.valuePaise / 100) : '' }));
+
+/** `editId`: correct the gold on that opening entry (gold-only, until the gold is used) instead of adding new. */
+export default function StockEntryDrawer({ mode, open, onClose, initialProducts = [], metalOnly = false, editId = null }) {
+  const editing = Boolean(editId);
+  const { data: entry, isFetching: loadingEntry } = useStockEntryQuery(editId, { skip: !open || !editing });
+  const copy = editing
+    ? { ...COPY[mode], title: t('Edit {{docNo}}', { docNo: entry?.docNo ?? '' }), subtitle: t('Correct the gold on this entry. Stock and accounts are fixed to match.'), submit: t('Save changes') }
+    : metalOnly
+      ? { ...COPY[mode], ...METAL_ONLY }
+      : COPY[mode];
+  const locked = editing && entry?.edit && !entry.edit.allowed;
   const { data: session } = useSession();
   const activeBranchId = useSelector((s) => s.auth.activeBranchId);
   const showCost = usePermission('product.viewCost');
@@ -41,14 +60,27 @@ export default function StockEntryDrawer({ mode, open, onClose, initialProducts 
   const [errors, setErrors] = useState({});
   const [createOpening, openingState] = useCreateOpeningMutation();
   const [createAdjustment, adjustmentState] = useCreateAdjustmentMutation();
-  const saving = openingState.isLoading || adjustmentState.isLoading;
+  const [updateOpening, updateState] = useUpdateOpeningMutation();
+  const saving = openingState.isLoading || adjustmentState.isLoading || updateState.isLoading;
+
+  // Editing: fill the form from the saved entry once it has loaded.
+  useEffect(() => {
+    if (!open || !editing || !entry) return;
+    setBranchId(entry.branch?.id ?? '');
+    setProducts([]);
+    setLines(toEditorLines(entry));
+    setNote(entry.note ?? '');
+    setErrors({});
+  }, [open, editing, entry]);
 
   useEffect(() => {
-    if (!open) return;
-    setBranchId(initialProducts[0]?.branch?.id ?? activeBranchId ?? session.branches[0]?.id ?? '');
+    if (!open || editing) return;
+    // The remembered working branch may be one this user no longer has: fall back to their first branch.
+    const remembered = session.branches.find((b) => String(b.id) === String(activeBranchId))?.id;
+    setBranchId(initialProducts[0]?.branch?.id ?? remembered ?? session.branches[0]?.id ?? '');
     setReason('lost');
     setProducts(initialProducts);
-    setLines([]);
+    setLines(metalOnly ? [emptyMetalLine()] : []);
     setNote('');
     setErrors({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -58,10 +90,21 @@ export default function StockEntryDrawer({ mode, open, onClose, initialProducts 
     e.preventDefault();
     const { payload: metalLines, errors: lineErrors } = metalLinesToPayload(lines, { includeValue: showCost });
     const next = { lines: lineErrors };
-    if (!products.length && !lines.length) next.products = t('Add at least one item or metal line');
+    if (!products.length && !lines.length) next.products = metalOnly || editing ? t('Add the gold') : t('Add at least one item or metal line');
     if (mode === 'adjustment' && note.trim().length < 5) next.note = t('Explain the adjustment in a few words');
     setErrors(next);
     if (next.products || next.note || Object.keys(lineErrors).length) return;
+
+    if (editing) {
+      try {
+        const saved = await updateOpening({ id: editId, metalLines, note: note.trim() || null }).unwrap();
+        toast.success(t('{{docNo}} updated', { docNo: saved.docNo }));
+        onClose();
+      } catch (err) {
+        setErrors({ server: getErrorMessage(err) });
+      }
+      return;
+    }
 
     const body = { branchId, productIds: products.map((p) => p.id), metalLines, note: note.trim() || undefined };
     try {
@@ -74,8 +117,13 @@ export default function StockEntryDrawer({ mode, open, onClose, initialProducts 
   };
 
   return (
-    <FormDrawer open={open} title={copy.title} subtitle={copy.subtitle} onClose={onClose} onSubmit={submit} submitting={saving} submitLabel={copy.submit} width={760}>
+    <FormDrawer open={open} title={copy.title} subtitle={copy.subtitle} onClose={onClose} onSubmit={submit} submitting={saving} submitDisabled={editing && (!entry || loadingEntry || locked)} submitLabel={copy.submit} width={760}>
       <Grid container spacing={2}>
+        {locked && (
+          <Grid size={12}>
+            <Alert severity="warning">{t(entry.edit.reason)}</Alert>
+          </Grid>
+        )}
         {errors.server && (
           <Grid size={12}>
             <Alert severity="error">{errors.server}</Alert>
@@ -86,6 +134,7 @@ export default function StockEntryDrawer({ mode, open, onClose, initialProducts 
             select
             label={t('Branch')}
             value={branchId}
+            disabled={editing}
             onChange={(e) => {
               setBranchId(e.target.value);
               setProducts([]);
@@ -109,22 +158,31 @@ export default function StockEntryDrawer({ mode, open, onClose, initialProducts 
             </TextField>
           </Grid>
         )}
-        <Grid size={12}>
-          <Typography variant="overline" color="textSecondary">
-            {mode === 'opening' ? t('Tagged items') : t('Items to write off')}
-          </Typography>
-        </Grid>
-        <Grid size={12}>
-          <ProductPicker status={copy.status} branchId={branchId} selected={products} onAdd={(p) => setProducts((list) => [...list, p])} label={copy.pickerLabel} error={errors.products} />
-        </Grid>
-        <Grid size={12}>
-          <SelectedProducts products={products} showCost={showCost} onRemove={(id) => setProducts((list) => list.filter((p) => p.id !== id))} />
-        </Grid>
-        <Grid size={12}>
-          <Typography variant="overline" color="textSecondary">
-            {t('Metal (bullion, old gold, scrap)')}
-          </Typography>
-        </Grid>
+        {!metalOnly && !editing && (
+          <>
+            <Grid size={12}>
+              <Typography variant="overline" color="textSecondary">
+                {mode === 'opening' ? t('Tagged items') : t('Items to write off')}
+              </Typography>
+            </Grid>
+            <Grid size={12}>
+              <ProductPicker status={copy.status} branchId={branchId} selected={products} onAdd={(p) => setProducts((list) => [...list, p])} label={copy.pickerLabel} error={errors.products} />
+            </Grid>
+            <Grid size={12}>
+              <SelectedProducts products={products} showCost={showCost} onRemove={(id) => setProducts((list) => list.filter((p) => p.id !== id))} />
+            </Grid>
+            <Grid size={12}>
+              <Typography variant="overline" color="textSecondary">
+                {t('Metal (bullion, old gold, scrap)')}
+              </Typography>
+            </Grid>
+          </>
+        )}
+        {(metalOnly || editing) && errors.products && (
+          <Grid size={12}>
+            <Alert severity="error">{errors.products}</Alert>
+          </Grid>
+        )}
         <Grid size={12}>
           <MetalLinesEditor
             lines={lines}

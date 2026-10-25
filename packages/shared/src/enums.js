@@ -257,6 +257,7 @@ export const TRANSFER_STATUS = Object.freeze({ IN_TRANSIT: 'in_transit', RECEIVE
 
 export const MOVEMENT_TYPE_LABELS = Object.freeze({
   opening: 'Opening stock',
+  opening_edit: 'Opening stock corrected',
   purchase: 'Purchase',
   adjustment_in: 'Adjustment in',
   adjustment_out: 'Adjustment out',
