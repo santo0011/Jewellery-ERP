@@ -98,7 +98,7 @@ export async function authenticatePlatformToken(header) {
     Session.findOne({ _id: payload.sid, realm: 'platform', revokedAt: null, expiresAt: { $gt: new Date() } }).select('_id signedInWith').lean(),
   ]);
   if (!admin || !session || admin.tokenVersion !== payload.tv || admin.status !== 'active') throw ApiError.unauthorized('Session is no longer valid', 'SESSION_INVALID');
-  return { adminId: admin._id, name: admin.name, email: admin.email, role: admin.role, sessionId: session._id, signedInWithCode: session.signedInWith === 'code' };
+  return { adminId: admin._id, name: admin.name, email: admin.email, role: admin.role, language: admin.language ?? null, sessionId: session._id, signedInWithCode: session.signedInWith === 'code' };
 }
 
 // ---------------------------------------------------------------- the Super Admin's own profile
@@ -124,6 +124,12 @@ export async function getPlatformProfile({ adminId, signedInWithCode }) {
   const admin = await PlatformAdmin.findById(adminId).lean();
   if (!admin) throw ApiError.notFound('Account');
   return profileOf(admin, signedInWithCode);
+}
+
+/** Saves the language the Super Admin picked for the panel. */
+export async function setPlatformLanguage({ adminId }, language) {
+  await PlatformAdmin.updateOne({ _id: adminId }, { $set: { language } });
+  return { language };
 }
 
 /** Name and email. A new email needs the current password (not when signed in with an emailed code). */

@@ -7,6 +7,7 @@ import AuthImage from '../../components/AuthImage.jsx';
 import { useAuthImage } from '../../hooks/useAuthImage.js';
 import { getErrorMessage } from '../../utils/errors.js';
 import { useAddBillImageMutation, useRemoveBillImageMutation } from './purchaseApi.js';
+import { t } from '../../i18n/index.js';
 
 export const MAX_BILL_IMAGES = 5;
 export const MAX_BILL_IMAGE_BYTES = 5 * 1024 * 1024;
@@ -17,17 +18,17 @@ const TILE = 112;
 export function acceptableBillFiles(files, room) {
   const ok = [];
   for (const f of files) {
-    if (!ACCEPT.split(',').includes(f.type)) toast.error(`${f.name}: use a PNG, JPEG or WebP photo`);
-    else if (f.size > MAX_BILL_IMAGE_BYTES) toast.error(`${f.name}: photo must be 5 MB or smaller`);
+    if (!ACCEPT.split(',').includes(f.type)) toast.error(t('{{name}}: use a PNG, JPEG or WebP photo', { name: f.name }));
+    else if (f.size > MAX_BILL_IMAGE_BYTES) toast.error(t('{{name}}: photo must be 5 MB or smaller', { name: f.name }));
     else ok.push(f);
   }
-  if (ok.length > room) toast.error(`A bill can have up to ${MAX_BILL_IMAGES} photos`);
+  if (ok.length > room) toast.error(t('A bill can have up to {{MAX_BILL_IMAGES}} photos', { MAX_BILL_IMAGES }));
   return ok.slice(0, Math.max(0, room));
 }
 
 const removeButtonSx = { position: 'absolute', top: 4, right: 4, bgcolor: 'rgba(0,0,0,0.55)', color: '#fff', '&:hover': { bgcolor: 'rgba(0,0,0,0.75)' } };
 
-function AddTile({ onFiles, loading, label = 'Add bill photo' }) {
+function AddTile({ onFiles, loading, label = t('Add bill photo') }) {
   return (
     <Button component="label" variant="outlined" color="secondary" loading={loading} sx={{ width: TILE, height: TILE, flexDirection: 'column', gap: 0.5, borderStyle: 'dashed', textAlign: 'center' }}>
       <AddPhotoAlternateOutlinedIcon />
@@ -51,7 +52,7 @@ function AddTile({ onFiles, loading, label = 'Add bill photo' }) {
 function Zoomed({ src, onClose }) {
   return (
     <Dialog open={Boolean(src)} onClose={onClose} maxWidth="lg">
-      {src && <Box component="img" src={src} alt="Supplier bill" sx={{ display: 'block', maxWidth: '100%', maxHeight: '85vh' }} />}
+      {src && <Box component="img" src={src} alt={t('Supplier bill')} sx={{ display: 'block', maxWidth: '100%', maxHeight: '85vh' }} />}
     </Dialog>
   );
 }
@@ -77,10 +78,10 @@ export function BillPhotoPicker({ files, onChange }) {
       <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 1.5 }}>
         {previews.map((src, i) => (
           <Box key={src} sx={{ position: 'relative', width: TILE, height: TILE, borderRadius: 2, overflow: 'hidden', border: 1, borderColor: 'divider', cursor: 'zoom-in' }} onClick={() => setZoom(src)}>
-            <Box component="img" src={src} alt={files[i]?.name ?? 'Bill photo'} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+            <Box component="img" src={src} alt={files[i]?.name ?? t('Bill photo')} sx={{ width: '100%', height: '100%', objectFit: 'cover' }} />
             <IconButton
               size="small"
-              aria-label="Remove photo"
+              aria-label={t('Remove photo')}
               onClick={(e) => {
                 e.stopPropagation();
                 onChange(files.filter((_, j) => j !== i));
@@ -119,7 +120,7 @@ export default function BillPhotos({ purchase, canEdit }) {
   const removeImage = async (fileId) => {
     try {
       await remove({ id: purchase.id, fileId }).unwrap();
-      toast.success('Bill photo removed');
+      toast.success(t('Bill photo removed'));
     } catch (err) {
       toast.error(getErrorMessage(err));
     }
@@ -129,21 +130,21 @@ export default function BillPhotos({ purchase, canEdit }) {
     <Card>
       <CardContent>
         <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1 }}>
-          Bill photos
+          {t('Bill photos')}
         </Typography>
         {images.length === 0 && !canEdit ? (
           <Typography variant="body2" color="textSecondary">
-            No photo of the bill was attached.
+            {t('No photo of the bill was attached.')}
           </Typography>
         ) : (
           <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 1.5 }}>
             {images.map((fileId) => (
               <Box key={fileId} sx={{ position: 'relative', cursor: 'zoom-in' }} onClick={() => setZoom(fileId)}>
-                <AuthImage fileId={fileId} alt="Supplier bill" size={TILE} sx={{ borderRadius: 2 }} />
+                <AuthImage fileId={fileId} alt={t('Supplier bill')} size={TILE} sx={{ borderRadius: 2 }} />
                 {canEdit && (
                   <IconButton
                     size="small"
-                    aria-label="Remove bill photo"
+                    aria-label={t('Remove bill photo')}
                     onClick={(e) => {
                       e.stopPropagation();
                       removeImage(fileId);

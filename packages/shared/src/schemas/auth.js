@@ -42,3 +42,6 @@ export const updateProfileSchema = z.object({
   name: requiredText('Name', { min: 2, max: 80 }),
   mobile: mobileSchema,
 });
+
+/** The language the signed-in user sees the app in (kept on the account, so it follows them to other devices). */
+export const languageSchema = z.object({ language: z.enum(['en', 'bn', 'hi']) });

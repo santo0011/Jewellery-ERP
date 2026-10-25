@@ -1,6 +1,7 @@
 import { Box } from '@mui/material';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useSelector } from 'react-redux';
+import { t } from '../i18n/index.js';
 
 // Pages still downloading (lazy routes), counted so the bar shows while any is on its way.
 let pagesLoading = 0;
@@ -59,7 +60,7 @@ export default function TopProgress() {
           timers.push(setInterval(() => setWidth((w) => w + (90 - w) * 0.12), TRICKLE_MS));
         }, running.current ? 0 : SHOW_AFTER_MS),
       );
-      return () => timers.forEach((t) => clearTimeout(t) || clearInterval(t));
+      return () => timers.forEach((timer) => clearTimeout(timer) || clearInterval(timer));
     }
     if (!running.current) return undefined;
     // Done: fill to the end, then fade out and reset.
@@ -79,7 +80,7 @@ export default function TopProgress() {
     <Box
       role="progressbar"
       aria-hidden={!visible}
-      aria-label="Loading"
+      aria-label={t('Loading')}
       sx={{
         position: 'fixed',
         top: 'env(safe-area-inset-top)',

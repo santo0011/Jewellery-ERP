@@ -56,6 +56,10 @@ describe('raw material and finished jewellery', () => {
     expect((await make({ metalUsed: [{ ...metalUsed[0], grossWeightMg: 50000 }], pieces: [{ itemId: item.id, grossWeightMg: 8000 }] })).status).toBe(409);
     expect((await make({ metalUsed, pieces: [{ itemId: silverItem.id, grossWeightMg: 8000 }] })).status).toBe(400);
     expect((await make({ metalUsed, pieces: [{ itemId: item.id, grossWeightMg: 8000 }], makingPaise: 40000 })).body.error.details[0].path).toBe('makingMode');
+    // Pieces heavier than the metal given: refused.
+    const heavy = await make({ metalUsed, pieces: [{ itemId: item.id, grossWeightMg: 5000 }, { itemId: item.id, grossWeightMg: 3001 }] });
+    expect(heavy.status).toBe(400);
+    expect(heavy.body.error.details[0].path).toBe('pieces');
 
     // 8 g used (₹5,600 at ₹700/g) + ₹400 making in cash → two rings costing ₹6,000 together, shared by weight.
     const res = await make({ metalUsed, pieces: [{ itemId: item.id, grossWeightMg: 5000 }, { itemId: item.id, grossWeightMg: 3000 }], makingPaise: 40000, makingMode: 'cash' });

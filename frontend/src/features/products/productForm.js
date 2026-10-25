@@ -1,7 +1,8 @@
 import { decimalToScaledInt, fromBps, fromMg, fromPaise, PURITIES, toBps, toMg, toPaise } from '@jerp/shared';
+import { t } from '../../i18n/index.js';
 
 export class FieldError extends Error {
-  constructor(path, message = 'Enter a valid number') {
+  constructor(path, message = t('Enter a valid number')) {
     super(message);
     this.path = path;
   }

@@ -8,6 +8,7 @@ import { getErrorMessage } from '../../utils/errors.js';
 import { PAY_MODES } from '../purchases/purchaseUi.jsx';
 import { usePaySupplierMutation } from './supplierApi.js';
 import KeepOnPhone from '../../components/KeepOnPhone.jsx';
+import { t } from '../../i18n/index.js';
 
 const inr = (p) => formatINR(p, { decimals: 0 });
 const paiseOf = (v) => {
@@ -44,14 +45,14 @@ export default function PaySupplierDialog({ supplier, onClose }) {
   }, [supplier?.id]);
 
   const paise = paiseOf(amount);
-  const problem = paise === null ? 'Enter a valid amount' : paise <= 0 ? 'Enter the amount paid' : paise > due ? `Only ${inr(due)} is due` : null;
+  const problem = paise === null ? t('Enter a valid amount') : paise <= 0 ? t('Enter the amount paid') : paise > due ? t('Only {{inr}} is due', { inr: inr(due) }) : null;
   const toOld = Math.min(paise ?? 0, oldDue);
   const toBills = Math.max(0, (paise ?? 0) - toOld);
 
   const submit = async () => {
     try {
       const done = await pay({ id: supplier.id, branchId: activeBranchId, mode, amountPaise: paise, reference: reference.trim() || null, note: note.trim() || null }).unwrap();
-      toast.success(`${inr(done.amountPaise)} paid to ${supplier.companyName} · ${done.paymentNo}${done.duePaiseAfter ? ` · ${inr(done.duePaiseAfter)} still due` : ' · all clear'}`);
+      toast.success((done.duePaiseAfter ? t('{{inr}} paid to {{companyName}} · {{paymentNo}} · {{inr2}} still due', { inr: inr(done.amountPaise), companyName: supplier.companyName, paymentNo: done.paymentNo, inr2: inr(done.duePaiseAfter) }) : t('{{inr}} paid to {{companyName}} · {{paymentNo}} · all clear', { inr: inr(done.amountPaise), companyName: supplier.companyName, paymentNo: done.paymentNo })));
       onClose();
     } catch (err) {
       toast.error(getErrorMessage(err));
@@ -62,19 +63,20 @@ export default function PaySupplierDialog({ supplier, onClose }) {
     <Dialog open={Boolean(supplier)} onClose={saving ? undefined : onClose} maxWidth="xs" fullWidth>
       {supplier && (
         <>
-          <DialogTitle sx={{ fontWeight: 600 }}>Pay {supplier.companyName}</DialogTitle>
+          <DialogTitle sx={{ fontWeight: 600 }}>{t('Pay {{companyName}}', { companyName: supplier.companyName })}</DialogTitle>
           <DialogContent>
             <Stack spacing={2} sx={{ pt: 1 }}>
               <Typography variant="body2" color="textSecondary">
-                You owe <strong>{inr(due)}</strong>
-                {oldDue > 0 && ` (old balance ${inr(oldDue)} + bills ${inr(due - oldDue)})`}.
+                {oldDue > 0
+                  ? t('You owe {{amount}} (old balance {{old}} + bills {{bills}}).', { amount: <strong>{inr(due)}</strong>, old: inr(oldDue), bills: inr(due - oldDue) })
+                  : t('You owe {{amount}}.', { amount: <strong>{inr(due)}</strong> })}
               </Typography>
               <TextField
-                label="Amount"
+                label={t('Amount')}
                 value={amount}
                 onChange={(e) => setAmount(e.target.value.replace(/[^\d.]/g, ''))}
                 error={Boolean(problem)}
-                helperText={<KeepOnPhone>{problem ?? (oldDue > 0 && toOld > 0 ? `${inr(toOld)} clears the old balance${toBills ? `, ${inr(toBills)} goes to the oldest bills` : ''}` : 'Goes to the oldest unpaid bills first')}</KeepOnPhone>}
+                helperText={<KeepOnPhone>{problem ?? (oldDue > 0 && toOld > 0 ? (toBills ? t('{{inr}} clears the old balance, {{inr2}} goes to the oldest bills', { inr: inr(toOld), inr2: inr(toBills) }) : t('{{inr}} clears the old balance', { inr: inr(toOld) })) : t('Goes to the oldest unpaid bills first'))}</KeepOnPhone>}
                 slotProps={{ input: { startAdornment: <InputAdornment position="start">₹</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }}
                 autoFocus
               />
@@ -85,17 +87,17 @@ export default function PaySupplierDialog({ supplier, onClose }) {
                   </ToggleButton>
                 ))}
               </ToggleButtonGroup>
-              {mode !== 'cash' && <TextField label="Reference (optional)" value={reference} onChange={(e) => setReference(e.target.value)} helperText="Cheque / NEFT / UPI ref." slotProps={{ htmlInput: { maxLength: 60 } }} />}
-              <TextField label="Note (optional)" value={note} onChange={(e) => setNote(e.target.value)} slotProps={{ htmlInput: { maxLength: 200 } }} />
-              {!activeBranchId && <Alert severity="warning">Pick a branch first — the money goes out of its cash / bank.</Alert>}
+              {mode !== 'cash' && <TextField label={t('Reference (optional)')} value={reference} onChange={(e) => setReference(e.target.value)} helperText={t('Cheque / NEFT / UPI ref.')} slotProps={{ htmlInput: { maxLength: 60 } }} />}
+              <TextField label={t('Note (optional)')} value={note} onChange={(e) => setNote(e.target.value)} slotProps={{ htmlInput: { maxLength: 200 } }} />
+              {!activeBranchId && <Alert severity="warning">{t('Pick a branch first — the money goes out of its cash / bank.')}</Alert>}
             </Stack>
           </DialogContent>
           <DialogActions>
             <Button onClick={onClose} disabled={saving}>
-              Cancel
+              {t('Cancel')}
             </Button>
             <Button variant="contained" onClick={submit} disabled={Boolean(problem) || !activeBranchId || saving}>
-              Pay {paise && !problem ? inr(paise) : ''}
+              {t('Pay {{value}}', { value: paise && !problem ? inr(paise) : '' })}
             </Button>
           </DialogActions>
         </>

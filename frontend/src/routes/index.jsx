@@ -9,6 +9,7 @@ import AppLayout from '../layouts/AppLayout.jsx';
 import AuthLayout from '../layouts/AuthLayout.jsx';
 import { GuestOnly, RequireAuth, RequirePermission } from './guards.jsx';
 import { lazyPage } from './lazyPage.jsx';
+import { t } from '../i18n/index.js';
 
 // Pages load when first opened (smaller first load, faster start — on a phone too).
 const ForgotPasswordPage = lazyPage(() => import('../features/auth/ForgotPasswordPage.jsx'));
@@ -78,11 +79,11 @@ const guard = (perm, element) => <RequirePermission perm={perm}>{element}</Requi
 function NotFound() {
   return (
     <EmptyState
-      title="Page not found"
-      description="The page you are looking for does not exist or has moved."
+      title={t('Page not found')}
+      description={t('The page you are looking for does not exist or has moved.')}
       action={
         <Button component={RouterLink} to="/" variant="contained">
-          Go home
+          {t('Go home')}
         </Button>
       }
     />

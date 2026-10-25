@@ -1,50 +1,53 @@
-const MODULE_LABELS = { auth: 'Sign-in & security', organisation: 'Organisation', branch: 'Branches', role: 'Roles', user: 'Users', settings: 'Settings', customer: 'Customers', supplier: 'Suppliers', category: 'Categories', product: 'Products', rate: 'Metal rates', inventory: 'Inventory', approval: 'Approvals', oldgold: 'Old gold' };
+import { t } from '../../i18n/index.js';
+const MODULE_LABELS = { auth: t('Sign-in & security'), organisation: t('Organisation'), branch: t('Branches'), role: t('Roles'), user: t('Users'), settings: t('Settings'), customer: t('Customers'), supplier: t('Suppliers'), category: t('Categories'), product: t('Products'), rate: t('Metal rates'), inventory: t('Inventory'), approval: t('Approvals'), oldgold: t('Old gold') };
 
 export const moduleLabel = (module) => MODULE_LABELS[module] ?? module;
 
-const SECTION_LABELS = { invoice: 'invoice', tax: 'tax & GST', jewellery: 'jewellery', barcode: 'barcode', print: 'print' };
+const SECTION_LABELS = { invoice: 'invoice', tax: t('tax & GST'), jewellery: 'jewellery', barcode: 'barcode', print: 'print' };
 
 export function describeEntry(e) {
   const name = e.meta?.name ? ` “${e.meta.name}”` : '';
   switch (`${e.module}.${e.action}`) {
     case 'auth.login':
-      return 'Signed in';
+      return t('Signed in');
     case 'auth.login_failed':
-      return e.meta?.locked ? 'Wrong password — account locked temporarily' : 'Wrong password entered';
+      return e.meta?.locked ? t('Wrong password — account locked temporarily') : t('Wrong password entered');
     case 'auth.logout':
-      return 'Signed out';
+      return t('Signed out');
     case 'auth.session_revoke':
-      return e.meta?.all ? 'Signed out of all devices' : 'Signed out a device';
+      return e.meta?.all ? t('Signed out of all devices') : t('Signed out a device');
     case 'auth.password_change':
-      return 'Changed own password';
+      return t('Changed own password');
     case 'auth.password_reset':
-      return 'Reset password using email link';
+      return t('Reset password using email link');
     case 'auth.token_reuse':
-      return 'A reused sign-in token was blocked and the session ended';
+      return t('A reused sign-in token was blocked and the session ended');
     case 'user.password_reset':
-      return 'Set a temporary password for a user';
+      return t('Set a temporary password for a user');
     case 'settings.update':
-      return `Updated ${SECTION_LABELS[e.meta?.section] ?? ''} settings`;
+      return t('Updated {{value}} settings', { value: SECTION_LABELS[e.meta?.section] ?? '' });
     case 'rate.create':
-      return `Updated ${e.meta?.count ?? ''} metal rate(s)`;
+      return t('Updated {{value}} metal rate(s)', { value: e.meta?.count ?? '' });
     case 'organisation.create':
-      return 'Organisation created';
+      return t('Organisation created');
     default:
       return `${recordLabel(e)}${name}`;
   }
 }
 
-const RECORD_LABELS = { User: 'User', Branch: 'Branch', Role: 'Role', Organisation: 'Organisation', Settings: 'Settings', Session: 'Session', Customer: 'Customer', Supplier: 'Supplier', Category: 'Category', Product: 'Product', MetalRate: 'Metal rates', StockEntry: 'Stock entry', StockTransfer: 'Transfer', ApprovalRequest: 'Approval', OldGold: 'Old gold' };
+const RECORD_LABELS = { User: t('User'), Branch: t('Branch'), Role: t('Role'), Organisation: t('Organisation'), Settings: t('Settings'), Session: t('Session'), Customer: t('Customer'), Supplier: t('Supplier'), Category: t('Category'), Product: t('Product'), MetalRate: t('Metal rates'), StockEntry: t('Stock entry'), StockTransfer: t('Transfer'), ApprovalRequest: t('Approval'), OldGold: t('Old gold') };
 
 export const recordLabel = (e) => RECORD_LABELS[e.recordType] ?? moduleLabel(e.module);
 
-const FIELD_LABELS = { roleIds: 'roles', defaultBranchId: 'default branch', branchAccess: 'branch access', stateCode: 'state', logo: 'logo', categoryId: 'category', subcategoryId: 'subcategory', supplierId: 'supplier', branchId: 'branch', huid: 'HUID', pan: 'PAN', gstin: 'GSTIN' };
+const FIELD_LABELS = { roleIds: 'roles', defaultBranchId: t('default branch'), branchAccess: t('branch access'), stateCode: 'state', logo: 'logo', categoryId: 'category', subcategoryId: 'subcategory', supplierId: 'supplier', branchId: 'branch', huid: 'HUID', pan: 'PAN', gstin: 'GSTIN' };
 
 export function fieldLabel(field) {
   const last = field.split('.').pop();
-  if (FIELD_LABELS[last]) return FIELD_LABELS[last];
-  return last
-    .replace(/(Paise|Bps|Mm)$/, '')
-    .replace(/([a-z])([A-Z])/g, '$1 $2')
-    .toLowerCase();
+  if (FIELD_LABELS[last]) return t(FIELD_LABELS[last]);
+  return t(
+    last
+      .replace(/(Paise|Bps|Mm)$/, '')
+      .replace(/([a-z])([A-Z])/g, '$1 $2')
+      .toLowerCase(),
+  );
 }

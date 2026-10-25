@@ -22,15 +22,16 @@ import { applyServerErrors, getErrorCode, getErrorMessage } from '../../utils/er
 import { platformSignedIn } from '../platform/platformSlice.js';
 import { useForgotPasswordMutation, useLoginMutation, useResetPasswordMutation, useVerifyResetCodeMutation } from './authApi.js';
 import AuthCard from './AuthCard.jsx';
+import { t } from '../../i18n/index.js';
 
 const RESEND_SECONDS = 60;
 const CODE_MINUTES = 5;
-const STEPS = ['Your email', 'Enter code', 'New password'];
+const STEPS = [t('Your email'), t('Enter code'), t('New password')];
 const CODE_ERRORS = ['RESET_EXPIRED', 'RESET_LOCKED', 'RESET_INVALID'];
 
 const newPasswordSchema = z
   .object({ password: passwordSchema, confirmPassword: z.string() })
-  .refine((v) => v.password === v.confirmPassword, { path: ['confirmPassword'], message: 'Passwords do not match' });
+  .refine((v) => v.password === v.confirmPassword, { path: ['confirmPassword'], message: t('Passwords do not match') });
 
 /** Progress bar with the step names under it. */
 function Progress({ step }) {
@@ -81,8 +82,8 @@ export default function ForgotPasswordPage() {
 
   useEffect(() => {
     if (!cooldown) return undefined;
-    const t = setTimeout(() => setCooldown((c) => c - 1), 1000);
-    return () => clearTimeout(t);
+    const timer = setTimeout(() => setCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(timer);
   }, [cooldown]);
 
   const sendCode = async (address) => {
@@ -103,7 +104,7 @@ export default function ForgotPasswordPage() {
   });
 
   const onVerify = async (code = otp) => {
-    if (code.length !== 6) return setCodeError('Enter all 6 digits');
+    if (code.length !== 6) return setCodeError(t('Enter all 6 digits'));
     setCodeError(null);
     try {
       // Only checks the code; it stays valid for the new-password step.
@@ -134,7 +135,7 @@ export default function ForgotPasswordPage() {
     }
     try {
       const { accessToken, realm } = await login({ email, password, rememberMe: false }).unwrap();
-      toast.success('Password updated. You are signed in.');
+      toast.success(t('Password updated. You are signed in.'));
       // GuestOnly then opens the dashboard (or the admin panel for a Super Admin).
       if (realm === 'platform') {
         dispatch(platformSignedIn(accessToken));
@@ -143,7 +144,7 @@ export default function ForgotPasswordPage() {
         dispatch(signedIn(accessToken));
       }
     } catch (err) {
-      toast.error(`Password updated, but signing in failed: ${getErrorMessage(err)}`);
+      toast.error(t('Password updated, but signing in failed: {{getErrorMessage}}', { getErrorMessage: getErrorMessage(err) }));
     }
   });
 
@@ -152,7 +153,7 @@ export default function ForgotPasswordPage() {
       await sendCode(email);
       setOtp('');
       setCodeError(null);
-      toast.success(`A new code is on its way to ${email}`);
+      toast.success(t('A new code is on its way to {{email}}', { email }));
     } catch (err) {
       toast.error(getErrorMessage(err));
     }
@@ -160,29 +161,29 @@ export default function ForgotPasswordPage() {
 
   const backToSignIn = (
     <Link component={RouterLink} to="/login" color="accent" underline="hover" sx={{ fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
-      <ArrowBackRoundedIcon sx={{ fontSize: 16 }} /> Back to sign in
+      <ArrowBackRoundedIcon sx={{ fontSize: 16 }} /> {t('Back to sign in')}
     </Link>
   );
 
   if (step === 0) {
     return (
-      <AuthCard icon={KeyRoundedIcon} title="Forgot your password?" subtitle="No problem. Enter the email you sign in with and we will send you a 6-digit code to reset your password." footer={backToSignIn}>
+      <AuthCard icon={KeyRoundedIcon} title={t('Forgot your password?')} subtitle={t('No problem. Enter the email you sign in with and we will send you a 6-digit code to reset your password.')} footer={backToSignIn}>
         <Progress step={0} />
         <Stack component="form" spacing={2.5} noValidate onSubmit={onEmail}>
           <RHFTextField
             control={emailForm.control}
             name="email"
-            label="Email address"
+            label={t('Email address')}
             type="email"
             autoComplete="email"
             autoFocus
-            placeholder="you@example.com"
+            placeholder={t('you@example.com')}
             slotProps={{ input: { startAdornment: <InputAdornment position="start"><MailOutlineRoundedIcon fontSize="small" /></InputAdornment> } }}
           />
           <Button type="submit" variant="contained" size="large" loading={forgotState.isLoading} fullWidth sx={{ minHeight: 48 }}>
-            Send code
+            {t('Send code')}
           </Button>
-          <Note icon={ShieldOutlinedIcon}>The code works for {CODE_MINUTES} minutes and only once. After it, you choose a new password.</Note>
+          <Note icon={ShieldOutlinedIcon}>{t('The code works for {{CODE_MINUTES}} minutes and only once. After it, you choose a new password.', { CODE_MINUTES })}</Note>
         </Stack>
       </AuthCard>
     );
@@ -190,15 +191,15 @@ export default function ForgotPasswordPage() {
 
   if (step === 2) {
     return (
-      <AuthCard icon={LockResetRoundedIcon} title="Set a new password" subtitle={<>Choose a new password for <strong>{email}</strong>.</>} footer={backToSignIn}>
+      <AuthCard icon={LockResetRoundedIcon} title={t('Set a new password')} subtitle={<>{t('Choose a new password for {{email}}.', { email: <strong>{email}</strong> })}</>} footer={backToSignIn}>
         <Progress step={2} />
         <Stack component="form" spacing={2.5} noValidate onSubmit={onNewPassword}>
-          <PasswordField control={passwordForm.control} name="password" label="New password" autoComplete="new-password" autoFocus helperText="At least 6 characters" />
-          <PasswordField control={passwordForm.control} name="confirmPassword" label="Confirm new password" autoComplete="new-password" />
+          <PasswordField control={passwordForm.control} name="password" label={t('New password')} autoComplete="new-password" autoFocus helperText={t('At least 6 characters')} />
+          <PasswordField control={passwordForm.control} name="confirmPassword" label={t('Confirm new password')} autoComplete="new-password" />
           <Button type="submit" variant="contained" size="large" loading={resetState.isLoading || loginState.isLoading} fullWidth sx={{ minHeight: 48 }}>
-            Save password &amp; sign in
+            {t('Save password & sign in')}
           </Button>
-          <Note icon={ShieldOutlinedIcon}>Saving the new password signs you out on every other device.</Note>
+          <Note icon={ShieldOutlinedIcon}>{t('Saving the new password signs you out on every other device.')}</Note>
         </Stack>
       </AuthCard>
     );
@@ -207,15 +208,15 @@ export default function ForgotPasswordPage() {
   return (
     <AuthCard
       icon={MarkEmailReadOutlinedIcon}
-      title="Check your email"
+      title={t('Check your email')}
       subtitle={
         <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', flexWrap: 'wrap', rowGap: 0.5 }}>
-          <span>We sent a 6-digit code to</span>
+          <span>{t('We sent a 6-digit code to')}</span>
           <Chip
             size="small"
             label={email}
             onDelete={() => setStep(0)}
-            deleteIcon={<EditOutlinedIcon aria-label="Change email" />}
+            deleteIcon={<EditOutlinedIcon aria-label={t('Change email')} />}
             sx={{ fontWeight: 600, maxWidth: '100%' }}
           />
         </Stack>
@@ -241,21 +242,21 @@ export default function ForgotPasswordPage() {
           )}
         </Box>
         <Button type="submit" variant="contained" size="large" loading={verifyState.isLoading} disabled={otp.length !== 6} fullWidth sx={{ minHeight: 48 }}>
-          Verify code
+          {t('Verify code')}
         </Button>
         <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'center', gap: 0.75, flexWrap: 'wrap' }}>
           <Typography variant="body2" color="textSecondary">
-            Didn’t get it? Check spam, or
+            {t('Didn’t get it? Check spam, or')}
           </Typography>
           {cooldown > 0 ? (
-            <Chip size="small" label={`Resend in 0:${String(cooldown).padStart(2, '0')}`} sx={{ fontVariantNumeric: 'tabular-nums' }} />
+            <Chip size="small" label={t('Resend in 0:{{cooldown}}', { cooldown: String(cooldown).padStart(2, '0') })} sx={{ fontVariantNumeric: 'tabular-nums' }} />
           ) : (
             <Button size="small" onClick={resend} loading={forgotState.isLoading} sx={{ minHeight: 0, py: 0.25, fontWeight: 700 }}>
-              Resend code
+              {t('Resend code')}
             </Button>
           )}
         </Stack>
-        <Note icon={ShieldOutlinedIcon}>For your security the code expires in {CODE_MINUTES} minutes and stops working after 5 wrong tries.</Note>
+        <Note icon={ShieldOutlinedIcon}>{t('For your security the code expires in {{CODE_MINUTES}} minutes and stops working after 5 wrong tries.', { CODE_MINUTES })}</Note>
       </Stack>
     </AuthCard>
   );

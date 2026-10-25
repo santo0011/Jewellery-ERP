@@ -21,20 +21,24 @@ import { usePendingApprovalsQuery } from '../features/approvals/approvalApi.js';
 import { usePermissions, useSession } from '../hooks/usePermission.js';
 import { fonts, tokens } from '../theme/tokens.js';
 import { visibleNav } from './navConfig.js';
+import { t } from '../i18n/index.js';
 
 const s = tokens.sidebar;
 const INK = '#F7F3E8';
 
-/** An icon for each menu group's header, unless the group brings its own `icon` (any other group falls back to a folder). */
+/**
+ * An icon for each menu group's header, unless the group brings its own `icon` (any other group falls back to a
+ * folder). Keyed by the group's name as shown, which is in the app's language.
+ */
 const GROUP_ICON = {
-  Overview: InsightsOutlinedIcon,
-  Sales: PointOfSaleOutlinedIcon,
-  Stock: Inventory2OutlinedIcon,
-  Purchase: ShoppingBagOutlinedIcon,
-  Accounts: AccountBalanceWalletOutlinedIcon,
-  'HR & Payroll': BadgeOutlinedIcon,
-  Settings: SettingsOutlinedIcon,
-  'Users & access': AdminPanelSettingsOutlinedIcon,
+  [t('Overview')]: InsightsOutlinedIcon,
+  [t('Sales')]: PointOfSaleOutlinedIcon,
+  [t('Stock')]: Inventory2OutlinedIcon,
+  [t('Purchase')]: ShoppingBagOutlinedIcon,
+  [t('Accounts')]: AccountBalanceWalletOutlinedIcon,
+  [t('HR & Payroll')]: BadgeOutlinedIcon,
+  [t('Settings')]: SettingsOutlinedIcon,
+  [t('Users & access')]: AdminPanelSettingsOutlinedIcon,
 };
 
 function NavBadge({ collapsed }) {
@@ -236,7 +240,8 @@ function NavGroup({ group, open, active, onToggle, onNavigate, fixed = false }) 
       </List>
     );
   }
-  const id = `nav-group-${group.label.toLowerCase().replace(/\W+/g, '-')}`;
+  // From the group's first page: its name may not be in Latin letters.
+  const id = `nav-group-${(group.items[0]?.path ?? group.label).replace(/\W+/g, '-')}`;
   // The open group sits on a faint card so it reads as one block.
   return (
     <Box sx={{ mb: 0.5, mx: 0.75, py: 0.25, borderRadius: 2.5, transition: 'background-color 200ms ease', bgcolor: open || fixed ? 'rgba(255, 255, 255, 0.022)' : 'transparent' }}>
@@ -273,7 +278,7 @@ function Brand({ collapsed, panelName, logoUrl, brandName }) {
           boxShadow: '0 0 0 3px rgba(var(--brand-rgb), 0.08), 0 8px 22px rgba(0, 0, 0, 0.4)',
         }}
       >
-        {logoUrl ? <Box component="img" src={logoUrl} alt={`${name} logo`} sx={{ width: '100%', height: '100%', objectFit: 'contain', p: 0.5 }} /> : <DiamondMark size={24} />}
+        {logoUrl ? <Box component="img" src={logoUrl} alt={t('{{name}} logo', { name })} sx={{ width: '100%', height: '100%', objectFit: 'contain', p: 0.5 }} /> : <DiamondMark size={24} />}
       </Box>
       {!collapsed && (
         <Box sx={{ minWidth: 0 }}>
@@ -318,12 +323,12 @@ function NavSearch({ value, onChange }) {
         value={value}
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={(e) => e.key === 'Escape' && onChange('')}
-        placeholder="Find a page…"
-        inputProps={{ 'aria-label': 'Find a page' }}
+        placeholder={t('Find a page…')}
+        inputProps={{ 'aria-label': t('Find a page') }}
         sx={{ flex: 1, fontSize: { xs: '0.9375rem', sm: '0.8125rem' }, color: INK, '& input::placeholder': { color: s.muted, opacity: 1 } }}
       />
       {value && (
-        <IconButton size="small" onClick={() => onChange('')} aria-label="Clear search" sx={{ p: 0.25, color: s.muted, '&:hover': { color: INK } }}>
+        <IconButton size="small" onClick={() => onChange('')} aria-label={t('Clear search')} sx={{ p: 0.25, color: s.muted, '&:hover': { color: INK } }}>
           <CloseRoundedIcon sx={{ fontSize: 15 }} />
         </IconButton>
       )}
@@ -365,7 +370,7 @@ function WorkspaceCard({ name, caption, collapsed }) {
  * `groups` overrides the store navigation (used by the Super Admin panel); `fixedGroups` shows every group open, without folding; `searchable` forces the Find-a-page box on or off (default: shown past 8 pages);
  * `panelName` sits under the logo; `organisationName` and `caption` fill the footer card.
  */
-export default function Sidebar({ collapsed = false, onToggleCollapse, onClose, onNavigate, organisationName, caption = 'Organisation', panelName = 'Organisation Panel', logoUrl = null, groups: groupsProp, fixedGroups = false, searchable }) {
+export default function Sidebar({ collapsed = false, onToggleCollapse, onClose, onNavigate, organisationName, caption = t('Organisation'), panelName = t('Organisation Panel'), logoUrl = null, groups: groupsProp, fixedGroups = false, searchable }) {
   const { data: session } = useSession();
   const storeGroups = visibleNav(usePermissions(), { allBranches: session?.user?.allBranches ?? true });
   const groups = groupsProp ?? storeGroups;
@@ -432,11 +437,11 @@ export default function Sidebar({ collapsed = false, onToggleCollapse, onClose, 
         <Brand collapsed={collapsed} panelName={panelName} logoUrl={logoUrl} brandName={organisationName} />
         {/* Desktop: fold the sidebar. Phone / tablet menu: the same button closes it. */}
         {(onToggleCollapse || onClose) && (
-          <Tooltip title={onClose ? 'Close menu' : collapsed ? 'Expand sidebar' : 'Collapse sidebar'} placement="right">
+          <Tooltip title={onClose ? t('Close menu') : collapsed ? t('Expand sidebar') : t('Collapse sidebar')} placement="right">
             <IconButton
               size="small"
               onClick={onClose ?? onToggleCollapse}
-              aria-label={onClose ? 'Close menu' : collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              aria-label={onClose ? t('Close menu') : collapsed ? t('Expand sidebar') : t('Collapse sidebar')}
               sx={{ width: onClose ? 34 : 28, height: onClose ? 34 : 28, flexShrink: 0, borderRadius: '50%', color: s.muted, border: `1px solid ${s.divider}`, bgcolor: s.tile, '&:hover': { color: s.active, borderColor: 'rgba(var(--brand-rgb), 0.4)', bgcolor: 'rgba(var(--brand-rgb), 0.08)' } }}
             >
               {collapsed ? <ChevronRightRoundedIcon sx={{ fontSize: 18 }} /> : <ChevronLeftRoundedIcon sx={{ fontSize: 18 }} />}
@@ -450,7 +455,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse, onClose, 
 
       <Box
         component="nav"
-        aria-label="Main menu"
+        aria-label={t('Main menu')}
         sx={{
           flex: 1,
           overflowY: 'auto',
@@ -478,7 +483,7 @@ export default function Sidebar({ collapsed = false, onToggleCollapse, onClose, 
           results.length ? (
             results.map((group) => <NavGroup key={group.label} group={group} fixed active={containsActive(group)} onNavigate={onNavigate} />)
           ) : (
-            <Typography sx={{ px: 3, py: 2, fontSize: '0.8125rem', color: s.muted, textAlign: 'center' }}>No page called “{query.trim()}”.</Typography>
+            <Typography sx={{ px: 3, py: 2, fontSize: '0.8125rem', color: s.muted, textAlign: 'center' }}>{t('No page called “{{query}}”.', { query: query.trim() })}</Typography>
           )
         ) : (
           groups.map((group) => <NavGroup key={group.label} group={group} fixed={fixedGroups} open={isOpen(group)} active={containsActive(group)} onToggle={() => toggleGroup(group.label)} onNavigate={onNavigate} />)

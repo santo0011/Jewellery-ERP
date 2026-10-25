@@ -586,6 +586,8 @@ export async function returnItems(id, { productIds, refundMode, reason }) {
 
     const source = { docType: 'sales_return', docId: ret._id, docNo: creditNoteNo };
     await moveProducts({ type: 'sales_return', productIds, branchId: sale.branchId, source, businessDate: today.businessDate, note: reason }, { session });
+    // A delivered order piece that comes back is ordinary stock now, listed in Products.
+    await Product.updateMany({ _id: { $in: productIds }, orderId: { $ne: null } }, { $set: { orderId: null } }, { session });
     const when = { date: today.now, businessDate: today.businessDate, financialYear: today.financialYear };
     const refundAccount = PAYMENT_ACCOUNT[refundMode];
     await postJournal(

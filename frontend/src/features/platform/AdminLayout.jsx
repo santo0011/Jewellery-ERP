@@ -16,28 +16,30 @@ import { useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
 import { Outlet, useNavigate } from 'react-router';
 import ConfirmDialog from '../../components/ConfirmDialog.jsx';
+import LanguageSwitcher from '../../components/LanguageSwitcher.jsx';
 import { applyDefaultBrand, applyRememberedBrand } from '../../theme/brandMemory.js';
 import Sidebar from '../../layouts/Sidebar.jsx';
-import { usePlatformLogoutMutation, usePlatformMeQuery } from './platformApi.js';
+import { usePlatformLogoutMutation, usePlatformMeQuery, useSetPlatformLanguageMutation } from './platformApi.js';
 import { platformSessionEnded } from './platformSlice.js';
+import { syncAccountLanguage, t } from '../../i18n/index.js';
 
 const SIDEBAR_WIDTH = 260;
 const SIDEBAR_COLLAPSED = 72;
 const COLLAPSE_KEY = 'jerp.adminSidebarCollapsed';
 
 const NAV = [
-  { label: 'Dashboard', pinned: true, items: [{ label: 'Dashboard', path: '/admin', icon: SpaceDashboardOutlinedIcon, end: true }] },
-  { label: 'Platform', icon: HubOutlinedIcon, items: [{ label: 'Organisations', path: '/admin/organisations', icon: CorporateFareOutlinedIcon }] },
+  { label: t('Dashboard'), pinned: true, items: [{ label: t('Dashboard'), path: '/admin', icon: SpaceDashboardOutlinedIcon, end: true }] },
+  { label: t('Platform'), icon: HubOutlinedIcon, items: [{ label: t('Organisations'), path: '/admin/organisations', icon: CorporateFareOutlinedIcon }] },
   {
-    label: 'Billing',
+    label: t('Billing'),
     icon: CurrencyRupeeOutlinedIcon,
     items: [
-      { label: 'Plans', path: '/admin/plans', icon: WorkspacePremiumOutlinedIcon },
-      { label: 'Payments', path: '/admin/payments', icon: PaymentsOutlinedIcon },
+      { label: t('Plans'), path: '/admin/plans', icon: WorkspacePremiumOutlinedIcon },
+      { label: t('Payments'), path: '/admin/payments', icon: PaymentsOutlinedIcon },
     ],
   },
-  { label: 'Reports', icon: AnalyticsOutlinedIcon, items: [{ label: 'Reports', path: '/admin/reports', icon: QueryStatsOutlinedIcon }] },
-  { label: 'Settings', items: [{ label: 'Email (SMTP)', path: '/admin/settings/email', icon: AlternateEmailOutlinedIcon }] },
+  { label: t('Reports'), icon: AnalyticsOutlinedIcon, items: [{ label: t('Reports'), path: '/admin/reports', icon: QueryStatsOutlinedIcon }] },
+  { label: t('Settings'), items: [{ label: t('Email (SMTP)'), path: '/admin/settings/email', icon: AlternateEmailOutlinedIcon }] },
 ];
 
 const initialsOf = (name = '') =>
@@ -52,12 +54,12 @@ const initialsOf = (name = '') =>
 function AdminAccountMenu({ me, onSignOut }) {
   const navigate = useNavigate();
   const [anchor, setAnchor] = useState(null);
-  const name = me?.name ?? 'Super Admin';
+  const name = me?.name ?? t('Super Admin');
   return (
     <>
       <ButtonBase
         onClick={(e) => setAnchor(e.currentTarget)}
-        aria-label="Account menu"
+        aria-label={t('Account menu')}
         sx={{ flexShrink: 0, gap: 1, p: { xs: 0.25, lg: 0.5 }, pr: { lg: 1 }, borderRadius: 999, border: { lg: 1 }, borderColor: { lg: 'divider' }, bgcolor: { lg: 'background.paper' }, transition: 'border-color 160ms ease', '&:hover': { borderColor: 'rgba(var(--brand-rgb), 0.5)' } }}
       >
         <Box sx={{ p: '2px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--brand-light), var(--brand) 55%, var(--brand-deep))' }}>
@@ -68,7 +70,7 @@ function AdminAccountMenu({ me, onSignOut }) {
             {name}
           </Typography>
           <Typography noWrap sx={{ fontSize: '0.6875rem', color: 'text.secondary', lineHeight: 1.3 }}>
-            Super Admin
+            {t('Super Admin')}
           </Typography>
         </Box>
         <ExpandMoreRoundedIcon sx={{ display: { xs: 'none', lg: 'block' }, fontSize: 18, color: 'text.secondary' }} />
@@ -84,7 +86,7 @@ function AdminAccountMenu({ me, onSignOut }) {
           <ListItemIcon>
             <ManageAccountsOutlinedIcon fontSize="small" />
           </ListItemIcon>
-          My profile
+          {t('My profile')}
         </MenuItem>
         <MenuItem
           onClick={() => {
@@ -96,7 +98,7 @@ function AdminAccountMenu({ me, onSignOut }) {
           <ListItemIcon sx={{ color: 'inherit' }}>
             <LogoutRoundedIcon fontSize="small" />
           </ListItemIcon>
-          Sign out
+          {t('Sign out')}
         </MenuItem>
       </Menu>
     </>
@@ -122,6 +124,13 @@ export default function AdminLayout() {
   const [collapsed, setCollapsed] = useState(readCollapsed);
   const dispatch = useDispatch();
   const { data: me } = usePlatformMeQuery();
+  // The panel's language is kept on the Super Admin account too, so it follows them to other devices.
+  const [saveLanguage] = useSetPlatformLanguageMutation();
+  const saveLanguageToAccount = (code) => saveLanguage(code).unwrap();
+  useEffect(() => {
+    if (me?.id) syncAccountLanguage(me.language, saveLanguageToAccount);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [me?.id]);
   const [logout, { isLoading: signingOut }] = usePlatformLogoutMutation();
   const [confirmSignOut, setConfirmSignOut] = useState(false);
   // Once the page scrolls, the top bar lifts off it with a soft shadow.
@@ -149,13 +158,13 @@ export default function AdminLayout() {
     <Box sx={{ display: 'flex', minHeight: '100dvh', bgcolor: 'background.default' }}>
       {desktop ? (
         <Box component="aside" sx={{ width, flexShrink: 0, transition: 'width 160ms ease' }}>
-          <Box sx={{ position: 'fixed', top: 0, bottom: 0, width, transition: 'width 160ms ease', zIndex: (t) => t.zIndex.drawer }}>
-            <Sidebar groups={NAV} searchable collapsed={collapsed} onToggleCollapse={toggleCollapsed} organisationName={me?.name ?? 'Super Admin'} caption="Super Admin" panelName="Super Admin Panel" />
+          <Box sx={{ position: 'fixed', top: 0, bottom: 0, width, transition: 'width 160ms ease', zIndex: (theme) => theme.zIndex.drawer }}>
+            <Sidebar groups={NAV} searchable collapsed={collapsed} onToggleCollapse={toggleCollapsed} organisationName={me?.name ?? t('Super Admin')} caption={t(t('Super Admin'))} panelName={t('Super Admin Panel')} />
           </Box>
         </Box>
       ) : (
         <Drawer open={mobileOpen} onClose={() => setMobileOpen(false)} slotProps={{ paper: { sx: { width: SIDEBAR_WIDTH, border: 0, bgcolor: 'transparent', boxShadow: 'none' } } }}>
-          <Sidebar groups={NAV} searchable onNavigate={() => setMobileOpen(false)} onClose={() => setMobileOpen(false)} organisationName={me?.name ?? 'Super Admin'} caption="Super Admin" panelName="Super Admin Panel" />
+          <Sidebar groups={NAV} searchable onNavigate={() => setMobileOpen(false)} onClose={() => setMobileOpen(false)} organisationName={me?.name ?? t('Super Admin')} caption={t(t('Super Admin'))} panelName={t('Super Admin Panel')} />
         </Drawer>
       )}
 
@@ -178,17 +187,18 @@ export default function AdminLayout() {
         >
           <Toolbar sx={{ gap: { xs: 1, sm: 1.5 }, minHeight: { xs: 60, md: 72 }, px: { xs: 1.25, sm: 2, md: 3 } }}>
             {!desktop && (
-              <IconButton onClick={() => setMobileOpen(true)} aria-label="Open navigation" sx={{ ml: -0.25, width: 40, height: 40, borderRadius: 2.5, border: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
+              <IconButton onClick={() => setMobileOpen(true)} aria-label={t('Open navigation')} sx={{ ml: -0.25, width: 40, height: 40, borderRadius: 2.5, border: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
                 <MenuRoundedIcon sx={{ fontSize: 21 }} />
               </IconButton>
             )}
             <Box sx={{ flex: 1, minWidth: 0 }} />
+            <LanguageSwitcher onSave={saveLanguageToAccount} compact={!desktop} />
             <AdminAccountMenu me={me} onSignOut={() => setConfirmSignOut(true)} />
             <ConfirmDialog
               open={confirmSignOut}
-              title="Sign out?"
-              message="You will be signed out of the Super Admin panel on this device."
-              confirmLabel="Sign out"
+              title={t('Sign out?')}
+              message={t('You will be signed out of the Super Admin panel on this device.')}
+              confirmLabel={t('Sign out')}
               danger
               loading={signingOut}
               onConfirm={signOut}

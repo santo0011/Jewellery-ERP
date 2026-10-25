@@ -30,6 +30,7 @@ import ClampText from '../../components/ClampText.jsx';
 import { EmptyState, ErrorState, LoadingState } from '../../components/StateViews.jsx';
 import { fonts, tokens } from '../../theme/tokens.js';
 import { useReportListQuery } from './reportApi.js';
+import { t } from '../../i18n/index.js';
 
 const s = tokens.sidebar;
 
@@ -45,12 +46,12 @@ const GROUP_ORDER = ['Sales', 'GST', 'Customers & orders', 'Purchases', 'Invento
 
 /** One accent per group, kept within the gold-and-jewel palette. */
 const GROUP_ACCENT = {
-  Sales: { color: '#C9A227', tint: 'rgba(201, 162, 39, 0.12)', caption: 'Invoices, days, categories and payment modes' },
-  'Customers & orders': { color: '#2F7D6D', tint: 'rgba(47, 125, 109, 0.12)', caption: 'Who owes, who buys most, what is on order' },
-  Purchases: { color: '#5B4B8A', tint: 'rgba(91, 75, 138, 0.12)', caption: 'Supplier bills, GST input and what is still owed' },
-  Inventory: { color: '#2F5D7C', tint: 'rgba(47, 93, 124, 0.12)', caption: 'Stock by metal, category, age and movement' },
-  GST: { color: '#B4532A', tint: 'rgba(180, 83, 42, 0.12)', caption: 'CGST, SGST and IGST — collected, reversed and payable' },
-  'HR & payroll': { color: '#7A5C1E', tint: 'rgba(122, 92, 30, 0.12)', caption: 'Salaries, attendance and advances' },
+  Sales: { color: '#C9A227', tint: 'rgba(201, 162, 39, 0.12)', caption: t('Invoices, days, categories and payment modes') },
+  'Customers & orders': { color: '#2F7D6D', tint: 'rgba(47, 125, 109, 0.12)', caption: t('Who owes, who buys most, what is on order') },
+  Purchases: { color: '#5B4B8A', tint: 'rgba(91, 75, 138, 0.12)', caption: t('Supplier bills, GST input and what is still owed') },
+  Inventory: { color: '#2F5D7C', tint: 'rgba(47, 93, 124, 0.12)', caption: t('Stock by metal, category, age and movement') },
+  GST: { color: '#B4532A', tint: 'rgba(180, 83, 42, 0.12)', caption: t('CGST, SGST and IGST — collected, reversed and payable') },
+  'HR & payroll': { color: '#7A5C1E', tint: 'rgba(122, 92, 30, 0.12)', caption: t('Salaries, attendance and advances') },
 };
 
 const REPORT_ICONS = {
@@ -78,7 +79,7 @@ const REPORT_ICONS = {
   'advances-outstanding': RequestQuoteOutlinedIcon,
 };
 
-const FILTER_LABELS = { range: 'Date range', month: 'Monthly', asOf: 'As on date', branch: 'By branch', status: 'By status' };
+const FILTER_LABELS = { range: t('Date range'), month: t('Monthly'), asOf: t('As on date'), branch: t('By branch'), status: 'By status' };
 
 
 /** One count in the banner: a big number over a small label. */
@@ -121,20 +122,20 @@ function Hero({ total, groupCount, q, onSearch }) {
           </Box>
           <Box sx={{ minWidth: 0 }}>
             <Typography component="h1" sx={{ fontFamily: fonts.display, fontWeight: 600, fontSize: { xs: 24, sm: 28, md: 30 }, lineHeight: 1.05, letterSpacing: '0.01em' }}>
-              Reports
+              {t('Reports')}
             </Typography>
             <Typography sx={{ display: { xs: 'block', sm: 'none' }, mt: 0.25, color: s.muted, fontSize: '0.75rem', fontWeight: 600 }}>
-              {total} reports · {groupCount} categories
+              {t('{{total}} reports · {{groupCount}} categories', { total, groupCount })}
             </Typography>
             <Typography sx={{ display: { xs: 'none', sm: 'block' }, mt: 0.25, color: s.text, fontSize: '0.8125rem', lineHeight: 1.45 }}>
-              Sales, purchases, GST, stock, customers and staff — every number your showroom runs on.
+              {t('Sales, purchases, GST, stock, customers and staff — every number your showroom runs on.')}
             </Typography>
           </Box>
         </Stack>
 
         <Box sx={{ display: { xs: 'none', sm: 'grid' }, gridTemplateColumns: 'repeat(2, auto)', gap: 1 }}>
-          <HeroStat value={total} label="Reports" />
-          <HeroStat value={groupCount} label="Categories" />
+          <HeroStat value={total} label={t('Reports')} />
+          <HeroStat value={groupCount} label={t('Categories')} />
         </Box>
 
         <Box
@@ -153,7 +154,7 @@ function Hero({ total, groupCount, q, onSearch }) {
           }}
         >
           <SearchRoundedIcon sx={{ color: s.muted, fontSize: 18 }} />
-          <InputBase value={q} onChange={(e) => onSearch(e.target.value)} placeholder="Find a report — GST, stock, salary…" inputProps={{ 'aria-label': 'Find a report' }} sx={{ flex: 1, minWidth: 0, color: '#F7F3E8', fontSize: '0.875rem', '& input::placeholder': { color: s.muted, opacity: 1 } }} />
+          <InputBase value={q} onChange={(e) => onSearch(e.target.value)} placeholder={t('Find a report — GST, stock, salary…')} inputProps={{ 'aria-label': t('Find a report') }} sx={{ flex: 1, minWidth: 0, color: '#F7F3E8', fontSize: '0.875rem', '& input::placeholder': { color: s.muted, opacity: 1 } }} />
         </Box>
       </Box>
     </Box>
@@ -167,7 +168,7 @@ function GroupTabs({ groups, active, onChange, total }) {
     // the row, and on narrow ones it scrolls sideways. The vertical padding keeps the selected tab's shadow unclipped.
     <Box
       role="toolbar"
-      aria-label="Report categories"
+      aria-label={t('Report categories')}
       sx={{
         display: 'flex',
         flexWrap: 'nowrap',
@@ -181,13 +182,13 @@ function GroupTabs({ groups, active, onChange, total }) {
         '&::-webkit-scrollbar': { display: 'none' },
       }}
     >
-      {tabs.map((t) => {
-        const selected = active === t.name;
-        const Icon = GROUP_ICONS[t.name];
+      {tabs.map((tab) => {
+        const selected = active === tab.name;
+        const Icon = GROUP_ICONS[tab.name];
         return (
           <ButtonBase
-            key={t.name}
-            onClick={() => onChange(t.name)}
+            key={tab.name}
+            onClick={() => onChange(tab.name)}
             aria-pressed={selected}
             sx={{
               flex: { xs: '0 0 auto', xl: '1 0 auto' },
@@ -209,9 +210,9 @@ function GroupTabs({ groups, active, onChange, total }) {
             }}
           >
             {Icon && <Icon sx={{ fontSize: 15 }} />}
-            {t.name === 'All' ? 'All reports' : t.name}
+            {tab.name === 'All' ? t('All reports') : t(tab.name)}
             <Box component="span" sx={{ minWidth: 18, height: 18, px: 0.5, borderRadius: 9, display: 'inline-grid', placeItems: 'center', fontSize: '0.625rem', fontWeight: 700, bgcolor: selected ? 'rgba(23, 23, 23, 0.14)' : 'action.hover' }}>
-              {t.count}
+              {tab.count}
             </Box>
           </ButtonBase>
         );
@@ -260,23 +261,23 @@ export function ReportCard({ report, accent, to, icon }) {
         </Box>
         <Box sx={{ minWidth: 0, flex: 1 }}>
           <ClampText lines={1} lineHeight={1.3} sx={{ fontWeight: 650, fontSize: { xs: '0.8125rem', sm: '0.875rem' }, color: 'text.primary' }}>
-            {report.title}
+            {t(report.title)}
           </ClampText>
           <ClampText lines={2} reserve lineHeight={1.4} sx={{ fontSize: { xs: '0.71875rem', sm: '0.75rem' }, color: 'text.secondary', mt: 0.25 }}>
-            {report.description}
+            {t(report.description)}
           </ClampText>
         </Box>
       </Stack>
       <Stack direction="row" sx={{ mt: 1.25, pt: 1, borderTop: 1, borderColor: 'divider', alignItems: 'center', justifyContent: 'space-between', gap: 1 }}>
         <Stack direction="row" spacing={0.5} sx={{ minWidth: 0, overflow: 'hidden' }}>
-          {tags.map((t) => (
-            <Box key={t} component="span" sx={{ px: 0.75, py: 0.125, borderRadius: 1, fontSize: '0.625rem', fontWeight: 600, whiteSpace: 'nowrap', color: 'text.secondary', bgcolor: 'action.hover' }}>
-              {t}
+          {tags.map((tag) => (
+            <Box key={tag} component="span" sx={{ px: 0.75, py: 0.125, borderRadius: 1, fontSize: '0.625rem', fontWeight: 600, whiteSpace: 'nowrap', color: 'text.secondary', bgcolor: 'action.hover' }}>
+              {tag}
             </Box>
           ))}
         </Stack>
         <Box className="report-open" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, flexShrink: 0, fontSize: '0.75rem', fontWeight: 650, color: 'text.secondary' }}>
-          Open
+          {t('Open')}
           <ArrowForwardRoundedIcon sx={{ fontSize: 14 }} />
         </Box>
       </Stack>
@@ -295,7 +296,7 @@ export function GroupHeader({ name, count, icon, accent: givenAccent }) {
       <Box sx={{ minWidth: 0 }}>
         <Stack direction="row" spacing={1} sx={{ alignItems: 'baseline' }}>
           <Typography component="h2" sx={{ fontFamily: fonts.display, fontWeight: 600, fontSize: 26, lineHeight: 1.1 }}>
-            {name}
+            {t(name)}
           </Typography>
           <Typography sx={{ fontSize: '0.8125rem', fontWeight: 600, color: 'text.secondary' }}>{count}</Typography>
         </Stack>
@@ -331,7 +332,7 @@ export default function ReportsPage() {
   if (error) return <ErrorState error={error} onRetry={refetch} />;
 
   const needle = q.trim().toLowerCase();
-  const matches = data.filter((r) => !needle || `${r.title} ${r.description} ${r.group}`.toLowerCase().includes(needle));
+  const matches = data.filter((r) => !needle || `${r.title} ${r.description} ${r.group} ${t(r.title)} ${t(r.description)} ${t(r.group)}`.toLowerCase().includes(needle));
   const allGroups = GROUP_ORDER.map((g) => ({ name: g, count: matches.filter((r) => r.group === g).length })).filter((g) => g.count);
   const current = allGroups.some((g) => g.name === active) ? active : 'All'; // a search can hide the selected group
   const groups = GROUP_ORDER.filter((g) => current === 'All' || g === current)
@@ -342,10 +343,10 @@ export default function ReportsPage() {
     <>
       <Hero total={data.length} groupCount={new Set(data.map((r) => r.group)).size} q={q} onSearch={setQ} />
       <GroupTabs groups={allGroups} active={current} onChange={setActive} total={matches.length} />
-      {!groups.length && <EmptyState title="No report matches" description={`Nothing found for “${q.trim()}”. Try another word, like GST or stock.`} />}
+      {!groups.length && <EmptyState title={t('No report matches')} description={t('Nothing found for “{{q}}”. Try another word, like GST or stock.', { q: q.trim() })} />}
       <Stack spacing={4.5}>
         {groups.map((g) => (
-          <Box key={g.name} component="section" aria-label={g.name}>
+          <Box key={g.name} component="section" aria-label={t(g.name)}>
             <GroupHeader name={g.name} count={g.reports.length} />
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))', lg: 'repeat(3, minmax(0, 1fr))' }, gap: 1.5 }}>
               {g.reports.map((r) => (

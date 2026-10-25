@@ -118,6 +118,43 @@ describe('opening stock', () => {
   });
 });
 
+describe('editing opening gold', () => {
+  it('corrects stock and journals until the gold is used, then locks', async () => {
+    const ctx = await setup();
+    await api().put('/api/v1/settings/approvals').set(bearer(ctx.owner.token)).send({ stockAdjustments: false });
+    const add = (lines) => api().post('/api/v1/inventory/opening').set(bearer(ctx.owner.token)).send({ branchId: ctx.ho, metalLines: lines });
+    const edit = (id, lines) => api().put(`/api/v1/inventory/opening/${id}`).set(bearer(ctx.owner.token)).send({ metalLines: lines });
+    const pool = async () => (await api().get('/api/v1/inventory/summary').set(bearer(ctx.owner.token))).body.data.metalPools.find((p) => p.kind === 'old_gold');
+
+    const entry = (await add([{ metal: 'gold', purity: 916, kind: 'old_gold', grossWeightMg: 20000, valuePaise: 10000000 }])).body.data;
+    expect(entry.edit).toEqual({ allowed: true, reason: null });
+
+    const fixed = await edit(entry.id, [{ metal: 'gold', purity: 916, kind: 'old_gold', grossWeightMg: 25000, valuePaise: 12500000 }]);
+    expect(fixed.status).toBe(200);
+    expect(fixed.body.data.totals.grossMg).toBe(25000);
+    expect(await pool()).toMatchObject({ grossMg: 25000, valuePaise: 12500000 });
+    // The old journal is reversed and a new one posted: the books hold only the corrected value.
+    const js = await journals(ctx, 'stock_entry');
+    const net = (key) => js.flatMap((j) => j.lines).filter((l) => l.key === key).reduce((n, l) => n + l.debitPaise - l.creditPaise, 0);
+    expect(net('inventory')).toBe(12500000);
+    expect(net('opening_equity')).toBe(-12500000);
+
+    // Some of the gold goes out: the entry locks.
+    await api().post('/api/v1/inventory/adjustments').set(bearer(ctx.owner.token)).send({ branchId: ctx.ho, reason: 'weight_correction', metalLines: [{ metal: 'gold', purity: 916, kind: 'old_gold', direction: 'out', grossWeightMg: 1000 }], note: 'Scale recheck' });
+    const listed = (await api().get('/api/v1/inventory/opening').set(bearer(ctx.owner.token))).body.data.find((e) => e.id === entry.id);
+    expect(listed.edit.allowed).toBe(false);
+    const refused = await edit(entry.id, [{ metal: 'gold', purity: 916, kind: 'old_gold', grossWeightMg: 30000 }]);
+    expect(refused.status).toBe(409);
+    expect(refused.body.error.code).toBe('OPENING_LOCKED');
+    expect((await pool()).grossMg).toBe(24000);
+
+    // Entries with pieces are not edited here.
+    const p = await draft(ctx);
+    const withPieces = (await api().post('/api/v1/inventory/opening').set(bearer(ctx.owner.token)).send({ branchId: ctx.ho, productIds: [p.id] })).body.data;
+    expect(withPieces.edit.allowed).toBe(false);
+  });
+});
+
 describe('stock adjustments', () => {
   it('waits for approval, blocks self-approval by non-admins, and posts on approval', async () => {
     const ctx = await setup();

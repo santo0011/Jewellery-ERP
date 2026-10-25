@@ -19,6 +19,7 @@ import { fonts } from '../../theme/tokens.js';
 import { applyServerErrors, getErrorMessage } from '../../utils/errors.js';
 import PermissionMatrix, { ALL_BRANCHES_NOTE, permissionGroups } from './PermissionMatrix.jsx';
 import { useCreateRoleMutation, useDuplicateRoleMutation, useRoleQuery, useUpdateRoleMutation } from './roleApi.js';
+import { t } from '../../i18n/index.js';
 
 const EMPTY = { name: '', description: '', permissions: [] };
 const BRANCH_AVAILABLE = AVAILABLE_PERMISSIONS.filter((p) => !isOrganisationLevel(p));
@@ -42,7 +43,7 @@ function Coverage({ permissions, branchRole }) {
     <Box>
       <Stack direction="row" sx={{ alignItems: 'baseline', justifyContent: 'space-between', mb: 0.75 }}>
         <Typography variant="overline" color="textSecondary">
-          Access
+          {t('Access')}
         </Typography>
         <Typography sx={{ fontFamily: fonts.display, fontWeight: 700, fontSize: 26, lineHeight: 1, fontVariantNumeric: 'tabular-nums' }}>
           {on}
@@ -61,7 +62,7 @@ function Coverage({ permissions, branchRole }) {
           return (
             <Box key={g.name} sx={{ display: 'grid', gridTemplateColumns: '96px 1fr 38px', gap: 1.25, alignItems: 'center' }}>
               <Typography variant="caption" sx={{ fontWeight: 600, color: n ? 'text.primary' : 'text.secondary' }} noWrap>
-                {g.name}
+                {t(g.name)}
               </Typography>
               <Bar value={(n / keys.length) * 100} height={5} />
               <Typography variant="caption" color="textSecondary" sx={{ textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>
@@ -98,19 +99,19 @@ export default function RoleEditorPage() {
     if (role) reset({ name: role.name, description: role.description ?? '', permissions: role.permissions });
   }, [role, reset]);
 
-  if (!isNew && isLoading) return <LoadingState label="Loading role" />;
+  if (!isNew && isLoading) return <LoadingState label={t('Loading role')} />;
   if (!isNew && error) return <ErrorState error={error} onRetry={refetch} />;
 
   const onSubmit = handleSubmit(async (values) => {
     try {
       if (isNew) {
         const created = await createRole(values).unwrap();
-        toast.success('Role created');
+        toast.success(t('Role created'));
         navigate('/settings/roles', { replace: true });
       } else {
         const updated = await updateRole({ id, ...values }).unwrap();
         reset({ name: updated.name, description: updated.description ?? '', permissions: updated.permissions });
-        toast.success('Role updated');
+        toast.success(t('Role updated'));
       }
     } catch (err) {
       if (!applyServerErrors(err, setError)) toast.error(getErrorMessage(err));
@@ -120,7 +121,7 @@ export default function RoleEditorPage() {
   const duplicate = async () => {
     try {
       const copy = await duplicateRole(id).unwrap();
-      toast.success(`Created "${copy.name}"`);
+      toast.success(t('Created "{{name}}"', { name: copy.name }));
       navigate(`/settings/roles/${copy.id}`);
     } catch (err) {
       toast.error(getErrorMessage(err));
@@ -136,15 +137,15 @@ export default function RoleEditorPage() {
   return (
     <Box component="form" noValidate onSubmit={onSubmit}>
       <PageHeader
-        title={isNew ? 'New role' : role.name}
-        subtitle={isNew ? 'Choose exactly what people with this role can do.' : role.description}
-        back={{ to: '/settings/roles', label: 'Roles & permissions' }}
+        title={isNew ? t('New role') : role.isSystem ? t(role.name) : role.name}
+        subtitle={isNew ? t('Choose exactly what people with this role can do.') : role.isSystem ? t(role.description) : role.description}
+        back={{ to: '/settings/roles', label: t('Roles & permissions') }}
         actions={
           !isNew &&
           role.isSystem &&
           canCreate && (
             <Button variant="outlined" color="secondary" startIcon={<ContentCopyRoundedIcon />} onClick={duplicate} loading={duplicateState.isLoading}>
-              Duplicate as a new role
+              {t('Duplicate as a new role')}
             </Button>
           )
         }
@@ -153,8 +154,8 @@ export default function RoleEditorPage() {
       {!isNew && role.isSystem && (
         <Alert severity="info" sx={{ mb: 2.5 }}>
           {role.fullAccess
-            ? 'Organisation Admin has full access to everything and cannot be changed.'
-            : `A default role${role.customised ? ' — its permissions have been changed for your business' : ''}. Turn permissions on or off and save to change what it allows; it cannot be deleted.`}
+            ? t('Organisation Admin has full access to everything and cannot be changed.')
+            : (role.customised ? t('A default role — its permissions have been changed for your business. Turn permissions on or off and save to change what it allows; it cannot be deleted.') : t('A default role. Turn permissions on or off and save to change what it allows; it cannot be deleted.'))}
         </Alert>
       )}
 
@@ -166,12 +167,12 @@ export default function RoleEditorPage() {
                 <ShieldOutlinedIcon sx={{ fontSize: 21 }} />
               </Box>
               <Box sx={{ minWidth: 0 }}>
-                <Typography sx={{ fontWeight: 700, fontSize: '0.9375rem' }}>{role?.fullAccess ? 'Full access' : 'Role details'}</Typography>
+                <Typography sx={{ fontWeight: 700, fontSize: '0.9375rem' }}>{role?.fullAccess ? t('Full access') : t('Role details')}</Typography>
                 {!isNew && (
                   <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', color: 'text.secondary' }}>
                     <GroupOutlinedIcon sx={{ fontSize: 15 }} />
                     <Typography variant="caption">
-                      {role.userCount} user{role.userCount === 1 ? '' : 's'} with this role
+                      {(role.userCount === 1 ? t('{{userCount}} user with this role', { userCount: role.userCount }) : t('{{userCount}} users with this role', { userCount: role.userCount }))}
                     </Typography>
                   </Stack>
                 )}
@@ -179,21 +180,21 @@ export default function RoleEditorPage() {
             </Stack>
             <CardContent sx={{ p: 2.5 }}>
               <Stack spacing={2}>
-                <RHFTextField control={control} name="name" label="Role name" disabled={readOnly} />
-                <RHFTextField control={control} name="description" label="Description" multiline minRows={2} disabled={readOnly} />
+                <RHFTextField control={control} name="name" label={t('Role name')} disabled={readOnly} />
+                <RHFTextField control={control} name="description" label={t('Description')} multiline minRows={2} disabled={readOnly} />
                 <Divider />
                 <Coverage permissions={permissions} branchRole={branchRole} />
                 {!readOnly && (
                   <Stack direction="row" spacing={1}>
                     <Button size="small" variant="outlined" color="secondary" fullWidth onClick={() => setAll(true)}>
-                      Allow everything
+                      {t('Allow everything')}
                     </Button>
                     <Button size="small" variant="outlined" color="secondary" fullWidth onClick={() => setAll(false)}>
-                      Clear all
+                      {t('Clear all')}
                     </Button>
                   </Stack>
                 )}
-                <Controller name="permissions" control={control} render={({ fieldState }) => fieldState.error && <Alert severity="error">{fieldState.error.message}</Alert>} />
+                <Controller name="permissions" control={control} render={({ fieldState }) => fieldState.error && <Alert severity="error">{t(fieldState.error.message)}</Alert>} />
               </Stack>
             </CardContent>
           </Card>
@@ -204,9 +205,9 @@ export default function RoleEditorPage() {
             size="small"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Find a permission — discount, cost price, payroll…"
+            placeholder={t('Find a permission — discount, cost price, payroll…')}
             sx={{ mb: 1, '& .MuiInputBase-root': { bgcolor: 'background.paper' } }}
-            slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchRoundedIcon fontSize="small" /></InputAdornment> }, htmlInput: { 'aria-label': 'Find a permission' } }}
+            slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchRoundedIcon fontSize="small" /></InputAdornment> }, htmlInput: { 'aria-label': t('Find a permission') } }}
           />
           <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', mb: 2, color: 'text.secondary' }}>
             <PublicOutlinedIcon sx={{ fontSize: 15 }} />
@@ -242,14 +243,14 @@ export default function RoleEditorPage() {
         >
           {formState.isDirty && (
             <Typography variant="body2" color="textSecondary" sx={{ display: { xs: 'none', md: 'block' }, mr: 'auto' }}>
-              Unsaved changes
+              {t('Unsaved changes')}
             </Typography>
           )}
           <Button color="secondary" onClick={() => navigate('/settings/roles')} disabled={saving}>
-            {formState.isDirty ? 'Cancel' : 'Back'}
+            {formState.isDirty ? t('Cancel') : t('Back')}
           </Button>
           <Button type="submit" variant="contained" loading={saving} disabled={!isNew && !formState.isDirty}>
-            {isNew ? 'Create role' : 'Save changes'}
+            {isNew ? t('Create role') : t('Save changes')}
           </Button>
         </Paper>
       )}

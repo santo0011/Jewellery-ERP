@@ -25,8 +25,31 @@ const orderItemSchema = new mongoose.Schema(
     notes: { type: String, default: null },
     // The finished, tagged piece made for this line (set by "Finish item"); it is what goes on the bill.
     productId: { type: ObjectId, ref: 'Product', default: null },
+    // How it was made: metal from the customer's gold and from shop stock, the karigar's charge, and what it cost.
+    make: { type: Mixed, default: null },
   },
   { _id: false },
+);
+
+/** Gold (or silver) the customer handed over for this order, valued that day and held as part of the advance. */
+const customerMetalSchema = new mongoose.Schema(
+  {
+    receiptNo: { type: String, required: true },
+    description: { type: String, default: null },
+    metal: { type: String, required: true },
+    purity: { type: Number, required: true },
+    grossWeightMg: { type: Number, required: true },
+    lessWeightMg: { type: Number, default: 0 },
+    netWeightMg: { type: Number, required: true },
+    fineWeightMg: { type: Number, required: true },
+    ratePerGramPaise: { type: Number, required: true },
+    valuePaise: { type: Number, required: true },
+    // Given back to the customer (order cancelled or entered by mistake).
+    returnedAt: { type: Date, default: null },
+    at: { type: Date, required: true },
+    by: { type: ObjectId, ref: 'User', required: true },
+  },
+  { _id: true },
 );
 
 /** Money received against the order. A negative amount is a refund on cancellation. */
@@ -58,6 +81,9 @@ const orderSchema = new mongoose.Schema(
     estimatedPaise: { type: Number, default: 0 },
     advances: { type: [advanceSchema], default: [] },
     advancePaise: { type: Number, default: 0 },
+    customerMetal: { type: [customerMetalSchema], default: [] },
+    // Customer gold not yet used, handed back when the order was cancelled: [{ metal, purity, netWeightMg, valuePaise, at }].
+    customerMetalReturned: { type: [Mixed], default: [] },
     expectedDate: { type: String, default: null },
     priority: { type: String, enum: ['normal', 'urgent'], default: 'normal' },
     // Reference photos of the design the customer wants.

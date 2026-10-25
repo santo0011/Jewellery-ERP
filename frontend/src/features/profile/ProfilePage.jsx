@@ -43,10 +43,11 @@ import { useOrganisationQuery, useUpdateOrganisationMutation } from '../settings
 import { toFormValues as organisationFormValues } from '../settings/OrganisationPage.jsx';
 import LogoCard from '../settings/LogoCard.jsx';
 import ViewTabs from '../../components/ViewTabs.jsx';
+import { getLocale, t, tValue } from '../../i18n/index.js';
 
 const passwordFormSchema = changePasswordSchema
   .and(z.object({ confirmPassword: z.string() }))
-  .refine((v) => v.newPassword === v.confirmPassword, { path: ['confirmPassword'], message: 'Passwords do not match' });
+  .refine((v) => v.newPassword === v.confirmPassword, { path: ['confirmPassword'], message: t('Passwords do not match') });
 
 function Section({ title, description, children }) {
   return (
@@ -76,7 +77,7 @@ function ProfileForm({ user }) {
     try {
       const res = await updateProfile(values).unwrap();
       reset({ name: res.name, mobile: res.mobile });
-      toast.success('Profile updated');
+      toast.success(t('Profile updated'));
     } catch (err) {
       if (!applyServerErrors(err, setError)) toast.error(getErrorMessage(err));
     }
@@ -84,12 +85,12 @@ function ProfileForm({ user }) {
 
   return (
     <Stack component="form" spacing={2} noValidate onSubmit={onSubmit}>
-      <TextField label="Email" value={user.email} disabled helperText="Contact your administrator to change your sign-in email" />
-      <RHFTextField control={control} name="name" label="Full name" autoComplete="name" />
-      <RHFTextField control={control} name="mobile" label="Mobile" autoComplete="tel" slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 10 } }} />
+      <TextField label={t('Email')} value={user.email} disabled helperText={t('Contact your administrator to change your sign-in email')} />
+      <RHFTextField control={control} name="name" label={t('Full name')} autoComplete="name" />
+      <RHFTextField control={control} name="mobile" label={t('Mobile')} autoComplete="tel" slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 10 } }} />
       <Stack direction="row" sx={{ justifyContent: 'flex-end' }}>
         <Button type="submit" variant="contained" loading={isLoading} disabled={!formState.isDirty}>
-          Save changes
+          {t('Save changes')}
         </Button>
       </Stack>
     </Stack>
@@ -112,7 +113,7 @@ export function ChangePasswordForm({ firstLogin = false }) {
     try {
       await changePassword({ currentPassword: noCurrent ? '' : currentPassword, newPassword }).unwrap();
       reset();
-      toast.success('Password changed. Other devices have been signed out.');
+      toast.success(t('Password changed. Other devices have been signed out.'));
     } catch (err) {
       if (!applyServerErrors(err, setError)) toast.error(getErrorMessage(err));
     }
@@ -122,16 +123,16 @@ export function ChangePasswordForm({ firstLogin = false }) {
     <Stack component="form" spacing={2} noValidate onSubmit={onSubmit}>
       {firstLogin ? null : viaCode ? (
         <Alert severity="info" variant="outlined">
-          You signed in with a code sent to your email, so the current password is not needed. Set a new one below.
+          {t('You signed in with a code sent to your email, so the current password is not needed. Set a new one below.')}
         </Alert>
       ) : (
-        <PasswordField control={control} name="currentPassword" label="Current password" autoComplete="current-password" />
+        <PasswordField control={control} name="currentPassword" label={t('Current password')} autoComplete="current-password" />
       )}
-      <PasswordField control={control} name="newPassword" label="New password" autoComplete="new-password" helperText="At least 6 characters" />
-      <PasswordField control={control} name="confirmPassword" label="Confirm new password" autoComplete="new-password" />
+      <PasswordField control={control} name="newPassword" label={t('New password')} autoComplete="new-password" helperText={t('At least 6 characters')} />
+      <PasswordField control={control} name="confirmPassword" label={t('Confirm new password')} autoComplete="new-password" />
       <Stack direction="row" sx={{ justifyContent: 'flex-end' }}>
         <Button type="submit" variant="contained" loading={isLoading}>
-          {firstLogin ? 'Set password' : 'Change password'}
+          {firstLogin ? t('Set password') : t('Change password')}
         </Button>
       </Stack>
     </Stack>
@@ -152,7 +153,7 @@ function SessionsList() {
   const revoke = async (id) => {
     try {
       await revokeSession(id).unwrap();
-      toast.success('Device signed out');
+      toast.success(t('Device signed out'));
     } catch (err) {
       toast.error(getErrorMessage(err));
     }
@@ -184,15 +185,15 @@ function SessionsList() {
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>
                     {describeDevice(s.userAgent)}
                   </Typography>
-                  {s.current && <Chip label="This device" size="small" color="primary" sx={{ height: 20, fontSize: '0.6875rem', fontWeight: 600 }} />}
+                  {s.current && <Chip label={t('This device')} size="small" color="primary" sx={{ height: 20, fontSize: '0.6875rem', fontWeight: 600 }} />}
                 </Stack>
                 <Typography variant="caption" color="textSecondary" sx={{ display: 'block', lineHeight: 1.4, mt: 0.25 }}>
-                  {s.ip ?? 'Unknown IP'} · Last active {formatDateTime(s.lastUsedAt)}
+                  {s.ip ?? t('Unknown IP')} {t('· Last active {{lastUsedAt}}', { lastUsedAt: formatDateTime(s.lastUsedAt) })}
                 </Typography>
               </Box>
               {!s.current && (
                 <Button size="small" color="error" onClick={() => revoke(s.id)} loading={revoking && originalArgs === s.id} sx={{ flexShrink: 0 }}>
-                  Sign out
+                  {t('Sign out')}
                 </Button>
               )}
             </Stack>
@@ -201,14 +202,14 @@ function SessionsList() {
       </Stack>
       <Stack direction="row" sx={{ justifyContent: 'flex-end', mt: 1.5 }}>
         <Button color="error" variant="outlined" onClick={() => setConfirmAll(true)}>
-          Sign out of all devices
+          {t('Sign out of all devices')}
         </Button>
       </Stack>
       <ConfirmDialog
         open={confirmAll}
-        title="Sign out everywhere?"
-        message="You will be signed out on every device, including this one."
-        confirmLabel="Sign out all"
+        title={t('Sign out everywhere?')}
+        message={t('You will be signed out on every device, including this one.')}
+        confirmLabel={t('Sign out all')}
         danger
         loading={loggingOut}
         onConfirm={signOutEverywhere}
@@ -251,11 +252,11 @@ function ProfileHero({ session }) {
               {user.mobile ? ` · ${user.mobile}` : ''}
             </Typography>
             <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 0.75, mt: 1 }}>
-              {user.isOwner && <Chip label="Owner" size="small" sx={{ background: tokens.sidebar.goldGradient, color: 'var(--brand-contrast)', fontWeight: 600 }} />}
+              {user.isOwner && <Chip label={t('Owner')} size="small" sx={{ background: tokens.sidebar.goldGradient, color: 'var(--brand-contrast)', fontWeight: 600 }} />}
               {user.roles.map((r) => (
-                <Chip key={r.id} label={r.name} size="small" variant="outlined" sx={{ color: tokens.sidebar.text, borderColor: 'rgba(var(--brand-rgb), 0.45)' }} />
+                <Chip key={r.id} label={tValue(r.name)} size="small" variant="outlined" sx={{ color: tokens.sidebar.text, borderColor: 'rgba(var(--brand-rgb), 0.45)' }} />
               ))}
-              {user.branchLogin && <Chip label="Branch login" size="small" variant="outlined" sx={{ color: tokens.sidebar.text, borderColor: tokens.sidebar.divider }} />}
+              {user.branchLogin && <Chip label={t('Branch login')} size="small" variant="outlined" sx={{ color: tokens.sidebar.text, borderColor: tokens.sidebar.divider }} />}
             </Stack>
           </Box>
           </Stack>
@@ -266,7 +267,7 @@ function ProfileHero({ session }) {
               </Typography>
               {activeBranch && (
                 <Typography variant="caption" noWrap component="div" sx={{ color: tokens.sidebar.muted }}>
-                  Working in {activeBranch.name}
+                  {t('Working in {{name}}', { name: activeBranch.name })}
                 </Typography>
               )}
             </Box>
@@ -277,16 +278,16 @@ function ProfileHero({ session }) {
               onClick={() => setConfirmSignOut(true)}
               sx={{ mt: { sm: 0.5 }, flexShrink: 0, color: '#FFFFFF', borderColor: 'rgba(255, 255, 255, 0.25)', '&:hover': { borderColor: tokens.brand.main, bgcolor: 'rgba(var(--brand-rgb), 0.1)' } }}
             >
-              Sign out
+              {t('Sign out')}
             </Button>
           </Stack>
         </Stack>
       </CardContent>
       <ConfirmDialog
         open={confirmSignOut}
-        title="Sign out?"
-        message="You will be signed out on this device. Any unsaved changes will be lost."
-        confirmLabel="Sign out"
+        title={t('Sign out?')}
+        message={t('You will be signed out on this device. Any unsaved changes will be lost.')}
+        confirmLabel={t('Sign out')}
         danger
         loading={signingOut}
         onConfirm={signOut}
@@ -303,23 +304,23 @@ function ProfileStats({ session }) {
   const planHint = !subscription
     ? null
     : subscription.expired
-      ? 'Expired'
+      ? t('Expired')
       : subscription.daysLeft != null
-        ? `${subscription.daysLeft} day${subscription.daysLeft === 1 ? '' : 's'} left`
+        ? (subscription.daysLeft === 1 ? t('{{daysLeft}} day left', { daysLeft: subscription.daysLeft }) : t('{{daysLeft}} days left', { daysLeft: subscription.daysLeft }))
         : subscription.status;
 
   const stats = [
-    { icon: AccessTimeRoundedIcon, label: 'Last sign-in', value: formatDate(user.lastLoginAt), hint: user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }) : null, tone: 'blue' },
-    { icon: DevicesRoundedIcon, label: 'Active devices', value: sessions ? sessions.length : '—', hint: 'Signed in right now', tone: 'green' },
+    { icon: AccessTimeRoundedIcon, label: t('Last sign-in'), value: formatDate(user.lastLoginAt), hint: user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleTimeString(getLocale(), { hour: 'numeric', minute: '2-digit' }) : null, tone: 'blue' },
+    { icon: DevicesRoundedIcon, label: t('Active devices'), value: sessions ? sessions.length : '—', hint: t('Signed in right now'), tone: 'green' },
     {
       icon: StorefrontOutlinedIcon,
-      label: 'Branch access',
-      value: user.allBranches ? 'All branches' : `${branches.length} branch${branches.length === 1 ? '' : 'es'}`,
+      label: t('Branch access'),
+      value: user.allBranches ? t('All branches') : (branches.length === 1 ? t('{{count}} branch', { count: branches.length }) : t('{{count}} branches', { count: branches.length })),
       hint: branches.map((b) => b.name).join(', '),
       tone: 'amber',
     },
     // The plan is the organisation's: only people with access to all branches see it.
-    subscription && user.allBranches && { icon: WorkspacePremiumOutlinedIcon, label: 'Plan', value: subscription.planName, hint: planHint, tone: subscription.expired ? 'red' : 'gold' },
+    subscription && user.allBranches && { icon: WorkspacePremiumOutlinedIcon, label: t('Plan'), value: subscription.planName, hint: planHint, tone: subscription.expired ? 'red' : 'gold' },
   ].filter(Boolean);
 
   return (
@@ -348,7 +349,7 @@ function BusinessNameDialog({ open, onClose }) {
   const onSubmit = handleSubmit(async ({ name }) => {
     try {
       await update({ ...organisationFormValues(organisation), name }).unwrap();
-      toast.success('Business name updated');
+      toast.success(t('Business name updated'));
       onClose();
     } catch (err) {
       if (!applyServerErrors(err, setError)) toast.error(getErrorMessage(err));
@@ -358,18 +359,18 @@ function BusinessNameDialog({ open, onClose }) {
   return (
     <Dialog open={open} onClose={saving ? undefined : onClose} maxWidth="xs" fullWidth>
       <form noValidate onSubmit={onSubmit}>
-        <DialogTitle sx={{ fontWeight: 600 }}>Edit business name</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 600 }}>{t('Edit business name')}</DialogTitle>
         <DialogContent>
           {isLoading && <LoadingState />}
           {error && <Alert severity="error">{getErrorMessage(error)}</Alert>}
-          {organisation && <RHFTextField control={control} name="name" label="Business name" autoFocus helperText="Shown in the app, on invoices and on reports" sx={{ mt: 1 }} />}
+          {organisation && <RHFTextField control={control} name="name" label={t('Business name')} autoFocus helperText={t('Shown in the app, on invoices and on reports')} sx={{ mt: 1 }} />}
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button color="secondary" onClick={onClose} disabled={saving}>
-            Cancel
+            {t('Cancel')}
           </Button>
           <Button type="submit" variant="contained" loading={saving} disabled={!organisation || !formState.isDirty}>
-            Save
+            {t('Save')}
           </Button>
         </DialogActions>
       </form>
@@ -377,7 +378,7 @@ function BusinessNameDialog({ open, onClose }) {
   );
 }
 
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const MONTHS = [t('January'), t('February'), t('March'), t('April'), t('May'), t('June'), t('July'), t('August'), t('September'), t('October'), t('November'), t('December')];
 
 /** One fact with its icon: label on top, value below (wraps; blank shows "Not added"). */
 function InfoTile({ icon: Icon, label, value, mono }) {
@@ -389,7 +390,7 @@ function InfoTile({ icon: Icon, label, value, mono }) {
       <Box sx={{ minWidth: 0 }}>
         <Typography sx={{ fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'text.secondary' }}>{label}</Typography>
         <Typography variant="body2" sx={{ fontWeight: 600, wordBreak: 'break-word', color: value ? 'text.primary' : 'text.disabled', ...(mono && value && { fontVariantNumeric: 'tabular-nums', letterSpacing: '0.02em' }) }}>
-          {value || 'Not added'}
+          {value || t('Not added')}
         </Typography>
       </Box>
     </Stack>
@@ -422,28 +423,28 @@ function OrganisationCard({ session }) {
             {logoUrl ? <Box component="img" src={logoUrl} alt="" sx={{ maxWidth: '82%', maxHeight: '82%', objectFit: 'contain' }} /> : <DiamondMark size={30} />}
           </Box>
           <Box sx={{ flex: 1, minWidth: 0 }}>
-            <Typography sx={{ fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--brand-strong)' }}>Organisation</Typography>
+            <Typography sx={{ fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--brand-strong)' }}>{t('Organisation')}</Typography>
             <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', minWidth: 0 }}>
               <Typography variant="h4" noWrap sx={{ fontWeight: 700 }}>
                 {org.name}
               </Typography>
               {canEditOrganisation && (
-                <Tooltip title="Edit business name">
-                  <IconButton size="small" onClick={() => setEditingName(true)} aria-label="Edit business name" sx={{ width: 34, height: 34 }}>
+                <Tooltip title={t('Edit business name')}>
+                  <IconButton size="small" onClick={() => setEditingName(true)} aria-label={t('Edit business name')} sx={{ width: 34, height: 34 }}>
                     <EditOutlinedIcon sx={{ fontSize: 16 }} />
                   </IconButton>
                 </Tooltip>
               )}
             </Stack>
             <Typography variant="body2" color="textSecondary" noWrap>
-              {org.legalName && org.legalName !== org.name ? org.legalName : 'As shown on invoices and reports'}
+              {org.legalName && org.legalName !== org.name ? org.legalName : t('As shown on invoices and reports')}
             </Typography>
           </Box>
         </Stack>
         <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 0.75, mt: 2 }}>
-          <Chip size="small" label={org.gstin ? `GSTIN ${org.gstin}` : 'GSTIN not added'} color={org.gstin ? 'primary' : 'default'} variant={org.gstin ? 'filled' : 'outlined'} sx={{ fontWeight: 600 }} />
+          <Chip size="small" label={org.gstin ? t('GSTIN {{gstin}}', { gstin: org.gstin }) : t('GSTIN not added')} color={org.gstin ? 'primary' : 'default'} variant={org.gstin ? 'filled' : 'outlined'} sx={{ fontWeight: 600 }} />
           {stateCode && <Chip size="small" variant="outlined" label={stateName(stateCode)} />}
-          {full?.createdAt && <Chip size="small" variant="outlined" label={`Since ${formatDate(full.createdAt)}`} />}
+          {full?.createdAt && <Chip size="small" variant="outlined" label={t('Since {{createdAt}}', { createdAt: formatDate(full.createdAt) })} />}
         </Stack>
         {canEditOrganisation && <BusinessNameDialog open={editingName} onClose={() => setEditingName(false)} />}
       </Box>
@@ -455,10 +456,10 @@ function OrganisationCard({ session }) {
           <Stack spacing={2.5}>
             {full && (
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', sm: '1fr 1fr' }, gap: 2.25 }}>
-                <InfoTile icon={PhoneOutlinedIcon} label="Phone" value={full.phone} mono />
-                <InfoTile icon={MailOutlineRoundedIcon} label="Email" value={full.email} />
-                <InfoTile icon={ReceiptLongOutlinedIcon} label="GSTIN" value={full.gstin} mono />
-                <InfoTile icon={BadgeOutlinedIcon} label="PAN" value={full.pan} mono />
+                <InfoTile icon={PhoneOutlinedIcon} label={t('Phone')} value={full.phone} mono />
+                <InfoTile icon={MailOutlineRoundedIcon} label={t('Email')} value={full.email} />
+                <InfoTile icon={ReceiptLongOutlinedIcon} label={t('GSTIN')} value={full.gstin} mono />
+                <InfoTile icon={BadgeOutlinedIcon} label={t('PAN')} value={full.pan} mono />
               </Box>
             )}
 
@@ -470,7 +471,7 @@ function OrganisationCard({ session }) {
                     <LocationOnOutlinedIcon sx={{ fontSize: 18 }} />
                   </Box>
                   <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Typography sx={{ fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'text.secondary' }}>Registered address</Typography>
+                    <Typography sx={{ fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'text.secondary' }}>{t('Registered address')}</Typography>
                     {hasAddress ? (
                       <>
                         {street && (
@@ -487,13 +488,13 @@ function OrganisationCard({ session }) {
                       </>
                     ) : (
                       <Typography variant="body2" color="textSecondary">
-                        {region ? `${region} · ` : ''}Full address not added yet.
+                        {region ? `${region} · ` : ''}{t('Full address not added yet.')}
                       </Typography>
                     )}
                   </Box>
                   {canEditOrganisation && (
                     <Button size="small" onClick={() => navigate('/settings/organisation')} sx={{ flexShrink: 0 }}>
-                      {hasAddress ? 'Change' : 'Add address'}
+                      {hasAddress ? t('Change') : t('Add address')}
                     </Button>
                   )}
                 </Stack>
@@ -503,9 +504,9 @@ function OrganisationCard({ session }) {
             {/* Accounting basics. */}
             <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', borderRadius: 2, border: 1, borderColor: 'divider', overflow: 'hidden' }}>
               {[
-                ['Currency', org.currency ?? 'INR'],
-                ['Financial year', `${MONTHS[fyStart].slice(0, 3)} – ${MONTHS[(fyStart + 11) % 12].slice(0, 3)}`],
-                ['Timezone', (org.timezone ?? '').replace('Asia/', '') || '—'],
+                [t('Currency'), org.currency ?? 'INR'],
+                [t('Financial year'), `${MONTHS[fyStart].slice(0, 3)} – ${MONTHS[(fyStart + 11) % 12].slice(0, 3)}`],
+                [t('Timezone'), (org.timezone ?? '').replace('Asia/', '') || '—'],
               ].map(([label, value], n) => (
                 <Box key={label} sx={{ px: 1.5, py: 1.25, textAlign: 'center', borderLeft: n ? 1 : 0, borderColor: 'divider' }}>
                   <Typography variant="caption" color="textSecondary" sx={{ display: 'block' }}>
@@ -520,7 +521,7 @@ function OrganisationCard({ session }) {
 
             {canEditOrganisation && (
               <Button variant="outlined" startIcon={<EditOutlinedIcon />} onClick={() => navigate('/settings/organisation')} sx={{ alignSelf: 'flex-start' }}>
-                Edit organisation details
+                {t('Edit organisation details')}
               </Button>
             )}
           </Stack>
@@ -540,10 +541,10 @@ export default function ProfilePage() {
 
   return (
     <>
-      <PageHeader title="Profile & security" subtitle="Manage your personal details, password and signed-in devices." />
+      <PageHeader title={t('Profile & security')} subtitle={t('Manage your personal details, password and signed-in devices.')} />
       <Stack spacing={{ xs: 2, sm: 3 }}>
         <ProfileHero session={session} />
-        {session.user.mustChangePassword && <Alert severity="warning">Your administrator has asked you to change your password. Please set a new one below.</Alert>}
+        {session.user.mustChangePassword && <Alert severity="warning">{t('Your administrator has asked you to change your password. Please set a new one below.')}</Alert>}
         <ProfileStats session={session} />
 
         {/* The rest in three tabs, so the page stays short (the open one is kept in the address). */}
@@ -552,18 +553,18 @@ export default function ProfilePage() {
             value={tab}
             onChange={setTab}
             sx={{ mb: { xs: 2, sm: 2.5 }, maxWidth: { sm: 520 } }}
-            items={[{ value: 'account', label: 'Account' }, showOrganisation && { value: 'organisation', label: 'Organisation' }, { value: 'devices', label: 'Devices' }]}
+            items={[{ value: 'account', label: t('Account') }, showOrganisation && { value: 'organisation', label: t('Organisation') }, { value: 'devices', label: t('Devices') }]}
           />
 
           {tab === 'account' && (
             <Grid container spacing={{ xs: 2, sm: 3 }}>
               <Grid size={{ xs: 12, md: 6 }}>
-                <Section title="Personal details">
+                <Section title={t('Personal details')}>
                   <ProfileForm user={session.user} />
                 </Section>
               </Grid>
               <Grid size={{ xs: 12, md: 6 }}>
-                <Section title="Password" description="Changing your password signs you out on other devices.">
+                <Section title={t('Password')} description={t('Changing your password signs you out on other devices.')}>
                   <ChangePasswordForm />
                 </Section>
               </Grid>
@@ -572,7 +573,7 @@ export default function ProfilePage() {
 
           {tab === 'devices' && (
             <Box sx={{ maxWidth: 820 }}>
-              <Section title="Signed-in devices" description="Sign out of any device you do not recognise.">
+              <Section title={t('Signed-in devices')} description={t('Sign out of any device you do not recognise.')}>
                 <SessionsList />
               </Section>
             </Box>
@@ -586,8 +587,8 @@ export default function ProfilePage() {
               <Grid size={{ xs: 12, lg: 5 }}>
                 <LogoCard
                   canEdit={canEditOrganisation}
-                  title="Organisation logo"
-                  caption={canEditOrganisation ? 'Shown at the top of the sidebar and printed on invoices. PNG, JPEG or WebP up to 1 MB; a square logo looks best.' : 'Shown at the top of the sidebar and printed on invoices. Ask an administrator to change it.'}
+                  title={t('Organisation logo')}
+                  caption={canEditOrganisation ? t('Shown at the top of the sidebar and printed on invoices. PNG, JPEG or WebP up to 1 MB; a square logo looks best.') : t('Shown at the top of the sidebar and printed on invoices. Ask an administrator to change it.')}
                 />
               </Grid>
             </Grid>

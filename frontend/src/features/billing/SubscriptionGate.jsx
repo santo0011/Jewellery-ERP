@@ -5,14 +5,15 @@ import { Navigate, Link as RouterLink, useLocation } from 'react-router';
 import { usePermission } from '../../hooks/usePermission.js';
 import { tokens } from '../../theme/tokens.js';
 import { formatDateTime } from '../../utils/format.js';
+import { t } from '../../i18n/index.js';
 
 const BILLING_PATH = '/settings/subscription';
 const REMIND_DAYS = 3;
 
 /** The red strip on top of the Dashboard in the last days before the plan or free period ends. */
 function EndingSoonAlert({ subscription: s, canSee }) {
-  const when = s.daysLeft === 0 ? 'today' : s.daysLeft === 1 ? 'tomorrow' : `in ${s.daysLeft} days`;
-  const what = s.status === 'trial' ? 'Your free period' : `Your ${s.planName ?? ''} subscription`;
+  const when = s.daysLeft === 0 ? t('today') : s.daysLeft === 1 ? t('tomorrow') : t('in {{daysLeft}} days', { daysLeft: s.daysLeft });
+  const what = s.status === 'trial' ? t('Your free period') : t('Your {{value}} subscription', { value: s.planName ?? '' });
   return (
     <Box
       role="alert"
@@ -53,31 +54,31 @@ function EndingSoonAlert({ subscription: s, canSee }) {
         </Box>
         <Box sx={{ minWidth: 0, flex: 1 }}>
           <Typography sx={{ fontWeight: 800, fontSize: { xs: '0.875rem', sm: '1.0625rem' }, lineHeight: 1.25 }}>
-            {what} ends {when}
+            {t('{{what}} ends {{when}}', { what, when })}
           </Typography>
           <Typography sx={{ fontSize: { xs: '0.6875rem', sm: '0.8125rem' }, opacity: 0.88, mt: 0.25, lineHeight: 1.4 }}>
             {/* The exact moment it ends, so "today" is clear (e.g. 13 Oct 2026, 03:45 pm). */}
-            {s.endsAt ? `Ends on ${formatDateTime(s.endsAt)}. ` : ''}
+            {s.endsAt ? t('Ends on {{endsAt}}. ', { endsAt: formatDateTime(s.endsAt) }) : ''}
             {/* Phones show only the end time, to keep the strip short. */}
             <Box component="span" sx={{ display: { xs: canSee ? 'none' : 'inline', sm: 'inline' } }}>
-              {canSee ? 'Renew now so billing, stock and reports keep running without a break.' : 'Please ask your shop owner to renew so the software keeps running.'}
+              {canSee ? t('Renew now so billing, stock and reports keep running without a break.') : t('Please ask your shop owner to renew so the software keeps running.')}
             </Box>
           </Typography>
         </Box>
         {/* Phones: the days left as a small pill beside the title. */}
         <Box sx={{ display: { xs: 'block', sm: 'none' }, flexShrink: 0, textAlign: 'center', px: 0.75, py: 0.375, borderRadius: 1.5, bgcolor: 'rgba(0, 0, 0, 0.2)', minWidth: 44 }}>
           <Typography sx={{ fontWeight: 800, fontSize: 16, lineHeight: 1.1 }}>{s.daysLeft}</Typography>
-          <Typography sx={{ fontSize: '0.5625rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', opacity: 0.85, whiteSpace: 'nowrap' }}>{s.daysLeft === 1 ? 'day left' : 'days left'}</Typography>
+          <Typography sx={{ fontSize: '0.5625rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', opacity: 0.85, whiteSpace: 'nowrap' }}>{s.daysLeft === 1 ? t('day left') : t('days left')}</Typography>
         </Box>
       </Stack>
       <Stack direction="row" sx={{ gap: 1.5, alignItems: 'center', flexShrink: 0, zIndex: 1 }}>
         <Box sx={{ display: { xs: 'none', sm: 'block' }, textAlign: 'center', px: 1.5, py: 0.5, borderRadius: 2, bgcolor: 'rgba(0, 0, 0, 0.18)', minWidth: 64 }}>
           <Typography sx={{ fontWeight: 800, fontSize: 24, lineHeight: 1.1 }}>{s.daysLeft}</Typography>
-          <Typography sx={{ fontSize: '0.625rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', opacity: 0.85 }}>{s.daysLeft === 1 ? 'day left' : 'days left'}</Typography>
+          <Typography sx={{ fontSize: '0.625rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', opacity: 0.85 }}>{s.daysLeft === 1 ? t('day left') : t('days left')}</Typography>
         </Box>
         {canSee && (
           <Button component={RouterLink} to={BILLING_PATH} variant="contained" sx={{ bgcolor: '#fff', color: '#9B2C2C', fontWeight: 800, px: 2.5, boxShadow: 'none', '&:hover': { bgcolor: '#FFF1F1', boxShadow: 'none' }, flex: { xs: 1, sm: 'none' }, minHeight: { xs: 38, sm: 40 }, py: { xs: 0.5, sm: 0.75 } }}>
-            {s.status === 'trial' ? 'Choose a plan' : 'Renew now'}
+            {s.status === 'trial' ? t('Choose a plan') : t('Renew now')}
           </Button>
         )}
       </Stack>
@@ -107,20 +108,20 @@ export default function SubscriptionGate({ subscription, children }) {
               <LockOutlinedIcon />
             </Box>
             <Typography variant="h3" sx={{ mb: 1 }}>
-              Your subscription has ended
+              {t('Your subscription has ended')}
             </Typography>
             <Typography color="textSecondary" sx={{ mb: 3 }}>
               {subscription.planName ? `${subscription.planName} ` : ''}
-              {subscription.status === 'expired' && subscription.endsAt ? `ended on ${formatDateTime(subscription.endsAt)}. ` : ''}
-              Your data is safe — renew to keep billing, stock and reports running.
+              {subscription.status === 'expired' && subscription.endsAt ? t('ended on {{endsAt}}. ', { endsAt: formatDateTime(subscription.endsAt) }) : ''}
+              {t('Your data is safe — renew to keep billing, stock and reports running.')}
             </Typography>
             {canSee ? (
               <Button component={RouterLink} to={BILLING_PATH} variant="contained" size="large">
-                Renew now
+                {t('Renew now')}
               </Button>
             ) : (
               <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                Please ask your shop owner to renew the subscription.
+                {t('Please ask your shop owner to renew the subscription.')}
               </Typography>
             )}
           </CardContent>

@@ -19,6 +19,7 @@ import { useBranchesQuery, useBranchUsageQuery, useSetBranchStatusMutation } fro
 import BranchFormDrawer from './BranchFormDrawer.jsx';
 import BranchLoginDrawer from './BranchLoginDrawer.jsx';
 import { useDeleteStatus } from '../../services/recordApi.js';
+import { t } from '../../i18n/index.js';
 
 const smallChip = { height: 20, fontSize: '0.6875rem' };
 
@@ -53,7 +54,7 @@ export default function BranchesPage() {
     try {
       const next = confirm.status === 'active' ? 'inactive' : 'active';
       await setBranchStatus({ id: confirm._id, status: next }).unwrap();
-      toast.success(next === 'active' ? 'Branch activated' : 'Branch deactivated');
+      toast.success(next === 'active' ? t('Branch activated') : t('Branch deactivated'));
       setConfirm(null);
     } catch (err) {
       toast.error(getErrorMessage(err));
@@ -63,7 +64,7 @@ export default function BranchesPage() {
   const columns = [
     {
       key: 'name',
-      label: 'Branch',
+      label: t('Branch'),
       render: (b) => (
         <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
           <Box>
@@ -75,12 +76,12 @@ export default function BranchesPage() {
         </Stack>
       ),
     },
-    { key: 'location', label: 'Location', render: (b) => [b.address?.city, stateName(b.address?.stateCode)].filter(Boolean).join(', ') || '—' },
-    { key: 'gstin', label: 'GSTIN', render: (b) => b.gstin ?? '—' },
+    { key: 'location', label: t('Location'), render: (b) => [b.address?.city, stateName(b.address?.stateCode)].filter(Boolean).join(', ') || '—' },
+    { key: 'gstin', label: t('GSTIN'), render: (b) => b.gstin ?? '—' },
     // The branch's own sign-in: its email and a password — set and changed here only.
     {
       key: 'login',
-      label: 'Branch login',
+      label: t('Branch login'),
       render: (b) => (
         <Stack spacing={0.5} sx={{ alignItems: 'flex-start' }}>
           {b.email ? (
@@ -89,38 +90,38 @@ export default function BranchesPage() {
             </Typography>
           ) : (
             <Typography variant="body2" color="textSecondary">
-              No email
+              {t('No email')}
             </Typography>
           )}
           <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
-            <Chip size="small" label={b.login ? b.login.role?.name ?? 'Active' : 'Not set up'} color={b.login ? 'success' : 'default'} variant="outlined" sx={smallChip} />
+            <Chip size="small" label={b.login ? b.login.role?.name ?? t('Active') : t('Not set up')} color={b.login ? 'success' : 'default'} variant="outlined" sx={smallChip} />
             {canManageLogin && (
               <Link component="button" type="button" variant="caption" onClick={() => setLoginFor(b)} sx={{ fontWeight: 600 }}>
-                {b.login ? 'Manage' : 'Set up'}
+                {b.login ? t('Manage') : t('Set up')}
               </Link>
             )}
           </Stack>
         </Stack>
       ),
     },
-    { key: 'status', label: 'Status', render: (b) => <StatusChip status={b.status} /> },
+    { key: 'status', label: t('Status'), render: (b) => <StatusChip status={b.status} /> },
     {
       key: 'actions',
-      label: 'Action',
+      label: t('Action'),
       align: 'right',
       width: 132,
       render: (b) => (
         <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
           {canEdit && (
-            <Tooltip title="Edit">
-              <IconButton size="small" onClick={() => setDrawer({ open: true, branch: b })} aria-label={`Edit ${b.name}`}>
+            <Tooltip title={t('Edit')}>
+              <IconButton size="small" onClick={() => setDrawer({ open: true, branch: b })} aria-label={t('Edit {{name}}', { name: b.name })}>
                 <EditOutlinedIcon fontSize="small" />
               </IconButton>
             </Tooltip>
           )}
           {canToggle && !b.isHeadOffice && (
-            <Tooltip title={b.status === 'active' ? 'Deactivate' : 'Activate'}>
-              <IconButton size="small" color={b.status === 'active' ? 'error' : 'success'} onClick={() => setConfirm(b)} aria-label={b.status === 'active' ? `Deactivate ${b.name}` : `Activate ${b.name}`}>
+            <Tooltip title={b.status === 'active' ? t('Deactivate') : t('Activate')}>
+              <IconButton size="small" color={b.status === 'active' ? 'error' : 'success'} onClick={() => setConfirm(b)} aria-label={b.status === 'active' ? t('Deactivate {{name}}', { name: b.name }) : t('Activate {{name}}', { name: b.name })}>
                 <PowerSettingsNewRoundedIcon fontSize="small" />
               </IconButton>
             </Tooltip>
@@ -136,13 +137,13 @@ export default function BranchesPage() {
   return (
     <>
       <PageHeader
-        title="Branches"
-        subtitle="Showrooms and locations. Stock, cash and reports are tracked per branch."
-        breadcrumbs={[{ label: 'Settings' }, { label: 'Branches' }]}
+        title={t('Branches')}
+        subtitle={t('Showrooms and locations. Stock, cash and reports are tracked per branch.')}
+        breadcrumbs={[{ label: t('Settings') }, { label: t('Branches') }]}
         actions={
           canCreate && (
             <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setDrawer({ open: true, branch: null })} disabled={full}>
-              New branch
+              {t('New branch')}
             </Button>
           )
         }
@@ -152,14 +153,14 @@ export default function BranchesPage() {
         <Alert severity={full ? 'warning' : 'info'} icon={false} sx={{ mb: 2 }}>
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 1, sm: 3 }} sx={{ alignItems: { sm: 'center' } }}>
             <Typography variant="body2" sx={{ fontWeight: 600 }}>
-              {usage.trial ? 'Free trial' : 'Your plan'}: {usage.limit} branch{usage.limit === 1 ? '' : 'es'} (head office included) · {usage.used} in use · {usage.available} available
+              {usage.trial ? t('Free trial') : t('Your plan')}{(usage.limit === 1 ? t(': {{limit}} branch (head office included) · {{used}} in use · {{available}} available', { limit: usage.limit, used: usage.used, available: usage.available }) : t(': {{limit}} branches (head office included) · {{used}} in use · {{available}} available', { limit: usage.limit, used: usage.used, available: usage.available }))}
             </Typography>
             <LinearProgress variant="determinate" value={Math.min(100, (usage.used / usage.limit) * 100)} sx={{ flex: 1, maxWidth: 240, height: 6, borderRadius: 3 }} />
             {full && (
               <Typography variant="body2">
-                {usage.trial ? 'Choose a subscription plan to add more branches.' : 'Upgrade your plan to add more branches.'}{' '}
+                {usage.trial ? t('Choose a subscription plan to add more branches.') : t('Upgrade your plan to add more branches.')}{' '}
                 <Link component={RouterLink} to="/settings/subscription">
-                  See plans
+                  {t('See plans')}
                 </Link>
               </Typography>
             )}
@@ -175,14 +176,14 @@ export default function BranchesPage() {
         onRetry={refetch}
         empty={
           filtered
-            ? { title: 'No matching branches', description: 'Try a different search or status filter.' }
-            : { title: 'No branches yet', description: 'Add your first branch to start tracking stock and sales by location.' }
+            ? { title: t('No matching branches'), description: t('Try a different search or status filter.') }
+            : { title: t('No branches yet'), description: t('Add your first branch to start tracking stock and sales by location.') }
         }
         pagination={data && { ...data.meta, onPageChange: setPage, onLimitChange: (l) => { setLimit(l); setPage(1); } }}
         toolbar={
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
             <TextField
-              placeholder="Search by name, code or city"
+              placeholder={t('Search by name, code or city')}
               value={search}
               onChange={(e) => {
                 setSearch(e.target.value);
@@ -193,7 +194,8 @@ export default function BranchesPage() {
             />
             <TextField
               select
-              label="Status"
+              slotProps={{ inputLabel: { shrink: true }, select: { displayEmpty: true } }}
+              label={t('Status')}
               value={status}
               onChange={(e) => {
                 setStatus(e.target.value);
@@ -201,9 +203,9 @@ export default function BranchesPage() {
               }}
               sx={{ maxWidth: { sm: 180 } }}
             >
-              <MenuItem value="">All</MenuItem>
-              <MenuItem value="active">Active</MenuItem>
-              <MenuItem value="inactive">Inactive</MenuItem>
+              <MenuItem value="">{t('All')}</MenuItem>
+              <MenuItem value="active">{t('Active')}</MenuItem>
+              <MenuItem value="inactive">{t('Inactive')}</MenuItem>
             </TextField>
           </Stack>
         }
@@ -221,13 +223,13 @@ export default function BranchesPage() {
 
       <ConfirmDialog
         open={Boolean(confirm)}
-        title={confirm?.status === 'active' ? 'Deactivate branch?' : 'Activate branch?'}
+        title={confirm?.status === 'active' ? t('Deactivate branch?') : t('Activate branch?')}
         message={
           confirm?.status === 'active'
-            ? `${confirm?.name} will be hidden from the branch switcher and new transactions. Its history is kept.`
-            : `${confirm?.name} will be available for transactions again.`
+            ? t('{{name}} will be hidden from the branch switcher and new transactions. Its history is kept.', { name: confirm?.name })
+            : t('{{name}} will be available for transactions again.', { name: confirm?.name })
         }
-        confirmLabel={confirm?.status === 'active' ? 'Deactivate' : 'Activate'}
+        confirmLabel={confirm?.status === 'active' ? t('Deactivate') : t('Activate')}
         danger={confirm?.status === 'active'}
         loading={toggling}
         onConfirm={toggle}

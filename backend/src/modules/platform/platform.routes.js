@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { emailSchema, passwordSchema } from '@jerp/shared/schemas';
+import { emailSchema, languageSchema, passwordSchema } from '@jerp/shared/schemas';
 import * as platformAuth from './platformAuth.service.js';
 import { idParamsSchema, platformCreateOrganisationSchema, platformOrgListQuerySchema, platformOrgStatusSchema, platformUpdateOrganisationSchema } from '@jerp/shared/schemas';
 import { validate } from '../../middleware/validate.js';
@@ -30,6 +30,7 @@ const profileSchema = z.object({ name: z.string().trim().min(2, 'Enter your name
 const passwordChangeSchema = z.object({ currentPassword: z.string().max(128).optional(), newPassword: passwordSchema });
 router.get('/profile', async (req, res) => sendOk(res, await platformAuth.getPlatformProfile(req.platformAdmin)));
 router.patch('/profile', validate({ body: profileSchema }), async (req, res) => sendOk(res, await platformAuth.updatePlatformProfile(req.platformAdmin, req.valid.body, meta(req)), { message: 'Profile saved' }));
+router.patch('/profile/language', validate({ body: languageSchema }), async (req, res) => sendOk(res, await platformAuth.setPlatformLanguage(req.platformAdmin, req.valid.body.language)));
 router.post('/profile/password', validate({ body: passwordChangeSchema }), async (req, res) => sendOk(res, await platformAuth.changePlatformPassword(req.platformAdmin, req.valid.body, meta(req)), { message: 'Password changed' }));
 const dashboardQuery = validate({ query: z.object({ period: z.enum(billing.DASHBOARD_PERIODS).default('month') }) });
 router.get('/dashboard', dashboardQuery, async (req, res) => sendOk(res, await platformService.platformDashboard(req.valid.query)));

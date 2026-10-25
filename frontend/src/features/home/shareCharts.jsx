@@ -2,6 +2,7 @@ import { Box, Stack, Typography } from '@mui/material';
 import { formatINR } from '@jerp/shared';
 import { useState } from 'react';
 import { compactINR, niceMax, useWidth } from './charts.jsx';
+import { t } from '../../i18n/index.js';
 
 // ---------------------------------------------------------------- categorical colours
 // Fixed order (never cycled), validated (dataviz validator) for the light (#FFFFFF) and dark (#232220) card
@@ -19,7 +20,7 @@ const GOLD_DARK = 'var(--brand-mark)';
 export function foldRows(rows, keep = MAX_SLOTS - 1) {
   if (rows.length <= MAX_SLOTS) return rows;
   const rest = rows.slice(keep);
-  return [...rows.slice(0, keep), { key: '__other', label: `Other (${rest.length})`, value: rest.reduce((s, r) => s + r.value, 0) }];
+  return [...rows.slice(0, keep), { key: '__other', label: t('Other ({{count}})', { count: rest.length }), value: rest.reduce((s, r) => s + r.value, 0) }];
 }
 export const seriesSx = (i, prop) => (theme) => ({ [prop]: SERIES_LIGHT[i], ...theme.applyStyles('dark', { [prop]: SERIES_DARK[i] }) });
 
@@ -60,7 +61,7 @@ const Empty = ({ children }) => (
  * Change over time as a filled line (single series). Hover anywhere for a crosshair and the exact value.
  * data: [{ key, label, value, detail }]
  */
-export function AreaChart({ data, height = 240, formatValue = (v) => formatINR(v, { decimals: 0 }), formatAxis = compactINR, emptyLabel = 'No sales in this period' }) {
+export function AreaChart({ data, height = 240, formatValue = (v) => formatINR(v, { decimals: 0 }), formatAxis = compactINR, emptyLabel = t('No sales in this period') }) {
   const [ref, width] = useWidth();
   const [active, setActive] = useState(null);
   const pad = { top: 14, right: 12, bottom: 26, left: 52 };
@@ -85,18 +86,18 @@ export function AreaChart({ data, height = 240, formatValue = (v) => formatINR(v
 
   return (
     <Box ref={ref} sx={{ position: 'relative', width: '100%' }} onMouseLeave={() => setActive(null)}>
-      <Box component="svg" width={width} height={height} role="img" aria-label="Sales trend" onMouseMove={onMove} sx={{ display: 'block', overflow: 'visible' }}>
+      <Box component="svg" width={width} height={height} role="img" aria-label={t('Sales trend')} onMouseMove={onMove} sx={{ display: 'block', overflow: 'visible' }}>
         <defs>
           <linearGradient id="sales-area-fill" x1="0" y1="0" x2="0" y2="1">
             <Box component="stop" offset="0%" sx={(theme) => ({ stopColor: GOLD, stopOpacity: 0.28, ...theme.applyStyles('dark', { stopColor: GOLD_DARK, stopOpacity: 0.35 }) })} />
             <Box component="stop" offset="100%" sx={(theme) => ({ stopColor: GOLD, stopOpacity: 0, ...theme.applyStyles('dark', { stopColor: GOLD_DARK }) })} />
           </linearGradient>
         </defs>
-        {ticks.map((t) => (
-          <g key={t}>
-            <Box component="line" x1={pad.left} x2={width - pad.right} y1={y(t)} y2={y(t)} sx={{ stroke: t === 0 ? 'var(--mui-palette-text-disabled)' : 'var(--mui-palette-divider)', strokeWidth: 1 }} />
-            <Box component="text" x={pad.left - 8} y={y(t)} dy="0.32em" textAnchor="end" sx={{ fontSize: 11, fill: 'var(--mui-palette-text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
-              {formatAxis(t)}
+        {ticks.map((tick) => (
+          <g key={tick}>
+            <Box component="line" x1={pad.left} x2={width - pad.right} y1={y(tick)} y2={y(tick)} sx={{ stroke: tick === 0 ? 'var(--mui-palette-text-disabled)' : 'var(--mui-palette-divider)', strokeWidth: 1 }} />
+            <Box component="text" x={pad.left - 8} y={y(tick)} dy="0.32em" textAnchor="end" sx={{ fontSize: 11, fill: 'var(--mui-palette-text-secondary)', fontVariantNumeric: 'tabular-nums' }}>
+              {formatAxis(tick)}
             </Box>
           </g>
         ))}
@@ -143,7 +144,7 @@ export function AreaChart({ data, height = 240, formatValue = (v) => formatINR(v
  * Share of a whole as a ring: the total in the middle (or the hovered part), a labelled legend beside it.
  * rows: [{ key, label, value }] - six slots at most; the rest fold into "Other".
  */
-export function DonutChart({ rows: input, size = 156, thickness = 22, formatValue = (v) => formatINR(v, { decimals: 0 }), formatCenter = compactINR, centerLabel = 'Total', empty = 'Nothing yet' }) {
+export function DonutChart({ rows: input, size = 156, thickness = 22, formatValue = (v) => formatINR(v, { decimals: 0 }), formatCenter = compactINR, centerLabel = t('Total'), empty = t('Nothing yet') }) {
   const [active, setActive] = useState(null);
   const rows = foldRows(input.filter((r) => r.value > 0));
   const total = rows.reduce((s, r) => s + r.value, 0);
@@ -171,7 +172,7 @@ export function DonutChart({ rows: input, size = 156, thickness = 22, formatValu
   return (
     <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2.5} sx={{ alignItems: 'center' }}>
       <Box sx={{ position: 'relative', width: size, height: size, flexShrink: 0 }} onMouseLeave={() => setActive(null)}>
-        <svg width={size} height={size} role="img" aria-label="Share of total">
+        <svg width={size} height={size} role="img" aria-label={t('Share of total')}>
           {rows.length === 1 ? (
             <Box component="circle" cx={size / 2} cy={size / 2} r={r - thickness / 2} sx={(theme) => ({ fill: 'none', strokeWidth: thickness, ...seriesSx(0, 'stroke')(theme) })} />
           ) : (
@@ -218,7 +219,7 @@ const owedFill = (theme) => ({
  * on credit) are hatched and split out in the headline. Hover or focus a row to highlight it.
  * rows: [{ key, label, value }] sorted largest first.
  */
-export function ShareBars({ rows: input, owedKeys = [], formatValue = (v) => formatINR(v, { decimals: 0 }), totalLabel = 'Total', empty = 'Nothing yet' }) {
+export function ShareBars({ rows: input, owedKeys = [], formatValue = (v) => formatINR(v, { decimals: 0 }), totalLabel = t('Total'), empty = t('Nothing yet') }) {
   const [active, setActive] = useState(null);
   const rows = input.filter((r) => r.value > 0);
   const total = rows.reduce((s, r) => s + r.value, 0);
@@ -241,13 +242,13 @@ export function ShareBars({ rows: input, owedKeys = [], formatValue = (v) => for
             <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
               {formatValue(total - owed)}{' '}
               <Typography component="span" variant="caption" color="textSecondary">
-                received
+                {t('received')}
               </Typography>
             </Typography>
             <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
               {formatValue(owed)}{' '}
               <Typography component="span" variant="caption" color="textSecondary">
-                on credit
+                {t('on credit')}
               </Typography>
             </Typography>
           </Box>
@@ -262,7 +263,7 @@ export function ShareBars({ rows: input, owedKeys = [], formatValue = (v) => for
               key={r.key}
               role="listitem"
               tabIndex={0}
-              aria-label={`${r.label}: ${formatValue(r.value)}, ${pctText(r.value)} of ${totalLabel.toLowerCase()}`}
+              aria-label={t('{{label}}: {{formatValue}}, {{pctText}} of {{totalLabel}}', { label: r.label, formatValue: formatValue(r.value), pctText: pctText(r.value), totalLabel: totalLabel.toLowerCase() })}
               onMouseEnter={() => setActive(r.key)}
               onFocus={() => setActive(r.key)}
               onBlur={() => setActive(null)}
@@ -294,7 +295,7 @@ export function ShareBars({ rows: input, owedKeys = [], formatValue = (v) => for
  * One 100% bar split into parts (composition at a glance), with a labelled legend underneath.
  * rows: [{ key, label, value, caption }]
  */
-export function StackedBar({ rows: input, formatValue = (v) => String(v), height = 14, empty = 'Nothing yet' }) {
+export function StackedBar({ rows: input, formatValue = (v) => String(v), height = 14, empty = t('Nothing yet') }) {
   const rows = foldRows(input.filter((r) => r.value > 0));
   const total = rows.reduce((s, r) => s + r.value, 0);
   if (!total) return <Empty>{empty}</Empty>;

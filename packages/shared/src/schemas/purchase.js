@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { METAL_OPTIONS, METAL_POOL_KINDS, PURITIES } from '../enums.js';
+import { METAL_OPTIONS, SELECTABLE_METAL_POOL_KINDS, PURITIES } from '../enums.js';
+import { OBJECT_ID_REGEX } from '../patterns.js';
 import { listQuerySchema, objectIdSchema, optionalText } from './common.js';
 
 const values = (list) => list.map((o) => o.value);
@@ -26,7 +27,7 @@ const purchaseMetalSchema = z
   .object({
     metal: z.enum(values(METAL_OPTIONS)),
     purity: z.number().int(),
-    kind: z.enum(values(METAL_POOL_KINDS)),
+    kind: z.enum(values(SELECTABLE_METAL_POOL_KINDS)),
     grossWeightMg: mg('Weight'),
     valuePaise: paise('Value', { min: 1 }),
   })
@@ -58,18 +59,16 @@ export const purchaseListQuerySchema = listQuerySchema.extend({
   payment: z.enum(['paid', 'partly_paid', 'due']).optional(),
 });
 
-/** What is being ordered from a supplier: free text with metal, purity and approximate weight. */
-const orderLineSchema = z
-  .object({
-    description: z.string().trim().min(2, 'Describe the item').max(120),
-    itemId: objectIdSchema.nullish(), // the saved item it was picked from, so receiving the order can fill the pieces
-    metal: z.enum(values(METAL_OPTIONS)),
-    purity: z.number().int(),
-    quantity: z.number().int().min(1).max(10000).default(1),
-    weightMg: z.number().int().min(0).max(1e9).default(0),
-    amountPaise: paise('Estimated amount').default(0),
-  })
-  .refine((l) => validPurity(l.metal, l.purity), { path: ['purity'], message: 'Unknown purity' });
+/**
+ * What is being ordered from a supplier: a saved item (picked from the list, never typed), how many and roughly how
+ * heavy. The server takes the line's name, metal and purity from the item, so receiving the order can fill the pieces.
+ */
+const orderLineSchema = z.object({
+  itemId: z.string({ error: 'Pick an item from the list' }).regex(OBJECT_ID_REGEX, 'Pick an item from the list'),
+  quantity: z.number().int().min(1).max(10000).default(1),
+  weightMg: z.number().int().min(0).max(1e9).default(0),
+  amountPaise: paise('Estimated amount').default(0),
+});
 
 export const purchaseOrderSchema = z.object({
   supplierId: objectIdSchema,

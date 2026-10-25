@@ -13,6 +13,7 @@ import { sampleInvoice } from '../print/sampleInvoice.js';
 import SettingsSectionForm from './SettingsSectionForm.jsx';
 import { ErrorState, LoadingState } from '../../components/StateViews.jsx';
 import { useBranchPrintQuery, useSettingsQuery, useUpdateBranchPrintMutation } from './settingsApi.js';
+import { t } from '../../i18n/index.js';
 
 
 /** A selectable card: a gold outline and tick when chosen. */
@@ -104,7 +105,7 @@ function PrintChooser({ choice, onChange, disabled, title, invoice }) {
         <Stack spacing={3} sx={{ opacity: disabled ? 0.55 : 1, transition: 'opacity 150ms' }}>
           <Box>
             <Typography variant="overline" color="textSecondary">
-              Paper size
+              {t('Paper size')}
             </Typography>
             <Grid container spacing={1.5} sx={{ mt: 0.5 }}>
               {Object.keys(PRINT_SIZES).map((key) => (
@@ -116,7 +117,7 @@ function PrintChooser({ choice, onChange, disabled, title, invoice }) {
           </Box>
           <Box>
             <Typography variant="overline" color="textSecondary">
-              Design
+              {t('Design')}
             </Typography>
             <Grid container spacing={1.5} sx={{ mt: 0.5 }}>
               {designsFor(choice.size).map((d) => (
@@ -132,7 +133,7 @@ function PrintChooser({ choice, onChange, disabled, title, invoice }) {
         <Box sx={{ position: { lg: 'sticky' }, top: { lg: 88 } }}>
           <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
             <Typography variant="overline" color="textSecondary">
-              Preview{title ? ` · ${title}` : ''}
+              {t('Preview')}{title ? ` · ${title}` : ''}
             </Typography>
             <Chip size="small" label={layoutLabel(choice)} sx={{ fontWeight: 600 }} />
           </Stack>
@@ -140,7 +141,7 @@ function PrintChooser({ choice, onChange, disabled, title, invoice }) {
             <PaperPreview sale={sale} layout={layout} logo={logo} />
           </Box>
           <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 1 }}>
-            A sample bill. HSN, HUID, weight break-up, rates, terms and footer follow the Invoice tab.
+            {t('A sample bill. HSN, HUID, weight break-up, rates, terms and footer follow the Invoice tab.')}
           </Typography>
         </Box>
       </Grid>
@@ -155,7 +156,7 @@ function OrganisationChooser({ control, readOnly }) {
     <PrintChooser
       choice={{ size: size.value, design: design.value }}
       disabled={readOnly}
-      title="Organisation"
+      title={t('Organisation')}
       onChange={(next) => {
         size.onChange(next.size);
         design.onChange(next.design);
@@ -169,8 +170,8 @@ function OrganisationPrintForm({ value, readOnly }) {
   return (
     <SettingsSectionForm
       section="print"
-      title="Print"
-      description="The paper and design the organisation's invoices print with. Print on an invoice shows a preview first."
+      title={t('Print')}
+      description={t('The paper and design the organisation\'s invoices print with. Print on an invoice shows a preview first.')}
       value={value}
       readOnly={readOnly}
       // Only the default: the server keeps each branch's own choice (set from the branch).
@@ -197,8 +198,8 @@ function BranchChooser({ control, readOnly, orgChoice, branchName, invoice }) {
           }
         }}
       >
-        <FormControlLabel value="default" control={<Radio size="small" />} disabled={readOnly} label={`Same as the organisation (${layoutLabel(orgChoice)})`} />
-        <FormControlLabel value="own" control={<Radio size="small" />} disabled={readOnly} label="Choose a size and design for this branch" />
+        <FormControlLabel value="default" control={<Radio size="small" />} disabled={readOnly} label={t('Same as the organisation ({{layoutLabel}})', { layoutLabel: layoutLabel(orgChoice) })} />
+        <FormControlLabel value="own" control={<Radio size="small" />} disabled={readOnly} label={t('Choose a size and design for this branch')} />
       </RadioGroup>
       <PrintChooser
         choice={{ size: size.value, design: design.value }}
@@ -230,8 +231,8 @@ function BranchPrintForm({ branch, value, readOnly, invoice }) {
   return (
     <SettingsSectionForm
       section="print"
-      title={`Print · ${branch.name}`}
-      description="How invoices billed at this branch print. Print on an invoice shows a preview first."
+      title={t('Print · {{name}}', { name: branch.name })}
+      description={t('How invoices billed at this branch print. Print on an invoice shows a preview first.')}
       value={formValue}
       readOnly={readOnly}
       save={async ({ mode, size, design }) => {
@@ -268,7 +269,7 @@ export function BranchPrintSettings() {
   );
 
   if (!branch) return null;
-  if (isLoading) return <LoadingState label="Loading print settings" />;
+  if (isLoading) return <LoadingState label={t('Loading print settings')} />;
   if (error) return <ErrorState error={error} onRetry={refetch} />;
   return <BranchPrintForm branch={{ id: data.branch.id, name: data.branch.name }} value={value} invoice={data.invoice} readOnly={!canPrint} />;
 }

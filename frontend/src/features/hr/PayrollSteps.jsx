@@ -5,12 +5,13 @@ import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
 import TaskAltRoundedIcon from '@mui/icons-material/TaskAltRounded';
 import { Box, Typography } from '@mui/material';
 import { tokens } from '../../theme/tokens.js';
+import { t } from '../../i18n/index.js';
 
 export const PAYROLL_STEPS = [
-  { key: 'calculate', label: 'Calculate', hint: 'Salary from attendance', icon: CalculateOutlinedIcon },
-  { key: 'review', label: 'Review', hint: 'Bonus & deductions', icon: FactCheckOutlinedIcon },
-  { key: 'finalise', label: 'Finalise', hint: 'Lock & book in accounts', icon: TaskAltRoundedIcon },
-  { key: 'pay', label: 'Pay', hint: 'Cash, bank or UPI', icon: PaymentsOutlinedIcon },
+  { key: 'calculate', label: t('Calculate'), hint: t('Salary from attendance'), icon: CalculateOutlinedIcon },
+  { key: 'review', label: t('Review'), hint: t('Bonus & deductions'), icon: FactCheckOutlinedIcon },
+  { key: 'finalise', label: t('Finalise'), hint: t('Lock & book in accounts'), icon: TaskAltRoundedIcon },
+  { key: 'pay', label: t('Pay'), hint: t('Cash, bank or UPI'), icon: PaymentsOutlinedIcon },
 ];
 
 /** Index of the step a run is on: 1 = reviewing a draft, 3 = paying, 4 = all done. No run yet = 0. */

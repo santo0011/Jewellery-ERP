@@ -9,16 +9,17 @@ import { EmptyState, ErrorState, LoadingState } from '../../components/StateView
 import { usePermission } from '../../hooks/usePermission.js';
 import { getErrorMessage } from '../../utils/errors.js';
 import { useAttendanceCalendarQuery, useSaveAttendanceCalendarMutation } from './hrApi.js';
+import { t, getLocale } from '../../i18n/index.js';
 
 // Monday first, as shop rosters are written.
 const DAYS = [
-  { value: 1, short: 'Mon', label: 'Monday' },
-  { value: 2, short: 'Tue', label: 'Tuesday' },
-  { value: 3, short: 'Wed', label: 'Wednesday' },
-  { value: 4, short: 'Thu', label: 'Thursday' },
-  { value: 5, short: 'Fri', label: 'Friday' },
-  { value: 6, short: 'Sat', label: 'Saturday' },
-  { value: 0, short: 'Sun', label: 'Sunday' },
+  { value: 1, short: t('Mon'), label: t('Monday') },
+  { value: 2, short: t('Tue'), label: t('Tuesday') },
+  { value: 3, short: t('Wed'), label: t('Wednesday') },
+  { value: 4, short: t('Thu'), label: t('Thursday') },
+  { value: 5, short: t('Fri'), label: t('Friday') },
+  { value: 6, short: t('Sat'), label: t('Saturday') },
+  { value: 0, short: t('Sun'), label: t('Sunday') },
 ];
 // Fixed-date national holidays offered as one-click adds; festivals change every year, so they are typed in.
 const NATIONAL = [
@@ -28,8 +29,8 @@ const NATIONAL = [
   { md: '10-02', name: 'Gandhi Jayanti' },
   { md: '12-25', name: 'Christmas' },
 ];
-const pretty = (iso) => new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
-const monthName = (iso) => new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-IN', { month: 'long', timeZone: 'UTC' });
+const pretty = (iso) => new Date(`${iso}T00:00:00Z`).toLocaleDateString(getLocale(), { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'UTC' });
+const monthName = (iso) => new Date(`${iso}T00:00:00Z`).toLocaleDateString(getLocale(), { month: 'long', timeZone: 'UTC' });
 
 export default function HolidaysPanel({ branchId, branchPicker }) {
   const canEdit = usePermission('attendance.edit');
@@ -58,7 +59,7 @@ export default function HolidaysPanel({ branchId, branchPicker }) {
   const suggestions = NATIONAL.map((n) => ({ date: `${year}-${n.md}`, name: n.name })).filter((n) => !holidays.some((h) => h.date === n.date));
 
   const add = (h) => {
-    if (holidays.some((x) => x.date === h.date)) return toast.error(`${pretty(h.date)} is already a holiday`);
+    if (holidays.some((x) => x.date === h.date)) return toast.error(t('{{pretty}} is already a holiday', { pretty: pretty(h.date) }));
     setHolidays((list) => [...list, h].sort((a, b) => a.date.localeCompare(b.date)));
     return undefined;
   };
@@ -67,7 +68,7 @@ export default function HolidaysPanel({ branchId, branchPicker }) {
   const onSave = async () => {
     try {
       await save({ branchId, weeklyOff, holidays }).unwrap();
-      toast.success('Holidays and weekly off saved');
+      toast.success(t('Holidays and weekly off saved'));
     } catch (err) {
       toast.error(getErrorMessage(err));
     }
@@ -81,17 +82,17 @@ export default function HolidaysPanel({ branchId, branchPicker }) {
       {branchPicker && <Card sx={{ mb: 2, p: { xs: 1.5, sm: 2 } }}>{branchPicker}</Card>}
       {!canEdit && (
         <Alert severity="info" sx={{ mb: 2 }}>
-          You can view the holiday list. Changing it needs the “Edit attendance” permission.
+          {t('You can view the holiday list. Changing it needs the “Edit attendance” permission.')}
         </Alert>
       )}
       <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', lg: '5fr 7fr' }, gap: 2, alignItems: 'start' }}>
         <Card sx={{ p: { xs: 2, sm: 2.5 } }}>
           <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', mb: 0.5 }}>
             <EventRepeatOutlinedIcon sx={{ color: 'primary.main' }} />
-            <Typography variant="h4">Weekly off</Typography>
+            <Typography variant="h4">{t('Weekly off')}</Typography>
           </Stack>
           <Typography variant="body2" color="textSecondary" sx={{ mb: 2, display: { xs: 'none', sm: 'block' } }}>
-            The shop’s closed day(s) every week. Staff not marked on these days count as on holiday (paid).
+            {t('The shop’s closed day(s) every week. Staff not marked on these days count as on holiday (paid).')}
           </Typography>
           {/* Phones: just the day — the colour says closed or open. */}
           <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(7, minmax(0, 1fr))', gap: { xs: 0.5, sm: 0.75 }, mt: { xs: 1.5, sm: 0 } }}>
@@ -122,14 +123,14 @@ export default function HolidaysPanel({ branchId, branchPicker }) {
                     {d.short}
                   </Typography>
                   <Typography variant="caption" sx={{ color: 'inherit', opacity: 0.8, display: { xs: 'none', sm: 'block' } }}>
-                    {on ? 'Off' : 'Open'}
+                    {on ? t('Off') : t('Open')}
                   </Typography>
                 </ButtonBase>
               );
             })}
           </Box>
           <Typography variant="body2" sx={{ mt: { xs: 1.5, sm: 2 }, fontWeight: 600 }}>
-            {weeklyOff.length ? `Closed every ${DAYS.filter((d) => weeklyOff.includes(d.value)).map((d) => d.label).join(' & ')}` : 'Open all 7 days — no weekly off'}
+            {weeklyOff.length ? t('Closed every {{DAYS}}', { DAYS: DAYS.filter((d) => weeklyOff.includes(d.value)).map((d) => d.label).join(' & ') }) : t('Open all 7 days — no weekly off')}
           </Typography>
         </Card>
 
@@ -137,7 +138,7 @@ export default function HolidaysPanel({ branchId, branchPicker }) {
           <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', mb: 0.5 }}>
             <CelebrationOutlinedIcon sx={{ color: 'primary.main' }} />
             <Typography variant="h4" sx={{ flex: 1 }}>
-              Holidays
+              {t('Holidays')}
             </Typography>
             <Stack direction="row" spacing={0.5}>
               {[year - 1, year, year + 1].map((y) => (
@@ -146,15 +147,15 @@ export default function HolidaysPanel({ branchId, branchPicker }) {
             </Stack>
           </Stack>
           <Typography variant="body2" color="textSecondary" sx={{ mb: 2, display: { xs: 'none', sm: 'block' } }}>
-            Festivals and other days the shop is closed. Unmarked staff count as on holiday.
+            {t('Festivals and other days the shop is closed. Unmarked staff count as on holiday.')}
           </Typography>
 
           {canEdit && (
             <>
               {/* Desktop: date, name and Add in one row. Phones: the name on its own row, then date and Add side by side. */}
               <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr auto', sm: '180px 1fr auto' }, gap: 1, mb: 1.5, mt: { xs: 1.5, sm: 0 } }}>
-                <TextField label="Holiday name" placeholder="e.g. Durga Puja" value={newName} onChange={(e) => setNewName(e.target.value)} sx={{ gridColumn: { xs: '1 / -1', sm: 2 }, gridRow: { xs: 1, sm: 1 } }} slotProps={{ htmlInput: { maxLength: 60 } }} />
-                <TextField label="Date" type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} sx={{ gridColumn: { xs: 1, sm: 1 }, gridRow: { xs: 2, sm: 1 }, minWidth: 0 }} />
+                <TextField label={t('Holiday name')} placeholder={t('e.g. Durga Puja')} value={newName} onChange={(e) => setNewName(e.target.value)} sx={{ gridColumn: { xs: '1 / -1', sm: 2 }, gridRow: { xs: 1, sm: 1 } }} slotProps={{ htmlInput: { maxLength: 60 } }} />
+                <TextField label={t('Date')} type="date" value={newDate} onChange={(e) => setNewDate(e.target.value)} slotProps={{ inputLabel: { shrink: true } }} sx={{ gridColumn: { xs: 1, sm: 1 }, gridRow: { xs: 2, sm: 1 }, minWidth: 0 }} />
                 <Button
                   sx={{ gridColumn: { xs: 2, sm: 3 }, gridRow: { xs: 2, sm: 1 } }}
                   variant="outlined"
@@ -168,14 +169,14 @@ export default function HolidaysPanel({ branchId, branchPicker }) {
                     setNewName('');
                   }}
                 >
-                  Add
+                  {t('Add')}
                 </Button>
               </Box>
               {suggestions.length > 0 && (
                 // Phones: "Quick add" on its own line, the chips wrapping under it — every one in full, none cut off.
                 <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 0.75, mb: 2, alignItems: 'center' }}>
                   <Typography variant="caption" color="textSecondary" sx={{ width: { xs: '100%', sm: 'auto' }, fontWeight: { xs: 600, sm: 400 } }}>
-                    Quick add:
+                    {t('Quick add:')}
                   </Typography>
                   {suggestions.map((sg) => (
                     <Chip key={sg.date} size="small" icon={<AddRoundedIcon />} label={sg.name} variant="outlined" onClick={() => add(sg)} />
@@ -187,7 +188,7 @@ export default function HolidaysPanel({ branchId, branchPicker }) {
 
           <Divider sx={{ mb: 1 }} />
           {byMonth.length === 0 ? (
-            <EmptyState title={`No holidays in ${year}`} description={canEdit ? 'Add a date above or use Quick add.' : 'None set for this year.'} />
+            <EmptyState title={t('No holidays in {{year}}', { year })} description={canEdit ? t('Add a date above or use Quick add.') : t('None set for this year.')} />
           ) : (
             byMonth.map(([m, list]) => (
               <Box key={m} sx={{ mb: 1.5 }}>
@@ -205,7 +206,7 @@ export default function HolidaysPanel({ branchId, branchPicker }) {
                       {h.name}
                     </Typography>
                     {canEdit && (
-                      <IconButton size="small" aria-label={`Remove ${h.name}`} onClick={() => setHolidays((list2) => list2.filter((x) => x.date !== h.date))}>
+                      <IconButton size="small" aria-label={t('Remove {{name}}', { name: h.name })} onClick={() => setHolidays((list2) => list2.filter((x) => x.date !== h.date))}>
                         <DeleteOutlineRoundedIcon fontSize="small" />
                       </IconButton>
                     )}
@@ -228,11 +229,11 @@ export default function HolidaysPanel({ branchId, branchPicker }) {
                 setHolidays(data.holidays);
               }}
             >
-              Discard
+              {t('Discard')}
             </Button>
           )}
           <Button variant="contained" onClick={onSave} disabled={!dirty || saveState.isLoading}>
-            {dirty ? 'Save changes' : 'Saved'}
+            {dirty ? t('Save changes') : t('Saved')}
           </Button>
         </Stack>
       )}

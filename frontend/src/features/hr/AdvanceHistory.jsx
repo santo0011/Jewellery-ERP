@@ -7,6 +7,7 @@ import { formatINR } from '@jerp/shared';
 import { useState } from 'react';
 import { formatDate, formatDateTime } from '../../utils/format.js';
 import { monthLabel, payModeLabel } from './hrUi.jsx';
+import { t } from '../../i18n/index.js';
 
 /** Shows a changed value the way people read it: rupees, dates, months, payment modes. */
 function show(field, v) {
@@ -23,14 +24,14 @@ function HistoryDialog({ advance, onClose }) {
   return (
     <Dialog open onClose={onClose} maxWidth="sm" fullWidth>
       <DialogTitle sx={{ fontWeight: 600, pr: 6 }}>
-        Edit history · {advance.advanceNo}
-        <IconButton onClick={onClose} aria-label="Close" sx={{ position: 'absolute', right: 12, top: 12 }}>
+        {t('Edit history · {{advanceNo}}', { advanceNo: advance.advanceNo })}
+        <IconButton onClick={onClose} aria-label={t('Close')} sx={{ position: 'absolute', right: 12, top: 12 }}>
           <CloseRoundedIcon />
         </IconButton>
       </DialogTitle>
       <DialogContent>
         <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-          Entered on {formatDate(advance.recordedOn)} · {advance.edits?.length ?? 0} change{advance.edits?.length === 1 ? '' : 's'}
+          {(advance.edits?.length === 1 ? t('Entered on {{recordedOn}} · {{value}} change', { recordedOn: formatDate(advance.recordedOn), value: advance.edits?.length ?? 0 }) : t('Entered on {{recordedOn}} · {{value}} changes', { recordedOn: formatDate(advance.recordedOn), value: advance.edits?.length ?? 0 }))}
         </Typography>
         <Stack spacing={1.5}>
           {edits.map((e, i) => (
@@ -38,7 +39,7 @@ function HistoryDialog({ advance, onClose }) {
               <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'baseline', gap: 1, mb: 0.75, flexWrap: 'wrap' }}>
                 <Typography variant="subtitle2">“{e.reason}”</Typography>
                 <Typography variant="caption" color="textSecondary">
-                  {e.by ?? 'Someone'} · {formatDateTime(e.at)}
+                  {e.by ?? t('Someone')} · {formatDateTime(e.at)}
                 </Typography>
               </Stack>
               <Box component="table" sx={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem', '& td': { py: 0.5, borderTop: '1px dashed', borderColor: 'divider' } }}>
@@ -46,7 +47,7 @@ function HistoryDialog({ advance, onClose }) {
                   {e.changes.map((c) => (
                     <tr key={c.field}>
                       <Box component="td" sx={{ color: 'text.secondary', width: '36%' }}>
-                        {c.field}
+                        {t(c.field)}
                       </Box>
                       <Box component="td" sx={{ color: 'error.main', textDecoration: 'line-through' }}>
                         {show(c.field, c.from)}
@@ -74,21 +75,21 @@ export function AdvanceActions({ advance, canEdit, onEdit }) {
     <Stack direction="row" spacing={0.25} sx={{ justifyContent: 'flex-end' }}>
       {canEdit &&
         (advance.editable ? (
-          <Tooltip title="Edit — allowed today only">
-            <IconButton size="small" onClick={() => onEdit(advance)} aria-label={`Edit ${advance.advanceNo}`}>
+          <Tooltip title={t('Edit — allowed today only')}>
+            <IconButton size="small" onClick={() => onEdit(advance)} aria-label={t('Edit {{advanceNo}}', { advanceNo: advance.advanceNo })}>
               <EditOutlinedIcon fontSize="small" />
             </IconButton>
           </Tooltip>
         ) : (
-          <Tooltip title={advance.lockedReason ?? 'Locked'}>
-            <Box component="span" sx={{ display: 'inline-flex', p: 0.625, color: 'text.disabled' }} aria-label="Locked">
+          <Tooltip title={advance.lockedReason ?? t('Locked')}>
+            <Box component="span" sx={{ display: 'inline-flex', p: 0.625, color: 'text.disabled' }} aria-label={t('Locked')}>
               <LockOutlinedIcon fontSize="small" />
             </Box>
           </Tooltip>
         ))}
-      <Tooltip title={count ? `Edit history (${count})` : 'Never edited'}>
+      <Tooltip title={count ? t('Edit history ({{count}})', { count }) : t('Never edited')}>
         <span>
-          <IconButton size="small" onClick={() => setOpen(true)} disabled={!count} aria-label={`Edit history of ${advance.advanceNo}`}>
+          <IconButton size="small" onClick={() => setOpen(true)} disabled={!count} aria-label={t('Edit history of {{advanceNo}}', { advanceNo: advance.advanceNo })}>
             <Badge badgeContent={count} color="warning" invisible={!count}>
               <HistoryRoundedIcon fontSize="small" />
             </Badge>

@@ -11,20 +11,21 @@ import { Link as RouterLink } from "react-router";
 import { usePermissions, useSession } from "../../hooks/usePermission.js";
 import { fonts } from "../../theme/tokens.js";
 import BranchDashboard from "./BranchDashboard.jsx";
+import { t } from '../../i18n/index.js';
 
 // The counter's everyday jobs, one click from home.
 const QUICK_ACTIONS = [
-  { to: "/billing", label: "New bill", icon: PointOfSaleOutlinedIcon, perm: "sales.create", primary: true },
-  { to: "/orders/new", label: "New order", icon: AssignmentOutlinedIcon, perm: "order.create" },
-  { to: "/products/new", label: "Add product", icon: DiamondOutlinedIcon, perm: "product.create" },
-  { to: "/customers", label: "Customers", icon: PeopleAltOutlinedIcon, perm: "customer.view" },
+  { to: "/billing", label: t('New bill'), icon: PointOfSaleOutlinedIcon, perm: "sales.create", primary: true },
+  { to: "/orders/new", label: t('New order'), icon: AssignmentOutlinedIcon, perm: "order.create" },
+  { to: "/products/new", label: t('Add product'), icon: DiamondOutlinedIcon, perm: "product.create" },
+  { to: "/customers", label: t('Customers'), icon: PeopleAltOutlinedIcon, perm: "customer.view" },
 ];
 
 function greeting() {
   const hour = new Date().getHours();
-  if (hour < 12) return "Good morning";
-  if (hour < 17) return "Good afternoon";
-  return "Good evening";
+  if (hour < 12) return t('Good morning');
+  if (hour < 17) return t('Good afternoon');
+  return t('Good evening');
 }
 
 /** The greeting for the time of day, kept current while the page stays open (checked once a minute). */
@@ -78,11 +79,11 @@ export default function HomePage() {
           sx={{ mb: 2 }}
           action={
             <Button component={RouterLink} to="/settings/organisation" size="small">
-              Add now
+              {t('Add now')}
             </Button>
           }
         >
-          Add your shop’s GSTIN and PAN so they print on tax invoices.
+          {t('Add your shop’s GSTIN and PAN so they print on tax invoices.')}
         </Alert>
       )}
 

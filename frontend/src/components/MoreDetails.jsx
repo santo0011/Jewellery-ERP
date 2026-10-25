@@ -1,12 +1,13 @@
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import { Box, ButtonBase, Collapse, Typography } from '@mui/material';
 import { useEffect, useState } from 'react';
+import { t } from '../i18n/index.js';
 
 /**
  * Optional fields kept out of the way: closed by default so forms show only what is needed every day.
  * Opens on its own when `defaultOpen` (e.g. editing a record that has these filled) or `forceOpen` (a hidden field has an error).
  */
-export default function MoreDetails({ title = 'More details', hint, defaultOpen = false, forceOpen = false, children }) {
+export default function MoreDetails({ title = t('More details'), hint, defaultOpen = false, forceOpen = false, children }) {
   const [open, setOpen] = useState(defaultOpen);
   useEffect(() => {
     if (forceOpen) setOpen(true);

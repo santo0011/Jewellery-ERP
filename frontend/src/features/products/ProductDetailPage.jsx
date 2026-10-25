@@ -18,19 +18,20 @@ import { useProductQuery } from './productApi.js';
 import { purityLabel } from './productForm.js';
 import ProductImages from './ProductImages.jsx';
 import { ProductStatusChip } from './ProductsPage.jsx';
+import { t } from '../../i18n/index.js';
 
 const label = (list, value) => list.find((o) => o.value === value)?.label ?? value;
 
 function describeWastage({ mode, value }) {
-  if (mode === 'percent') return `${formatPercent(value)} of net weight`;
+  if (mode === 'percent') return t('{{formatPercent}} of net weight', { formatPercent: formatPercent(value) });
   if (mode === 'weight') return formatWeight(value);
-  return 'None';
+  return t('None');
 }
 
 function describeMaking({ type, value }) {
-  if (type === 'percent') return `${formatPercent(value)} of metal value`;
-  if (type === 'per_gram') return `${formatINR(value)} per gram`;
-  return `${formatINR(value)} per piece`;
+  if (type === 'percent') return t('{{formatPercent}} of metal value', { formatPercent: formatPercent(value) });
+  if (type === 'per_gram') return t('{{formatINR}} per gram', { formatINR: formatINR(value) });
+  return t('{{formatINR}} per piece', { formatINR: formatINR(value) });
 }
 
 export default function ProductDetailPage() {
@@ -46,7 +47,7 @@ export default function ProductDetailPage() {
   const canSeeStock = usePermission('inventory.view');
   const movements = useStockMovementsQuery({ productId: id, page: 1, limit: 50 }, { skip: !canSeeStock });
 
-  if (isLoading) return <LoadingState label="Loading product" />;
+  if (isLoading) return <LoadingState label={t('Loading product')} />;
   if (error) return <ErrorState error={error} onRetry={refetch} />;
 
   const missingHuid = p.metal === 'gold' && session.catalog.huidMandatory && !p.huid;
@@ -54,7 +55,7 @@ export default function ProductDetailPage() {
   return (
     <>
       <PageHeader
-        back={{ to: '/products', label: 'Products' }}
+        back={{ to: '/products', label: t('Products') }}
         title={p.name}
         subtitle={
           <Stack component="span" direction="row" spacing={1} sx={{ alignItems: 'center' }}>
@@ -62,12 +63,12 @@ export default function ProductDetailPage() {
             <ProductStatusChip status={p.status} />
           </Stack>
         }
-        breadcrumbs={[{ label: 'Products', to: '/products' }, { label: p.sku }]}
+        breadcrumbs={[{ label: t('Products'), to: '/products' }, { label: p.sku }]}
         actions={
           <>
             {canStock && p.status === 'draft' && (
               <Button variant="outlined" color="secondary" startIcon={<Inventory2OutlinedIcon />} onClick={() => setStocking(true)}>
-                Add to stock
+                {t('Add to stock')}
               </Button>
             )}
           </>
@@ -75,12 +76,12 @@ export default function ProductDetailPage() {
       />
       {p.status === 'draft' && (
         <Alert severity="info" sx={{ mb: 2 }}>
-          Draft: this item is in the catalogue but not yet in stock. It enters stock through an opening-stock or purchase entry.
+          {t('Draft: this item is in the catalogue but not yet in stock. It enters stock through an opening-stock or purchase entry.')}
         </Alert>
       )}
       {missingHuid && (
         <Alert severity="warning" sx={{ mb: 2 }}>
-          HUID is missing. Hallmarked gold cannot be sold without it.
+          {t('HUID is missing. Hallmarked gold cannot be sold without it.')}
         </Alert>
       )}
       <Grid container spacing={2}>
@@ -94,13 +95,13 @@ export default function ProductDetailPage() {
             <Card>
               <CardContent>
                 <Typography variant="overline" color="textSecondary">
-                  Barcode
+                  {t('Barcode')}
                 </Typography>
                 <Box sx={{ mt: 1 }}>
                   <BarcodeView value={p.barcode} symbology={session.catalog.barcodeSymbology} />
                 </Box>
                 <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 1 }}>
-                  Scan this at the counter. Label printing arrives with the POS.
+                  {t('Scan this at the counter. Label printing arrives with the POS.')}
                 </Typography>
               </CardContent>
             </Card>
@@ -110,65 +111,65 @@ export default function ProductDetailPage() {
           <Grid container spacing={2}>
             <Grid size={{ xs: 12, lg: 6 }}>
               <InfoCard
-                title="Metal & weight"
+                title={t('Metal & weight')}
                 items={[
-                  { label: 'Metal', value: `${label(METAL_OPTIONS, p.metal)} ${purityLabel(p.metal, p.purity)}` },
-                  { label: 'Gross weight', value: formatWeight(p.grossWeightMg) },
-                  { label: 'Stone weight', value: formatWeight(p.stoneWeightMg) },
-                  { label: 'Net weight', value: <Box component="span" sx={{ color: 'accent.main', fontWeight: 700 }}>{formatWeight(p.netWeightMg)}</Box> },
-                  { label: 'Fine weight', value: formatWeight(p.fineWeightMg) },
-                  { label: 'Stock type', value: p.stockType === 'lot' ? `Lot of ${p.quantity} pieces` : 'Tagged piece' },
+                  { label: t('Metal'), value: `${label(METAL_OPTIONS, p.metal)} ${purityLabel(p.metal, p.purity)}` },
+                  { label: t('Gross weight'), value: formatWeight(p.grossWeightMg) },
+                  { label: t('Stone weight'), value: formatWeight(p.stoneWeightMg) },
+                  { label: t('Net weight'), value: <Box component="span" sx={{ color: 'accent.main', fontWeight: 700 }}>{formatWeight(p.netWeightMg)}</Box> },
+                  { label: t('Fine weight'), value: formatWeight(p.fineWeightMg) },
+                  { label: t('Stock type'), value: p.stockType === 'lot' ? t('Lot of {{quantity}} pieces', { quantity: p.quantity }) : t('Tagged piece') },
                 ]}
               />
             </Grid>
             <Grid size={{ xs: 12, lg: 6 }}>
               <InfoCard
-                title="Classification"
+                title={t('Classification')}
                 items={[
-                  { label: 'Category', value: [p.category?.name, p.subcategory?.name].filter(Boolean).join(' › ') },
-                  { label: 'Type', value: label(JEWELLERY_TYPES, p.jewelleryType) },
-                  { label: 'Branch', value: p.branch?.name },
-                  { label: 'Supplier', value: p.supplier && `${p.supplier.name} (${p.supplier.code})` },
-                  { label: 'Tags', value: p.tags.join(', ') },
+                  { label: t('Category'), value: [p.category?.name, p.subcategory?.name].filter(Boolean).join(' › ') },
+                  { label: t('Type'), value: label(JEWELLERY_TYPES, p.jewelleryType) },
+                  { label: t('Branch'), value: p.branch?.name },
+                  { label: t('Supplier'), value: p.supplier && `${p.supplier.name} (${p.supplier.code})` },
+                  { label: t('Tags'), value: p.tags.join(', ') },
                 ]}
               />
             </Grid>
             <Grid size={{ xs: 12, lg: 6 }}>
               <InfoCard
-                title="Making & pricing"
+                title={t('Making & pricing')}
                 items={[
-                  { label: 'Wastage', value: describeWastage(p.wastage) },
-                  { label: 'Making', value: describeMaking(p.making) },
-                  { label: 'Other charges', value: p.otherChargePaise ? formatINR(p.otherChargePaise) : null },
-                  { label: 'Pricing', value: p.pricingMode === 'fixed' ? `Fixed ${formatINR(p.fixedPricePaise)}` : 'Daily metal rate' },
-                  { label: 'Cost price', value: p.costPricePaise ? formatINR(p.costPricePaise) : null, hidden: !canSeeCost },
-                  { label: 'HSN', value: p.hsnCode },
+                  { label: t('Wastage'), value: describeWastage(p.wastage) },
+                  { label: t('Making'), value: describeMaking(p.making) },
+                  { label: t('Other charges'), value: p.otherChargePaise ? formatINR(p.otherChargePaise) : null },
+                  { label: t('Pricing'), value: p.pricingMode === 'fixed' ? t('Fixed {{fixedPrice}}', { fixedPrice: formatINR(p.fixedPricePaise) }) : t('Daily metal rate') },
+                  { label: t('Cost price'), value: p.costPricePaise ? formatINR(p.costPricePaise) : null, hidden: !canSeeCost },
+                  { label: t('HSN'), value: p.hsnCode },
                 ]}
               />
             </Grid>
             <Grid size={{ xs: 12, lg: 6 }}>
               <InfoCard
-                title="Hallmark & certification"
+                title={t('Hallmark & certification')}
                 items={[
-                  { label: 'HUID', value: p.huid },
-                  { label: 'Hallmark centre', value: p.hallmarkCentre },
-                  { label: 'Hallmark date', value: p.hallmarkDate && formatDate(p.hallmarkDate) },
-                  { label: 'Certificate', value: p.certificateNo },
-                  { label: 'Description', value: p.description },
+                  { label: t('HUID'), value: p.huid },
+                  { label: t('Hallmark centre'), value: p.hallmarkCentre },
+                  { label: t('Hallmark date'), value: p.hallmarkDate && formatDate(p.hallmarkDate) },
+                  { label: t('Certificate'), value: p.certificateNo },
+                  { label: t('Description'), value: p.description },
                 ]}
               />
             </Grid>
             {p.stones.length > 0 && (
               <Grid size={12}>
-                <InfoCard title="Stones">
+                <InfoCard title={t('Stones')}>
                   <Box sx={{ overflowX: 'auto' }}>
                     <Table size="small">
                       <TableHead>
                         <TableRow>
-                          <TableCell>Stone</TableCell>
-                          <TableCell align="right">Pieces</TableCell>
-                          <TableCell align="right">Weight</TableCell>
-                          <TableCell align="right">Rate</TableCell>
+                          <TableCell>{t('Stone')}</TableCell>
+                          <TableCell align="right">{t('Pieces')}</TableCell>
+                          <TableCell align="right">{t('Weight')}</TableCell>
+                          <TableCell align="right">{t('Rate')}</TableCell>
                         </TableRow>
                       </TableHead>
                       <TableBody>
@@ -183,7 +184,7 @@ export default function ProductDetailPage() {
                               )}
                             </TableCell>
                             <TableCell align="right">{s.count}</TableCell>
-                            <TableCell align="right">{s.weightUnit === 'ct' ? `${(s.weight / 1000).toFixed(3)} ct` : formatWeight(s.weight)}</TableCell>
+                            <TableCell align="right">{s.weightUnit === 'ct' ? t('{{value}} ct', { value: (s.weight / 1000).toFixed(3) }) : formatWeight(s.weight)}</TableCell>
                             <TableCell align="right">{s.ratePaise ? `${formatINR(s.ratePaise)}/${s.weightUnit === 'ct' ? 'ct' : 'g'}` : '—'}</TableCell>
                           </TableRow>
                         ))}
@@ -203,7 +204,7 @@ export default function ProductDetailPage() {
         // Full page width: the movement table has many columns.
         <Box sx={{ mt: 3 }}>
           <Typography variant="overline" color="textSecondary" sx={{ display: 'block', mb: 1 }}>
-            Stock movements
+            {t('Stock movements')}
           </Typography>
           <DataTable
             columns={movementColumns({ showProduct: false, onView: setViewingMovement })}
@@ -211,7 +212,7 @@ export default function ProductDetailPage() {
             loading={movements.isLoading}
             error={movements.error}
             onRetry={movements.refetch}
-            empty={{ title: 'No movements yet' }}
+            empty={{ title: t('No movements yet') }}
           />
         </Box>
       )}

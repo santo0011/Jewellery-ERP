@@ -16,12 +16,13 @@ import { BarList, ColumnChart } from '../home/charts.jsx';
 import { AreaChart, DonutChart, ShareBars } from '../home/shareCharts.jsx';
 import { Delta, Meter, StackedColumnChart } from './adminCharts.jsx';
 import { useBillingDashboardQuery, usePlatformDashboardQuery } from './platformApi.js';
+import { t, getLocale } from '../../i18n/index.js';
 
-const monthName = (key) => new Date(`${key}-01T00:00:00`).toLocaleString('en-IN', { month: 'short' });
-const monthYear = (key) => new Date(`${key}-01T00:00:00`).toLocaleString('en-IN', { month: 'short', year: 'numeric' });
+const monthName = (key) => new Date(`${key}-01T00:00:00`).toLocaleString(getLocale(), { month: 'short' });
+const monthYear = (key) => new Date(`${key}-01T00:00:00`).toLocaleString(getLocale(), { month: 'short', year: 'numeric' });
 const REVENUE_SERIES = [
-  { key: 'onlinePaise', label: 'Online' },
-  { key: 'manualPaise', label: 'Manual' },
+  { key: 'onlinePaise', label: t('Online') },
+  { key: 'manualPaise', label: t('Manual') },
 ];
 
 /** A label and its figure on one line, for the small facts beside the hero number and in Platform usage. */
@@ -38,13 +39,13 @@ const Fact = ({ label, value, caption }) => (
     )}
   </Box>
 );
-const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+const paymentsCount = (n) => t(n === 1 ? '{{n}} payment' : '{{n}} payments', { n });
 
 /** Dashboard periods (the same three on every dashboard): the label on the filter, and how it reads in a sentence. */
 const PERIODS = [
-  { value: 'today', label: 'Today', phrase: 'today' },
-  { value: 'month', label: 'This month', phrase: 'this month' },
-  { value: 'all', label: 'All time', phrase: 'so far' },
+  { value: 'today', label: t('Today'), phrase: t('today') },
+  { value: 'month', label: t('This month'), phrase: t('this month') },
+  { value: 'all', label: t('All time'), phrase: t('so far') },
 ];
 const PERIOD_KEY = 'jerp.admin.dashboardPeriod.v2';
 const savedPeriod = () => {
@@ -63,7 +64,7 @@ function PeriodFilter({ value, onChange }) {
       size="small"
       value={value}
       onChange={(e, v) => v && onChange(v)}
-      aria-label="Period"
+      aria-label={t('Period')}
       sx={{
         bgcolor: 'background.paper',
         width: { xs: '100%', sm: 'auto' },
@@ -151,18 +152,18 @@ export default function AdminDashboardPage() {
 
   return (
     <>
-      <PageHeader title="Platform overview" subtitle="Organisations, subscriptions and revenue." actions={<PeriodFilter value={period} onChange={setPeriod} />} />
+      <PageHeader title={t('Platform overview')} subtitle={t('Organisations, subscriptions and revenue.')} actions={<PeriodFilter value={period} onChange={setPeriod} />} />
 
       <Box sx={{ opacity: f1 || f2 ? 0.6 : 1, transition: 'opacity 160ms ease' }}>
       <SummaryCards>
-        <SummaryCard icon={CurrencyRupeeRoundedIcon} label="Revenue" value={inr(pp.revenuePaise)} caption={pp.payments ? `${plural(pp.payments, 'payment')} ${phrase}` : `No payments ${phrase}`} tone="green" valueTone="paid" onClick={() => navigate('/admin/payments')} />
-        <SummaryCard icon={AddBusinessOutlinedIcon} label="New organisations" value={joined} caption={joined ? `Signed up ${phrase}` : `No sign-ups ${phrase}`} tone="gold" onClick={() => navigate('/admin/organisations')} />
-        <SummaryCard icon={VerifiedOutlinedIcon} label="Paid subscriptions" value={subs.active} caption={subs.trial ? `${subs.trial} more on free trial` : everyone ? `${Math.round((subs.active / everyone) * 100)}% of all organisations` : 'No organisations yet'} tone="blue" />
+        <SummaryCard icon={CurrencyRupeeRoundedIcon} label={t('Revenue')} value={inr(pp.revenuePaise)} caption={pp.payments ? t(pp.payments === 1 ? '{{n}} payment {{phrase}}' : '{{n}} payments {{phrase}}', { n: pp.payments, phrase }) : t('No payments {{phrase}}', { phrase })} tone="green" valueTone="paid" onClick={() => navigate('/admin/payments')} />
+        <SummaryCard icon={AddBusinessOutlinedIcon} label={t('New organisations')} value={joined} caption={joined ? t('Signed up {{phrase}}', { phrase }) : t('No sign-ups {{phrase}}', { phrase })} tone="gold" onClick={() => navigate('/admin/organisations')} />
+        <SummaryCard icon={VerifiedOutlinedIcon} label={t('Paid subscriptions')} value={subs.active} caption={subs.trial ? t('{{trial}} more on free trial', { trial: subs.trial }) : everyone ? t('{{Math}}% of all organisations', { Math: Math.round((subs.active / everyone) * 100) }) : t('No organisations yet')} tone="blue" />
         <SummaryCard
           icon={TimerOutlinedIcon}
-          label="Ending this week"
+          label={t('Ending this week')}
           value={soon}
-          caption={subs.expired ? `${subs.expired} already expired` : soon ? 'Remind them to renew' : 'Nothing ends this week'}
+          caption={subs.expired ? t('{{expired}} already expired', { expired: subs.expired }) : soon ? t('Remind them to renew') : t('Nothing ends this week')}
           tone={soon || subs.expired ? 'red' : 'green'}
           valueTone={soon ? 'due' : undefined}
           onClick={() => navigate('/admin/organisations')}
@@ -171,50 +172,50 @@ export default function AdminDashboardPage() {
 
       <Grid container spacing={2} sx={{ mb: 2 }}>
         <Grid size={{ xs: 12, lg: 8 }}>
-          <Panel title="Revenue" subtitle="Subscription payments received · last 12 months, online and entered manually" action={<PanelLink to="/admin/payments">All payments</PanelLink>}>
+          <Panel title={t('Revenue')} subtitle={t('Subscription payments received · last 12 months, online and entered manually')} action={<PanelLink to="/admin/payments">{t('All payments')}</PanelLink>}>
             {/* The one hero figure: this month so far, against last month; MRR and all-time beside it. */}
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 2, sm: 4 }} sx={{ mb: 2.5, alignItems: { sm: 'flex-end' } }}>
               <Box>
                 <Typography variant="caption" color="textSecondary" sx={{ display: 'block' }}>
-                  This month so far
+                  {t('This month so far')}
                 </Typography>
                 <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', flexWrap: 'wrap' }}>
                   <Typography sx={{ fontSize: { xs: 36, sm: 48 }, fontWeight: 700, lineHeight: 1.1, letterSpacing: '-0.02em' }}>{inr(billing.revenue.monthPaise)}</Typography>
-                  <Delta now={billing.revenue.monthPaise} before={billing.revenue.lastMonthPaise} suffix="vs last month" />
+                  <Delta now={billing.revenue.monthPaise} before={billing.revenue.lastMonthPaise} suffix={t('vs last month')} />
                 </Stack>
                 <Typography variant="caption" color="textSecondary">
-                  Last month {inr(billing.revenue.lastMonthPaise)}
+                  {t('Last month {{inr}}', { inr: inr(billing.revenue.lastMonthPaise) })}
                 </Typography>
               </Box>
               <Stack direction="row" spacing={4}>
-                <Fact label="Monthly recurring" value={inr(billing.revenue.mrrPaise ?? 0)} caption="From paid plans now active" />
-                <Fact label="All time" value={inr(billing.revenue.totalPaise)} />
+                <Fact label={t('Monthly recurring')} value={inr(billing.revenue.mrrPaise ?? 0)} caption={t('From paid plans now active')} />
+                <Fact label={t('All time')} value={inr(billing.revenue.totalPaise)} />
               </Stack>
             </Stack>
             <StackedColumnChart
               series={REVENUE_SERIES}
-              data={billing.revenue.months.map((m) => ({ key: m.key, label: monthName(m.key), onlinePaise: m.onlinePaise ?? 0, manualPaise: m.manualPaise ?? m.totalPaise, detail: `${monthYear(m.key)} · ${plural(m.count, 'payment')}` }))}
-              emptyLabel="No payments yet"
+              data={billing.revenue.months.map((m) => ({ key: m.key, label: monthName(m.key), onlinePaise: m.onlinePaise ?? 0, manualPaise: m.manualPaise ?? m.totalPaise, detail: `${monthYear(m.key)} · ${paymentsCount(m.count)}` }))}
+              emptyLabel={t('No payments yet')}
             />
           </Panel>
         </Grid>
         <Grid size={{ xs: 12, lg: 4 }}>
-          <Panel title="Subscriptions" subtitle="Where every organisation stands">
+          <Panel title={t('Subscriptions')} subtitle={t('Where every organisation stands')}>
             <DonutChart
               rows={[
-                { key: 'active', label: 'Paid', value: subs.active },
-                { key: 'trial', label: 'Free trial', value: subs.trial },
-                { key: 'expired', label: 'Expired', value: subs.expired },
+                { key: 'active', label: t('Paid'), value: subs.active },
+                { key: 'trial', label: t('Free trial'), value: subs.trial },
+                { key: 'expired', label: t('Expired'), value: subs.expired },
               ]}
               formatValue={(v) => String(v)}
               formatCenter={(v) => String(v)}
-              centerLabel="Organisations"
-              empty="No organisations yet"
+              centerLabel={t('Organisations')}
+              empty={t('No organisations yet')}
             />
             {billing.conversion?.organisations > 0 && (
               <>
                 <Divider sx={{ my: 2 }} />
-                <Meter label="Trial → paid" part={billing.conversion.paying} whole={billing.conversion.organisations} caption={`${billing.conversion.paying} of ${plural(billing.conversion.organisations, 'organisation')} have paid at least once`} />
+                <Meter label={t('Trial → paid')} part={billing.conversion.paying} whole={billing.conversion.organisations} caption={t(billing.conversion.organisations === 1 ? '{{paying}} of {{n}} organisation has paid at least once' : '{{paying}} of {{n}} organisations have paid at least once', { paying: billing.conversion.paying, n: billing.conversion.organisations })} />
               </>
             )}
           </Panel>
@@ -223,54 +224,54 @@ export default function AdminDashboardPage() {
 
       <Grid container spacing={2} sx={{ mb: 2 }}>
         <Grid size={{ xs: 12, md: 6, lg: 4 }}>
-          <Panel title="Growth" subtitle="Organisations on the platform · end of each month">
+          <Panel title={t('Growth')} subtitle={t('Organisations on the platform · end of each month')}>
             <AreaChart
               height={200}
-              data={(platform.signups ?? []).map((m) => ({ key: m.key, label: monthName(m.key), value: m.total ?? 0, detail: `${monthYear(m.key)} · ${m.count} new` }))}
-              formatValue={(v) => plural(v, 'organisation')}
+              data={(platform.signups ?? []).map((m) => ({ key: m.key, label: monthName(m.key), value: m.total ?? 0, detail: t('{{monthYear}} · {{count}} new', { monthYear: monthYear(m.key), count: m.count }) }))}
+              formatValue={(v) => t(v === 1 ? '{{n}} organisation' : '{{n}} organisations', { n: v })}
               formatAxis={(v) => String(Math.round(v))}
-              emptyLabel="No organisations yet"
+              emptyLabel={t('No organisations yet')}
             />
           </Panel>
         </Grid>
         <Grid size={{ xs: 12, md: 6, lg: 4 }}>
-          <Panel title="Sign-ups" subtitle="New organisations each month · last 12 months">
+          <Panel title={t('Sign-ups')} subtitle={t('New organisations each month · last 12 months')}>
             <ColumnChart
               height={200}
               data={(platform.signups ?? []).map((m) => ({ key: m.key, label: monthName(m.key), value: m.count, detail: monthYear(m.key) }))}
-              formatValue={(v) => plural(v, 'organisation')}
+              formatValue={(v) => t(v === 1 ? '{{n}} organisation' : '{{n}} organisations', { n: v })}
               formatAxis={(v) => String(Math.round(v))}
-              emptyLabel="No sign-ups yet"
+              emptyLabel={t('No sign-ups yet')}
             />
           </Panel>
         </Grid>
         <Grid size={{ xs: 12, lg: 4 }}>
-          <Panel title="Revenue by plan" subtitle="Payments received · last 12 months" action={<PanelLink to="/admin/plans">Plans</PanelLink>}>
-            <ShareBars rows={billing.revenue.byPlan ?? []} totalLabel="Last 12 months" empty="No payments yet" />
+          <Panel title={t('Revenue by plan')} subtitle={t('Payments received · last 12 months')} action={<PanelLink to="/admin/plans">{t('Plans')}</PanelLink>}>
+            <ShareBars rows={billing.revenue.byPlan ?? []} totalLabel={t('Last 12 months')} empty={t('No payments yet')} />
           </Panel>
         </Grid>
       </Grid>
 
       <Grid container spacing={2} sx={{ mb: 2 }}>
         <Grid size={{ xs: 12, md: 6, lg: 4 }}>
-          <Panel title="Paid plans" subtitle="Paying organisations on each plan now">
-            <BarList rows={billing.plans ?? []} formatValue={(v) => plural(v, 'org')} empty="No paid subscriptions yet" />
+          <Panel title={t('Paid plans')} subtitle={t('Paying organisations on each plan now')}>
+            <BarList rows={billing.plans ?? []} formatValue={(v) => t(v === 1 ? '{{n}} org' : '{{n}} orgs', { n: v })} empty={t('No paid subscriptions yet')} />
           </Panel>
         </Grid>
         <Grid size={{ xs: 12, md: 6, lg: 4 }}>
-          <Panel title="Platform usage" subtitle="Across all active organisations">
+          <Panel title={t('Platform usage')} subtitle={t('Across all active organisations')}>
             <Box sx={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 2.5 }}>
-              <Fact label="Organisations" value={platform.active} caption={platform.suspended ? `${platform.suspended} deactivated` : 'All active'} />
-              <Fact label="Branches" value={platform.branches} caption={platform.active ? `${(platform.branches / platform.active).toFixed(1)} per organisation` : null} />
-              <Fact label="Users" value={platform.users} caption={platform.active ? `${(platform.users / platform.active).toFixed(1)} per organisation` : null} />
-              <Fact label="Paying now" value={subs.active} caption={everyone ? `${Math.round((subs.active / everyone) * 100)}% of organisations` : null} />
+              <Fact label={t('Organisations')} value={platform.active} caption={platform.suspended ? t('{{suspended}} deactivated', { suspended: platform.suspended }) : t('All active')} />
+              <Fact label={t('Branches')} value={platform.branches} caption={platform.active ? t('{{value}} per organisation', { value: (platform.branches / platform.active).toFixed(1) }) : null} />
+              <Fact label={t('Users')} value={platform.users} caption={platform.active ? t('{{value}} per organisation', { value: (platform.users / platform.active).toFixed(1) }) : null} />
+              <Fact label={t('Paying now')} value={subs.active} caption={everyone ? t('{{Math}}% of organisations', { Math: Math.round((subs.active / everyone) * 100) }) : null} />
             </Box>
           </Panel>
         </Grid>
         <Grid size={{ xs: 12, lg: 4 }}>
-          <Panel title="Ending within 7 days" subtitle="Trials and paid periods about to lapse">
+          <Panel title={t('Ending within 7 days')} subtitle={t('Trials and paid periods about to lapse')}>
             {soon === 0 ? (
-              <Empty>Nothing ends this week</Empty>
+              <Empty>{t('Nothing ends this week')}</Empty>
             ) : (
               <Stack divider={<Divider flexItem />} spacing={1.25}>
                 {billing.expiring.map((x) => (
@@ -281,11 +282,11 @@ export default function AdminDashboardPage() {
                         {x.name}
                       </Link>
                       <Typography variant="caption" color="textSecondary" noWrap component="div">
-                        {x.planName} · ends {formatDate(x.endsAt)}
+                        {t('{{planName}} · ends {{endsAt}}', { planName: x.planName, endsAt: formatDate(x.endsAt) })}
                       </Typography>
                     </Box>
                     <Box sx={{ px: 1, py: 0.25, borderRadius: 999, fontSize: '0.75rem', fontWeight: 700, whiteSpace: 'nowrap', color: x.daysLeft <= 2 ? 'error.main' : 'warning.dark', bgcolor: x.daysLeft <= 2 ? 'rgba(155, 44, 44, 0.08)' : 'rgba(183, 121, 31, 0.10)' }}>
-                      {x.daysLeft === 0 ? 'Today' : `${x.daysLeft}d left`}
+                      {x.daysLeft === 0 ? t('Today') : t('{{daysLeft}}d left', { daysLeft: x.daysLeft })}
                     </Box>
                   </Stack>
                 ))}
@@ -297,9 +298,9 @@ export default function AdminDashboardPage() {
 
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, md: 6 }}>
-          <Panel title="New organisations" subtitle={`Signed up ${phrase}`} action={<PanelLink to="/admin/organisations">All organisations</PanelLink>}>
+          <Panel title={t('New organisations')} subtitle={t('Signed up {{phrase}}', { phrase })} action={<PanelLink to="/admin/organisations">{t('All organisations')}</PanelLink>}>
             {!platform.recent?.length ? (
-              <Empty>No sign-ups {phrase}</Empty>
+              <Empty>{t('No sign-ups {{phrase}}', { phrase })}</Empty>
             ) : (
               <Stack divider={<Divider flexItem />} spacing={1.25}>
                 {platform.recent.map((o) => (
@@ -310,7 +311,7 @@ export default function AdminDashboardPage() {
                         {o.name}
                       </Link>
                       <Typography variant="caption" color="textSecondary" noWrap component="div">
-                        {[o.owner?.name, `joined ${formatDate(o.createdAt)}`, `${o.branchesUsed} branch${o.branchesUsed === 1 ? '' : 'es'}`].filter(Boolean).join(' · ')}
+                        {[o.owner?.name, t('joined {{createdAt}}', { createdAt: formatDate(o.createdAt) }), (o.branchesUsed === 1 ? t('{{branchesUsed}} branch', { branchesUsed: o.branchesUsed }) : t('{{branchesUsed}} branches', { branchesUsed: o.branchesUsed }))].filter(Boolean).join(' · ')}
                       </Typography>
                     </Box>
                     <SubscriptionChip status={o.subscription?.expired ? 'expired' : o.subscription?.status} />
@@ -321,9 +322,9 @@ export default function AdminDashboardPage() {
           </Panel>
         </Grid>
         <Grid size={{ xs: 12, md: 6 }}>
-          <Panel title="Latest payments" subtitle={`Online and manual · ${phrase}`} action={<PanelLink to="/admin/payments">All payments</PanelLink>}>
+          <Panel title={t('Latest payments')} subtitle={t('Online and manual · {{phrase}}', { phrase })} action={<PanelLink to="/admin/payments">{t('All payments')}</PanelLink>}>
             {billing.recentPayments.length === 0 ? (
-              <Empty>No payments {phrase}</Empty>
+              <Empty>{t('No payments {{phrase}}', { phrase })}</Empty>
             ) : (
               <Stack divider={<Divider flexItem />} spacing={1.25}>
                 {billing.recentPayments.map((p) => (
@@ -334,7 +335,7 @@ export default function AdminDashboardPage() {
                         {p.organisation.name}
                       </Typography>
                       <Typography variant="caption" color="textSecondary" noWrap component="div">
-                        {p.plan.name} · {formatDate(p.paidAt ?? p.createdAt)} · {p.source === 'manual' ? 'Manual' : 'Online'}
+                        {p.plan.name} · {formatDate(p.paidAt ?? p.createdAt)} · {p.source === 'manual' ? t('Manual') : t('Online')}
                       </Typography>
                     </Box>
                     <Stack sx={{ alignItems: 'flex-end', gap: 0.5 }}>
@@ -356,7 +357,7 @@ export default function AdminDashboardPage() {
       {platform.suspended > 0 && (
         <Stack direction="row" sx={{ mt: 2, justifyContent: 'flex-end' }}>
           <Button size="small" color="secondary" component={RouterLink} to="/admin/organisations" endIcon={<ArrowForwardRoundedIcon />}>
-            {plural(platform.suspended, 'deactivated organisation')}
+            {t(platform.suspended === 1 ? '{{n}} deactivated organisation' : '{{n}} deactivated organisations', { n: platform.suspended })}
           </Button>
         </Stack>
       )}

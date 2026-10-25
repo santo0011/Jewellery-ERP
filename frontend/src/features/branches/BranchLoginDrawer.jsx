@@ -14,12 +14,13 @@ import { tokens } from '../../theme/tokens.js';
 import { applyServerErrors, getErrorMessage } from '../../utils/errors.js';
 import { formatDateTime } from '../../utils/format.js';
 import { useSetBranchLoginMutation } from './branchApi.js';
+import { t } from '../../i18n/index.js';
 
 // Creating the login needs a password; once it exists, the password is optional (blank = keep it) and the role can change alone.
 const formSchemaFor = (existing) =>
   z
-    .object({ roleId: z.string().min(1, 'Select a role'), password: existing ? z.union([z.literal(''), passwordSchema]) : passwordSchema, confirmPassword: z.string() })
-    .refine((v) => v.password === v.confirmPassword, { path: ['confirmPassword'], message: 'Passwords do not match' });
+    .object({ roleId: z.string().min(1, t('Select a role')), password: existing ? z.union([z.literal(''), passwordSchema]) : passwordSchema, confirmPassword: z.string() })
+    .refine((v) => v.password === v.confirmPassword, { path: ['confirmPassword'], message: t('Passwords do not match') });
 
 const EMPTY = { roleId: '', password: '', confirmPassword: '' };
 // Errors on these fields show under the field; anything else (plan limit, missing branch email) shows as an alert.
@@ -48,7 +49,7 @@ export default function BranchLoginDrawer({ branch, onClose, onEditBranch }) {
   const submitPassword = handleSubmit(async ({ password, roleId }) => {
     try {
       await save({ id: branch._id, roleId, ...(password && { password }) }).unwrap();
-      toast.success(existing ? `${branch.name} login updated` : `${branch.name} can now sign in with ${branch.email}`);
+      toast.success(existing ? t('{{name}} login updated', { name: branch.name }) : t('{{name}} can now sign in with {{email}}', { name: branch.name, email: branch.email }));
       onClose();
     } catch (err) {
       applyServerErrors(err, setError);
@@ -63,12 +64,12 @@ export default function BranchLoginDrawer({ branch, onClose, onEditBranch }) {
   return (
     <FormDrawer
       open={Boolean(branch)}
-      title={existing ? 'Branch login' : 'Set up branch login'}
+      title={existing ? t('Branch login') : t('Set up branch login')}
       subtitle={branch?.name}
       onClose={onClose}
       onSubmit={hasEmail ? submitPassword : goAddEmail}
       submitting={isLoading}
-      submitLabel={!hasEmail ? 'Add email' : existing ? 'Save' : 'Create login'}
+      submitLabel={!hasEmail ? t('Add email') : existing ? t('Save') : t('Create login')}
       width={460}
     >
       <Stack spacing={2.5}>
@@ -79,34 +80,34 @@ export default function BranchLoginDrawer({ branch, onClose, onEditBranch }) {
             </Box>
             <Box sx={{ minWidth: 0, flex: 1 }}>
               <Typography variant="caption" color="textSecondary">
-                Login email
+                {t('Login email')}
               </Typography>
               <Typography variant="subtitle2" sx={{ fontWeight: 600, overflowWrap: 'anywhere' }}>
-                {branch?.email ?? 'No email on this branch'}
+                {branch?.email ?? t('No email on this branch')}
               </Typography>
             </Box>
-            <Chip size="small" label={existing ? 'Active' : 'Not set up'} color={existing ? 'success' : 'default'} variant={existing ? 'filled' : 'outlined'} sx={{ height: 22 }} />
+            <Chip size="small" label={existing ? t('Active') : t('Not set up')} color={existing ? 'success' : 'default'} variant={existing ? 'filled' : 'outlined'} sx={{ height: 22 }} />
           </Stack>
           {existing && (
             <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 1.25 }}>
-              {existing.lastLoginAt ? `Last signed in ${formatDateTime(existing.lastLoginAt)}` : 'Has not signed in yet'}
+              {existing.lastLoginAt ? t('Last signed in {{lastLoginAt}}', { lastLoginAt: formatDateTime(existing.lastLoginAt) }) : t('Has not signed in yet')}
             </Typography>
           )}
         </Box>
 
         {!hasEmail ? (
-          <Alert severity="info">The branch signs in with its email. Add an email to {branch?.name} first, then come back to set the password.</Alert>
+          <Alert severity="info">{t('The branch signs in with its email. Add an email to {{name}} first, then come back to set the password.', { name: branch?.name })}</Alert>
         ) : (
           <>
             <Typography variant="body2" color="textSecondary">
               {existing
-                ? 'Change the role, or enter a new password (leave it blank to keep the current one). A new password signs the branch out on every device.'
-                : 'This login opens the panel for this branch only. The email is the branch email; change it from Edit branch.'}
+                ? t('Change the role, or enter a new password (leave it blank to keep the current one). A new password signs the branch out on every device.')
+                : t('This login opens the panel for this branch only. The email is the branch email; change it from Edit branch.')}
             </Typography>
             {error && !fieldError(error) && <Alert severity="error">{getErrorMessage(error)}</Alert>}
-            <RHFSelect control={control} name="roleId" label="Role" options={roleOptions} helperText="What this login can do in its branch" />
-            <PasswordField control={control} name="password" label={existing ? 'New password (optional)' : 'Password'} autoComplete="new-password" helperText="At least 6 characters" autoFocus />
-            <PasswordField control={control} name="confirmPassword" label="Confirm password" autoComplete="new-password" />
+            <RHFSelect control={control} name="roleId" label={t('Role')} options={roleOptions} helperText={t('What this login can do in its branch')} />
+            <PasswordField control={control} name="password" label={existing ? t('New password (optional)') : t('Password')} autoComplete="new-password" helperText={t('At least 6 characters')} autoFocus />
+            <PasswordField control={control} name="confirmPassword" label={t('Confirm password')} autoComplete="new-password" />
           </>
         )}
       </Stack>

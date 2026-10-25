@@ -32,99 +32,100 @@ import WorkspacePremiumOutlinedIcon from '@mui/icons-material/WorkspacePremiumOu
 import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined';
 import ScaleOutlinedIcon from '@mui/icons-material/ScaleOutlined';
 import TrendingUpRoundedIcon from '@mui/icons-material/TrendingUpRounded';
+import { t } from '../i18n/index.js';
 
 /** Anyone with at least one of these sees Reports (each report checks its own permission). */
 export const REPORT_PERMISSIONS = ['report.sales', 'report.inventory', 'report.customer', 'report.finance', 'purchase.view', 'payroll.view', 'attendance.view'];
 
 /** Always first and never folded away: a `pinned` group renders without a collapsible header. */
-export const DASHBOARD_GROUP = { label: 'Dashboard', pinned: true, items: [{ label: 'Dashboard', mobileLabel: 'Home', path: '/', icon: DashboardOutlinedIcon, end: true, mobile: true }] };
+export const DASHBOARD_GROUP = { label: t('Dashboard'), pinned: true, items: [{ label: t('Dashboard'), mobileLabel: t('Home'), path: '/', icon: DashboardOutlinedIcon, end: true, mobile: true }] };
 
 export const NAV_GROUPS = [
   DASHBOARD_GROUP,
   {
-    label: 'Overview',
+    label: t('Overview'),
     items: [
-      { label: 'Reports', path: '/reports', icon: AssessmentOutlinedIcon, permission: REPORT_PERMISSIONS },
-      { label: 'Metal rates', path: '/rates', icon: ShowChartRoundedIcon, permission: 'rate.view' },
-      { label: 'Approvals', path: '/approvals', icon: FactCheckOutlinedIcon, permission: 'inventory.approve', badge: 'approvals' },
+      { label: t('Reports'), path: '/reports', icon: AssessmentOutlinedIcon, permission: REPORT_PERMISSIONS },
+      { label: t('Metal rates'), path: '/rates', icon: ShowChartRoundedIcon, permission: 'rate.view' },
+      { label: t('Approvals'), path: '/approvals', icon: FactCheckOutlinedIcon, permission: 'inventory.approve', badge: 'approvals' },
     ],
   },
   {
-    label: 'Sales',
+    label: t('Sales'),
     items: [
-      { label: 'New bill', path: '/billing', icon: PointOfSaleOutlinedIcon, permission: 'sales.create', mobile: true },
-      { label: 'Orders', path: '/orders', icon: AssignmentOutlinedIcon, permission: 'order.view', mobile: true },
-      { label: 'Invoices', path: '/sales', icon: ReceiptOutlinedIcon, permission: 'sales.view' },
+      { label: t('New bill'), path: '/billing', icon: PointOfSaleOutlinedIcon, permission: 'sales.create', mobile: true },
+      { label: t('Orders'), path: '/orders', icon: AssignmentOutlinedIcon, permission: 'order.view', mobile: true },
+      { label: t('Invoices'), path: '/sales', icon: ReceiptOutlinedIcon, permission: 'sales.view' },
       // Old gold taken in exchange on bills, or bought for money.
-      { label: 'Old gold', path: '/old-gold', icon: RecyclingRoundedIcon, permission: 'oldgold.view' },
-      { label: 'Customers', path: '/customers', icon: PeopleAltOutlinedIcon, permission: 'customer.view', mobile: true },
+      { label: t('Old gold'), path: '/old-gold', icon: RecyclingRoundedIcon, permission: 'oldgold.view' },
+      { label: t('Customers'), path: '/customers', icon: PeopleAltOutlinedIcon, permission: 'customer.view', mobile: true },
     ],
   },
   {
     // What is in the shop and how it moves.
-    label: 'Stock',
+    label: t('Stock'),
     items: [
-      { label: 'Stock summary', path: '/inventory', icon: Inventory2OutlinedIcon, permission: 'inventory.view', end: true },
-      { label: 'Products', path: '/products', icon: DiamondOutlinedIcon, permission: 'product.view', mobile: true },
+      { label: t('Stock summary'), path: '/inventory', icon: Inventory2OutlinedIcon, permission: 'inventory.view', end: true },
+      { label: t('Products'), path: '/products', icon: DiamondOutlinedIcon, permission: 'product.view', mobile: true },
       // Metal held by weight (bullion, old gold, scrap) — apart from Products until made into jewellery.
-      { label: 'Raw materials', path: '/inventory/raw-materials', icon: ScaleOutlinedIcon, permission: 'inventory.view' },
-      { label: 'Opening stock', path: '/inventory/opening', icon: PlaylistAddRoundedIcon, permission: 'inventory.view' },
-      { label: 'Adjustments', path: '/inventory/adjustments', icon: RuleRoundedIcon, permission: 'inventory.view' },
-      { label: 'Transfers', path: '/inventory/transfers', icon: SyncAltRoundedIcon, permission: 'inventory.view' },
-      { label: 'Stock ledger', path: '/inventory/ledger', icon: ReceiptLongOutlinedIcon, permission: 'inventory.view' },
+      { label: t('Raw materials'), path: '/inventory/raw-materials', icon: ScaleOutlinedIcon, permission: 'inventory.view' },
+      { label: t('Opening stock'), path: '/inventory/opening', icon: PlaylistAddRoundedIcon, permission: 'inventory.view' },
+      { label: t('Adjustments'), path: '/inventory/adjustments', icon: RuleRoundedIcon, permission: 'inventory.view' },
+      { label: t('Transfers'), path: '/inventory/transfers', icon: SyncAltRoundedIcon, permission: 'inventory.view' },
+      { label: t('Stock ledger'), path: '/inventory/ledger', icon: ReceiptLongOutlinedIcon, permission: 'inventory.view' },
     ],
   },
   {
     // Buying: who from, what was ordered, what was billed.
-    label: 'Purchase',
+    label: t('Purchase'),
     items: [
-      { label: 'Purchases', path: '/purchases', icon: ShoppingBagOutlinedIcon, permission: 'purchase.view', end: true },
-      { label: 'Items', path: '/items', icon: CategoryOutlinedIcon, permission: 'purchase.view' },
-      { label: 'Purchase orders', path: '/purchases/orders', icon: PendingActionsOutlinedIcon, permission: 'purchase.view' },
-      { label: 'Suppliers', path: '/suppliers', icon: LocalShippingOutlinedIcon, permission: 'supplier.view' },
+      { label: t('Purchases'), path: '/purchases', icon: ShoppingBagOutlinedIcon, permission: 'purchase.view', end: true },
+      { label: t('Items'), path: '/items', icon: CategoryOutlinedIcon, permission: 'purchase.view' },
+      { label: t('Purchase orders'), path: '/purchases/orders', icon: PendingActionsOutlinedIcon, permission: 'purchase.view' },
+      { label: t('Suppliers'), path: '/suppliers', icon: LocalShippingOutlinedIcon, permission: 'supplier.view' },
     ],
   },
   {
     // Money: what the shop spends, and what is left after everything.
-    label: 'Accounts',
+    label: t('Accounts'),
     items: [
-      { label: 'Profit & loss', path: '/finance', icon: TrendingUpRoundedIcon, permission: 'report.finance' },
-      { label: 'Expenses', path: '/expenses', icon: AccountBalanceWalletOutlinedIcon, permission: 'expense.view' },
+      { label: t('Profit & loss'), path: '/finance', icon: TrendingUpRoundedIcon, permission: 'report.finance' },
+      { label: t('Expenses'), path: '/expenses', icon: AccountBalanceWalletOutlinedIcon, permission: 'expense.view' },
     ],
   },
   {
-    label: 'HR & Payroll',
+    label: t('HR & Payroll'),
     items: [
-      { label: 'Employees', path: '/hr/employees', icon: BadgeOutlinedIcon, permission: 'employee.view' },
-      { label: 'Attendance', path: '/hr/attendance', icon: EventAvailableOutlinedIcon, permission: 'attendance.view' },
-      { label: 'Salary advances', path: '/hr/advances', icon: RequestQuoteOutlinedIcon, permission: 'payroll.view' },
-      { label: 'Payroll', path: '/hr/payroll', icon: PaymentsOutlinedIcon, permission: 'payroll.view' },
+      { label: t('Employees'), path: '/hr/employees', icon: BadgeOutlinedIcon, permission: 'employee.view' },
+      { label: t('Attendance'), path: '/hr/attendance', icon: EventAvailableOutlinedIcon, permission: 'attendance.view' },
+      { label: t('Salary advances'), path: '/hr/advances', icon: RequestQuoteOutlinedIcon, permission: 'payroll.view' },
+      { label: t('Payroll'), path: '/hr/payroll', icon: PaymentsOutlinedIcon, permission: 'payroll.view' },
     ],
   },
   {
     // The business itself and how it is set up.
-    label: 'Settings',
+    label: t('Settings'),
     items: [
-      { label: 'Organisation', path: '/settings/organisation', icon: StorefrontOutlinedIcon, permission: 'organisation.view' },
-      { label: 'Branches', path: '/settings/branches', icon: AccountTreeOutlinedIcon, permission: 'branch.view' },
-      { label: 'Business settings', path: '/settings/business', icon: TuneRoundedIcon, permission: 'settings.view' },
+      { label: t('Organisation'), path: '/settings/organisation', icon: StorefrontOutlinedIcon, permission: 'organisation.view' },
+      { label: t('Branches'), path: '/settings/branches', icon: AccountTreeOutlinedIcon, permission: 'branch.view' },
+      { label: t('Business settings'), path: '/settings/business', icon: TuneRoundedIcon, permission: 'settings.view' },
       // A branch's own invoice print design — for people who work in particular branches (the organisation sets its own under Business settings → Print).
-      { label: 'Print settings', path: '/settings/print', icon: PrintOutlinedIcon, permission: 'sales.print', ownBranchesOnly: true },
-      { label: 'Product categories', path: '/settings/categories', icon: CategoryOutlinedIcon, permission: 'category.view' },
-      { label: 'Subscription', path: '/settings/subscription', icon: WorkspacePremiumOutlinedIcon, permission: 'subscription.view' },
+      { label: t('Print settings'), path: '/settings/print', icon: PrintOutlinedIcon, permission: 'sales.print', ownBranchesOnly: true },
+      { label: t('Product categories'), path: '/settings/categories', icon: CategoryOutlinedIcon, permission: 'category.view' },
+      { label: t('Subscription'), path: '/settings/subscription', icon: WorkspacePremiumOutlinedIcon, permission: 'subscription.view' },
     ],
   },
   {
     // The people who use it and what they may do.
-    label: 'Users & access',
+    label: t('Users & access'),
     items: [
-      { label: 'Roles & permissions', path: '/settings/roles', icon: AdminPanelSettingsOutlinedIcon, permission: 'role.view' },
-      { label: 'Audit log', path: '/settings/audit-log', icon: HistoryRoundedIcon, permission: 'audit.view' },
+      { label: t('Roles & permissions'), path: '/settings/roles', icon: AdminPanelSettingsOutlinedIcon, permission: 'role.view' },
+      { label: t('Audit log'), path: '/settings/audit-log', icon: HistoryRoundedIcon, permission: 'audit.view' },
     ],
   },
 ];
 
-export const PROFILE_ITEM = { label: 'Profile', path: '/profile', icon: PersonOutlineRoundedIcon, mobile: true };
+export const PROFILE_ITEM = { label: t('Profile'), path: '/profile', icon: PersonOutlineRoundedIcon, mobile: true };
 
 /**
  * The menu for these permissions: every page the role allows, for an organisation user and a branch login alike.

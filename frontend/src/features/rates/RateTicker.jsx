@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router';
 import { usePermission } from '../../hooks/usePermission.js';
 import { purityLabel } from '../products/productForm.js';
 import { useCurrentRatesQuery } from './rateApi.js';
+import { t } from '../../i18n/index.js';
 
 export default function RateTicker() {
   const allowed = usePermission('rate.view');
@@ -17,7 +18,7 @@ export default function RateTicker() {
     <ButtonBase
       onClick={() => navigate('/rates')}
       sx={{ display: 'flex', flexShrink: 0, alignItems: 'center', gap: { xs: 0.75, sm: 1 }, px: { xs: 1.25, sm: 1.5 }, height: 36, border: '1px solid rgba(var(--brand-rgb), 0.35)', borderRadius: 999, background: 'linear-gradient(135deg, rgba(var(--brand-rgb), 0.10), rgba(var(--brand-rgb), 0.02))', transition: 'border-color 160ms ease', '&:hover': { borderColor: 'var(--brand)' } }}
-      aria-label="Metal rates"
+      aria-label={t('Metal rates')}
     >
       <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: gold?.isToday ? 'success.main' : 'warning.main' }} />
       {gold ? (
@@ -29,12 +30,12 @@ export default function RateTicker() {
             {formatINR(gold.ratePerGramPaise, { decimals: 0 })}
           </Box>
           <Typography component="span" variant="caption" color="textSecondary">
-            /g
+            {t('/g')}
           </Typography>
         </Typography>
       ) : (
         <Typography variant="body2" color="warning">
-          Set today's rate
+          {t('Set today\'s rate')}
         </Typography>
       )}
     </ButtonBase>

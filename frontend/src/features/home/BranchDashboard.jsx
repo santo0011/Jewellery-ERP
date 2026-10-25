@@ -19,29 +19,30 @@ import { useNavigate } from 'react-router';
 import { usePermission } from '../../hooks/usePermission.js';
 import { useFinanceSummaryQuery } from '../finance/financeApi.js';
 import { ProfitSnapshot } from '../finance/ProfitPage.jsx';
+import { getLocale, t, tValue } from '../../i18n/index.js';
 
 // The same three periods on every dashboard; all time (since the branch's first bill) is the default.
 const PERIODS = [
-  { value: 'today', label: 'Today', phrase: 'today' },
-  { value: 'month', label: 'This month', phrase: 'this month' },
-  { value: 'all', label: 'All time', short: 'All', phrase: 'all time' },
+  { value: 'today', label: t('Today'), phrase: t('today') },
+  { value: 'month', label: t('This month'), phrase: t('this month') },
+  { value: 'all', label: t('All time'), short: t('All'), phrase: t('all time') },
 ];
 const periodPhrase = (v) => PERIODS.find((p) => p.value === v)?.phrase ?? '';
 const COLLECTION_PARTS = [
-  ['bills', 'Bills'],
-  ['orderAdvances', 'Orders'],
-  ['dueCollections', 'Dues'],
-  ['customerAdvances', 'Advances'],
+  ['bills', t('Bills')],
+  ['orderAdvances', t('Orders')],
+  ['dueCollections', t('Dues')],
+  ['customerAdvances', t('Advances')],
 ];
 /** Where the money came from: bill payments, order advances / part payments, dues collected and customer advances. */
 const collectedCaption = (by) => {
   const parts = COLLECTION_PARTS.filter(([key]) => by?.[key] > 0).map(([key, label]) => `${label} ${formatINR(by[key], { decimals: 0 })}`);
-  return parts.length ? parts.join(' · ') : 'Bills, orders, dues and advances';
+  return parts.length ? parts.join(' · ') : t('Bills, orders, dues and advances');
 };
 // Phones: tighter gaps between cards, so more of the dashboard fits on a screen.
 const GAP = { xs: 1.5, sm: 2 };
 const ROW_GAP = { xs: 1.5, sm: 2.5 };
-const metalName = (m) => m.charAt(0).toUpperCase() + m.slice(1);
+const metalName = (m) => t(m.charAt(0).toUpperCase() + m.slice(1));
 
 function Panel({ title, subtitle, action, children }) {
   return (
@@ -66,12 +67,12 @@ function Panel({ title, subtitle, action, children }) {
 
 const shortDay = (ymd, bucket) => {
   const d = new Date(`${ymd}T00:00:00`);
-  if (bucket === 'month') return d.toLocaleDateString('en-IN', { month: 'short', year: '2-digit' });
-  return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+  if (bucket === 'month') return d.toLocaleDateString(getLocale(), { month: 'short', year: '2-digit' });
+  return d.toLocaleDateString(getLocale(), { day: 'numeric', month: 'short' });
 };
 
 /** 0–23 → "9 am", "12 pm", "5 pm". */
-const hourLabel = (h) => `${h % 12 || 12} ${h < 12 ? 'am' : 'pm'}`;
+const hourLabel = (h) => t(h < 12 ? '{{h}} am' : '{{h}} pm', { h: h % 12 || 12 });
 
 /** The branch at a glance: today, the period's sales trend and mix, collections, orders and stock. */
 /** This month's sales against expenses, day by day, and the net profit so far — opens Profit & loss. */
@@ -109,7 +110,7 @@ export default function BranchDashboard({ branchId }) {
           </Typography>
         </Box>
         {/* Phones: three equal segments across the width, with short labels. */}
-        <ToggleButtonGroup exclusive size="small" value={period} onChange={(e, v) => v && setPeriod(v)} aria-label="Period" sx={{ width: { xs: '100%', sm: 'auto' } }}>
+        <ToggleButtonGroup exclusive size="small" value={period} onChange={(e, v) => v && setPeriod(v)} aria-label={t('Period')} sx={{ width: { xs: '100%', sm: 'auto' } }}>
           {PERIODS.map(({ value, label, short }) => (
             <ToggleButton key={value} value={value} sx={{ px: { xs: 1, sm: 1.75 }, flex: { xs: 1, sm: 'none' } }}>
               {phone && short ? short : label}
@@ -120,10 +121,10 @@ export default function BranchDashboard({ branchId }) {
 
       {sales && (
         <SummaryCards>
-          <SummaryCard hideCaptionOnPhone icon={ReceiptLongOutlinedIcon} label={`Sales · ${periodPhrase(period)}`} value={formatINR(sales.period.revenuePaise, { decimals: 0 })} caption={`${sales.period.bills} bills · avg ${formatINR(sales.period.averageBillPaise, { decimals: 0 })}`} tone="blue" />
-          <SummaryCard hideCaptionOnPhone icon={PaymentsOutlinedIcon} label={`Collected · ${periodPhrase(period)}`} value={formatINR(sales.period.collectedPaise, { decimals: 0 })} caption={collectedCaption(sales.period.collectedBreakdown)} tone="green" valueTone="paid" />
-          <SummaryCard hideCaptionOnPhone icon={PendingActionsOutlinedIcon} label={`Due · ${periodPhrase(period)}`} value={formatINR(sales.period.creditDuePaise, { decimals: 0 })} caption={sales.period.dueBills ? `${sales.period.dueBills} bill${sales.period.dueBills === 1 ? '' : 's'} still unpaid` : 'Nothing due'} tone={sales.period.creditDuePaise ? 'red' : 'green'} valueTone={sales.period.creditDuePaise ? 'due' : undefined} />
-          <SummaryCard hideCaptionOnPhone icon={DiamondOutlinedIcon} label="Items sold" value={sales.period.items} caption={`${formatWeight(sales.period.grossWeightMg)} gross${sales.period.discountPaise ? ` · ${formatINR(sales.period.discountPaise, { decimals: 0 })} discount` : ''}`} tone="amber" />
+          <SummaryCard hideCaptionOnPhone icon={ReceiptLongOutlinedIcon} label={t('Sales · {{periodPhrase}}', { periodPhrase: periodPhrase(period) })} value={formatINR(sales.period.revenuePaise, { decimals: 0 })} caption={t('{{bills}} bills · avg {{averageBill}}', { bills: sales.period.bills, averageBill: formatINR(sales.period.averageBillPaise, { decimals: 0 }) })} tone="blue" />
+          <SummaryCard hideCaptionOnPhone icon={PaymentsOutlinedIcon} label={t('Collected · {{periodPhrase}}', { periodPhrase: periodPhrase(period) })} value={formatINR(sales.period.collectedPaise, { decimals: 0 })} caption={collectedCaption(sales.period.collectedBreakdown)} tone="green" valueTone="paid" />
+          <SummaryCard hideCaptionOnPhone icon={PendingActionsOutlinedIcon} label={t('Due · {{periodPhrase}}', { periodPhrase: periodPhrase(period) })} value={formatINR(sales.period.creditDuePaise, { decimals: 0 })} caption={sales.period.dueBills ? (sales.period.dueBills === 1 ? t('{{dueBills}} bill still unpaid', { dueBills: sales.period.dueBills }) : t('{{dueBills}} bills still unpaid', { dueBills: sales.period.dueBills })) : t('Nothing due')} tone={sales.period.creditDuePaise ? 'red' : 'green'} valueTone={sales.period.creditDuePaise ? 'due' : undefined} />
+          <SummaryCard hideCaptionOnPhone icon={DiamondOutlinedIcon} label={t('Items sold')} value={sales.period.items} caption={(sales.period.discountPaise ? t('{{grossWeight}} gross · {{discount}} discount', { grossWeight: formatWeight(sales.period.grossWeightMg), discount: formatINR(sales.period.discountPaise, { decimals: 0 }) }) : t('{{grossWeight}} gross', { grossWeight: formatWeight(sales.period.grossWeightMg) }))} tone="amber" />
         </SummaryCards>
       )}
 
@@ -132,20 +133,20 @@ export default function BranchDashboard({ branchId }) {
       {sales && (
         <Grid container spacing={GAP} sx={{ mb: ROW_GAP }}>
           <Grid size={{ xs: 12, lg: 8 }}>
-            <Panel title="Sales trend" subtitle={`Bill totals per ${sales.hourly ? 'hour' : monthly ? 'month' : 'day'} · ${periodPhrase(period)}`}>
+            <Panel title={t('Sales trend')} subtitle={(sales.hourly ? t('Bill totals per hour · {{periodPhrase}}', { periodPhrase: periodPhrase(period) }) : (monthly ? t('Bill totals per month · {{periodPhrase}}', { periodPhrase: periodPhrase(period) }) : t('Bill totals per day · {{periodPhrase}}', { periodPhrase: periodPhrase(period) })))}>
               <AreaChart
                 height={phone ? 170 : 240}
                 data={
                   sales.hourly
-                    ? sales.hourly.map((h) => ({ key: h.hour, label: hourLabel(h.hour), value: h.totalPaise, detail: `${hourLabel(h.hour)} – ${hourLabel((h.hour + 1) % 24)} · ${h.bills} bill${h.bills === 1 ? '' : 's'}` }))
-                    : sales.daily.map((d) => ({ key: d.date, label: shortDay(d.date, data.range.bucket), value: d.totalPaise, detail: `${monthly ? shortDay(d.date, 'month') : formatDate(d.date)} · ${d.bills} bill${d.bills === 1 ? '' : 's'}` }))
+                    ? sales.hourly.map((h) => ({ key: h.hour, label: hourLabel(h.hour), value: h.totalPaise, detail: (h.bills === 1 ? t('{{hourLabel}} – {{hourLabel2}} · {{bills}} bill', { hourLabel: hourLabel(h.hour), hourLabel2: hourLabel((h.hour + 1) % 24), bills: h.bills }) : t('{{hourLabel}} – {{hourLabel2}} · {{bills}} bills', { hourLabel: hourLabel(h.hour), hourLabel2: hourLabel((h.hour + 1) % 24), bills: h.bills })) }))
+                    : sales.daily.map((d) => ({ key: d.date, label: shortDay(d.date, data.range.bucket), value: d.totalPaise, detail: t(d.bills === 1 ? '{{date}} · {{bills}} bill' : '{{date}} · {{bills}} bills', { date: monthly ? shortDay(d.date, 'month') : formatDate(d.date), bills: d.bills }) }))
                 }
               />
             </Panel>
           </Grid>
           <Grid size={{ xs: 12, lg: 4 }}>
-            <Panel title="Payment mix" subtitle="Money received, by mode: bills, orders, dues and advances">
-              <ShareBars rows={sales.byPaymentMode} owedKeys={['credit']} totalLabel="Collected + on credit" empty="No payments in this period" />
+            <Panel title={t('Payment mix')} subtitle={t('Money received, by mode: bills, orders, dues and advances')}>
+              <ShareBars rows={sales.byPaymentMode.map((r) => ({ ...r, label: t(r.label) }))} owedKeys={['credit']} totalLabel={t('Collected + on credit')} empty={t('No payments in this period')} />
             </Panel>
           </Grid>
         </Grid>
@@ -154,39 +155,39 @@ export default function BranchDashboard({ branchId }) {
       <Grid container spacing={GAP} sx={{ mb: ROW_GAP }}>
         {sales && (
           <Grid size={{ xs: 12, md: 6, lg: 4 }}>
-            <Panel title="Sales by category" subtitle="Value sold · items">
-              <BarList rows={sales.byCategory.map((c) => ({ ...c, caption: `${c.extra} item${c.extra === 1 ? '' : 's'}` }))} empty="No items sold yet" />
+            <Panel title={t('Sales by category')} subtitle={t('Value sold · items')}>
+              <BarList rows={sales.byCategory.map((c) => ({ ...c, caption: (c.extra === 1 ? t('{{extra}} item', { extra: c.extra }) : t('{{extra}} items', { extra: c.extra })) }))} empty={t('No items sold yet')} />
             </Panel>
           </Grid>
         )}
         {stock && (
           <Grid size={{ xs: 12, md: 6, lg: 4 }}>
-            <Panel title="Stock in hand" subtitle="Share of gross weight by purity" action={<Link component={RouterLink} to="/inventory" variant="caption" sx={{ fontWeight: 600 }}>Stock summary</Link>}>
+            <Panel title={t('Stock in hand')} subtitle={t('Share of gross weight by purity')} action={<Link component={RouterLink} to="/inventory" variant="caption" sx={{ fontWeight: 600 }}>{t('Stock summary')}</Link>}>
               <Stack direction="row" spacing={3} sx={{ mb: { xs: 1.5, sm: 2 } }}>
                 <Box>
                   <Typography sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, fontWeight: 800, lineHeight: 1.1 }}>{stock.items}</Typography>
                   <Typography variant="caption" color="textSecondary">
-                    pieces
+                    {t('pieces')}
                   </Typography>
                 </Box>
                 <Box>
                   <Typography sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, fontWeight: 800, lineHeight: 1.1 }}>{formatWeight(stock.grossWeightMg)}</Typography>
                   <Typography variant="caption" color="textSecondary">
-                    gross weight
+                    {t('gross weight')}
                   </Typography>
                 </Box>
               </Stack>
               <StackedBar
-                rows={stock.byPurity.map((p) => ({ key: p.key, label: `${metalName(p.metal)} ${purityLabel(p.metal, p.purity)}`, value: p.value, caption: `${p.items} pcs` }))}
+                rows={stock.byPurity.map((p) => ({ key: p.key, label: `${metalName(p.metal)} ${purityLabel(p.metal, p.purity)}`, value: p.value, caption: t('{{items}} pcs', { items: p.items }) }))}
                 formatValue={(v) => formatWeight(v)}
-                empty="Nothing in stock at this branch"
+                empty={t('Nothing in stock at this branch')}
               />
             </Panel>
           </Grid>
         )}
         {orders && (
           <Grid size={{ xs: 12, md: 12, lg: 4 }}>
-            <Panel title="Customer orders" subtitle="Open now · due this week" action={<Link component={RouterLink} to="/orders" variant="caption" sx={{ fontWeight: 600 }}>All orders</Link>}>
+            <Panel title={t('Customer orders')} subtitle={t('Open now · due this week')} action={<Link component={RouterLink} to="/orders" variant="caption" sx={{ fontWeight: 600 }}>{t('All orders')}</Link>}>
               <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', mb: { xs: 1.5, sm: 2 } }}>
                 {[
                   ['booked', orders.byStatus.booked],
@@ -204,14 +205,14 @@ export default function BranchDashboard({ branchId }) {
                   <Box sx={{ flex: '1 1 0', minWidth: 72, px: 1, py: 0.75, borderRadius: 2, bgcolor: 'rgba(198, 40, 40, 0.10)', textAlign: 'center' }}>
                     <Typography sx={{ fontWeight: 800, fontSize: '1.15rem', lineHeight: 1.2, color: 'error.main' }}>{orders.overdue}</Typography>
                     <Typography variant="caption" sx={{ color: 'error.main' }}>
-                      Overdue
+                      {t('Overdue')}
                     </Typography>
                   </Box>
                 )}
               </Stack>
               {orders.upcoming.length === 0 ? (
                 <Typography variant="body2" color="textSecondary" sx={{ py: { xs: 1, sm: 2 }, textAlign: 'center' }}>
-                  Nothing due this week
+                  {t('Nothing due this week')}
                 </Typography>
               ) : (
                 <Stack divider={<Divider flexItem />} spacing={1.25}>
@@ -222,12 +223,12 @@ export default function BranchDashboard({ branchId }) {
                           {o.orderNo}
                         </Link>
                         <Typography variant="caption" color="textSecondary" component="div" noWrap>
-                          {o.customer}
+                          {tValue(o.customer)}
                         </Typography>
                       </Box>
                       <Box sx={{ textAlign: 'right' }}>
                         <Typography variant="caption" sx={{ fontWeight: 600, color: o.overdue ? 'error.main' : 'text.secondary', display: 'block' }}>
-                          {o.overdue ? 'Overdue · ' : ''}
+                          {o.overdue ? t('Overdue · ') : ''}
                           {formatDate(o.expectedDate)}
                         </Typography>
                         <OrderStatusChip status={o.status} />
@@ -242,7 +243,7 @@ export default function BranchDashboard({ branchId }) {
       </Grid>
 
       {sales && sales.recent.length > 0 && (
-        <Panel title="Recent bills" action={<Link component={RouterLink} to="/sales" variant="caption" sx={{ fontWeight: 600 }}>All invoices</Link>}>
+        <Panel title={t('Recent bills')} action={<Link component={RouterLink} to="/sales" variant="caption" sx={{ fontWeight: 600 }}>{t('All invoices')}</Link>}>
           {/* Phones: a plain list with rules between bills (the latest five); wider screens: a grid of small cards. */}
           <Grid container spacing={{ xs: 0, sm: 1.5 }}>
             {(phone ? sales.recent.slice(0, 5) : sales.recent).map((s, i, list) => (
@@ -257,7 +258,7 @@ export default function BranchDashboard({ branchId }) {
                       {s.invoiceNo}
                     </Link>
                     <Typography variant="caption" color="textSecondary" component="div" noWrap>
-                      {s.customer} · {formatDateTime(s.at)}
+                      {tValue(s.customer)} · {formatDateTime(s.at)}
                     </Typography>
                   </Box>
                   <Typography variant="body2" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>

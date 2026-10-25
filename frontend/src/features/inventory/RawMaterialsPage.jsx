@@ -1,7 +1,12 @@
+import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
 import BuildCircleOutlinedIcon from '@mui/icons-material/BuildCircleOutlined';
 import DiamondOutlinedIcon from '@mui/icons-material/DiamondOutlined';
+import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
+import PersonOutlineRoundedIcon from '@mui/icons-material/PersonOutlineRounded';
 import ScaleOutlinedIcon from '@mui/icons-material/ScaleOutlined';
-import { Box, Button, Chip, Stack, Typography } from '@mui/material';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
+import { Box, Button, Card, CardContent, Chip, IconButton, Stack, Tooltip, Typography } from '@mui/material';
 import { formatINR, formatWeight, METAL_POOL_KINDS, MOVEMENT_TYPE_LABELS } from '@jerp/shared';
 import { useState } from 'react';
 import { Link as RouterLink } from 'react-router';
@@ -10,25 +15,95 @@ import PageHeader from '../../components/PageHeader.jsx';
 import SummaryCards, { SummaryCard } from '../../components/SummaryCards.jsx';
 import ViewTabs from '../../components/ViewTabs.jsx';
 import { useTabParam } from '../../hooks/useListParams.js';
-import { usePermission } from '../../hooks/usePermission.js';
+import { usePermission, useSession } from '../../hooks/usePermission.js';
 import { formatDate } from '../../utils/format.js';
 import { purityLabel } from '../products/productForm.js';
 import ProductionDrawer from './ProductionDrawer.jsx';
+import StockEntryDrawer from './StockEntryDrawer.jsx';
 import { useProductionsQuery, useStockMovementsQuery, useStockSummaryQuery } from './inventoryApi.js';
+import { t } from '../../i18n/index.js';
 
 const inr = (p) => formatINR(p, { decimals: 0 });
 const kindLabel = (k) => METAL_POOL_KINDS.find((x) => x.value === k)?.label ?? k;
-const metalName = (m) => m.charAt(0).toUpperCase() + m.slice(1);
+const metalName = (m) => t(m.charAt(0).toUpperCase() + m.slice(1));
 const metalPurity = (l) => `${metalName(l.metal)} ${purityLabel(l.metal, l.purity)}`;
-const METALS = ['gold', 'silver', 'platinum'];
 
-function StockTab({ pools, showCost, loading, error, onRetry }) {
+function Step({ no, title, text, action }) {
+  return (
+    <Stack spacing={0.75} sx={{ flex: 1, minWidth: 0 }}>
+      <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
+        <Box sx={{ width: 24, height: 24, borderRadius: '50%', bgcolor: 'primary.main', color: 'primary.contrastText', display: 'grid', placeItems: 'center', fontSize: 13, fontWeight: 700, flexShrink: 0 }}>{no}</Box>
+        <Typography variant="subtitle2">{title}</Typography>
+      </Stack>
+      <Typography variant="body2" color="textSecondary">
+        {text}
+      </Typography>
+      {action && <Box>{action}</Box>}
+    </Stack>
+  );
+}
+
+const StepArrow = () => <ArrowForwardRoundedIcon color="disabled" sx={{ display: { xs: 'none', md: 'block' }, alignSelf: 'center', flexShrink: 0 }} />;
+
+/** The whole page in three steps: metal comes in → Make jewellery → the pieces are in Products, ready to sell. */
+function HowItWorks({ canBuy, canMake, onAddGold, onMake }) {
+  return (
+    <Card sx={{ mb: 2 }}>
+      <CardContent>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={2}>
+          <Step
+            no="1"
+            title={t('Metal comes in')}
+            text={t('Old gold from customers, or bullion / scrap you buy, is kept here by weight.')}
+            action={
+              (canMake || canBuy) && (
+                <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap' }}>
+                  {canMake && (
+                    <Button size="small" variant="contained" startIcon={<AddRoundedIcon />} onClick={onAddGold}>
+                      {t('Add gold')}
+                    </Button>
+                  )}
+                  {canBuy && (
+                    <Button size="small" variant="outlined" component={RouterLink} to="/purchases/new">
+                      {t('New purchase')}
+                    </Button>
+                  )}
+                </Stack>
+              )
+            }
+          />
+          <StepArrow />
+          <Step
+            no="2"
+            title={t('Make jewellery')}
+            text={t('The karigar makes pieces from it: enter the metal used and the pieces made.')}
+            action={
+              canMake && (
+                <Button size="small" variant="outlined" onClick={onMake}>
+                  {t('Make jewellery')}
+                </Button>
+              )
+            }
+          />
+          <StepArrow />
+          <Step
+            no="3"
+            title={t('Ready to sell')}
+            text={t('The metal comes off this stock and the pieces go into Products.')}
+          />
+        </Stack>
+      </CardContent>
+    </Card>
+  );
+}
+
+function StockTab({ pools, showCost, showBranch, loading, error, onRetry }) {
   return (
     <DataTable
       columns={[
         {
           key: 'metal',
-          label: 'Metal',
+          label: t('Metal'),
           render: (p) => (
             <Box>
               <Typography variant="subtitle2">{metalPurity(p)}</Typography>
@@ -38,13 +113,42 @@ function StockTab({ pools, showCost, loading, error, onRetry }) {
             </Box>
           ),
         },
-        { key: 'branch', label: 'Branch', render: (p) => p.branch?.name ?? '—' },
-        { key: 'gross', label: 'Weight', align: 'right', render: (p) => <Typography variant="body2" sx={{ fontWeight: 700 }}>{formatWeight(p.grossMg)}</Typography> },
-        { key: 'fine', label: 'Fine (pure)', align: 'right', render: (p) => formatWeight(p.fineMg) },
+        // One shop: every row is the same branch, so the column is left out.
+        ...(showBranch ? [{ key: 'branch', label: t('Branch'), render: (p) => p.branch?.name ?? '—' }] : []),
+        {
+          key: 'gross',
+          label: t('Weight'),
+          align: 'right',
+          render: (p) => (
+            <Box>
+              <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                {formatWeight(p.grossMg)}
+              </Typography>
+              <Typography variant="caption" color="textSecondary">
+                {t('{{fine}} fine (pure)', { fine: formatWeight(p.fineMg) })}
+              </Typography>
+            </Box>
+          ),
+        },
         ...(showCost
           ? [
-              { key: 'rate', label: 'Avg. cost / g', align: 'right', render: (p) => (p.grossMg > 0 ? inr(Math.round((p.valuePaise * 1000) / p.grossMg)) : '—') },
-              { key: 'value', label: 'Value', align: 'right', render: (p) => <Typography variant="body2" sx={{ fontWeight: 700 }}>{inr(p.valuePaise)}</Typography> },
+              {
+                key: 'value',
+                label: t('Value'),
+                align: 'right',
+                render: (p) => (
+                  <Box>
+                    <Typography variant="body2" sx={{ fontWeight: 700 }}>
+                      {inr(p.valuePaise)}
+                    </Typography>
+                    {p.grossMg > 0 && (
+                      <Typography variant="caption" color="textSecondary">
+                        {t('{{rate}}/g', { rate: inr(Math.round((p.valuePaise * 1000) / p.grossMg)) })}
+                      </Typography>
+                    )}
+                  </Box>
+                ),
+              },
             ]
           : []),
       ]}
@@ -53,7 +157,7 @@ function StockTab({ pools, showCost, loading, error, onRetry }) {
       loading={loading}
       error={error}
       onRetry={onRetry}
-      empty={{ title: 'No raw metal in stock', description: 'Bullion, old gold and scrap bought on a purchase bill (Loose metal) show here — not in Products.' }}
+      empty={{ title: t('No raw metal in stock'), description: t('Take old gold from a customer, or buy bullion on a purchase bill (Loose metal) — it shows here.') }}
     />
   );
 }
@@ -66,7 +170,7 @@ function MadeTab({ showCost }) {
       columns={[
         {
           key: 'no',
-          label: 'Made on',
+          label: t('Made on'),
           render: (d) => (
             <Box>
               <Typography variant="body2" sx={{ fontWeight: 600 }}>
@@ -80,7 +184,7 @@ function MadeTab({ showCost }) {
         },
         {
           key: 'metal',
-          label: 'Metal used',
+          label: t('Metal used'),
           render: (d) => (
             <Stack spacing={0.25}>
               {d.metalUsed.map((l, i) => (
@@ -93,7 +197,7 @@ function MadeTab({ showCost }) {
         },
         {
           key: 'pieces',
-          label: 'Pieces made',
+          label: t('Pieces made'),
           wide: true,
           render: (d) => (
             <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 0.5 }}>
@@ -103,7 +207,7 @@ function MadeTab({ showCost }) {
             </Stack>
           ),
         },
-        ...(showCost ? [{ key: 'cost', label: 'Cost', align: 'right', render: (d) => <Typography variant="body2" sx={{ fontWeight: 700 }}>{inr(d.totalCostPaise)}</Typography> }] : []),
+        ...(showCost ? [{ key: 'cost', label: t('Cost'), align: 'right', render: (d) => <Typography variant="body2" sx={{ fontWeight: 700 }}>{inr(d.totalCostPaise)}</Typography> }] : []),
       ]}
       rows={data?.items}
       loading={isLoading}
@@ -111,23 +215,23 @@ function MadeTab({ showCost }) {
       error={error}
       onRetry={refetch}
       pagination={data?.meta && { ...data.meta, onPageChange: setPage }}
-      empty={{ title: 'Nothing made yet', description: 'Use Make jewellery to turn raw metal into pieces ready to sell.' }}
+      empty={{ title: t('Nothing made yet'), description: t('Use Make jewellery to turn raw metal into pieces ready to sell.') }}
     />
   );
 }
 
-function MovementsTab({ showCost }) {
+function MovementsTab({ showCost, onEdit }) {
   const [page, setPage] = useState(1);
   const { data, isLoading, isFetching, error, refetch } = useStockMovementsQuery({ stock: 'raw', page, limit: 20 });
   return (
     <DataTable
       columns={[
-        { key: 'date', label: 'Date', render: (m) => formatDate(m.businessDate) },
-        { key: 'type', label: 'What', render: (m) => MOVEMENT_TYPE_LABELS[m.type] ?? m.type },
-        { key: 'metal', label: 'Metal', render: (m) => `${metalPurity(m)} · ${kindLabel(m.kind)}` },
+        { key: 'date', label: t('Date'), render: (m) => formatDate(m.businessDate) },
+        { key: 'type', label: t('What'), render: (m) => MOVEMENT_TYPE_LABELS[m.type] ?? m.type },
+        { key: 'metal', label: t('Metal'), render: (m) => `${metalPurity(m)} · ${kindLabel(m.kind)}` },
         {
           key: 'weight',
-          label: 'In / out',
+          label: t('In / out'),
           align: 'right',
           render: (m) => (
             <Typography variant="body2" sx={{ fontWeight: 700, color: m.direction > 0 ? 'success.main' : 'error.main', whiteSpace: 'nowrap' }}>
@@ -136,8 +240,28 @@ function MovementsTab({ showCost }) {
             </Typography>
           ),
         },
-        ...(showCost ? [{ key: 'value', label: 'Value', align: 'right', render: (m) => inr(m.valuePaise ?? 0) }] : []),
-        { key: 'doc', label: 'Document', render: (m) => m.source?.docNo ?? '—' },
+        ...(showCost ? [{ key: 'value', label: t('Value'), align: 'right', render: (m) => inr(m.valuePaise ?? 0) }] : []),
+        { key: 'doc', label: t('Document'), render: (m) => m.source?.docNo ?? '—' },
+        // Gold added as opening stock can be corrected (the form says when it no longer can).
+        ...(onEdit
+          ? [
+              {
+                key: 'edit',
+                label: '',
+                align: 'right',
+                width: 56,
+                render: (m) =>
+                  m.type === 'opening' &&
+                  m.source?.docType === 'stock_entry' && (
+                    <Tooltip title={t('Edit')}>
+                      <IconButton size="small" onClick={() => onEdit(m.source.docId)} aria-label={t('Edit {{name}}', { name: m.source.docNo })}>
+                        <EditOutlinedIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  ),
+              },
+            ]
+          : []),
       ]}
       rows={data?.items}
       loading={isLoading}
@@ -145,7 +269,7 @@ function MovementsTab({ showCost }) {
       error={error}
       onRetry={refetch}
       pagination={data?.meta && { ...data.meta, onPageChange: setPage }}
-      empty={{ title: 'No metal movements yet' }}
+      empty={{ title: t('No metal movements yet') }}
     />
   );
 }
@@ -156,48 +280,68 @@ function MovementsTab({ showCost }) {
  */
 export default function RawMaterialsPage() {
   const canMake = usePermission('inventory.adjust');
+  const canBuy = usePermission('purchase.create');
   const showCost = usePermission('product.viewCost');
+  const { data: session } = useSession();
   const [tab, setTab] = useTabParam('stock');
   const [making, setMaking] = useState(false);
+  const [addingGold, setAddingGold] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const { data, isLoading, error, refetch } = useStockSummaryQuery({});
   const pools = (data?.metalPools ?? []).filter((p) => p.grossMg !== 0);
-  const byMetal = METALS.map((m) => ({ metal: m, fine: pools.filter((p) => p.metal === m).reduce((n, p) => n + p.fineMg, 0), gross: pools.filter((p) => p.metal === m).reduce((n, p) => n + p.grossMg, 0) })).filter((m) => m.gross);
   const value = pools.reduce((n, p) => n + (p.valuePaise ?? 0), 0);
+  // Card totals: the shop's own metal by metal, and customers' gold held for their orders kept apart.
+  const total = (list) => ({ gross: list.reduce((n, p) => n + p.grossMg, 0), fine: list.reduce((n, p) => n + p.fineMg, 0) });
+  const own = pools.filter((p) => p.kind !== 'customer_gold');
+  const gold = total(own.filter((p) => p.metal === 'gold'));
+  const silver = total(own.filter((p) => p.metal === 'silver'));
+  const customerGold = total(pools.filter((p) => p.kind === 'customer_gold'));
+  const weightOrNil = (mg) => (mg ? formatWeight(mg) : t('Nil'));
 
   return (
     <>
       <PageHeader
-        title="Raw materials"
-        subtitle="Bullion, old gold and scrap held by weight — kept apart from the jewellery you sell."
+        title={t('Raw materials')}
+        subtitle={t('Gold and silver not made into jewellery yet — old gold, bullion and scrap.')}
         actions={
           canMake && (
-            <Button variant="contained" startIcon={<BuildCircleOutlinedIcon />} onClick={() => setMaking(true)}>
-              Make jewellery
-            </Button>
+            <Stack direction="row" spacing={1}>
+              <Button variant="outlined" startIcon={<AddRoundedIcon />} onClick={() => setAddingGold(true)}>
+                {t('Add gold')}
+              </Button>
+              <Button variant="contained" startIcon={<BuildCircleOutlinedIcon />} onClick={() => setMaking(true)}>
+                {t('Make jewellery')}
+              </Button>
+            </Stack>
           )
         }
       />
-      <SummaryCards>
-        {byMetal.length ? (
-          byMetal.map((m) => <SummaryCard key={m.metal} icon={ScaleOutlinedIcon} label={`Raw ${m.metal}`} value={formatWeight(m.gross)} caption={`${formatWeight(m.fine)} fine (pure)`} tone={m.metal === 'gold' ? 'gold' : 'grey'} />)
+      <SummaryCards oneLine>
+        <SummaryCard icon={ScaleOutlinedIcon} label={t('Raw {{metal}}', { metal: t('Gold') })} value={weightOrNil(gold.gross)} caption={gold.gross ? t('{{fine}} fine (pure)', { fine: formatWeight(gold.fine) }) : t('Buy it on a purchase bill')} tone="gold" />
+        <SummaryCard icon={ScaleOutlinedIcon} label={t('Raw {{metal}}', { metal: t('Silver') })} value={weightOrNil(silver.gross)} caption={silver.gross ? t('{{fine}} fine (pure)', { fine: formatWeight(silver.fine) }) : t('Buy it on a purchase bill')} tone="grey" />
+        <SummaryCard icon={PersonOutlineRoundedIcon} label={t('Customer gold')} value={weightOrNil(customerGold.gross)} caption={t('Kept for their orders, not the shop’s')} tone="blue" />
+        {showCost ? (
+          <SummaryCard icon={DiamondOutlinedIcon} label={t('Value of raw stock')} value={inr(value)} caption={t('At what it cost')} tone="green" />
         ) : (
-          <SummaryCard icon={ScaleOutlinedIcon} label="Raw metal" value="Nil" caption="Buy it on a purchase bill" tone="grey" />
+          <SummaryCard icon={Inventory2OutlinedIcon} label={t('Lots')} value={pools.length.toLocaleString('en-IN')} caption={t('By metal, purity and kind')} tone="amber" />
         )}
-        {showCost && <SummaryCard icon={DiamondOutlinedIcon} label="Value of raw stock" value={inr(value)} caption="At what it cost" tone="green" />}
       </SummaryCards>
+      <HowItWorks canBuy={canBuy} canMake={canMake} onAddGold={() => setAddingGold(true)} onMake={() => setMaking(true)} />
       <ViewTabs
         value={tab}
         onChange={setTab}
         items={[
-          { value: 'stock', label: 'Stock', count: pools.length },
-          { value: 'made', label: 'Made jewellery', short: 'Made' },
-          { value: 'movements', label: 'Movements' },
+          { value: 'stock', label: t('In stock'), count: pools.length },
+          { value: 'made', label: t('Made jewellery'), short: t('Made') },
+          { value: 'movements', label: t('In / out history'), short: t('History') },
         ]}
       />
-      {tab === 'stock' && <StockTab pools={pools} showCost={showCost} loading={isLoading} error={error} onRetry={refetch} />}
+      {tab === 'stock' && <StockTab pools={pools} showCost={showCost} showBranch={session.branches.length > 1} loading={isLoading} error={error} onRetry={refetch} />}
       {tab === 'made' && <MadeTab showCost={showCost} />}
-      {tab === 'movements' && <MovementsTab showCost={showCost} />}
-      <ProductionDrawer open={making} onClose={() => setMaking(false)} pools={pools} />
+      {tab === 'movements' && <MovementsTab showCost={showCost} onEdit={canMake ? setEditingId : null} />}
+      <ProductionDrawer open={making} onClose={() => setMaking(false)} pools={pools} onAddGold={() => (setMaking(false), setAddingGold(true))} />
+      <StockEntryDrawer mode="opening" metalOnly open={addingGold} onClose={() => setAddingGold(false)} />
+      <StockEntryDrawer mode="opening" metalOnly editId={editingId} open={Boolean(editingId)} onClose={() => setEditingId(null)} />
     </>
   );
 }

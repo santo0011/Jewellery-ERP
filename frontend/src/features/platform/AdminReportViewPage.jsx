@@ -7,12 +7,13 @@ import { ErrorState, LoadingState } from '../../components/StateViews.jsx';
 import { formatDate } from '../../utils/format.js';
 import { downloadCsv, presets, printStyles, ReportSheet } from '../reports/ReportViewPage.jsx';
 import { usePlatformReportQuery } from './platformApi.js';
+import { t } from '../../i18n/index.js';
 
 const STATUS_OPTIONS = [
-  { value: '', label: 'All organisations' },
-  { value: 'active', label: 'Paid (active)' },
-  { value: 'trial', label: 'Free trial' },
-  { value: 'expired', label: 'Expired' },
+  { value: '', label: t('All organisations') },
+  { value: 'active', label: t('Paid (active)') },
+  { value: 'trial', label: t('Free trial') },
+  { value: 'expired', label: t('Expired') },
 ];
 
 /** One Super Admin report: filters on top, then the same sheet (summary, table, totals) as the showroom reports. */
@@ -31,23 +32,23 @@ export default function AdminReportViewPage() {
 
   const f = report.filters;
   const p = report.params;
-  const period = f.includes('range') ? `${formatDate(p.from)} – ${formatDate(p.to)}` : `As on ${formatDate(new Date())}`;
+  const period = f.includes('range') ? `${formatDate(p.from)} – ${formatDate(p.to)}` : t('As on {{formatDate}}', { formatDate: formatDate(new Date()) });
   const statusLabel = f.includes('status') ? STATUS_OPTIONS.find((o) => o.value === (p.status ?? ''))?.label : null;
 
   return (
     <>
       {printStyles}
       <PageHeader
-        title={report.title}
-        subtitle={report.description}
-        back={{ to: '/admin/reports', label: 'Reports' }}
+        title={t(report.title)}
+        subtitle={t(report.description)}
+        back={{ to: '/admin/reports', label: t('Reports') }}
         actions={
           <Stack direction="row" spacing={1}>
             <Button variant="outlined" color="secondary" startIcon={<FileDownloadOutlinedIcon />} onClick={() => downloadCsv(report)} disabled={!report.rows.length}>
-              Excel (CSV)
+              {t('Excel (CSV)')}
             </Button>
             <Button variant="contained" startIcon={<PrintOutlinedIcon />} onClick={() => window.print()}>
-              Print
+              {t('Print')}
             </Button>
           </Stack>
         }
@@ -67,12 +68,12 @@ export default function AdminReportViewPage() {
           >
             {f.includes('range') && (
               <>
-                <TextField label="From" type="date" value={p.from} onChange={(e) => e.target.value && set({ from: e.target.value })} slotProps={{ inputLabel: { shrink: true } }} />
-                <TextField label="To" type="date" value={p.to} onChange={(e) => e.target.value && set({ to: e.target.value })} slotProps={{ inputLabel: { shrink: true } }} />
+                <TextField label={t('From')} type="date" value={p.from} onChange={(e) => e.target.value && set({ from: e.target.value })} slotProps={{ inputLabel: { shrink: true } }} />
+                <TextField label={t('To')} type="date" value={p.to} onChange={(e) => e.target.value && set({ to: e.target.value })} slotProps={{ inputLabel: { shrink: true } }} />
                 <ToggleButtonGroup
                   exclusive
                   size="small"
-                  aria-label="Quick period"
+                  aria-label={t('Quick period')}
                   value={presets().find((x) => p.from === x.from && p.to === x.to)?.label ?? null}
                   onChange={(e, label) => {
                     const x = presets().find((y) => y.label === label);
@@ -97,7 +98,7 @@ export default function AdminReportViewPage() {
               </>
             )}
             {f.includes('status') && (
-              <TextField select label="Status" value={p.status ?? ''} onChange={(e) => set({ status: e.target.value })} slotProps={{ inputLabel: { shrink: true }, select: { displayEmpty: true } }} sx={{ gridColumn: { xs: '1 / -1', md: 'auto' } }}>
+              <TextField select label={t('Status')} value={p.status ?? ''} onChange={(e) => set({ status: e.target.value })} slotProps={{ inputLabel: { shrink: true }, select: { displayEmpty: true } }} sx={{ gridColumn: { xs: '1 / -1', md: 'auto' } }}>
                 {STATUS_OPTIONS.map((o) => (
                   <MenuItem key={o.value} value={o.value}>
                     {o.label}
@@ -109,7 +110,7 @@ export default function AdminReportViewPage() {
         </Card>
       )}
 
-      <ReportSheet report={report} isFetching={isFetching} period={period} scope={statusLabel} printTitle="Jewellery ERP · Platform" emptyHint={f.includes('range') ? 'Try a wider date range.' : 'Nothing to show right now.'} />
+      <ReportSheet report={report} isFetching={isFetching} period={period} scope={statusLabel} printTitle={t('Jewellery ERP · Platform')} emptyHint={f.includes('range') ? t('Try a wider date range.') : t('Nothing to show right now.')} />
     </>
   );
 }

@@ -25,6 +25,7 @@ import PayrollSteps from './PayrollSteps.jsx';
 import SummaryCards, { SummaryCard } from '../../components/SummaryCards.jsx';
 import FactCheckOutlinedIcon from '@mui/icons-material/FactCheckOutlined';
 import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined';
+import { t } from '../../i18n/index.js';
 
 const filterSlots = { inputLabel: { shrink: true }, select: { displayEmpty: true } };
 const paidShare = (r) => (r.totals.netPaise ? Math.round((r.totals.paidPaise / r.totals.netPaise) * 100) : 100);
@@ -39,7 +40,7 @@ function RunPayrollDialog({ open, onClose }) {
   const onCreate = async () => {
     try {
       const run = await create({ branchId, month }).unwrap();
-      toast.success(`Salaries calculated for ${run.totals.employees} employee${run.totals.employees === 1 ? '' : 's'}`);
+      toast.success((run.totals.employees === 1 ? t('Salaries calculated for {{employees}} employee', { employees: run.totals.employees }) : t('Salaries calculated for {{employees}} employees', { employees: run.totals.employees })));
       onClose();
     } catch (err) {
       toast.error(getErrorMessage(err));
@@ -48,12 +49,12 @@ function RunPayrollDialog({ open, onClose }) {
 
   return (
     <Dialog open={open} onClose={state.isLoading ? undefined : onClose} maxWidth="xs" fullWidth>
-      <DialogTitle sx={{ fontWeight: 600 }}>Calculate salaries</DialogTitle>
+      <DialogTitle sx={{ fontWeight: 600 }}>{t('Calculate salaries')}</DialogTitle>
       <DialogContent>
         <Stack spacing={2} sx={{ pt: 1 }}>
-          <TextField label="Salary month" type="month" value={month} onChange={(e) => setMonth(e.target.value)} slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: thisMonth() } }} />
+          <TextField label={t('Salary month')} type="month" value={month} onChange={(e) => setMonth(e.target.value)} slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: thisMonth() } }} />
           {session.branches.length > 1 && (
-            <TextField select label="Branch" value={branchId} onChange={(e) => setBranchId(e.target.value)}>
+            <TextField select label={t('Branch')} value={branchId} onChange={(e) => setBranchId(e.target.value)}>
               {session.branches.map((b) => (
                 <MenuItem key={b.id} value={b.id}>
                   {b.name}
@@ -62,16 +63,16 @@ function RunPayrollDialog({ open, onClose }) {
             </TextField>
           )}
           <Alert severity="info" icon={false}>
-            Salary is worked out from attendance (unmarked days count as present) and open advances are deducted. Nothing is final until you finalise — you can review and adjust everything first.
+            {t('Salary is worked out from attendance (unmarked days count as present) and open advances are deducted. Nothing is final until you finalise — you can review and adjust everything first.')}
           </Alert>
         </Stack>
       </DialogContent>
       <DialogActions>
         <Button onClick={onClose} disabled={state.isLoading}>
-          Cancel
+          {t('Cancel')}
         </Button>
         <Button variant="contained" startIcon={<CalculateOutlinedIcon />} onClick={onCreate} disabled={!branchId || !month || state.isLoading}>
-          Calculate
+          {t('Calculate')}
         </Button>
       </DialogActions>
     </Dialog>
@@ -89,7 +90,7 @@ function SalaryMonthCard({ runs, canRun }) {
   const calculate = async (branchId) => {
     try {
       const run = await create({ branchId, month }).unwrap();
-      toast.success(`Salaries calculated for ${run.totals.employees} employee${run.totals.employees === 1 ? '' : 's'}`);
+      toast.success((run.totals.employees === 1 ? t('Salaries calculated for {{employees}} employee', { employees: run.totals.employees }) : t('Salaries calculated for {{employees}} employees', { employees: run.totals.employees })));
     } catch (err) {
       toast.error(getErrorMessage(err));
     }
@@ -101,10 +102,10 @@ function SalaryMonthCard({ runs, canRun }) {
       return {
         b,
         tone: 'warning',
-        text: 'Not calculated yet',
+        text: t('Not calculated yet'),
         action: canRun && (
           <Button size="small" variant="contained" startIcon={<CalculateOutlinedIcon />} disabled={createState.isLoading} onClick={() => calculate(b.id)}>
-            Calculate now
+            {t('Calculate now')}
           </Button>
         ),
       };
@@ -112,10 +113,10 @@ function SalaryMonthCard({ runs, canRun }) {
       return {
         b,
         tone: 'warning',
-        text: `Calculated · ${formatINR(run.totals.netPaise, { decimals: 0 })} for ${run.totals.employees} staff — review and finalise`,
+        text: t('Calculated · {{net}} for {{employees}} staff — review and finalise', { net: formatINR(run.totals.netPaise, { decimals: 0 }), employees: run.totals.employees }),
         action: (
           <Button size="small" variant="contained" endIcon={<ArrowForwardRoundedIcon />} onClick={() => navigate(`/hr/payroll/${run.id}`)}>
-            Review
+            {t('Review')}
           </Button>
         ),
       };
@@ -123,21 +124,21 @@ function SalaryMonthCard({ runs, canRun }) {
       return {
         b,
         tone: 'error',
-        text: `${formatINR(run.totals.netPaise - run.totals.paidPaise, { decimals: 0 })} still to pay to ${run.totals.unpaidCount} staff`,
+        text: t('{{formatINR}} still to pay to {{unpaidCount}} staff', { formatINR: formatINR(run.totals.netPaise - run.totals.paidPaise, { decimals: 0 }), unpaidCount: run.totals.unpaidCount }),
         action: (
           <Button size="small" variant="contained" startIcon={<PaymentsOutlinedIcon />} onClick={() => navigate(`/hr/payroll/${run.id}`)}>
-            Pay now
+            {t('Pay now')}
           </Button>
         ),
       };
-    return { b, tone: 'success', text: `All paid · ${formatINR(run.totals.paidPaise, { decimals: 0 })}`, action: <CheckCircleRoundedIcon sx={{ color: 'success.main' }} /> };
+    return { b, tone: 'success', text: t('All paid · {{paid}}', { paid: formatINR(run.totals.paidPaise, { decimals: 0 }) }), action: <CheckCircleRoundedIcon sx={{ color: 'success.main' }} /> };
   });
 
   return (
     <Card sx={{ mb: 2, position: 'relative', overflow: 'hidden', '&::before': { content: '""', position: 'absolute', inset: '0 auto 0 0', width: 4, background: tokens.sidebar.goldGradient } }}>
       <CardContent sx={{ pl: 3 }}>
         <Typography variant="overline" color="textSecondary">
-          Salary due now
+          {t('Salary due now')}
         </Typography>
         <Typography variant="h3" sx={{ mb: 1.5 }}>
           {monthLabel(month)}
@@ -168,7 +169,7 @@ function DeleteDraftRun({ run }) {
   const confirm = async () => {
     try {
       await remove(run.id).unwrap();
-      toast.success(`Payroll ${run.runNo} deleted`);
+      toast.success(t('Payroll {{runNo}} deleted', { runNo: run.runNo }));
       setOpen(false);
     } catch (err) {
       toast.error(getErrorMessage(err));
@@ -176,16 +177,16 @@ function DeleteDraftRun({ run }) {
   };
   return (
     <>
-      <Tooltip title="Delete draft">
-        <IconButton size="small" color="error" onClick={() => setOpen(true)} aria-label={`Delete ${run.runNo}`}>
+      <Tooltip title={t('Delete draft')}>
+        <IconButton size="small" color="error" onClick={() => setOpen(true)} aria-label={t('Delete {{runNo}}', { runNo: run.runNo })}>
           <DeleteOutlineRoundedIcon fontSize="small" />
         </IconButton>
       </Tooltip>
       <ConfirmDialog
         open={open}
-        title={`Delete payroll ${run.runNo}?`}
-        message={`This draft for ${monthLabel(run.month)} has not been finalised, so nothing was booked. You can calculate the month again any time.`}
-        confirmLabel="Delete"
+        title={t('Delete payroll {{runNo}}?', { runNo: run.runNo })}
+        message={t('This draft for {{monthLabel}} has not been finalised, so nothing was booked. You can calculate the month again any time.', { monthLabel: monthLabel(run.month) })}
+        confirmLabel={t('Delete')}
         danger
         loading={isLoading}
         onConfirm={confirm}
@@ -214,7 +215,7 @@ export default function PayrollPage() {
   const columns = [
     {
       key: 'month',
-      label: 'Month',
+      label: t('Month'),
       render: (r) => (
         <Box>
           <Typography variant="subtitle2">{monthLabel(r.month)}</Typography>
@@ -225,16 +226,16 @@ export default function PayrollPage() {
         </Box>
       ),
     },
-    { key: 'staff', label: 'Staff', align: 'right', render: (r) => r.totals.employees },
-    { key: 'net', label: 'Net salary', align: 'right', render: (r) => <Amount paise={r.totals.netPaise} decimals={0} /> },
+    { key: 'staff', label: t('Staff'), align: 'right', render: (r) => r.totals.employees },
+    { key: 'net', label: t('Net salary'), align: 'right', render: (r) => <Amount paise={r.totals.netPaise} decimals={0} /> },
     {
       key: 'progress',
-      label: 'Paid',
+      label: t('Paid'),
       width: 200,
       render: (r) =>
         r.status === 'draft' ? (
           <Typography variant="body2" color="textSecondary">
-            Not finalised
+            {t('Not finalised')}
           </Typography>
         ) : (
           <Box sx={{ minWidth: 140 }}>
@@ -243,25 +244,25 @@ export default function PayrollPage() {
                 {formatINR(r.totals.paidPaise, { decimals: 0 })}
               </Typography>
               <Typography variant="caption" color={paidShare(r) === 100 ? 'success.main' : 'error.main'} sx={{ fontWeight: 600 }}>
-                {paidShare(r) === 100 ? 'Done' : `${formatINR(r.totals.netPaise - r.totals.paidPaise, { decimals: 0 })} due`}
+                {paidShare(r) === 100 ? t('Done') : t('{{formatINR}} due', { formatINR: formatINR(r.totals.netPaise - r.totals.paidPaise, { decimals: 0 }) })}
               </Typography>
             </Stack>
             <LinearProgress variant="determinate" value={paidShare(r)} color={paidShare(r) === 100 ? 'success' : 'warning'} sx={{ height: 6, borderRadius: 3 }} />
           </Box>
         ),
     },
-    { key: 'status', label: 'Status', render: (r) => <PayrollStatusChip status={r.status} /> },
+    { key: 'status', label: t('Status'), render: (r) => <PayrollStatusChip status={r.status} /> },
   ];
 
   return (
     <>
       <PageHeader
-        title="Payroll"
-        subtitle="Monthly salaries in four simple steps."
+        title={t('Payroll')}
+        subtitle={t('Monthly salaries in four simple steps.')}
         actions={
           canRun && (
             <Button variant="contained" startIcon={<PlayArrowRoundedIcon />} onClick={() => setOpen(true)}>
-              Run payroll
+              {t('Run payroll')}
             </Button>
           )
         }
@@ -276,9 +277,9 @@ export default function PayrollPage() {
       {recent && <SalaryMonthCard runs={runs} canRun={canRun} />}
 
       <SummaryCards>
-        <SummaryCard icon={FactCheckOutlinedIcon} label="Waiting to finalise" value={drafts.length} caption={drafts.length ? 'Draft payroll to review' : 'Nothing pending'} tone={drafts.length ? 'amber' : 'grey'} />
-        <SummaryCard icon={AccountBalanceWalletOutlinedIcon} label="Salary still to pay" value={formatINR(toPay, { decimals: 0 })} caption={toPay ? 'Finalised but unpaid' : 'Everyone is paid'} tone={toPay ? 'red' : 'green'} valueTone={toPay ? 'due' : 'paid'} />
-        <SummaryCard icon={PaymentsOutlinedIcon} label={`Paid in ${year}`} value={formatINR(paidThisYear, { decimals: 0 })} caption="Salaries paid this year" tone="blue" />
+        <SummaryCard icon={FactCheckOutlinedIcon} label={t('Waiting to finalise')} value={drafts.length} caption={drafts.length ? t('Draft payroll to review') : t('Nothing pending')} tone={drafts.length ? 'amber' : 'grey'} />
+        <SummaryCard icon={AccountBalanceWalletOutlinedIcon} label={t('Salary still to pay')} value={formatINR(toPay, { decimals: 0 })} caption={toPay ? t('Finalised but unpaid') : t('Everyone is paid')} tone={toPay ? 'red' : 'green'} valueTone={toPay ? 'due' : 'paid'} />
+        <SummaryCard icon={PaymentsOutlinedIcon} label={t('Paid in {{year}}', { year })} value={formatINR(paidThisYear, { decimals: 0 })} caption={t('Salaries paid this year')} tone="blue" />
       </SummaryCards>
 
       <DataTable
@@ -286,17 +287,17 @@ export default function PayrollPage() {
           ...columns,
           {
             key: 'actions',
-            label: 'Action',
+            label: t('Action'),
             align: 'right',
             width: actionsWidth(2),
             render: (r) => (
               <RowActions onView={() => navigate(`/hr/payroll/${r.id}`)} name={r.runNo}>
                 {!canRun ? (
-                  <DisabledDelete reason="You do not have permission to delete payroll." />
+                  <DisabledDelete reason={t('You do not have permission to delete payroll.')} />
                 ) : r.status === 'draft' ? (
                   <DeleteDraftRun run={r} />
                 ) : (
-                  <DisabledDelete reason="Finalised payroll is booked in the accounts and cannot be deleted." />
+                  <DisabledDelete reason={t('Finalised payroll is booked in the accounts and cannot be deleted.')} />
                 )}
               </RowActions>
             ),
@@ -307,12 +308,12 @@ export default function PayrollPage() {
         fetching={isFetching}
         error={error}
         onRetry={refetch}
-        empty={{ title: 'No payroll yet', description: 'Calculate salaries at the end of the month — it takes one click.' }}
+        empty={{ title: t('No payroll yet'), description: t('Calculate salaries at the end of the month — it takes one click.') }}
         pagination={list.pagination(data?.meta)}
         toolbar={
           multiBranch && (
-            <TextField select label="Branch" value={list.filters.branchId} onChange={(e) => list.setFilter('branchId', e.target.value)} slotProps={filterSlots} sx={{ width: { sm: 220 } }}>
-              <MenuItem value="">All branches</MenuItem>
+            <TextField select label={t('Branch')} value={list.filters.branchId} onChange={(e) => list.setFilter('branchId', e.target.value)} slotProps={filterSlots} sx={{ width: { sm: 220 } }}>
+              <MenuItem value="">{t('All branches')}</MenuItem>
               {session.branches.map((b) => (
                 <MenuItem key={b.id} value={b.id}>
                   {b.name}

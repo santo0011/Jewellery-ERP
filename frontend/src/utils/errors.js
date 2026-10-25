@@ -1,5 +1,8 @@
+import { t } from '../i18n/index.js';
+
+// Messages from the server (and network errors) are in English; they are shown in the app's language.
 export const getErrorMessage = (error, fallback = 'Something went wrong. Please try again.') =>
-  error?.data?.error?.message ?? error?.message ?? fallback;
+  t(error?.data?.error?.message ?? error?.message ?? fallback);
 
 export const getErrorCode = (error) => error?.data?.error?.code;
 
@@ -9,7 +12,7 @@ export function applyServerErrors(error, setError) {
   let applied = false;
   for (const { path, message } of details) {
     if (path) {
-      setError(path, { type: 'server', message });
+      setError(path, { type: 'server', message: t(message) });
       applied = true;
     }
   }

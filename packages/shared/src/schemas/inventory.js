@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ADJUSTMENT_REASONS, METAL_OPTIONS, METAL_POOL_KINDS, PURITIES } from '../enums.js';
+import { ADJUSTMENT_REASONS, METAL_OPTIONS, SELECTABLE_METAL_POOL_KINDS, PURITIES } from '../enums.js';
 import { listQuerySchema, objectIdSchema, optionalText } from './common.js';
 
 const values = (list) => list.map((o) => o.value);
@@ -36,7 +36,7 @@ const metalLineSchema = z
   .object({
     metal: z.enum(values(METAL_OPTIONS)),
     purity: z.number().int(),
-    kind: z.enum(values(METAL_POOL_KINDS)),
+    kind: z.enum(values(SELECTABLE_METAL_POOL_KINDS)),
     direction: z.enum(['in', 'out']).default('in'),
     grossWeightMg: mg('Weight'),
     valuePaise: paise.default(0),
@@ -52,6 +52,12 @@ export const openingStockSchema = z
   })
   .refine((v) => v.productIds.length + v.metalLines.length > 0, { path: ['productIds'], message: 'Add at least one product or metal line' })
   .refine((v) => new Set(v.productIds).size === v.productIds.length, { path: ['productIds'], message: 'A product is listed twice' });
+
+// Correcting the gold on an opening stock entry (gold-only entries, until that gold is used).
+export const openingMetalEditSchema = z.object({
+  metalLines: z.array(metalLineSchema.refine((l) => l.direction === 'in', { path: ['direction'], message: 'Opening stock only adds metal' })).min(1, 'Add at least one metal line').max(50),
+  note: optionalText(300),
+});
 
 export const adjustmentSchema = z
   .object({

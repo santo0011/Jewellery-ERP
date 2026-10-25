@@ -158,7 +158,8 @@ async function findProduct(id) {
 
 export async function listProducts({ page, limit, q, categoryId, metal, purity, status, branchId: chosen, supplierId }) {
   const branchId = chosen ?? (await viewBranchFor('product')); // navbar filter
-  const filter = { isDeleted: false, ...branchScope(), ...searchFilter(q, ['name', 'sku', 'barcode', 'huid', 'tags']) };
+  // Pieces made for a customer's order stay with the order, not in this list.
+  const filter = { isDeleted: false, orderId: null, ...branchScope(), ...searchFilter(q, ['name', 'sku', 'barcode', 'huid', 'tags']) };
   if (categoryId) filter.$and = [{ $or: [{ categoryId }, { subcategoryId: categoryId }] }];
   if (metal) filter.metal = metal;
   if (purity) filter.purity = purity;
@@ -176,7 +177,7 @@ export async function listProducts({ page, limit, q, categoryId, metal, purity, 
 
 /** Header cards: pieces and weight in stock, their cost value (if allowed), and drafts waiting to be stocked. */
 async function productSummary(branchId) {
-  const match = { isDeleted: false, ...branchScope(), ...(branchId && { branchId: typeof branchId === 'string' ? new mongoose.Types.ObjectId(branchId) : branchId }) };
+  const match = { isDeleted: false, orderId: null, ...branchScope(), ...(branchId && { branchId: typeof branchId === 'string' ? new mongoose.Types.ObjectId(branchId) : branchId }) };
   const rows = await Product.aggregate([
     { $match: match },
     { $group: { _id: '$status', pieces: { $sum: { $ifNull: ['$quantity', 1] } }, grossMg: { $sum: '$grossWeightMg' }, fineMg: { $sum: '$fineWeightMg' }, costPaise: { $sum: { $ifNull: ['$costPricePaise', 0] } } } },

@@ -3,6 +3,7 @@ import {
   adjustmentSchema,
   idParamsSchema,
   movementListQuerySchema,
+  openingMetalEditSchema,
   openingStockSchema,
   productionSchema,
   stockDocListQuerySchema,
@@ -27,6 +28,8 @@ router.get('/movements', authorize('inventory.view'), validate({ query: movement
 
 router.get('/opening', authorize('inventory.view'), listQuery, controller.listOpening);
 router.post('/opening', authorize('inventory.adjust'), validate({ body: openingStockSchema }), controller.createOpening);
+// Correct the gold on a gold-only opening entry, until that gold is used.
+router.put('/opening/:id', authorize('inventory.adjust'), validate({ params: idParamsSchema, body: openingMetalEditSchema }), controller.updateOpening);
 router.get('/adjustments', authorize('inventory.view'), listQuery, controller.listAdjustments);
 router.post('/adjustments', authorize('inventory.adjust'), validate({ body: adjustmentSchema }), controller.createAdjustment);
 router.get('/entries/:id', authorize('inventory.view'), byId, controller.getEntry);

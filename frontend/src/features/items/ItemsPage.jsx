@@ -20,10 +20,11 @@ import { getErrorMessage } from '../../utils/errors.js';
 import ItemFormDrawer from './ItemFormDrawer.jsx';
 import { useItemListQuery, useSetItemStatusMutation } from './itemApi.js';
 import { useDeleteStatus } from '../../services/recordApi.js';
+import { t } from '../../i18n/index.js';
 
 /** "8%", "0.250 g", "₹500/g", "12%", "₹1,500 per piece" */
-export const wastageText = (w) => (!w || w.mode === 'none' ? 'None' : w.mode === 'weight' ? formatWeight(w.value) : `${w.value / 100}%`);
-export const makingText = (m) => (!m ? '—' : m.type === 'percent' ? `${m.value / 100}%` : m.type === 'per_gram' ? `${formatINR(m.value, { decimals: 0 })}/g` : `${formatINR(m.value, { decimals: 0 })} per piece`);
+export const wastageText = (w) => (!w || w.mode === 'none' ? t('None') : w.mode === 'weight' ? formatWeight(w.value) : `${w.value / 100}%`);
+export const makingText = (m) => (!m ? '—' : m.type === 'percent' ? `${m.value / 100}%` : m.type === 'per_gram' ? `${formatINR(m.value, { decimals: 0 })}/g` : t('{{formatINR}} per piece', { formatINR: formatINR(m.value, { decimals: 0 }) }));
 
 export default function ItemsPage() {
   const canEdit = usePermission('purchase.create');
@@ -39,7 +40,7 @@ export default function ItemsPage() {
     const status = i.status === 'active' ? 'inactive' : 'active';
     try {
       await setStatus({ id: i.id, status }).unwrap();
-      toast.success(`${i.name} ${status === 'active' ? 'activated' : 'deactivated'}`);
+      toast.success(status === 'active' ? t('{{name}} activated', { name: i.name }) : t('{{name}} deactivated', { name: i.name }));
     } catch (err) {
       toast.error(getErrorMessage(err));
     }
@@ -48,7 +49,7 @@ export default function ItemsPage() {
   const columns = [
     {
       key: 'name',
-      label: 'Item',
+      label: t('Item'),
       render: (i) => (
         <Box>
           <Typography variant="subtitle2">{i.name}</Typography>
@@ -59,29 +60,29 @@ export default function ItemsPage() {
         </Box>
       ),
     },
-    { key: 'cat', label: 'Category', render: (i) => <Typography variant="body2">{i.category?.name ?? '—'}<Typography component="span" variant="caption" color="textSecondary">{` · ${i.jewelleryTypeLabel}`}</Typography></Typography> },
-    { key: 'purity', label: 'Purity', render: (i) => <Chip size="small" label={i.purityLabel} sx={{ height: 22, fontWeight: 600 }} /> },
-    { key: 'charges', label: 'Wastage · Making', render: (i) => `${wastageText(i.wastage)} · ${makingText(i.making)}` },
-    { key: 'used', label: 'Used', align: 'right', render: (i) => (i.usedCount ? `${i.usedCount} pcs` : '—') },
-    { key: 'status', label: 'Status', render: (i) => <StatusChip status={i.status} /> },
+    { key: 'cat', label: t('Category'), render: (i) => <Typography variant="body2">{i.category?.name ?? '—'}<Typography component="span" variant="caption" color="textSecondary">{` · ${i.jewelleryTypeLabel}`}</Typography></Typography> },
+    { key: 'purity', label: t('Purity'), render: (i) => <Chip size="small" label={i.purityLabel} sx={{ height: 22, fontWeight: 600 }} /> },
+    { key: 'charges', label: t('Wastage · Making'), render: (i) => `${wastageText(i.wastage)} · ${makingText(i.making)}` },
+    { key: 'used', label: t('Used'), align: 'right', render: (i) => (i.usedCount ? t('{{usedCount}} pcs', { usedCount: i.usedCount }) : '—') },
+    { key: 'status', label: t('Status'), render: (i) => <StatusChip status={i.status} /> },
     {
       key: 'actions',
-      label: 'Action',
+      label: t('Action'),
       align: 'right',
       width: 132,
       render: (i) =>
         (
           <Stack direction="row" sx={{ justifyContent: 'flex-end' }}>
             {canEdit && (
-              <Tooltip title="Edit">
-                <IconButton size="small" onClick={() => setEditing(i)} aria-label={`Edit ${i.name}`}>
+              <Tooltip title={t('Edit')}>
+                <IconButton size="small" onClick={() => setEditing(i)} aria-label={t('Edit {{name}}', { name: i.name })}>
                   <EditOutlinedIcon fontSize="small" />
                 </IconButton>
               </Tooltip>
             )}
             {canEdit && (
-              <Tooltip title={i.status === 'active' ? 'Deactivate — hide from search' : 'Activate'}>
-                <IconButton size="small" onClick={() => toggle(i)} aria-label={`${i.status === 'active' ? 'Deactivate' : 'Activate'} ${i.name}`}>
+              <Tooltip title={i.status === 'active' ? t('Deactivate — hide from search') : t('Activate')}>
+                <IconButton size="small" onClick={() => toggle(i)} aria-label={i.status === 'active' ? t('Deactivate {{name}}', { name: i.name }) : t('Activate {{name}}', { name: i.name })}>
                   {i.status === 'active' ? <ToggleOnOutlinedIcon fontSize="small" color="success" /> : <ToggleOffOutlinedIcon fontSize="small" />}
                 </IconButton>
               </Tooltip>
@@ -96,21 +97,21 @@ export default function ItemsPage() {
   return (
     <>
       <PageHeader
-        title="Items"
-        subtitle="Save each design once — then just pick it on purchases and orders."
+        title={t('Items')}
+        subtitle={t('Save each design once — then just pick it on purchases and orders.')}
         actions={
           canEdit && (
             <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setEditing('new')}>
-              New item
+              {t('New item')}
             </Button>
           )
         }
       />
       {summary && (
         <SummaryCards>
-          <SummaryCard icon={CategoryOutlinedIcon} label="Saved items" value={summary.total} caption="In your catalogue" />
-          <SummaryCard icon={CheckCircleOutlineRoundedIcon} label="Active" value={summary.active} caption="Shown when searching" tone="green" onClick={() => list.setFilter('status', 'active')} />
-          <SummaryCard icon={ToggleOffOutlinedIcon} label="Inactive" value={summary.total - summary.active} caption="Hidden from search" tone="grey" onClick={() => list.setFilter('status', 'inactive')} />
+          <SummaryCard icon={CategoryOutlinedIcon} label={t('Saved items')} value={summary.total} caption={t('In your catalogue')} />
+          <SummaryCard icon={CheckCircleOutlineRoundedIcon} label={t('Active')} value={summary.active} caption={t('Shown when searching')} tone="green" onClick={() => list.setFilter('status', 'active')} />
+          <SummaryCard icon={ToggleOffOutlinedIcon} label={t('Inactive')} value={summary.total - summary.active} caption={t('Hidden from search')} tone="grey" onClick={() => list.setFilter('status', 'inactive')} />
         </SummaryCards>
       )}
       <DataTable
@@ -120,19 +121,19 @@ export default function ItemsPage() {
         fetching={isFetching}
         error={error}
         onRetry={refetch}
-        empty={list.search ? { title: 'No item found', description: 'Try another name, or add it as a new item.' } : { title: 'No items yet', description: 'Add the designs you buy often — a ring, a chain, a pair of bangles — with their purity and charges.' }}
+        empty={list.search ? { title: t('No item found'), description: t('Try another name, or add it as a new item.') } : { title: t('No items yet'), description: t('Add the designs you buy often — a ring, a chain, a pair of bangles — with their purity and charges.') }}
         pagination={list.pagination(data?.meta)}
         toolbar={
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5} sx={{ alignItems: { sm: 'center' } }}>
-            <SearchField value={list.search} onChange={list.setSearch} placeholder="Search name, code or HSN" />
+            <SearchField value={list.search} onChange={list.setSearch} placeholder={t('Search name, code or HSN')} />
             <ToggleButtonGroup exclusive size="small" value={list.filters.status} onChange={(e, v) => v !== null && list.setFilter('status', v)} sx={{ height: 40, flexShrink: 0 }}>
-              <ToggleButton value="active">Active</ToggleButton>
-              <ToggleButton value="inactive">Inactive</ToggleButton>
-              <ToggleButton value="">All</ToggleButton>
+              <ToggleButton value="active">{t('Active')}</ToggleButton>
+              <ToggleButton value="inactive">{t('Inactive')}</ToggleButton>
+              <ToggleButton value="">{t('All')}</ToggleButton>
             </ToggleButtonGroup>
             {canEdit && list.search && data?.items?.length === 0 && (
               <Button startIcon={<AddRoundedIcon />} onClick={() => setEditing({ __new: list.search })} sx={{ flexShrink: 0 }}>
-                Add “{list.search}”
+                {t('Add “{{search}}”', { search: list.search })}
               </Button>
             )}
           </Stack>

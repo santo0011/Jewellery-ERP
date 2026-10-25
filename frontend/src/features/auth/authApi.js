@@ -18,6 +18,8 @@ export const authApi = baseApi.injectEndpoints({
       transformResponse: unwrapData,
       invalidatesTags: ['Me'],
     }),
+    // The language the user sees the app in, kept on the account (the page reloads after, so nothing to refetch).
+    setLanguage: build.mutation({ query: (language) => ({ url: '/auth/me/language', method: 'patch', data: { language } }) }),
     changePassword: build.mutation({
       query: (data) => ({ url: '/auth/change-password', method: 'post', data }),
       transformResponse: unwrapData,
@@ -45,6 +47,7 @@ export const {
   useVerifyResetCodeMutation,
   useMeQuery,
   useUpdateProfileMutation,
+  useSetLanguageMutation,
   useChangePasswordMutation,
   useSessionsQuery,
   useRevokeSessionMutation,

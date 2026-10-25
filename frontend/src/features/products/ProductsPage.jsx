@@ -18,6 +18,7 @@ import EditNoteOutlinedIcon from '@mui/icons-material/EditNoteOutlined';
 import { purityLabel } from './productForm.js';
 import RowActions, { actionsWidth } from '../../components/RowActions.jsx';
 import { useDeleteStatus } from '../../services/recordApi.js';
+import { t } from '../../i18n/index.js';
 
 const STATUS_COLORS = { draft: 'default', in_stock: 'success', reserved: 'warning', sold: 'info', with_karigar: 'warning', in_repair: 'warning', in_transit: 'info' };
 
@@ -45,7 +46,7 @@ export default function ProductsPage() {
   const columns = [
     {
       key: 'name',
-      label: 'Product',
+      label: t('Product'),
       render: (p) => (
         <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', minWidth: 0 }}>
           <AuthImage fileId={p.images[0]} alt={p.name} size={44} />
@@ -55,51 +56,51 @@ export default function ProductsPage() {
             </Typography>
             <Typography variant="body2" color="textSecondary">
               {p.sku}
-              {p.huid && ` · HUID ${p.huid}`}
+              {p.huid && t(' · HUID {{huid}}', { huid: p.huid })}
             </Typography>
           </Box>
         </Stack>
       ),
     },
-    { key: 'category', label: 'Category', render: (p) => [p.category?.name, p.subcategory?.name].filter(Boolean).join(' › ') },
-    { key: 'purity', label: 'Metal', render: (p) => `${METAL_OPTIONS.find((m) => m.value === p.metal)?.label} ${purityLabel(p.metal, p.purity)}` },
+    { key: 'category', label: t('Category'), render: (p) => [p.category?.name, p.subcategory?.name].filter(Boolean).join(' › ') },
+    { key: 'purity', label: t('Metal'), render: (p) => `${METAL_OPTIONS.find((m) => m.value === p.metal)?.label} ${purityLabel(p.metal, p.purity)}` },
     {
       key: 'weight',
-      label: 'Gross / Net',
+      label: t('Gross / Net'),
       align: 'right',
       render: (p) => (
         <Box sx={{ whiteSpace: 'nowrap' }}>
           <Typography variant="body2">{formatWeight(p.grossWeightMg)}</Typography>
           <Typography variant="caption" color="textSecondary">
-            net {formatWeight(p.netWeightMg)}
-            {p.stockType === 'lot' && ` · ${p.quantity} pcs`}
+            {t('net {{netWeight}}', { netWeight: formatWeight(p.netWeightMg) })}
+            {p.stockType === 'lot' && t(' · {{quantity}} pcs', { quantity: p.quantity })}
           </Typography>
         </Box>
       ),
     },
-    { key: 'branch', label: 'Branch', render: (p) => p.branch?.name },
-    { key: 'status', label: 'Status', render: (p) => <ProductStatusChip status={p.status} /> },
+    { key: 'branch', label: t('Branch'), render: (p) => p.branch?.name },
+    { key: 'status', label: t('Status'), render: (p) => <ProductStatusChip status={p.status} /> },
   ];
 
   return (
     <>
       <PageHeader
-        title="Products"
-        subtitle="Your jewellery catalogue: tagged pieces and lots, with weights, stones and hallmark details."
+        title={t('Products')}
+        subtitle={t('Your jewellery catalogue: tagged pieces and lots, with weights, stones and hallmark details.')}
         actions={
           canCreate && (
             <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => navigate('/products/new')}>
-              New product
+              {t('New product')}
             </Button>
           )
         }
       />
       {data?.meta?.summary && (
         <SummaryCards>
-          <SummaryCard icon={Inventory2OutlinedIcon} label="In stock" value={`${data.meta.summary.inStock.pieces} pcs`} caption={`${data.meta.summary.sold} sold so far`} onClick={() => list.setFilter('status', 'in_stock')} />
-          <SummaryCard icon={ScaleOutlinedIcon} label="Stock weight" value={formatWeight(data.meta.summary.inStock.grossMg)} caption={`Fine ${formatWeight(data.meta.summary.inStock.fineMg)}`} tone="blue" />
-          {data.meta.summary.inStock.costPaise !== undefined && <SummaryCard icon={CurrencyRupeeOutlinedIcon} label="Stock value" value={formatINR(data.meta.summary.inStock.costPaise, { decimals: 0 })} caption="At cost price" tone="green" />}
-          <SummaryCard icon={EditNoteOutlinedIcon} label="Drafts" value={data.meta.summary.drafts} caption={data.meta.summary.drafts ? 'Not yet in stock — tap to see' : 'Nothing waiting'} tone={data.meta.summary.drafts ? 'amber' : 'grey'} onClick={() => list.setFilter('status', 'draft')} />
+          <SummaryCard icon={Inventory2OutlinedIcon} label={t('In stock')} value={t('{{pieces}} pcs', { pieces: data.meta.summary.inStock.pieces })} caption={t('{{sold}} sold so far', { sold: data.meta.summary.sold })} onClick={() => list.setFilter('status', 'in_stock')} />
+          <SummaryCard icon={ScaleOutlinedIcon} label={t('Stock weight')} value={formatWeight(data.meta.summary.inStock.grossMg)} caption={t('Fine {{fine}}', { fine: formatWeight(data.meta.summary.inStock.fineMg) })} tone="blue" />
+          {data.meta.summary.inStock.costPaise !== undefined && <SummaryCard icon={CurrencyRupeeOutlinedIcon} label={t('Stock value')} value={formatINR(data.meta.summary.inStock.costPaise, { decimals: 0 })} caption={t('At cost price')} tone="green" />}
+          <SummaryCard icon={EditNoteOutlinedIcon} label={t('Drafts')} value={data.meta.summary.drafts} caption={data.meta.summary.drafts ? t('Not yet in stock — tap to see') : t('Nothing waiting')} tone={data.meta.summary.drafts ? 'amber' : 'grey'} onClick={() => list.setFilter('status', 'draft')} />
         </SummaryCards>
       )}
       <DataTable
@@ -107,7 +108,7 @@ export default function ProductsPage() {
           ...columns,
           {
             key: 'actions',
-            label: 'Action',
+            label: t('Action'),
             align: 'right',
             width: actionsWidth(3),
             // Only draft pieces can be deleted; stocked ones leave through a sale, return or adjustment.
@@ -130,15 +131,15 @@ export default function ProductsPage() {
         onRetry={refetch}
         empty={
           list.filtered
-            ? { title: 'No matching products', description: 'Try a different SKU, HUID, name or filter.' }
-            : { title: 'No products yet', description: 'Create your first tagged item to build your catalogue.' }
+            ? { title: t('No matching products'), description: t('Try a different SKU, HUID, name or filter.') }
+            : { title: t('No products yet'), description: t('Create your first tagged item to build your catalogue.') }
         }
         pagination={list.pagination(data?.meta)}
         toolbar={
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
-            <SearchField value={list.search} onChange={list.setSearch} placeholder="Search name, SKU, barcode or HUID" />
-            <TextField select label="Category" value={list.filters.categoryId} onChange={(e) => list.setFilter('categoryId', e.target.value)} slotProps={filterSlots} sx={{ width: { md: 220 }, flexShrink: 0 }}>
-              <MenuItem value="">All categories</MenuItem>
+            <SearchField value={list.search} onChange={list.setSearch} placeholder={t('Search name, SKU, barcode or HUID')} />
+            <TextField select label={t('Category')} value={list.filters.categoryId} onChange={(e) => list.setFilter('categoryId', e.target.value)} slotProps={filterSlots} sx={{ width: { md: 220 }, flexShrink: 0 }}>
+              <MenuItem value="">{t('All categories')}</MenuItem>
               {tree.flatMap((c) => [
                 <MenuItem key={c.id} value={c.id}>
                   {c.name}
@@ -150,16 +151,16 @@ export default function ProductsPage() {
                 )),
               ])}
             </TextField>
-            <TextField select label="Metal" value={list.filters.metal} onChange={(e) => list.setFilter('metal', e.target.value)} slotProps={filterSlots} sx={{ width: { md: 160 }, flexShrink: 0 }}>
-              <MenuItem value="">All metals</MenuItem>
+            <TextField select label={t('Metal')} value={list.filters.metal} onChange={(e) => list.setFilter('metal', e.target.value)} slotProps={filterSlots} sx={{ width: { md: 160 }, flexShrink: 0 }}>
+              <MenuItem value="">{t('All metals')}</MenuItem>
               {METAL_OPTIONS.map((m) => (
                 <MenuItem key={m.value} value={m.value}>
                   {m.label}
                 </MenuItem>
               ))}
             </TextField>
-            <TextField select label="Status" value={list.filters.status} onChange={(e) => list.setFilter('status', e.target.value)} slotProps={filterSlots} sx={{ width: { md: 170 }, flexShrink: 0 }}>
-              <MenuItem value="">All statuses</MenuItem>
+            <TextField select label={t('Status')} value={list.filters.status} onChange={(e) => list.setFilter('status', e.target.value)} slotProps={filterSlots} sx={{ width: { md: 170 }, flexShrink: 0 }}>
+              <MenuItem value="">{t('All statuses')}</MenuItem>
               {Object.entries(PRODUCT_STATUS_LABELS).map(([value, label]) => (
                 <MenuItem key={value} value={value}>
                   {label}

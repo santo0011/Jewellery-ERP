@@ -1,5 +1,6 @@
 import { Typography } from '@mui/material';
 import { formatINR } from '@jerp/shared';
+import { t } from '../i18n/index.js';
 
 /** One rule for the whole app: money received is green, money still owed is red. */
 export const MONEY_TONE = { paid: 'success.main', due: 'error.main' };
@@ -20,7 +21,7 @@ export default function Amount({ paise, tone, decimals = 2, prefix = '', suffix 
  * supplier); negative = paid in advance (green). Zero shows "Nil".
  */
 export function BalanceAmount({ paise, owedLabel, advanceLabel, decimals = 2, ...props }) {
-  if (!paise) return 'Nil';
+  if (!paise) return t('Nil');
   return (
     <Amount paise={Math.abs(paise)} tone={paise > 0 ? 'due' : 'paid'} decimals={decimals} suffix={` ${paise > 0 ? owedLabel : advanceLabel}`} {...props} />
   );

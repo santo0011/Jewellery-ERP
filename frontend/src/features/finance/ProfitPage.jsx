@@ -15,10 +15,11 @@ import SummaryCards, { SummaryCard } from '../../components/SummaryCards.jsx';
 import { usePermission, useSession } from '../../hooks/usePermission.js';
 import { MonthlyProfitBars, SalesExpenseChart } from './financeCharts.jsx';
 import { useFinanceSummaryQuery } from './financeApi.js';
+import { t, getLocale } from '../../i18n/index.js';
 
 const inr = (p) => formatINR(p, { decimals: 0 });
 const signed = (p) => `${p < 0 ? '−' : ''}${inr(Math.abs(p))}`;
-const monthName = (m) => new Date(`${m}-01T00:00:00Z`).toLocaleDateString('en-IN', { month: 'long', year: 'numeric', timeZone: 'UTC' });
+const monthName = (m) => new Date(`${m}-01T00:00:00Z`).toLocaleDateString(getLocale(), { month: 'long', year: 'numeric', timeZone: 'UTC' });
 const shiftMonth = (m, by) => {
   const [y, mo] = m.split('-').map(Number);
   return new Date(Date.UTC(y, mo - 1 + by, 1)).toISOString().slice(0, 7);
@@ -30,8 +31,8 @@ const pct = (part, whole) => (whole ? Math.round((part / whole) * 1000) / 10 : 0
 function change(now, before, { cost = false } = {}) {
   if (!before) return null;
   const delta = Math.round(((now - before) / Math.abs(before)) * 100);
-  if (!delta) return 'Same as last month';
-  return `${delta > 0 ? '▲' : '▼'} ${Math.abs(delta)}% vs last month${cost ? (delta > 0 ? ' (higher)' : ' (lower)') : ''}`;
+  if (!delta) return t('Same as last month');
+  return (delta > 0 ? (cost ? (delta > 0 ? t('▲ {{delta}}% vs last month (higher)', { delta: Math.abs(delta) }) : t('▲ {{delta}}% vs last month (lower)', { delta: Math.abs(delta) })) : t('▲ {{delta}}% vs last month', { delta: Math.abs(delta) })) : (cost ? (delta > 0 ? t('▼ {{delta}}% vs last month (higher)', { delta: Math.abs(delta) }) : t('▼ {{delta}}% vs last month (lower)', { delta: Math.abs(delta) })) : t('▼ {{delta}}% vs last month', { delta: Math.abs(delta) })));
 }
 
 function Panel({ title, subtitle, action, children }) {
@@ -86,13 +87,13 @@ function Line({ label, value, minus, total, tone, hint }) {
 function MonthSwitch({ month, onChange }) {
   return (
     <Stack direction="row" sx={{ alignItems: 'center', border: 1, borderColor: 'divider', borderRadius: 2, bgcolor: 'background.paper', flexShrink: 0 }}>
-      <IconButton size="small" aria-label="Previous month" onClick={() => onChange(shiftMonth(month, -1))}>
+      <IconButton size="small" aria-label={t('Previous month')} onClick={() => onChange(shiftMonth(month, -1))}>
         <ChevronLeftRoundedIcon />
       </IconButton>
       <Typography variant="body2" sx={{ fontWeight: 700, minWidth: 128, textAlign: 'center' }}>
         {monthName(month)}
       </Typography>
-      <IconButton size="small" aria-label="Next month" onClick={() => onChange(shiftMonth(month, 1))} disabled={month >= thisMonth()}>
+      <IconButton size="small" aria-label={t('Next month')} onClick={() => onChange(shiftMonth(month, 1))} disabled={month >= thisMonth()}>
         <ChevronRightRoundedIcon />
       </IconButton>
     </Stack>
@@ -101,15 +102,15 @@ function MonthSwitch({ month, onChange }) {
 
 /** The month at a glance (used on the Dashboard too): sales against expenses each day, and the bottom line. */
 export function ProfitSnapshot({ data, onOpen }) {
-  const t = data.totals;
+  const totals = data.totals;
   return (
     <Panel
-      title="Sales vs expenses"
-      subtitle={`Every day of ${monthName(data.month)} — expenses are shop expenses and salary`}
+      title={t('Sales vs expenses')}
+      subtitle={t('Every day of {{monthName}} — expenses are shop expenses and salary', { monthName: monthName(data.month) })}
       action={
         onOpen && (
           <Button size="small" onClick={onOpen} sx={{ flexShrink: 0 }}>
-            Profit & loss
+            {t('Profit & loss')}
           </Button>
         )
       }
@@ -117,9 +118,9 @@ export function ProfitSnapshot({ data, onOpen }) {
       <SalesExpenseChart days={data.days} height={230} />
       <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 1, mt: 2, pt: 1.5, borderTop: 1, borderColor: 'divider' }}>
         {[
-          ['Sales', t.salesPaise, 'text.primary'],
-          ['Expenses', t.expensesPaise, 'text.primary'],
-          ['Net profit', t.netProfitPaise, t.netProfitPaise < 0 ? 'error.main' : 'success.main'],
+          [t('Sales'), totals.salesPaise, 'text.primary'],
+          [t('Expenses'), totals.expensesPaise, 'text.primary'],
+          [t('Net profit'), totals.netProfitPaise, totals.netProfitPaise < 0 ? 'error.main' : 'success.main'],
         ].map(([label, value, color]) => (
           <Box key={label} sx={{ minWidth: 0 }}>
             <Typography variant="caption" color="textSecondary">
@@ -144,20 +145,20 @@ export default function ProfitPage() {
   const { data, isLoading, isFetching, error, refetch } = useFinanceSummaryQuery({ month, ...(branchId && { branchId }) });
   const branches = session?.branches ?? [];
 
-  const t = data?.totals;
+  const totals = data?.totals;
   const p = data?.previous;
-  const maxCategory = Math.max(1, ...(data?.byCategory ?? []).map((c) => c.amountPaise), t?.salaryPaise ?? 0);
+  const maxCategory = Math.max(1, ...(data?.byCategory ?? []).map((c) => c.amountPaise), totals?.salaryPaise ?? 0);
 
   return (
     <>
       <PageHeader
-        title="Profit & loss"
-        subtitle="What the shop sold, what it cost, what it spent — and what is left."
+        title={t('Profit & loss')}
+        subtitle={t('What the shop sold, what it cost, what it spent — and what is left.')}
         actions={
           <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
             {branches.length > 1 && (
               <TextField select size="small" value={branchId} onChange={(e) => setBranchId(e.target.value)} sx={{ minWidth: 160 }} slotProps={{ select: { displayEmpty: true } }}>
-                <MenuItem value="">All branches</MenuItem>
+                <MenuItem value="">{t('All branches')}</MenuItem>
                 {branches.map((b) => (
                   <MenuItem key={b.id} value={b.id}>
                     {b.name}
@@ -171,23 +172,23 @@ export default function ProfitPage() {
       />
 
       {isLoading ? (
-        <LoadingState label="Working out the month" />
+        <LoadingState label={t('Working out the month')} />
       ) : error ? (
         <ErrorState error={error} onRetry={refetch} />
       ) : (
         <Box sx={{ opacity: isFetching ? 0.6 : 1, transition: 'opacity 150ms' }}>
           <SummaryCards>
-            <SummaryCard icon={ReceiptLongOutlinedIcon} label="Total sales" value={inr(t.salesPaise)} caption={change(t.salesPaise, p.salesPaise) ?? 'Before GST, less returns'} tone="blue" />
-            <SummaryCard icon={Inventory2OutlinedIcon} label="Cost of goods" value={inr(t.cogsPaise)} caption="What the pieces sold cost" tone="grey" />
-            <SummaryCard icon={TrendingUpRoundedIcon} label="Gross profit" value={signed(t.grossProfitPaise)} caption={`${pct(t.grossProfitPaise, t.salesPaise)}% margin`} tone="gold" />
-            <SummaryCard icon={PaymentsOutlinedIcon} label="Expenses" value={inr(t.expensesPaise)} caption={change(t.expensesPaise, p.expensesPaise, { cost: true }) ?? 'Shop expenses + salary'} tone="amber" />
+            <SummaryCard icon={ReceiptLongOutlinedIcon} label={t('Total sales')} value={inr(totals.salesPaise)} caption={change(totals.salesPaise, p.salesPaise) ?? t('Before GST, less returns')} tone="blue" />
+            <SummaryCard icon={Inventory2OutlinedIcon} label={t('Cost of goods')} value={inr(totals.cogsPaise)} caption={t('What the pieces sold cost')} tone="grey" />
+            <SummaryCard icon={TrendingUpRoundedIcon} label={t('Gross profit')} value={signed(totals.grossProfitPaise)} caption={t('{{pct}}% margin', { pct: pct(totals.grossProfitPaise, totals.salesPaise) })} tone="gold" />
+            <SummaryCard icon={PaymentsOutlinedIcon} label={t('Expenses')} value={inr(totals.expensesPaise)} caption={change(totals.expensesPaise, p.expensesPaise, { cost: true }) ?? t('Shop expenses + salary')} tone="amber" />
             <SummaryCard
               icon={AccountBalanceWalletOutlinedIcon}
-              label="Net profit"
-              value={signed(t.netProfitPaise)}
-              caption={change(t.netProfitPaise, p.netProfitPaise) ?? (t.netProfitPaise < 0 ? 'Loss this month' : 'After every cost')}
-              tone={t.netProfitPaise < 0 ? 'red' : 'green'}
-              valueTone={t.netProfitPaise < 0 ? 'due' : 'paid'}
+              label={t('Net profit')}
+              value={signed(totals.netProfitPaise)}
+              caption={change(totals.netProfitPaise, p.netProfitPaise) ?? (totals.netProfitPaise < 0 ? t('Loss this month') : t('After every cost'))}
+              tone={totals.netProfitPaise < 0 ? 'red' : 'green'}
+              valueTone={totals.netProfitPaise < 0 ? 'due' : 'paid'}
               hideCaptionOnPhone={false}
             />
           </SummaryCards>
@@ -197,43 +198,43 @@ export default function ProfitPage() {
               <ProfitSnapshot data={data} />
             </Grid>
             <Grid size={{ xs: 12, lg: 4 }}>
-              <Panel title="Profit statement" subtitle={monthName(month)}>
-                <Line label="Sales" value={t.salesPaise} hint="Bills before GST, less returns" />
-                <Line label="Cost of goods sold" value={t.cogsPaise} minus hint="Cost of the pieces sold" />
-                <Line label="Gross profit" value={t.grossProfitPaise} total tone="var(--brand-strong)" />
-                <Line label="Shop expenses" value={t.shopExpensesPaise} minus />
-                <Line label="Salary" value={t.salaryPaise} minus hint="Finalised payroll for this month" />
-                {t.otherPaise !== 0 && <Line label="Stock written off & round-off" value={t.otherPaise} minus />}
-                <Line label="Net profit" value={t.netProfitPaise} total tone={t.netProfitPaise < 0 ? 'error.main' : 'success.main'} />
+              <Panel title={t('Profit statement')} subtitle={monthName(month)}>
+                <Line label={t('Sales')} value={totals.salesPaise} hint={t('Bills before GST, less returns')} />
+                <Line label={t('Cost of goods sold')} value={totals.cogsPaise} minus hint={t('Cost of the pieces sold')} />
+                <Line label={t('Gross profit')} value={totals.grossProfitPaise} total tone="var(--brand-strong)" />
+                <Line label={t('Shop expenses')} value={totals.shopExpensesPaise} minus />
+                <Line label={t('Salary')} value={totals.salaryPaise} minus hint={t('Finalised payroll for this month')} />
+                {totals.otherPaise !== 0 && <Line label={t('Stock written off & round-off')} value={totals.otherPaise} minus />}
+                <Line label={t('Net profit')} value={totals.netProfitPaise} total tone={totals.netProfitPaise < 0 ? 'error.main' : 'success.main'} />
               </Panel>
             </Grid>
           </Grid>
 
           <Grid container spacing={{ xs: 1.5, sm: 2 }}>
             <Grid size={{ xs: 12, md: 6, lg: 5 }}>
-              <Panel title="Net profit by month" subtitle="The last six months">
+              <Panel title={t('Net profit by month')} subtitle={t('The last six months')}>
                 <MonthlyProfitBars months={data.months} />
               </Panel>
             </Grid>
             <Grid size={{ xs: 12, md: 6, lg: 4 }}>
               <Panel
-                title="Where the money went"
-                subtitle="Expenses by head"
+                title={t('Where the money went')}
+                subtitle={t('Expenses by head')}
                 action={
                   canSeeExpenses && (
                     <Button size="small" onClick={() => navigate('/expenses')} sx={{ flexShrink: 0 }}>
-                      Expenses
+                      {t('Expenses')}
                     </Button>
                   )
                 }
               >
-                {!data.byCategory.length && !t.salaryPaise ? (
+                {!data.byCategory.length && !totals.salaryPaise ? (
                   <Typography variant="body2" color="textSecondary" sx={{ py: 3, textAlign: 'center' }}>
-                    No expenses this month
+                    {t('No expenses this month')}
                   </Typography>
                 ) : (
                   <Stack spacing={1.25}>
-                    {[...(t.salaryPaise ? [{ name: 'Salary (payroll)', amountPaise: t.salaryPaise }] : []), ...data.byCategory]
+                    {[...(totals.salaryPaise ? [{ name: 'Salary (payroll)', amountPaise: totals.salaryPaise }] : []), ...data.byCategory]
                       .sort((a, b) => b.amountPaise - a.amountPaise)
                       .map((c) => (
                         <Box key={c.name}>
@@ -244,7 +245,7 @@ export default function ProfitPage() {
                             <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
                               {inr(c.amountPaise)}
                               <Typography component="span" variant="caption" color="textSecondary" sx={{ ml: 0.75 }}>
-                                {pct(c.amountPaise, t.expensesPaise)}%
+                                {pct(c.amountPaise, totals.expensesPaise)}%
                               </Typography>
                             </Typography>
                           </Stack>
@@ -258,10 +259,10 @@ export default function ProfitPage() {
               </Panel>
             </Grid>
             <Grid size={{ xs: 12, lg: 3 }}>
-              <Panel title="Suppliers & stock" subtitle="Cash, not profit — stock reaches profit when sold">
-                <Line label="Bought this month" value={data.cash.purchasesPaise} hint={`${data.cash.purchaseBills} purchase bill${data.cash.purchaseBills === 1 ? '' : 's'}`} />
-                <Line label="Paid to suppliers" value={data.cash.paidToSuppliersPaise} hint="Cash, bank and UPI this month" />
-                <Line label="Still due to suppliers" value={data.cash.supplierDuePaise} total tone={data.cash.supplierDuePaise ? 'error.main' : 'success.main'} />
+              <Panel title={t('Suppliers & stock')} subtitle={t('Cash, not profit — stock reaches profit when sold')}>
+                <Line label={t('Bought this month')} value={data.cash.purchasesPaise} hint={(data.cash.purchaseBills === 1 ? t('{{purchaseBills}} purchase bill', { purchaseBills: data.cash.purchaseBills }) : t('{{purchaseBills}} purchase bills', { purchaseBills: data.cash.purchaseBills }))} />
+                <Line label={t('Paid to suppliers')} value={data.cash.paidToSuppliersPaise} hint={t('Cash, bank and UPI this month')} />
+                <Line label={t('Still due to suppliers')} value={data.cash.supplierDuePaise} total tone={data.cash.supplierDuePaise ? 'error.main' : 'success.main'} />
               </Panel>
             </Grid>
           </Grid>

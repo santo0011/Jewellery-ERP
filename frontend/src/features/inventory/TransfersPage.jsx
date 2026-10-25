@@ -1,4 +1,6 @@
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import { Alert, Box, Button, Grid, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
@@ -17,6 +19,7 @@ import ProductPicker, { SelectedProducts } from './ProductPicker.jsx';
 import StockDocDialog from './StockDocDialog.jsx';
 import { DocStatusChip, docTotals } from './stockUi.jsx';
 import { viewColumn } from '../../components/ViewButton.jsx';
+import { t } from '../../i18n/index.js';
 
 function NewTransferDrawer({ open, onClose }) {
   const { data: session } = useSession();
@@ -46,8 +49,8 @@ function NewTransferDrawer({ open, onClose }) {
     if (!to) return setError('Choose the destination branch');
     if (!products.length) return setError('Add at least one item');
     try {
-      const t = await create({ fromBranchId: from, toBranchId: to, productIds: products.map((p) => p.id), note: note.trim() || undefined }).unwrap();
-      toast.success(`${t.docNo} dispatched`);
+      const transfer = await create({ fromBranchId: from, toBranchId: to, productIds: products.map((p) => p.id), note: note.trim() || undefined }).unwrap();
+      toast.success(t('{{docNo}} dispatched', { docNo: transfer.docNo }));
       onClose();
     } catch (err) {
       setError(getErrorMessage(err));
@@ -56,7 +59,7 @@ function NewTransferDrawer({ open, onClose }) {
   };
 
   return (
-    <FormDrawer open={open} title="New transfer" subtitle="Items stay 'in transit' until the receiving branch accepts them." onClose={onClose} onSubmit={submit} submitting={isLoading} submitLabel="Dispatch" width={680}>
+    <FormDrawer open={open} title={t('New transfer')} subtitle={t('Items stay \'in transit\' until the receiving branch accepts them.')} onClose={onClose} onSubmit={submit} submitting={isLoading} submitLabel={t('Dispatch')} width={680}>
       <Grid container spacing={2}>
         {error && (
           <Grid size={12}>
@@ -66,7 +69,7 @@ function NewTransferDrawer({ open, onClose }) {
         <Grid size={{ xs: 12, sm: 6 }}>
           <TextField
             select
-            label="From"
+            label={t('From')}
             value={from}
             onChange={(e) => {
               setFrom(e.target.value);
@@ -81,7 +84,7 @@ function NewTransferDrawer({ open, onClose }) {
           </TextField>
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
-          <TextField select label="To" value={to} onChange={(e) => setTo(e.target.value)}>
+          <TextField select label={t('To')} value={to} onChange={(e) => setTo(e.target.value)}>
             {destinations.map((b) => (
               <MenuItem key={b.id} value={b.id}>
                 {b.name}
@@ -96,7 +99,7 @@ function NewTransferDrawer({ open, onClose }) {
           <SelectedProducts products={products} onRemove={(id) => setProducts((l) => l.filter((p) => p.id !== id))} />
         </Grid>
         <Grid size={12}>
-          <TextField label="Note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Sent with Rakesh, sealed bag #12" />
+          <TextField label={t('Note')} value={note} onChange={(e) => setNote(e.target.value)} placeholder={t('e.g. Sent with Rakesh, sealed bag #12')} />
         </Grid>
       </Grid>
     </FormDrawer>
@@ -126,31 +129,32 @@ export default function TransfersPage() {
   const columns = [
     {
       key: 'docNo',
-      label: 'Transfer',
-      render: (t) => (
+      label: t('Transfer'),
+      render: (transfer) => (
         <Box>
-          <Typography variant="subtitle2">{t.docNo}</Typography>
+          <Typography variant="subtitle2">{transfer.docNo}</Typography>
           <Typography variant="caption" color="textSecondary">
-            {formatDateTime(t.dispatchedAt)}
+            {formatDateTime(transfer.dispatchedAt)}
           </Typography>
         </Box>
       ),
     },
-    { key: 'route', label: 'Route', render: (t) => `${t.fromBranch?.name} → ${t.toBranch?.name}` },
-    { key: 'contents', label: 'Contents', render: docTotals },
-    { key: 'by', label: 'Sent by', render: (t) => t.dispatchedBy?.name },
-    { key: 'status', label: 'Status', render: (t) => <DocStatusChip status={t.status} /> },
+    { key: 'route', label: t('Route'), render: (transfer) => `${transfer.fromBranch?.name} → ${transfer.toBranch?.name}` },
+    { key: 'contents', label: t('Contents'), render: docTotals },
+    { key: 'by', label: t('Sent by'), render: (transfer) => transfer.dispatchedBy?.name },
+    { key: 'status', label: t('Status'), render: (transfer) => <DocStatusChip status={transfer.status} /> },
   ];
 
   const actions =
     viewing?.canReceive && canTransfer ? (
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mr: 'auto', alignItems: { sm: 'center' }, width: { xs: '100%', sm: 'auto' } }}>
-        <TextField size="small" placeholder="Reason if rejecting" value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} sx={{ minWidth: 220 }} />
-        <Button color="error" disabled={rejectReason.trim().length < 3} loading={rejectState.isLoading} onClick={() => act(() => reject({ id: viewing.id, reason: rejectReason.trim() }), 'Transfer rejected; items returned')}>
-          Reject
+      // The buttons keep their width and stay on one line; the reason box takes whatever room is left.
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mr: 'auto', flex: 1, alignItems: { sm: 'center' }, width: { xs: '100%', sm: 'auto' }, '& .MuiButton-root': { whiteSpace: 'nowrap', flexShrink: 0 } }}>
+        <TextField size="small" placeholder={t('Reason if rejecting')} value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} sx={{ flex: 1, minWidth: { sm: 180 } }} />
+        <Button color="error" variant="outlined" startIcon={<CloseRoundedIcon />} disabled={rejectReason.trim().length < 3} loading={rejectState.isLoading} onClick={() => act(() => reject({ id: viewing.id, reason: rejectReason.trim() }), t('Transfer rejected; items returned'))}>
+          {t('Reject')}
         </Button>
-        <Button variant="contained" loading={receiveState.isLoading} onClick={() => act(() => receive(viewing.id), 'Items received into stock')}>
-          Receive all
+        <Button variant="contained" startIcon={<CheckRoundedIcon />} loading={receiveState.isLoading} onClick={() => act(() => receive(viewing.id), t('Items received into stock'))}>
+          {t('Receive all')}
         </Button>
       </Stack>
     ) : null;
@@ -158,13 +162,13 @@ export default function TransfersPage() {
   return (
     <>
       <PageHeader
-        title="Branch transfers"
-        subtitle="Move stock between branches with a dispatch and receive trail."
-        breadcrumbs={[{ label: 'Stock' }, { label: 'Transfers' }]}
+        title={t('Branch transfers')}
+        subtitle={t('Move stock between branches with a dispatch and receive trail.')}
+        breadcrumbs={[{ label: t('Stock') }, { label: t('Transfers') }]}
         actions={
           canTransfer && (
             <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setDrawer(true)}>
-              New transfer
+              {t('New transfer')}
             </Button>
           )
         }
@@ -173,11 +177,11 @@ export default function TransfersPage() {
         columns={[
           ...columns,
           viewColumn(
-            (t) => {
+            (transfer) => {
               setRejectReason('');
-              setViewing(t);
+              setViewing(transfer);
             },
-            { name: (t) => t.docNo, deleteDisabled: 'Transfers are part of the stock ledger and cannot be deleted. Reject or receive them instead.' },
+            { name: (transfer) => transfer.docNo, deleteDisabled: t('Transfers are part of the stock ledger and cannot be deleted. Reject or receive them instead.') },
           ),
         ]}
         rows={data?.items}
@@ -185,16 +189,16 @@ export default function TransfersPage() {
         fetching={isFetching}
         error={error}
         onRetry={refetch}
-        empty={{ title: list.filtered ? 'No matching transfers' : 'No transfers yet', description: 'Transfers need at least two branches.' }}
+        empty={{ title: list.filtered ? t('No matching transfers') : t('No transfers yet'), description: t('Transfers need at least two branches.') }}
         pagination={list.pagination(data?.meta)}
         toolbar={
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-            <SearchField value={list.search} onChange={list.setSearch} placeholder="Search transfer number or note" />
-            <TextField select label="Status" value={list.filters.status} onChange={(e) => list.setFilter('status', e.target.value)} sx={{ maxWidth: { sm: 180 } }}>
-              <MenuItem value="">All</MenuItem>
-              <MenuItem value="in_transit">In transit</MenuItem>
-              <MenuItem value="received">Received</MenuItem>
-              <MenuItem value="rejected">Rejected</MenuItem>
+            <SearchField value={list.search} onChange={list.setSearch} placeholder={t('Search transfer number or note')} />
+            <TextField select slotProps={{ inputLabel: { shrink: true }, select: { displayEmpty: true } }} label={t('Status')} value={list.filters.status} onChange={(e) => list.setFilter('status', e.target.value)} sx={{ maxWidth: { sm: 180 } }}>
+              <MenuItem value="">{t('All')}</MenuItem>
+              <MenuItem value="in_transit">{t('In transit')}</MenuItem>
+              <MenuItem value="received">{t('Received')}</MenuItem>
+              <MenuItem value="rejected">{t('Rejected')}</MenuItem>
             </TextField>
           </Stack>
         }

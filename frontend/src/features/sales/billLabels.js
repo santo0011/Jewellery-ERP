@@ -1,3 +1,4 @@
+import { t } from '../../i18n/index.js';
 /** "1.5%", "0.25%" — share of `base`; the rate is read off the bill itself, so it is right even with mixed GST rates. */
 export function percentOf(part, base) {
   if (!part || !base) return null;
@@ -12,7 +13,7 @@ const withPct = (label, part, base) => {
 
 /** Labels for the totals block: discount against the value before discount, taxes against the taxable value. */
 export const billLabels = (totals) => ({
-  discount: withPct('Discount', totals.discountPaise, totals.subtotalPaise),
+  discount: withPct(t('Discount'), totals.discountPaise, totals.subtotalPaise),
   cgst: withPct('CGST', totals.cgstPaise, totals.taxablePaise),
   sgst: withPct('SGST', totals.sgstPaise, totals.taxablePaise),
   igst: withPct('IGST', totals.igstPaise, totals.taxablePaise),

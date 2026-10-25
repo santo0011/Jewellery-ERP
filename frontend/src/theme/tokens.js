@@ -95,6 +95,7 @@ export const tokens = {
 };
 
 export const fonts = {
-  body: '"Inter Variable", Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
-  display: '"Cormorant Garamond", Georgia, "Times New Roman", serif',
+  // Bengali and Hindi letters come from Noto (loaded only for those languages, see i18n/index.js).
+  body: '"Inter Variable", Inter, "Noto Sans Bengali Variable", "Noto Sans Devanagari Variable", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+  display: '"Cormorant Garamond", "Noto Sans Bengali Variable", "Noto Sans Devanagari Variable", Georgia, "Times New Roman", serif',
 };

@@ -4,13 +4,15 @@ import ShowChartRoundedIcon from '@mui/icons-material/ShowChartRounded';
 import VerifiedUserOutlinedIcon from '@mui/icons-material/VerifiedUserOutlined';
 import { Box, Stack, Typography } from '@mui/material';
 import { Outlet } from 'react-router';
+import LanguageSwitcher from '../components/LanguageSwitcher.jsx';
 import Wordmark, { DiamondMark } from '../components/Wordmark.jsx';
 import { fonts, tokens } from '../theme/tokens.js';
+import { t } from '../i18n/index.js';
 
 const HIGHLIGHTS = [
-  { icon: ScaleOutlinedIcon, text: 'Weight-accurate stock to the milligram' },
-  { icon: ShowChartRoundedIcon, text: 'Gold rate history preserved on every invoice' },
-  { icon: AccountBalanceOutlinedIcon, text: 'Every branch, every rupee, one ledger' },
+  { icon: ScaleOutlinedIcon, text: t('Weight-accurate stock to the milligram') },
+  { icon: ShowChartRoundedIcon, text: t('Gold rate history preserved on every invoice') },
+  { icon: AccountBalanceOutlinedIcon, text: t('Every branch, every rupee, one ledger') },
 ];
 
 // The dark side: near-black with a warm gold glow and a faint diamond lattice.
@@ -19,6 +21,16 @@ const GLOW = 'radial-gradient(120% 80% at 85% 10%, rgba(var(--brand-rgb), 0.28) 
 const LATTICE = (alpha) =>
   `repeating-linear-gradient(45deg, rgba(var(--brand-rgb), ${alpha}) 0 1px, transparent 1px 34px), repeating-linear-gradient(-45deg, rgba(var(--brand-rgb), ${alpha}) 0 1px, transparent 1px 34px)`;
 const GOLD_TEXT = { background: 'linear-gradient(100deg, var(--brand-light) 0%, var(--brand) 45%, #F6E7B0 70%, var(--brand-deep) 100%)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' };
+
+/** “The quiet engine behind a fine jewellery business.”, with the jewellery words in gold (word order per language). */
+const Tagline = () =>
+  t('The quiet engine behind a {{fine}} business.', {
+    fine: (
+      <Box component="span" sx={{ ...GOLD_TEXT, fontStyle: 'italic' }}>
+        {t('fine jewellery')}
+      </Box>
+    ),
+  });
 
 /** A large faceted diamond drawn in gold lines, glowing — decoration for the dark panel. */
 function BigDiamond({ size, sx }) {
@@ -59,13 +71,9 @@ export default function AuthLayout() {
         </Box>
 
         <Box sx={{ position: 'relative', maxWidth: 480 }}>
-          <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.28em', textTransform: 'uppercase', color: 'var(--brand-light)', mb: 2 }}>Jewellery ERP</Typography>
+          <Typography sx={{ fontSize: 12, fontWeight: 700, letterSpacing: '0.28em', textTransform: 'uppercase', color: 'var(--brand-light)', mb: 2 }}>{t('Jewellery ERP')}</Typography>
           <Typography sx={{ fontFamily: fonts.display, fontSize: { md: 40, lg: 48 }, lineHeight: 1.08, fontWeight: 500, mb: 4 }}>
-            The quiet engine behind a{' '}
-            <Box component="span" sx={{ ...GOLD_TEXT, fontStyle: 'italic' }}>
-              fine jewellery
-            </Box>{' '}
-            business.
+            <Tagline />
           </Typography>
           <Stack spacing={1.25}>
             {HIGHLIGHTS.map(({ icon: Icon, text }) => (
@@ -89,7 +97,7 @@ export default function AuthLayout() {
         <Stack direction="row" spacing={1} sx={{ position: 'relative', alignItems: 'center', color: '#8C877C' }}>
           <VerifiedUserOutlinedIcon sx={{ fontSize: 16, color: 'var(--brand)' }} />
           <Typography variant="body2" sx={{ color: 'inherit' }}>
-            Secure · Multi-branch · Built for Indian jewellers
+            {t('Secure · Multi-branch · Built for Indian jewellers')}
           </Typography>
         </Stack>
       </Box>
@@ -134,12 +142,13 @@ export default function AuthLayout() {
             <Wordmark size={26} />
           </Box>
           <Typography sx={{ position: 'relative', mt: 1.5, fontFamily: fonts.display, fontSize: 19, lineHeight: 1.3 }}>
-            The quiet engine behind a{' '}
-            <Box component="span" sx={{ ...GOLD_TEXT, fontStyle: 'italic' }}>
-              fine jewellery
-            </Box>{' '}
-            business.
+            <Tagline />
           </Typography>
+        </Box>
+
+        {/* Language, before signing in (it is kept on this device and saved to the account on sign-in). */}
+        <Box sx={{ position: 'absolute', zIndex: 2, top: { xs: 'calc(env(safe-area-inset-top) + 12px)', md: 24 }, right: { xs: 12, md: 28 } }}>
+          <LanguageSwitcher />
         </Box>
 
         <Box sx={{ position: 'relative', width: '100%', maxWidth: { xs: 480, md: 440 }, px: { xs: 2, md: 0 }, mt: { xs: -6, md: 0 } }}>

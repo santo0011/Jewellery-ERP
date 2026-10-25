@@ -5,6 +5,7 @@ import { fieldLabel } from '../features/audit/describeEntry.js';
 import { usePermission } from '../hooks/usePermission.js';
 import { formatDateTime } from '../utils/format.js';
 import InfoCard from './InfoCard.jsx';
+import { t } from '../i18n/index.js';
 
 export default function RecordHistory({ recordId }) {
   const allowed = usePermission('audit.view');
@@ -12,14 +13,14 @@ export default function RecordHistory({ recordId }) {
   if (!allowed) return null;
 
   return (
-    <InfoCard title="History">
+    <InfoCard title={t('History')}>
       {isLoading ? (
         <Typography variant="body2" color="textSecondary">
-          Loading…
+          {t('Loading…')}
         </Typography>
       ) : !data?.items.length ? (
         <Typography variant="body2" color="textSecondary">
-          No changes recorded.
+          {t('No changes recorded.')}
         </Typography>
       ) : (
         <Stack divider={<Divider />} spacing={1}>
@@ -29,7 +30,7 @@ export default function RecordHistory({ recordId }) {
                 <Box component="span" sx={{ fontWeight: 600 }}>
                   {AUDIT_ACTION_LABELS[e.action] ?? e.action}
                 </Box>{' '}
-                by {e.user?.name ?? 'System'}
+                {t('by')} {e.user?.name ?? t('System')}
                 {e.changes.length > 0 && (
                   <Typography component="span" variant="body2" color="textSecondary">
                     {' '}

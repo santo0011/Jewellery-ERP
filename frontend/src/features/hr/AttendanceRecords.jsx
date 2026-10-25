@@ -14,6 +14,7 @@ import { EmptyState, ErrorState, LoadingState } from '../../components/StateView
 import { useAttendanceRegisterQuery } from './hrApi.js';
 import { formatDays, monthLabel, thisMonth } from './hrUi.jsx';
 import { EmployeeAvatar } from './EmployeePhoto.jsx';
+import { t } from '../../i18n/index.js';
 
 const STATUS = Object.fromEntries(ATTENDANCE_STATUSES.map((s) => [s.value, s]));
 export const CELL_STYLE = {
@@ -57,7 +58,7 @@ export default function AttendanceRecords({ branchId, branchPicker }) {
     });
   }, [data, month]);
 
-  const totals = rows.reduce((t, r) => ({ absent: t.absent + r.c.absent, half: t.half + r.c.half_day, leave: t.leave + r.c.paid_leave }), { absent: 0, half: 0, leave: 0 });
+  const totals = rows.reduce((acc, r) => ({ absent: acc.absent + r.c.absent, half: acc.half + r.c.half_day, leave: acc.leave + r.c.paid_leave }), { absent: 0, half: 0, leave: 0 });
   const days = data ? Array.from({ length: data.days }, (_, i) => i + 1) : [];
   const holidays = data ? Object.entries(data.offDays).filter(([, n]) => !n.startsWith('Weekly off')) : [];
 
@@ -68,17 +69,17 @@ export default function AttendanceRecords({ branchId, branchPicker }) {
         <Stack direction="row" sx={{ alignItems: 'center', flexWrap: 'wrap', gap: 1.5 }}>
           {branchPicker}
           <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', width: { xs: '100%', sm: 'auto' }, minWidth: 0 }}>
-            <IconButton aria-label="Previous month" onClick={() => setMonth(shiftMonth(month, -1))}>
+            <IconButton aria-label={t('Previous month')} onClick={() => setMonth(shiftMonth(month, -1))}>
               <ChevronLeftRoundedIcon />
             </IconButton>
-            <TextField label="Month" type="month" value={month} onChange={(e) => e.target.value && setMonth(e.target.value)} slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: thisMonth() } }} sx={{ width: { xs: 'auto', sm: 200 }, flex: { xs: 1, sm: 'none' }, minWidth: 0 }} />
-            <IconButton aria-label="Next month" onClick={() => setMonth(shiftMonth(month, 1))} disabled={month >= thisMonth()}>
+            <TextField label={t('Month')} type="month" value={month} onChange={(e) => e.target.value && setMonth(e.target.value)} slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: thisMonth() } }} sx={{ width: { xs: 'auto', sm: 200 }, flex: { xs: 1, sm: 'none' }, minWidth: 0 }} />
+            <IconButton aria-label={t('Next month')} onClick={() => setMonth(shiftMonth(month, 1))} disabled={month >= thisMonth()}>
               <ChevronRightRoundedIcon />
             </IconButton>
           </Stack>
           {holidays.length > 0 && (
             <Typography variant="body2" color="textSecondary" sx={{ ml: { sm: 'auto' }, width: { xs: '100%', sm: 'auto' } }}>
-              Holidays: {holidays.map(([d, n]) => `${Number(d.slice(8))} ${n}`).join(' · ')}
+              {t('Holidays: {{holidays}}', { holidays: holidays.map(([d, n]) => `${Number(d.slice(8))} ${n}`).join(' · ') })}
             </Typography>
           )}
         </Stack>
@@ -86,7 +87,7 @@ export default function AttendanceRecords({ branchId, branchPicker }) {
 
       {data?.locked && (
         <Alert severity="info" icon={<LockOutlinedIcon />} sx={{ mb: 2 }}>
-          Payroll {data.lockedBy} for {monthLabel(month)} is finalised — this month is locked.
+          {t('Payroll {{lockedBy}} for {{monthLabel}} is finalised — this month is locked.', { lockedBy: data.lockedBy, monthLabel: monthLabel(month) })}
         </Alert>
       )}
 
@@ -96,15 +97,15 @@ export default function AttendanceRecords({ branchId, branchPicker }) {
         <ErrorState error={error} onRetry={refetch} />
       ) : !rows.length ? (
         <Card>
-          <EmptyState title={`No employees in ${monthLabel(month)}`} description="Only staff on this branch’s rolls during the month appear here." />
+          <EmptyState title={t('No employees in {{monthLabel}}', { monthLabel: monthLabel(month) })} description={t('Only staff on this branch’s rolls during the month appear here.')} />
         </Card>
       ) : (
         <Box sx={{ opacity: isFetching ? 0.6 : 1, transition: 'opacity 120ms' }}>
           <SummaryCards>
-            <SummaryCard icon={BadgeOutlinedIcon} label="Staff" value={rows.length} caption={`On the rolls in ${monthLabel(month)}`} />
-            <SummaryCard icon={EventBusyOutlinedIcon} label="Absent days" value={totals.absent} caption={totals.absent ? 'Not paid' : 'No one absent'} tone={totals.absent ? 'red' : 'grey'} valueTone={totals.absent ? 'due' : undefined} />
-            <SummaryCard icon={TimelapseRoundedIcon} label="Half days" value={totals.half} caption={totals.half ? 'Paid half' : 'No half days'} tone={totals.half ? 'amber' : 'grey'} />
-            <SummaryCard icon={BeachAccessOutlinedIcon} label="Paid leave days" value={totals.leave} caption={totals.leave ? 'Paid in full' : 'No leave taken'} tone="blue" />
+            <SummaryCard icon={BadgeOutlinedIcon} label={t('Staff')} value={rows.length} caption={t('On the rolls in {{monthLabel}}', { monthLabel: monthLabel(month) })} />
+            <SummaryCard icon={EventBusyOutlinedIcon} label={t('Absent days')} value={totals.absent} caption={totals.absent ? t('Not paid') : t('No one absent')} tone={totals.absent ? 'red' : 'grey'} valueTone={totals.absent ? 'due' : undefined} />
+            <SummaryCard icon={TimelapseRoundedIcon} label={t('Half days')} value={totals.half} caption={totals.half ? t('Paid half') : t('No half days')} tone={totals.half ? 'amber' : 'grey'} />
+            <SummaryCard icon={BeachAccessOutlinedIcon} label={t('Paid leave days')} value={totals.leave} caption={totals.leave ? t('Paid in full') : t('No leave taken')} tone="blue" />
           </SummaryCards>
 
           <Card sx={{ mb: 2 }}>
@@ -153,7 +154,7 @@ export default function AttendanceRecords({ branchId, branchPicker }) {
                         </Stack>
                       </Box>
                       {e.cells.map((cell) => {
-                        const label = cell.offRoll ? 'Not on rolls' : cell.mark ? STATUS[cell.mark].label : cell.off ? `${cell.off} (not marked)` : cell.future ? '' : 'Not marked — present';
+                        const label = cell.offRoll ? t('Not on rolls') : cell.mark ? STATUS[cell.mark].label : cell.off ? t('{{off}} (not marked)', { off: cell.off }) : cell.future ? '' : t('Not marked — present');
                         const shown = cell.mark ?? (cell.off && !cell.offRoll ? 'holiday' : null);
                         return (
                           <Box component="td" key={cell.iso} sx={{ p: 0, textAlign: 'center', borderBottom: 1, borderColor: 'divider', bgcolor: cell.off ? 'action.hover' : 'transparent' }}>
@@ -198,17 +199,17 @@ export default function AttendanceRecords({ branchId, branchPicker }) {
               ))}
               {/* The longer key is for desktop; phones keep only the status colours above. */}
               <Typography variant="caption" color="textSecondary" sx={{ display: { xs: 'none', sm: 'block' } }}>
-                · not marked (present) · faded W = weekly off / holiday, not marked · grey column = day off
+                {t('· not marked (present) · faded W = weekly off / holiday, not marked · grey column = day off')}
               </Typography>
             </Stack>
           </Card>
 
           <Card>
             <Typography variant="h4" sx={{ px: 2, pt: 2 }}>
-              Month summary
+              {t('Month summary')}
             </Typography>
             <Typography variant="body2" color="textSecondary" sx={{ px: 2, pb: 1 }}>
-              Paid days are what payroll uses: absent days are not paid, a half day is paid half.
+              {t('Paid days are what payroll uses: absent days are not paid, a half day is paid half.')}
             </Typography>
             {/* Eight columns do not fit a phone: the table scrolls sideways inside the card, the name column stays put. */}
             <Box sx={{ overflowX: 'auto' }}>
@@ -222,14 +223,14 @@ export default function AttendanceRecords({ branchId, branchPicker }) {
             >
               <TableHead>
                 <TableRow>
-                  <TableCell>Employee</TableCell>
-                  <TableCell align="right">Days on rolls</TableCell>
-                  <TableCell align="right">Present</TableCell>
-                  <TableCell align="right">Absent</TableCell>
-                  <TableCell align="right">Half day</TableCell>
-                  <TableCell align="right">Leave</TableCell>
-                  <TableCell align="right">Holiday / off</TableCell>
-                  <TableCell align="right">Paid days</TableCell>
+                  <TableCell>{t('Employee')}</TableCell>
+                  <TableCell align="right">{t('Days on rolls')}</TableCell>
+                  <TableCell align="right">{t('Present')}</TableCell>
+                  <TableCell align="right">{t('Absent')}</TableCell>
+                  <TableCell align="right">{t('Half day')}</TableCell>
+                  <TableCell align="right">{t('Leave')}</TableCell>
+                  <TableCell align="right">{t('Holiday / off')}</TableCell>
+                  <TableCell align="right">{t('Paid days')}</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>

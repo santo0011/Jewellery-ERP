@@ -30,8 +30,9 @@ import PaySupplierDialog from './PaySupplierDialog.jsx';
 import { suppliesLabel } from './SuppliersPage.jsx';
 import { useSetSupplierStatusMutation, useSupplierPaymentsQuery, useSupplierQuery } from './supplierApi.js';
 import ViewTabs from '../../components/ViewTabs.jsx';
+import { t } from '../../i18n/index.js';
 
-const signed = (value, format, positive, negative) => (value ? `${format(Math.abs(value))} ${value > 0 ? positive : negative}` : 'Nil');
+const signed = (value, format, positive, negative) => (value ? `${format(Math.abs(value))} ${value > 0 ? positive : negative}` : t('Nil'));
 const inr = (p) => formatINR(p, { decimals: 0 });
 const initials = (name = '') =>
   name
@@ -60,7 +61,7 @@ function BillsTab({ supplierId }) {
       columns={[
         {
           key: 'bill',
-          label: 'Bill',
+          label: t('Bill'),
           render: (p) => (
             <Box>
               <Typography variant="subtitle2">{p.billNo}</Typography>
@@ -70,17 +71,17 @@ function BillsTab({ supplierId }) {
             </Box>
           ),
         },
-        { key: 'items', label: 'Items', render: (p) => `${p.totals.pieces ? `${p.totals.pieces} pcs` : ''}${p.totals.pieces && p.metalLines.length ? ' + ' : ''}${p.metalLines.length ? `${p.metalLines.length} metal` : ''} · ${formatWeight(p.totals.grossMg)}` },
-        { key: 'total', label: 'Amount', align: 'right', render: (p) => <Typography variant="body2" sx={{ fontWeight: 600 }}>{inr(p.totals.totalPaise)}</Typography> },
+        { key: 'items', label: t('Items'), render: (p) => `${p.totals.pieces ? t('{{pieces}} pcs', { pieces: p.totals.pieces }) : ''}${p.totals.pieces && p.metalLines.length ? ' + ' : ''}${p.metalLines.length ? t('{{count}} metal', { count: p.metalLines.length }) : ''} · ${formatWeight(p.totals.grossMg)}` },
+        { key: 'total', label: t('Amount'), align: 'right', render: (p) => <Typography variant="body2" sx={{ fontWeight: 600 }}>{inr(p.totals.totalPaise)}</Typography> },
         {
           key: 'pay',
-          label: 'Payment',
+          label: t('Payment'),
           render: (p) => (
             <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
               <PaymentChip status={p.paymentStatus} />
               {p.duePaise > 0 && (
                 <Typography variant="caption" sx={{ color: 'error.main', fontWeight: 600 }}>
-                  {inr(p.duePaise)} due
+                  {t('{{inr}} due', { inr: inr(p.duePaise) })}
                 </Typography>
               )}
             </Stack>
@@ -93,7 +94,7 @@ function BillsTab({ supplierId }) {
       fetching={isFetching}
       error={error}
       onRetry={refetch}
-      empty={{ title: 'No bills yet', description: 'Purchases from this supplier show here with what is paid and due.' }}
+      empty={{ title: t('No bills yet'), description: t('Purchases from this supplier show here with what is paid and due.') }}
     />
   );
 }
@@ -106,7 +107,7 @@ function OrdersTab({ supplierId }) {
       columns={[
         {
           key: 'order',
-          label: 'Order',
+          label: t('Order'),
           render: (o) => (
             <Box>
               <Typography variant="subtitle2">{o.orderNo}</Typography>
@@ -116,9 +117,9 @@ function OrdersTab({ supplierId }) {
             </Box>
           ),
         },
-        { key: 'items', label: 'Items', render: (o) => <Typography variant="body2" noWrap sx={{ maxWidth: 280 }}>{o.lines.map((l) => l.description).join(', ')}</Typography> },
-        { key: 'expected', label: 'Expected', render: (o) => (o.expectedDate ? formatDate(o.expectedDate) : '—') },
-        { key: 'status', label: 'Status', render: (o) => <OrderStatusChip status={o.status} overdue={o.overdue} /> },
+        { key: 'items', label: t('Items'), render: (o) => <Typography variant="body2" noWrap sx={{ maxWidth: 280 }}>{o.lines.map((l) => l.description).join(', ')}</Typography> },
+        { key: 'expected', label: t('Expected'), render: (o) => (o.expectedDate ? formatDate(o.expectedDate) : '—') },
+        { key: 'status', label: t('Status'), render: (o) => <OrderStatusChip status={o.status} overdue={o.overdue} /> },
         viewColumn((o) => navigate(`/purchases/orders/${o.id}`), { name: (o) => o.orderNo }),
       ]}
       rows={data?.items}
@@ -126,7 +127,7 @@ function OrdersTab({ supplierId }) {
       fetching={isFetching}
       error={error}
       onRetry={refetch}
-      empty={{ title: 'No orders yet', description: 'Orders placed with this supplier show here until the goods arrive.' }}
+      empty={{ title: t('No orders yet'), description: t('Orders placed with this supplier show here until the goods arrive.') }}
     />
   );
 }
@@ -135,7 +136,7 @@ function OrdersTab({ supplierId }) {
 function PaymentHistory({ supplierId }) {
   const navigate = useNavigate();
   const { data: rows, isLoading, error, refetch } = useSupplierPaymentsQuery(supplierId);
-  if (isLoading) return <LoadingState label="Loading payments" />;
+  if (isLoading) return <LoadingState label={t('Loading payments')} />;
   if (error) return <ErrorState error={error} onRetry={refetch} />;
   const total = (rows ?? []).reduce((n, r) => n + r.amountPaise, 0);
   return (
@@ -143,16 +144,16 @@ function PaymentHistory({ supplierId }) {
       <CardContent>
         <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'baseline', mb: 1.5, gap: 1, flexWrap: 'wrap' }}>
           <Typography variant="subtitle1" sx={{ fontWeight: 700 }}>
-            Payment history
+            {t('Payment history')}
           </Typography>
           {rows?.length > 0 && (
             <Typography variant="body2" color="textSecondary">
-              {rows.length} payment{rows.length === 1 ? '' : 's'} · <Box component="strong" sx={{ color: 'success.main' }}>{inr(total)}</Box> paid
+              {(rows.length === 1 ? t('{{count}} payment ·', { count: rows.length }) : t('{{count}} payments ·', { count: rows.length }))} <Box component="strong" sx={{ color: 'success.main' }}>{inr(total)}</Box> {t('paid')}
             </Typography>
           )}
         </Stack>
         {!rows?.length ? (
-          <EmptyState title="No payments yet" description="Payments to this supplier — on their account or on a bill — show here." />
+          <EmptyState title={t('No payments yet')} description={t('Payments to this supplier — on their account or on a bill — show here.')} />
         ) : (
           <Stack divider={<Divider flexItem />} spacing={1.5}>
             {rows.map((r, i) => (
@@ -160,7 +161,7 @@ function PaymentHistory({ supplierId }) {
                 <Box sx={{ minWidth: 0 }}>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>
                     {formatDate(r.date)} · {payModeLabel(r.mode)}
-                    {r.paymentNo ? ` · ${r.paymentNo}` : ' · paid on bill'}
+                    {r.paymentNo ? ` · ${r.paymentNo}` : t(' · paid on bill')}
                   </Typography>
                   <Stack direction="row" sx={{ gap: 0.75, flexWrap: 'wrap', mt: 0.5 }}>
                     {r.allocations.map((a, j) => (
@@ -168,14 +169,14 @@ function PaymentHistory({ supplierId }) {
                         key={j}
                         size="small"
                         variant="outlined"
-                        label={`${a.purchaseId ? `Bill ${a.billNo}` : 'Old balance'} · ${inr(a.amountPaise)}`}
+                        label={(a.purchaseId ? t('Bill {{billNo}} · {{amount}}', { billNo: a.billNo, amount: inr(a.amountPaise) }) : t('Old balance · {{amount}}', { amount: inr(a.amountPaise) }))}
                         onClick={a.purchaseId ? () => navigate(`/purchases/${a.purchaseId}`) : undefined}
                         sx={{ height: 22 }}
                       />
                     ))}
                   </Stack>
                   <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 0.5 }}>
-                    {[r.reference, r.note, r.branch?.name, r.by && `by ${r.by.name}`, r.at && formatDateTime(r.at)].filter(Boolean).join(' · ')}
+                    {[r.reference, r.note, r.branch?.name, r.by && t('by {{name}}', { name: r.by.name }), r.at && formatDateTime(r.at)].filter(Boolean).join(' · ')}
                   </Typography>
                 </Box>
                 <Typography variant="body2" sx={{ fontWeight: 700, color: 'success.main', whiteSpace: 'nowrap' }}>
@@ -202,7 +203,7 @@ export default function SupplierDetailPage() {
   const { data: s, isLoading, error, refetch } = useSupplierQuery(id);
   const [setStatus] = useSetSupplierStatusMutation();
 
-  if (isLoading) return <LoadingState label="Loading supplier" />;
+  if (isLoading) return <LoadingState label={t('Loading supplier')} />;
   if (error) return <ErrorState error={error} onRetry={refetch} />;
 
   const bank = s.bankDetails;
@@ -212,19 +213,19 @@ export default function SupplierDetailPage() {
   return (
     <>
       <PageHeader
-        back={{ to: '/suppliers', label: 'Suppliers' }}
-        title="Supplier"
-        breadcrumbs={[{ label: 'Suppliers', to: '/suppliers' }, { label: s.code }]}
+        back={{ to: '/suppliers', label: t('Suppliers') }}
+        title={t('Supplier')}
+        breadcrumbs={[{ label: t('Suppliers'), to: '/suppliers' }, { label: s.code }]}
         actions={
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
             {canPay && st?.duePaise > 0 && (
               <Button variant="outlined" color="success" startIcon={<PaymentsOutlinedIcon />} onClick={() => setPaying(true)}>
-                Payment
+                {t('Payment')}
               </Button>
             )}
             {canBuy && s.status === 'active' && (
               <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => navigate(`/purchases/new?supplierId=${id}`)}>
-                New purchase
+                {t('New purchase')}
               </Button>
             )}
             <RecordActions
@@ -233,7 +234,7 @@ export default function SupplierDetailPage() {
               canEdit={canEdit}
               onStatus={async (status) => {
                 await setStatus({ id, status }).unwrap();
-                toast.success(status === 'active' ? 'Supplier activated' : 'Supplier deactivated');
+                toast.success(status === 'active' ? t('Supplier activated') : t('Supplier deactivated'));
               }}
             />
           </Stack>
@@ -262,40 +263,40 @@ export default function SupplierDetailPage() {
             </Box>
           </Stack>
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: 'repeat(4, auto)' }, columnGap: { xs: 2, sm: 4 }, rowGap: { xs: 1, sm: 1.5 }, width: { xs: '100%', md: 'auto' }, pt: { xs: 1.5, md: 0 }, borderTop: { xs: 1, md: 0 }, borderColor: 'divider' }}>
-            <Fact label="Mobile">
+            <Fact label={t('Mobile')}>
               <Link href={`tel:${s.mobile}`} underline="hover" color="inherit" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
                 <CallOutlinedIcon sx={{ fontSize: 15, color: 'text.secondary' }} />
                 {s.mobile}
               </Link>
             </Fact>
-            <Fact label="Contact person">{s.contactPerson}</Fact>
-            <Fact label="GSTIN">{s.gstin}</Fact>
-            <Fact label="Payment terms">{s.paymentTermsDays ? `${s.paymentTermsDays} days` : 'Immediate'}</Fact>
+            <Fact label={t('Contact person')}>{s.contactPerson}</Fact>
+            <Fact label={t('GSTIN')}>{s.gstin}</Fact>
+            <Fact label={t('Payment terms')}>{s.paymentTermsDays ? t('{{paymentTermsDays}} days', { paymentTermsDays: s.paymentTermsDays }) : t('Immediate')}</Fact>
           </Box>
         </CardContent>
       </Card>
 
       {st && (
         <SummaryCards>
-          <SummaryCard icon={ShoppingBagOutlinedIcon} label="Total purchased" value={inr(st.purchasedPaise)} caption={st.bills ? `${st.bills} bill${st.bills === 1 ? '' : 's'} · last ${formatDate(st.lastBillDate)}` : 'No bills yet'} />
-          <SummaryCard icon={PaymentsOutlinedIcon} label="Paid" value={inr(st.paidPaise)} caption={st.openingPaidPaise ? `Bills ${inr(st.billPaidPaise)} · old balance ${inr(st.openingPaidPaise)}` : 'Against purchase bills'} tone="green" valueTone="paid" />
+          <SummaryCard icon={ShoppingBagOutlinedIcon} label={t('Total purchased')} value={inr(st.purchasedPaise)} caption={st.bills ? (st.bills === 1 ? t('{{bills}} bill · last {{lastBillDate}}', { bills: st.bills, lastBillDate: formatDate(st.lastBillDate) }) : t('{{bills}} bills · last {{lastBillDate}}', { bills: st.bills, lastBillDate: formatDate(st.lastBillDate) })) : t('No bills yet')} />
+          <SummaryCard icon={PaymentsOutlinedIcon} label={t('Paid')} value={inr(st.paidPaise)} caption={st.openingPaidPaise ? t('Bills {{inr}} · old balance {{inr2}}', { inr: inr(st.billPaidPaise), inr2: inr(st.openingPaidPaise) }) : t('Against purchase bills')} tone="green" valueTone="paid" />
           <SummaryCard
             icon={AccountBalanceWalletOutlinedIcon}
-            label="To pay"
-            value={st.duePaise ? inr(st.duePaise) : 'Nil'}
-            caption={st.duePaise ? [st.billDuePaise && `${st.unpaidBills} bill${st.unpaidBills === 1 ? '' : 's'} ${inr(st.billDuePaise)}`, st.openingDuePaise && `Old ${inr(st.openingDuePaise)}`].filter(Boolean).join(' · ') : 'Nothing owed'}
+            label={t('To pay')}
+            value={st.duePaise ? inr(st.duePaise) : t('Nil')}
+            caption={st.duePaise ? [st.billDuePaise && (st.unpaidBills === 1 ? t('{{unpaidBills}} bill {{inr}}', { unpaidBills: st.unpaidBills, inr: inr(st.billDuePaise) }) : t('{{unpaidBills}} bills {{inr}}', { unpaidBills: st.unpaidBills, inr: inr(st.billDuePaise) })), st.openingDuePaise && t('Old {{inr}}', { inr: inr(st.openingDuePaise) })].filter(Boolean).join(' · ') : t('Nothing owed')}
             tone={st.duePaise ? 'red' : 'green'}
             valueTone={st.duePaise ? 'due' : 'paid'}
             onClick={st.unpaidBills ? () => setTab('bills') : undefined}
           />
-          <SummaryCard icon={PendingActionsOutlinedIcon} label="Open orders" value={st.openOrders} caption={st.openOrders ? 'Waiting for delivery' : 'Nothing on order'} tone="blue" onClick={() => setTab('orders')} />
+          <SummaryCard icon={PendingActionsOutlinedIcon} label={t('Open orders')} value={st.openOrders} caption={st.openOrders ? t('Waiting for delivery') : t('Nothing on order')} tone="blue" onClick={() => setTab('orders')} />
         </SummaryCards>
       )}
 
       <ViewTabs
         value={current}
         onChange={setTab}
-        items={[st && { value: 'bills', label: 'Bills', count: st.bills }, st && { value: 'orders', label: 'Orders' }, { value: 'details', label: 'Details' }, { value: 'history', label: 'History' }]}
+        items={[st && { value: 'bills', label: t('Bills'), count: st.bills }, st && { value: 'orders', label: t('Orders') }, { value: 'details', label: t('Details') }, { value: 'history', label: t('History') }]}
       />
 
       {current === 'bills' && <BillsTab supplierId={id} />}
@@ -304,57 +305,57 @@ export default function SupplierDetailPage() {
         <Grid container spacing={2}>
           <Grid size={{ xs: 12, md: 6 }}>
             <InfoCard
-              title="Contact"
+              title={t('Contact')}
               items={[
-                { label: 'Contact person', value: s.contactPerson },
-                { label: 'Mobile', value: s.mobile },
-                { label: 'Alternate', value: s.alternateMobile },
-                { label: 'Email', value: s.email },
-                { label: 'Address', value: formatAddress(s.address) },
+                { label: t('Contact person'), value: s.contactPerson },
+                { label: t('Mobile'), value: s.mobile },
+                { label: t('Alternate'), value: s.alternateMobile },
+                { label: t('Email'), value: s.email },
+                { label: t('Address'), value: formatAddress(s.address) },
               ]}
             />
           </Grid>
           <Grid size={{ xs: 12, md: 6 }}>
             <InfoCard
-              title="Tax & terms"
+              title={t('Tax & terms')}
               items={[
-                { label: 'GSTIN', value: s.gstin },
-                { label: 'PAN', value: s.pan },
-                { label: 'Supplies', value: suppliesLabel(s.supplies) },
-                { label: 'Payment terms', value: s.paymentTermsDays ? `${s.paymentTermsDays} days` : 'Immediate' },
+                { label: t('GSTIN'), value: s.gstin },
+                { label: t('PAN'), value: s.pan },
+                { label: t('Supplies'), value: suppliesLabel(s.supplies) },
+                { label: t('Payment terms'), value: s.paymentTermsDays ? t('{{paymentTermsDays}} days', { paymentTermsDays: s.paymentTermsDays }) : t('Immediate') },
               ]}
             />
           </Grid>
           <Grid size={{ xs: 12, md: 6 }}>
             <InfoCard
-              title="Bank details"
+              title={t('Bank details')}
               items={[
-                { label: 'Account name', value: bank.accountName },
-                { label: 'Account number', value: bank.accountNumber },
-                { label: 'IFSC', value: bank.ifsc },
-                { label: 'Bank', value: [bank.bankName, bank.branchName].filter(Boolean).join(', ') },
-                { label: 'UPI', value: bank.upiId },
+                { label: t('Account name'), value: bank.accountName },
+                { label: t('Account number'), value: bank.accountNumber },
+                { label: t('IFSC'), value: bank.ifsc },
+                { label: t('Bank'), value: [bank.bankName, bank.branchName].filter(Boolean).join(', ') },
+                { label: t('UPI'), value: bank.upiId },
               ]}
             />
           </Grid>
           <Grid size={{ xs: 12, md: 6 }}>
             <InfoCard
-              title="Opening balances"
+              title={t('Opening balances')}
               items={[
                 {
-                  label: 'Old balance',
+                  label: t('Old balance'),
                   value: s.openingBalancePaise ? (
                     <>
-                      <BalanceAmount paise={s.openingBalancePaise} owedLabel="payable (due)" advanceLabel="receivable (advance paid)" />
-                      {s.openingDuePaidPaise > 0 && ` · ${inr(s.openingDuePaidPaise)} paid, ${inr(s.openingDuePaise)} left`}
+                      <BalanceAmount paise={s.openingBalancePaise} owedLabel={t('payable (due)')} advanceLabel={t('receivable (advance paid)')} />
+                      {s.openingDuePaidPaise > 0 && t(' · {{inr}} paid, {{inr2}} left', { inr: inr(s.openingDuePaidPaise), inr2: inr(s.openingDuePaise) })}
                     </>
                   ) : (
-                    'Nil'
+                    t('Nil')
                   ),
                 },
-                { label: 'Fine gold', value: signed(s.openingFineGoldMg, formatWeight, 'payable', 'receivable') },
-                { label: 'Fine silver', value: signed(s.openingFineSilverMg, formatWeight, 'payable', 'receivable') },
-                { label: 'Notes', value: s.notes },
+                { label: t('Fine gold'), value: signed(s.openingFineGoldMg, formatWeight, 'payable', 'receivable') },
+                { label: t('Fine silver'), value: signed(s.openingFineSilverMg, formatWeight, 'payable', 'receivable') },
+                { label: t('Notes'), value: s.notes },
               ]}
             />
           </Grid>

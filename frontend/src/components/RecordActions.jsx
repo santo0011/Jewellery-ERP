@@ -6,6 +6,7 @@ import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { getErrorMessage } from '../utils/errors.js';
 import ConfirmDialog from './ConfirmDialog.jsx';
+import { t } from '../i18n/index.js';
 
 /** Detail-page actions. Edit and Delete live in the list's Action column, so pages usually pass only onStatus. */
 export default function RecordActions({ name, status, canEdit, canDelete, onEdit, onStatus, onDelete, deleteMessage }) {
@@ -30,30 +31,30 @@ export default function RecordActions({ name, status, canEdit, canDelete, onEdit
     <>
       {canEdit && onEdit && (
         <Button variant="contained" startIcon={<EditOutlinedIcon />} onClick={onEdit}>
-          Edit
+          {t('Edit')}
         </Button>
       )}
       {canEdit && onStatus && (
         <Button variant="outlined" color="secondary" startIcon={<PowerSettingsNewRoundedIcon />} onClick={() => setConfirm('status')}>
-          {status === 'active' ? 'Deactivate' : 'Activate'}
+          {status === 'active' ? t('Deactivate') : t('Activate')}
         </Button>
       )}
       {canDelete && onDelete && (
         <Button color="error" startIcon={<DeleteOutlineRoundedIcon />} onClick={() => setConfirm('delete')}>
-          Delete
+          {t('Delete')}
         </Button>
       )}
       <ConfirmDialog
         open={Boolean(confirm)}
-        title={confirm === 'delete' ? `Delete ${name}?` : status === 'active' ? `Deactivate ${name}?` : `Activate ${name}?`}
+        title={confirm === 'delete' ? t('Delete {{name}}?', { name }) : status === 'active' ? t('Deactivate {{name}}?', { name }) : t('Activate {{name}}?', { name })}
         message={
           confirm === 'delete'
-            ? (deleteMessage ?? 'This record will be removed from lists. Its history is kept in the audit log.')
+            ? (deleteMessage ?? t('This record will be removed from lists. Its history is kept in the audit log.'))
             : status === 'active'
-              ? 'Inactive records stay in history but are hidden from new transactions.'
-              : 'The record will be available for new transactions again.'
+              ? t('Inactive records stay in history but are hidden from new transactions.')
+              : t('The record will be available for new transactions again.')
         }
-        confirmLabel={confirm === 'delete' ? 'Delete' : status === 'active' ? 'Deactivate' : 'Activate'}
+        confirmLabel={confirm === 'delete' ? t('Delete') : status === 'active' ? t('Deactivate') : t('Activate')}
         danger={confirm === 'delete' || status === 'active'}
         loading={busy}
         onConfirm={run}

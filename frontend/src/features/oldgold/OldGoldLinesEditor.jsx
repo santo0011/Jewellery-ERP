@@ -3,6 +3,7 @@ import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import { Box, Button, IconButton, InputAdornment, MenuItem, Stack, TextField, Tooltip, Typography } from '@mui/material';
 import { formatINR, formatWeight, METAL_OPTIONS, PURITIES, toBps, toMg, toPaise, valueOldGold } from '@jerp/shared';
 import { useCurrentRatesQuery } from '../rates/rateApi.js';
+import { t } from '../../i18n/index.js';
 
 /*
  * Old gold pieces as the counter enters them: description, tested purity, weights (grams), the rate offered (₹/g) and
@@ -39,11 +40,11 @@ export function readOldGoldRow(row) {
     deductionBps: safe(toBps, row.deduction),
   };
   let error = null;
-  if (line.description.length < 2) error = 'Describe the piece';
-  else if (!(line.grossWeightMg > 0)) error = 'Enter the weight';
-  else if (!(line.lessWeightMg >= 0) || line.lessWeightMg >= line.grossWeightMg) error = 'Less weight must be below the weight';
-  else if (!(line.ratePerGramPaise > 0)) error = 'Enter the rate';
-  else if (!(line.deductionBps >= 0) || line.deductionBps > 5000) error = 'Deduction can be 0–50%';
+  if (line.description.length < 2) error = t('Describe the piece');
+  else if (!(line.grossWeightMg > 0)) error = t('Enter the weight');
+  else if (!(line.lessWeightMg >= 0) || line.lessWeightMg >= line.grossWeightMg) error = t('Less weight must be below the weight');
+  else if (!(line.ratePerGramPaise > 0)) error = t('Enter the rate');
+  else if (!(line.deductionBps >= 0) || line.deductionBps > 5000) error = t('Deduction can be 0–50%');
   return { line, error, value: error ? null : valueOldGold(line) };
 }
 
@@ -74,12 +75,12 @@ export default function OldGoldLinesEditor({ rows, onChange, dense = false }) {
         return (
           <Box key={row.key} sx={{ p: dense ? 1.5 : 2, borderRadius: 2, border: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25} sx={{ alignItems: { sm: 'flex-start' } }}>
-              <TextField size="small" label={`Piece ${n + 1}`} placeholder="e.g. Old bangle" value={row.description} onChange={(e) => update(row.key, { description: e.target.value })} sx={{ flex: 1 }} slotProps={{ htmlInput: { maxLength: 80 } }} />
+              <TextField size="small" label={t('Piece {{value}}', { value: n + 1 })} placeholder={t('e.g. Old bangle')} value={row.description} onChange={(e) => update(row.key, { description: e.target.value })} sx={{ flex: 1 }} slotProps={{ htmlInput: { maxLength: 80 } }} />
               <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
                 <TextField
                   select
                   size="small"
-                  label="Tested purity"
+                  label={t('Tested purity')}
                   value={row.choice}
                   onChange={(e) => update(row.key, { choice: e.target.value, ...(!row.rateTouched && { rate: todayRate(e.target.value) }) })}
                   sx={{ width: { xs: '100%', sm: 190 } }}
@@ -90,28 +91,28 @@ export default function OldGoldLinesEditor({ rows, onChange, dense = false }) {
                     </MenuItem>
                   ))}
                 </TextField>
-                <Tooltip title="Remove piece">
-                  <IconButton size="small" onClick={() => onChange(rows.filter((r) => r.key !== row.key))} aria-label={`Remove piece ${n + 1}`} sx={{ mt: 0.5 }}>
+                <Tooltip title={t('Remove piece')}>
+                  <IconButton size="small" onClick={() => onChange(rows.filter((r) => r.key !== row.key))} aria-label={t('Remove piece {{value}}', { value: n + 1 })} sx={{ mt: 0.5 }}>
                     <CloseRoundedIcon fontSize="small" />
                   </IconButton>
                 </Tooltip>
               </Stack>
             </Stack>
             <Box sx={{ mt: 1.25, display: 'grid', gap: 1.25, gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(4, 1fr)' } }}>
-              <TextField size="small" label="Weight" value={row.gross} onChange={(e) => update(row.key, { gross: numeric(e.target.value) })} slotProps={{ input: { endAdornment: <InputAdornment position="end">g</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }} />
-              <TextField size="small" label="Less (stones)" value={row.less} onChange={(e) => update(row.key, { less: numeric(e.target.value) })} slotProps={{ input: { endAdornment: <InputAdornment position="end">g</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }} />
+              <TextField size="small" label={t('Weight')} value={row.gross} onChange={(e) => update(row.key, { gross: numeric(e.target.value) })} slotProps={{ input: { endAdornment: <InputAdornment position="end">{t('g')}</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }} />
+              <TextField size="small" label={t('Less (stones)')} value={row.less} onChange={(e) => update(row.key, { less: numeric(e.target.value) })} slotProps={{ input: { endAdornment: <InputAdornment position="end">{t('g')}</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }} />
               <TextField
                 size="small"
-                label="Rate"
+                label={t('Rate')}
                 value={row.rate}
                 onChange={(e) => update(row.key, { rate: numeric(e.target.value), rateTouched: true })}
-                slotProps={{ input: { startAdornment: <InputAdornment position="start">₹</InputAdornment>, endAdornment: <InputAdornment position="end">/g</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }}
+                slotProps={{ input: { startAdornment: <InputAdornment position="start">₹</InputAdornment>, endAdornment: <InputAdornment position="end">{t('/g')}</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }}
               />
-              <TextField size="small" label="Deduction" value={row.deduction} onChange={(e) => update(row.key, { deduction: numeric(e.target.value) })} slotProps={{ input: { endAdornment: <InputAdornment position="end">%</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }} />
+              <TextField size="small" label={t('Deduction')} value={row.deduction} onChange={(e) => update(row.key, { deduction: numeric(e.target.value) })} slotProps={{ input: { endAdornment: <InputAdornment position="end">%</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }} />
             </Box>
             <Stack direction="row" sx={{ mt: 1, justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 1 }}>
               <Typography variant="caption" color={started && error ? 'warning.main' : 'textSecondary'}>
-                {started && error ? error : value ? `Net ${formatWeight(value.netWeightMg)} · fine ${formatWeight(value.fineWeightMg)}${value.deductionPaise ? ` · less ${formatINR(value.deductionPaise, { decimals: 0 })}` : ''}` : 'Rate starts at today’s selling rate; change it to what you offer.'}
+                {started && error ? error : value ? (value.deductionPaise ? t('Net {{netWeight}} · fine {{fineWeight}} · less {{deduction}}', { netWeight: formatWeight(value.netWeightMg), fineWeight: formatWeight(value.fineWeightMg), deduction: formatINR(value.deductionPaise, { decimals: 0 }) }) : t('Net {{netWeight}} · fine {{fineWeight}}', { netWeight: formatWeight(value.netWeightMg), fineWeight: formatWeight(value.fineWeightMg) })) : t('Rate starts at today’s selling rate; change it to what you offer.')}
               </Typography>
               <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
                 {value ? formatINR(value.valuePaise) : '—'}
@@ -121,7 +122,7 @@ export default function OldGoldLinesEditor({ rows, onChange, dense = false }) {
         );
       })}
       <Button size="small" startIcon={<AddRoundedIcon />} onClick={add} sx={{ alignSelf: 'flex-start' }}>
-        {rows.length ? 'Add another piece' : 'Add old gold'}
+        {rows.length ? t('Add another piece') : t('Add old gold')}
       </Button>
     </Stack>
   );

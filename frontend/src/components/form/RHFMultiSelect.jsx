@@ -1,5 +1,6 @@
 import { Box, Checkbox, Chip, ListItemText, MenuItem, TextField } from '@mui/material';
 import { Controller } from 'react-hook-form';
+import { t } from '../../i18n/index.js';
 
 export default function RHFMultiSelect({ name, control, options, helperText, ...props }) {
   const labelFor = (value) => options.find((o) => o.value === value)?.label ?? value;
@@ -13,7 +14,7 @@ export default function RHFMultiSelect({ name, control, options, helperText, ...
           select
           value={field.value ?? []}
           error={Boolean(fieldState.error)}
-          helperText={fieldState.error?.message ?? helperText}
+          helperText={t(fieldState.error?.message) ?? helperText}
           slotProps={{
             select: {
               multiple: true,

@@ -10,6 +10,7 @@
     "db": "node scripts/dev-db.js",
     "seed": "node --env-file-if-exists=.env scripts/seed.js",
     "seed:demo": "node --env-file-if-exists=.env scripts/seed-demo.js",
+    "seed:reset-sample": "node --env-file-if-exists=.env scripts/reset-sample-data.js",
     "test": "vitest run",
     "create-super-admin": "node --env-file-if-exists=.env scripts/create-super-admin.js"
   },

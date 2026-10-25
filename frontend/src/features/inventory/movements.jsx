@@ -6,11 +6,12 @@ import { Link as RouterLink } from 'react-router';
 import ViewButton from '../../components/ViewButton.jsx';
 import { formatDate, formatDateTime } from '../../utils/format.js';
 import { purityLabel } from '../products/productForm.js';
+import { t, getLocale } from '../../i18n/index.js';
 
 // Movements whose source document has its own page.
-const SOURCE_PAGES = { sale: { path: '/sales', label: 'Open invoice' }, order: { path: '/orders', label: 'Open order' } };
+const SOURCE_PAGES = { sale: { path: '/sales', label: t('Open invoice') }, order: { path: '/orders', label: t('Open order') } };
 const metalName = (m) => METAL_OPTIONS.find((o) => o.value === m)?.label ?? m;
-const kindName = (k) => METAL_POOL_KINDS.find((o) => o.value === k)?.label ?? 'Metal';
+const kindName = (k) => METAL_POOL_KINDS.find((o) => o.value === k)?.label ?? t('Metal');
 const statusName = (s) => (s ? s.replace(/_/g, ' ').replace(/^./, (c) => c.toUpperCase()) : null);
 // "Gold 22K (916)", but "Fine silver (999)" - silver purity labels already name the metal.
 const metalPurity = (m) => {
@@ -24,19 +25,19 @@ export function movementColumns({ showProduct = true, onView }) {
   return [
     {
       key: 'when',
-      label: 'When',
+      label: t('When'),
       render: (m) => (
         <Box sx={{ whiteSpace: 'nowrap' }}>
           <Typography variant="body2">{formatDate(m.createdAt)}</Typography>
           <Typography variant="caption" color="textSecondary">
-            {new Date(m.createdAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })}
+            {new Date(m.createdAt).toLocaleTimeString(getLocale(), { hour: '2-digit', minute: '2-digit' })}
           </Typography>
         </Box>
       ),
     },
     {
       key: 'type',
-      label: 'Movement',
+      label: t('Movement'),
       render: (m) => (
         <Box>
           <Typography variant="body2" sx={{ fontWeight: 600, color: m.direction > 0 ? 'success.main' : 'error.main' }}>
@@ -52,7 +53,7 @@ export function movementColumns({ showProduct = true, onView }) {
       ? [
           {
             key: 'item',
-            label: 'Item',
+            label: t('Item'),
             render: (m) => (
               <Box sx={{ minWidth: 0 }}>
                 <Typography variant="body2" sx={{ fontWeight: 500 }}>
@@ -75,7 +76,7 @@ export function movementColumns({ showProduct = true, onView }) {
       : []),
     {
       key: 'weight',
-      label: 'Weight',
+      label: t('Weight'),
       align: 'right',
       render: (m) => (
         <Box sx={{ whiteSpace: 'nowrap' }}>
@@ -83,12 +84,12 @@ export function movementColumns({ showProduct = true, onView }) {
             {signed(m, m.grossMg)}
           </Typography>
           <Typography variant="caption" color="textSecondary">
-            fine {formatWeight(m.fineMg)}
+            {t('fine {{fine}}', { fine: formatWeight(m.fineMg) })}
           </Typography>
         </Box>
       ),
     },
-    { key: 'actions', label: 'Action', align: 'right', width: 80, render: (m) => <ViewButton onClick={() => onView(m)} name={m.source.docNo} /> },
+    { key: 'actions', label: t('Action'), align: 'right', width: 80, render: (m) => <ViewButton onClick={() => onView(m)} name={m.source.docNo} /> },
   ];
 }
 
@@ -119,23 +120,23 @@ export function MovementDetailsDrawer({ movement: m, onClose, showCost }) {
                 {m.source.docNo} · {formatDateTime(m.createdAt)}
               </Typography>
             </Box>
-            <IconButton onClick={onClose} aria-label="Close" edge="end">
+            <IconButton onClick={onClose} aria-label={t('Close')} edge="end">
               <CloseRoundedIcon />
             </IconButton>
           </Stack>
           <Divider />
           <Box sx={{ flex: 1, overflowY: 'auto', px: 3, py: 2 }}>
             <Chip
-              label={`${m.direction > 0 ? 'Stock in' : 'Stock out'} · ${signed(m, m.grossMg)}`}
+              label={m.direction > 0 ? t('Stock in · {{weight}}', { weight: signed(m, m.grossMg) }) : t('Stock out · {{weight}}', { weight: signed(m, m.grossMg) })}
               color={m.direction > 0 ? 'success' : 'error'}
               variant="outlined"
               sx={{ fontWeight: 700, mb: 1.5 }}
             />
             <Typography variant="overline" color="textSecondary" sx={{ display: 'block' }}>
-              What moved
+              {t('What moved')}
             </Typography>
             <Stack divider={<Divider flexItem />}>
-              <Row label="Item">
+              <Row label={t('Item')}>
                 {m.product ? (
                   <Box component={RouterLink} to={`/products/${m.product.id}`} onClick={onClose} sx={{ color: 'inherit', fontWeight: 600 }}>
                     {m.product.sku} · {m.product.name}
@@ -144,31 +145,31 @@ export function MovementDetailsDrawer({ movement: m, onClose, showCost }) {
                   kindName(m.kind)
                 )}
               </Row>
-              <Row label="Metal">
+              <Row label={t('Metal')}>
                 {metalPurity(m)}
               </Row>
-              {m.qty != null && <Row label="Quantity">{m.qty}</Row>}
-              <Row label="Gross weight">{formatWeight(m.grossMg)}</Row>
-              <Row label="Net weight">{m.netMg != null ? formatWeight(m.netMg) : null}</Row>
-              <Row label="Fine weight">{formatWeight(m.fineMg)}</Row>
-              {showCost && <Row label="Value">{m.valuePaise != null ? formatINR(m.valuePaise) : null}</Row>}
+              {m.qty != null && <Row label={t('Quantity')}>{m.qty}</Row>}
+              <Row label={t('Gross weight')}>{formatWeight(m.grossMg)}</Row>
+              <Row label={t('Net weight')}>{m.netMg != null ? formatWeight(m.netMg) : null}</Row>
+              <Row label={t('Fine weight')}>{formatWeight(m.fineMg)}</Row>
+              {showCost && <Row label={t('Value')}>{m.valuePaise != null ? formatINR(m.valuePaise) : null}</Row>}
               {(m.statusBefore || m.statusAfter) && (
-                <Row label="Item status">
+                <Row label={t('Item status')}>
                   {statusName(m.statusBefore) ?? '—'} → {statusName(m.statusAfter) ?? '—'}
                 </Row>
               )}
             </Stack>
 
             <Typography variant="overline" color="textSecondary" sx={{ display: 'block', mt: 2.5 }}>
-              Where and why
+              {t('Where and why')}
             </Typography>
             <Stack divider={<Divider flexItem />}>
-              <Row label="Branch">{m.branch?.name}</Row>
-              <Row label="Document">{m.source.docNo}</Row>
-              <Row label="Business date">{m.businessDate ? formatDate(m.businessDate) : null}</Row>
-              <Row label="Recorded by">{m.createdBy?.name}</Row>
-              <Row label="Recorded at">{formatDateTime(m.createdAt)}</Row>
-              {m.note && <Row label="Note">{m.note}</Row>}
+              <Row label={t('Branch')}>{m.branch?.name}</Row>
+              <Row label={t('Document')}>{m.source.docNo}</Row>
+              <Row label={t('Business date')}>{m.businessDate ? formatDate(m.businessDate) : null}</Row>
+              <Row label={t('Recorded by')}>{m.createdBy?.name}</Row>
+              <Row label={t('Recorded at')}>{formatDateTime(m.createdAt)}</Row>
+              {m.note && <Row label={t('Note')}>{m.note}</Row>}
             </Stack>
           </Box>
           {doc && (

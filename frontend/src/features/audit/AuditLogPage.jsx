@@ -8,6 +8,7 @@ import { useDebounce } from '../../hooks/useDebounce.js';
 import { formatDateTime } from '../../utils/format.js';
 import { useAuditLogsQuery } from './auditApi.js';
 import { describeEntry, fieldLabel, moduleLabel } from './describeEntry.js';
+import { t } from '../../i18n/index.js';
 
 const ACTION_COLORS = { login_failed: 'warning', token_reuse: 'error', delete: 'error', status_change: 'info' };
 
@@ -16,7 +17,7 @@ function formatValue(field, v) {
   if (field === 'logo') return 'image';
   if (typeof v === 'number' && field.endsWith('Paise')) return formatINR(v, { decimals: 0 });
   if (typeof v === 'number' && field.endsWith('Bps')) return formatPercent(v);
-  if (typeof v === 'boolean') return v ? 'On' : 'Off';
+  if (typeof v === 'boolean') return v ? t('On') : t('Off');
   if (Array.isArray(v)) return v.join(', ') || '—';
   if (typeof v === 'object') return Object.entries(v).map(([k, x]) => `${k}: ${Array.isArray(x) ? x.join(', ') || '—' : x}`).join('; ');
   return String(v);
@@ -34,7 +35,7 @@ function Changes({ changes }) {
           : {formatValue(c.field, c.from)} → {formatValue(c.field, c.to)}
         </li>
       ))}
-      {changes.length > 6 && <li>+{changes.length - 6} more</li>}
+      {changes.length > 6 && <li>{t('+{{value}} more', { value: changes.length - 6 })}</li>}
     </Box>
   );
 }
@@ -58,14 +59,14 @@ export default function AuditLogPage() {
   };
 
   const columns = [
-    { key: 'createdAt', label: 'When', width: 180, render: (e) => <Typography variant="body2" sx={{ whiteSpace: 'nowrap' }}>{formatDateTime(e.createdAt)}</Typography> },
+    { key: 'createdAt', label: t('When'), width: 180, render: (e) => <Typography variant="body2" sx={{ whiteSpace: 'nowrap' }}>{formatDateTime(e.createdAt)}</Typography> },
     {
       key: 'user',
-      label: 'User',
+      label: t('User'),
       render: (e) => (
         <Box>
           <Typography variant="body2" sx={{ fontWeight: 500 }}>
-            {e.user?.name ?? 'System'}
+            {e.user?.name ?? t('System')}
           </Typography>
           {e.ip && (
             <Typography variant="caption" color="textSecondary">
@@ -77,12 +78,12 @@ export default function AuditLogPage() {
     },
     {
       key: 'action',
-      label: 'Action',
+      label: t('Action'),
       render: (e) => <Chip size="small" label={AUDIT_ACTION_LABELS[e.action] ?? e.action} color={ACTION_COLORS[e.action] ?? 'default'} variant="outlined" sx={{ height: 22 }} />,
     },
     {
       key: 'detail',
-      label: 'Detail',
+      label: t('Detail'),
       render: (e) => (
         <Box>
           <Typography variant="body2">{describeEntry(e)}</Typography>
@@ -95,9 +96,9 @@ export default function AuditLogPage() {
   return (
     <>
       <PageHeader
-        title="Audit log"
-        subtitle="A permanent record of sign-ins and changes made in your business."
-        breadcrumbs={[{ label: 'Settings' }, { label: 'Audit log' }]}
+        title={t('Audit log')}
+        subtitle={t('A permanent record of sign-ins and changes made in your business.')}
+        breadcrumbs={[{ label: t('Settings') }, { label: t('Audit log') }]}
       />
       <DataTable
         columns={columns}
@@ -107,35 +108,35 @@ export default function AuditLogPage() {
         fetching={isFetching}
         error={error}
         onRetry={refetch}
-        empty={filtered ? { title: 'No matching activity', description: 'Try a wider date range or different filters.' } : { title: 'No activity yet' }}
+        empty={filtered ? { title: t('No matching activity'), description: t('Try a wider date range or different filters.') } : { title: t('No activity yet') }}
         pagination={data && { ...data.meta, onPageChange: setPage, onLimitChange: (l) => { setLimit(l); setPage(1); } }}
         toolbar={
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
             <TextField
-              placeholder="Search by user"
+              placeholder={t('Search by user')}
               value={search}
               onChange={set(setSearch)}
               sx={{ maxWidth: { md: 240 } }}
               slotProps={{ input: { startAdornment: <InputAdornment position="start"><SearchRoundedIcon fontSize="small" /></InputAdornment> } }}
             />
-            <TextField select label="Area" value={module} onChange={set(setModule)} sx={{ maxWidth: { md: 180 } }}>
-              <MenuItem value="">All areas</MenuItem>
+            <TextField select slotProps={{ inputLabel: { shrink: true }, select: { displayEmpty: true } }} label={t('Area')} value={module} onChange={set(setModule)} sx={{ maxWidth: { md: 180 } }}>
+              <MenuItem value="">{t('All areas')}</MenuItem>
               {AUDIT_MODULES.map((m) => (
                 <MenuItem key={m} value={m}>
                   {moduleLabel(m)}
                 </MenuItem>
               ))}
             </TextField>
-            <TextField select label="Action" value={action} onChange={set(setAction)} sx={{ maxWidth: { md: 200 } }}>
-              <MenuItem value="">All actions</MenuItem>
+            <TextField select slotProps={{ inputLabel: { shrink: true }, select: { displayEmpty: true } }} label={t('Action')} value={action} onChange={set(setAction)} sx={{ maxWidth: { md: 200 } }}>
+              <MenuItem value="">{t('All actions')}</MenuItem>
               {Object.entries(AUDIT_ACTION_LABELS).map(([key, label]) => (
                 <MenuItem key={key} value={key}>
                   {label}
                 </MenuItem>
               ))}
             </TextField>
-            <TextField type="date" label="From" value={from} onChange={set(setFrom)} slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: to || undefined } }} sx={{ maxWidth: { md: 170 } }} />
-            <TextField type="date" label="To" value={to} onChange={set(setTo)} slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: from || undefined } }} sx={{ maxWidth: { md: 170 } }} />
+            <TextField type="date" label={t('From')} value={from} onChange={set(setFrom)} slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: to || undefined } }} sx={{ maxWidth: { md: 170 } }} />
+            <TextField type="date" label={t('To')} value={to} onChange={set(setTo)} slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: from || undefined } }} sx={{ maxWidth: { md: 170 } }} />
           </Stack>
         }
       />

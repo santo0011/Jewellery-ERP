@@ -13,6 +13,7 @@ import { Box, Button, ButtonBase, Card, Checkbox, Stack, Tooltip, Typography } f
 import { isOrganisationLevel, isUpcomingPermission, PERMISSION_MODULES } from '@jerp/shared';
 import { useMemo } from 'react';
 import { EmptyState } from '../../components/StateViews.jsx';
+import { t } from '../../i18n/index.js';
 
 const GROUP_ICONS = {
   Overview: DashboardOutlinedIcon,
@@ -28,28 +29,28 @@ const GROUP_ICONS = {
 
 /** What each area covers, under its name. */
 const MODULE_HINTS = {
-  dashboard: 'The home page figures and charts',
-  organisation: 'Shop name, GSTIN, address and logo',
-  branch: 'Branches, their logins and access',
-  user: 'Staff accounts that sign in',
-  role: 'These roles and what they allow',
-  settings: 'Invoice, tax, jewellery, barcode and print',
-  audit: 'Who changed what, and when',
-  subscription: 'Plan, renewal and payments',
-  customer: 'Customer records, KYC and dues',
-  order: 'Custom orders and their advances',
-  sales: 'Billing, invoices, returns and discounts',
-  rate: 'Daily gold, silver and platinum rates',
-  category: 'Product categories',
-  product: 'Tagged items, weights and prices',
-  inventory: 'Stock, adjustments and transfers',
-  supplier: 'Suppliers and what is owed to them',
-  purchase: 'Purchase bills, purchase orders and the item list',
-  employee: 'Staff records and salary details',
-  attendance: 'Daily attendance and holidays',
-  payroll: 'Salary runs and advances',
-  accounts: 'Money received against dues',
-  report: 'Reports, by area',
+  dashboard: t('The home page figures and charts'),
+  organisation: t('Shop name, GSTIN, address and logo'),
+  branch: t('Branches, their logins and access'),
+  user: t('Staff accounts that sign in'),
+  role: t('These roles and what they allow'),
+  settings: t('Invoice, tax, jewellery, barcode and print'),
+  audit: t('Who changed what, and when'),
+  subscription: t('Plan, renewal and payments'),
+  customer: t('Customer records, KYC and dues'),
+  order: t('Custom orders and their advances'),
+  sales: t('Billing, invoices, returns and discounts'),
+  rate: t('Daily gold, silver and platinum rates'),
+  category: t('Product categories'),
+  product: t('Tagged items, weights and prices'),
+  inventory: t('Stock, adjustments and transfers'),
+  supplier: t('Suppliers and what is owed to them'),
+  purchase: t('Purchase bills, purchase orders and the item list'),
+  employee: t('Staff records and salary details'),
+  attendance: t('Daily attendance and holidays'),
+  payroll: t('Salary runs and advances'),
+  accounts: t('Money received against dues'),
+  report: t('Reports, by area'),
 };
 
 /**
@@ -57,12 +58,12 @@ const MODULE_HINTS = {
  * share. They apply only to people with access to all branches; a branch login never gets them, even when turned on.
  * Marked with a globe (a whole area: "Organisation only").
  */
-export const ALL_BRANCHES_NOTE = 'Organisation-level — only for users with access to all branches. A branch login never gets these, even when turned on here.';
+export const ALL_BRANCHES_NOTE = t('Organisation-level — only for users with access to all branches. A branch login never gets these, even when turned on here.');
 
 const OrgOnlyBadge = () => (
   <Tooltip title={ALL_BRANCHES_NOTE} arrow enterTouchDelay={0}>
     <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.375, px: 0.75, py: 0.125, borderRadius: 999, fontSize: '0.625rem', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', whiteSpace: 'nowrap', color: '#2F5D7C', bgcolor: 'rgba(47, 93, 124, 0.10)', border: '1px solid rgba(47, 93, 124, 0.25)' }}>
-      <PublicOutlinedIcon sx={{ fontSize: 12 }} /> Organisation only
+      <PublicOutlinedIcon sx={{ fontSize: 12 }} /> {t('Organisation only')}
     </Box>
   </Tooltip>
 );
@@ -115,7 +116,7 @@ function ActionPill({ label, on, disabled, onToggle, allBranchesOnly }) {
     >
       {on && <CheckRoundedIcon sx={{ fontSize: 15 }} />}
       {label}
-      {allBranchesOnly && <PublicOutlinedIcon aria-label="All branches only" sx={{ fontSize: 14, opacity: 0.7 }} />}
+      {allBranchesOnly && <PublicOutlinedIcon aria-label={t('All branches only')} sx={{ fontSize: 14, opacity: 0.7 }} />}
     </ButtonBase>
   );
   return allBranchesOnly ? (
@@ -161,7 +162,7 @@ export default function PermissionMatrix({ value, onChange, disabled = false, mo
         .map((g) => ({
           ...g,
           modules: g.modules
-            .map((m) => (m.label.toLowerCase().includes(q) || g.name.toLowerCase().includes(q) ? m : { ...m, actions: m.actions.filter((a) => a.label.toLowerCase().includes(q)) }))
+            .map((m) => (m.label.toLowerCase().includes(q) || t(g.name).toLowerCase().includes(q) ? m : { ...m, actions: m.actions.filter((a) => a.label.toLowerCase().includes(q)) }))
             .filter((m) => m.actions.length),
         }))
         .filter((g) => g.modules.length)
@@ -173,7 +174,7 @@ export default function PermissionMatrix({ value, onChange, disabled = false, mo
     onChange([...next]);
   };
 
-  if (!shown.length) return <EmptyState title="No permission matches" description={`Nothing found for “${search.trim()}”.`} />;
+  if (!shown.length) return <EmptyState title={t('No permission matches')} description={t('Nothing found for “{{search}}”.', { search: search.trim() })} />;
 
   return (
     <Stack spacing={2}>
@@ -188,12 +189,12 @@ export default function PermissionMatrix({ value, onChange, disabled = false, mo
                 <Icon sx={{ fontSize: 18 }} />
               </Box>
               <Typography sx={{ fontWeight: 700, fontSize: '0.9375rem', flex: 1, minWidth: 0 }} noWrap>
-                {g.name}
+                {t(g.name)}
               </Typography>
               <CountChip on={on} total={keys.length} />
               {!disabled && (
                 <Button size="small" onClick={() => toggle(keys, on < keys.length)} sx={{ minHeight: 0, py: 0.25, px: 1, fontSize: '0.75rem', whiteSpace: 'nowrap' }}>
-                  {on < keys.length ? 'Allow all' : 'Clear'}
+                  {on < keys.length ? t('Allow all') : t('Clear')}
                 </Button>
               )}
             </Stack>
@@ -221,7 +222,7 @@ export default function PermissionMatrix({ value, onChange, disabled = false, mo
                       checked={count === mk.length}
                       indeterminate={count > 0 && count < mk.length}
                       onChange={(e) => toggle(mk, e.target.checked)}
-                      slotProps={{ input: { 'aria-label': `All of ${m.label}` } }}
+                      slotProps={{ input: { 'aria-label': t('All of {{label}}', { label: m.label }) } }}
                       sx={{ p: 0.5, mt: -0.25, ml: -0.5 }}
                     />
                     <Box sx={{ minWidth: 0, flex: 1 }}>

@@ -239,7 +239,12 @@ export const METAL_POOL_KINDS = Object.freeze([
   { value: 'bullion', label: 'Bullion / fine metal' },
   { value: 'old_gold', label: 'Old gold / old metal' },
   { value: 'scrap', label: 'Scrap & filings' },
+  // Gold a customer handed over for their order: held apart, used only for that order (never picked by hand).
+  { value: 'customer_gold', label: 'Customer gold (orders)', internal: true },
 ]);
+
+/** Kinds that can be chosen on purchases, opening stock and adjustments. */
+export const SELECTABLE_METAL_POOL_KINDS = METAL_POOL_KINDS.filter((k) => !k.internal);
 
 export const ADJUSTMENT_REASONS = Object.freeze([
   { value: 'lost', label: 'Lost / missing' },
@@ -257,6 +262,7 @@ export const TRANSFER_STATUS = Object.freeze({ IN_TRANSIT: 'in_transit', RECEIVE
 
 export const MOVEMENT_TYPE_LABELS = Object.freeze({
   opening: 'Opening stock',
+  opening_edit: 'Opening stock corrected',
   purchase: 'Purchase',
   adjustment_in: 'Adjustment in',
   adjustment_out: 'Adjustment out',
@@ -268,6 +274,8 @@ export const MOVEMENT_TYPE_LABELS = Object.freeze({
   sales_return: 'Sales return',
   production: 'Made from raw material',
   production_use: 'Used to make jewellery',
+  order_metal_in: 'Customer gold received for order',
+  order_metal_return: 'Customer gold returned',
   old_gold: 'Old gold taken in',
   old_gold_cancel: 'Old gold cancelled',
 });
@@ -348,3 +356,6 @@ export const EMPLOYMENT_STATUS = Object.freeze({ ACTIVE: 'active', LEFT: 'left' 
 export const PAYROLL_STATUS = Object.freeze({ DRAFT: 'draft', FINALISED: 'finalised', PAID: 'paid' });
 
 export const SALARY_PAYMENT_MODES = Object.freeze(['cash', 'bank', 'upi']);
+
+/** Languages the app can be shown in. English is the default. */
+export const LANGUAGES = Object.freeze(['en', 'bn', 'hi']);

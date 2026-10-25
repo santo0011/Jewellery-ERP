@@ -10,6 +10,9 @@ export const inventoryApi = baseApi.injectEndpoints({
     adjustments: build.query({ query: (params) => ({ url: '/inventory/adjustments', params }), transformResponse: unwrapList, providesTags: ['Stock'] }),
     transfers: build.query({ query: (params) => ({ url: '/inventory/transfers', params }), transformResponse: unwrapList, providesTags: ['Stock'] }),
     createOpening: build.mutation({ query: (data) => ({ url: '/inventory/opening', method: 'post', data }), transformResponse: unwrapData, invalidatesTags: stockChange }),
+    // One opening / adjustment entry; an opening entry says whether its gold can still be edited (`edit`).
+    stockEntry: build.query({ query: (id) => ({ url: `/inventory/entries/${id}` }), transformResponse: unwrapData, providesTags: ['Stock'] }),
+    updateOpening: build.mutation({ query: ({ id, ...data }) => ({ url: `/inventory/opening/${id}`, method: 'put', data }), transformResponse: unwrapData, invalidatesTags: [...stockChange, 'Finance'] }),
     createAdjustment: build.mutation({ query: (data) => ({ url: '/inventory/adjustments', method: 'post', data }), transformResponse: unwrapData, invalidatesTags: stockChange }),
     createTransfer: build.mutation({ query: (data) => ({ url: '/inventory/transfers', method: 'post', data }), transformResponse: unwrapData, invalidatesTags: stockChange }),
     receiveTransfer: build.mutation({ query: (id) => ({ url: `/inventory/transfers/${id}/receive`, method: 'post' }), transformResponse: unwrapData, invalidatesTags: stockChange }),
@@ -33,6 +36,8 @@ export const {
   useAdjustmentsQuery,
   useTransfersQuery,
   useCreateOpeningMutation,
+  useStockEntryQuery,
+  useUpdateOpeningMutation,
   useCreateAdjustmentMutation,
   useCreateTransferMutation,
   useReceiveTransferMutation,

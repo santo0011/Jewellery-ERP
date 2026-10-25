@@ -1,5 +1,6 @@
 import { Autocomplete, Chip, TextField } from '@mui/material';
 import { Controller } from 'react-hook-form';
+import { t } from '../../i18n/index.js';
 
 export default function RHFTags({ name, control, label, helperText, max = 10 }) {
   return (
@@ -15,7 +16,7 @@ export default function RHFTags({ name, control, label, helperText, max = 10 }) 
           onChange={(e, value) => field.onChange([...new Set(value.map((v) => v.trim()).filter(Boolean))].slice(0, max))}
           renderValue={(value, getItemProps) => value.map((option, index) => <Chip size="small" label={option} {...getItemProps({ index })} key={option} />)}
           renderInput={(params) => (
-            <TextField {...params} label={label} error={Boolean(fieldState.error)} helperText={fieldState.error?.message ?? helperText ?? 'Press Enter to add'} />
+            <TextField {...params} label={label} error={Boolean(fieldState.error)} helperText={t(fieldState.error?.message) ?? helperText ?? t('Press Enter to add')} />
           )}
         />
       )}

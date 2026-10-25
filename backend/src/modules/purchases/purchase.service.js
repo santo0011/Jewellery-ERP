@@ -352,12 +352,24 @@ export async function getPurchaseOrder(id) {
   return { ...order, lines: order.lines.map((l, i) => ({ ...l, item: items[i] })) };
 }
 
-export async function createPurchaseOrder({ supplierId, branchId, expectedDate, lines, note }) {
+/** Order lines from saved items only: each must be an active item of this organisation; its name, metal and purity go on the line. */
+async function orderLinesFromItems(lines) {
+  const items = new Map((await Item.find({ _id: { $in: [...new Set(lines.map((l) => String(l.itemId)))] } }).lean()).map((i) => [String(i._id), i]));
+  return lines.map((l, i) => {
+    const item = items.get(String(l.itemId));
+    if (!item) throw ApiError.badRequest('Pick the item from the list', [{ path: `lines.${i}.itemId`, message: 'Unknown item' }], 'VALIDATION_ERROR');
+    if (item.status !== 'active') throw ApiError.badRequest(`${item.name} is inactive`, [{ path: `lines.${i}.itemId`, message: `${item.name} is inactive` }], 'VALIDATION_ERROR');
+    return { ...l, itemId: item._id, description: item.name, metal: item.metal, purity: item.purity };
+  });
+}
+
+export async function createPurchaseOrder({ supplierId, branchId, expectedDate, lines: picked, note }) {
   const { userId } = requireContext();
   const branch = await requireBranch(branchId);
   const supplier = await findSupplier(supplierId);
   const today = await todayContext();
   if (expectedDate && expectedDate < today.businessDate) throw ApiError.badRequest('Expected date is in the past', [{ path: 'expectedDate', message: 'Pick today or later' }], 'VALIDATION_ERROR');
+  const lines = await orderLinesFromItems(picked);
   const order = await withTransaction(async (session) => {
     const orderNo = await nextDocumentNo({ prefix: 'PO', branchCode: branch.code, financialYear: today.financialYear }, { session });
     const [doc] = await PurchaseOrder.create(

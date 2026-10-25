@@ -14,9 +14,10 @@ import { getErrorMessage } from '../../utils/errors.js';
 import { purityLabel } from '../products/productForm.js';
 import { useCancelPurchaseOrderMutation, usePurchaseOrderQuery } from './purchaseApi.js';
 import { OrderStatusChip } from './purchaseUi.jsx';
+import { t } from '../../i18n/index.js';
 
 const STEP_COLOR = { open: 'info.main', received: 'success.main', cancelled: 'text.disabled' };
-const STEP_LABEL = { open: 'Ordered', received: 'Received', cancelled: 'Cancelled' };
+const STEP_LABEL = { open: t('Ordered'), received: t('Received'), cancelled: t('Cancelled') };
 
 export default function PurchaseOrderDetailPage() {
   const { id } = useParams();
@@ -35,7 +36,7 @@ export default function PurchaseOrderDetailPage() {
   const doCancel = async () => {
     try {
       await cancel({ id, reason: reason.trim() }).unwrap();
-      toast.success(`Order ${o.orderNo} cancelled`);
+      toast.success(t('Order {{orderNo}} cancelled', { orderNo: o.orderNo }));
       setCancelling(false);
     } catch (err) {
       toast.error(getErrorMessage(err));
@@ -45,20 +46,20 @@ export default function PurchaseOrderDetailPage() {
   return (
     <>
       <PageHeader
-        title={`Order ${o.orderNo}`}
-        subtitle={`${o.supplier.name} · ordered ${formatDate(o.orderDate)}${o.branch ? ` · for ${o.branch.name}` : ''}`}
-        back={{ to: '/purchases/orders', label: 'Purchase orders' }}
+        title={t('Order {{orderNo}}', { orderNo: o.orderNo })}
+        subtitle={(o.branch ? t('{{name}} · ordered {{orderDate}} · for {{name2}}', { name: o.supplier.name, orderDate: formatDate(o.orderDate), name2: o.branch.name }) : t('{{name}} · ordered {{orderDate}}', { name: o.supplier.name, orderDate: formatDate(o.orderDate) }))}
+        back={{ to: '/purchases/orders', label: t('Purchase orders') }}
         actions={
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
             <OrderStatusChip status={o.status} overdue={o.overdue} />
             {open && canCancel && (
               <Button color="error" startIcon={<CancelOutlinedIcon />} onClick={() => setCancelling(true)}>
-                Cancel order
+                {t('Cancel order')}
               </Button>
             )}
             {open && canReceive && (
               <Button variant="contained" startIcon={<Inventory2OutlinedIcon />} onClick={() => navigate(`/purchases/new?orderId=${o.id}`)}>
-                Goods arrived — enter bill
+                {t('Goods arrived — enter bill')}
               </Button>
             )}
           </Stack>
@@ -69,18 +70,18 @@ export default function PurchaseOrderDetailPage() {
         <Grid size={{ xs: 12, md: 8 }}>
           <DataTable
             columns={[
-              { key: 'item', label: 'Item', render: (l) => <Typography variant="body2" sx={{ fontWeight: 600 }}>{l.description}</Typography> },
-              { key: 'purity', label: 'Purity', render: (l) => purityLabel(l.metal, l.purity) },
-              { key: 'qty', label: 'Qty', align: 'right', render: (l) => l.quantity },
-              { key: 'wt', label: 'Approx. weight', align: 'right', render: (l) => (l.weightMg ? formatWeight(l.weightMg) : '—') },
-              { key: 'amt', label: 'Estimate', align: 'right', render: (l) => (l.amountPaise ? formatINR(l.amountPaise, { decimals: 0 }) : '—') },
+              { key: 'item', label: t('Item'), render: (l) => <Typography variant="body2" sx={{ fontWeight: 600 }}>{l.description}</Typography> },
+              { key: 'purity', label: t('Purity'), render: (l) => purityLabel(l.metal, l.purity) },
+              { key: 'qty', label: t('Qty'), align: 'right', render: (l) => l.quantity },
+              { key: 'wt', label: t('Approx. weight'), align: 'right', render: (l) => (l.weightMg ? formatWeight(l.weightMg) : '—') },
+              { key: 'amt', label: t('Estimate'), align: 'right', render: (l) => (l.amountPaise ? formatINR(l.amountPaise, { decimals: 0 }) : '—') },
             ]}
             rows={o.lines.map((l, i) => ({ ...l, rowKey: i }))}
             getRowId={(l) => l.rowKey}
           />
           <Stack direction="row" spacing={3} sx={{ mt: 1.5, px: 1, flexWrap: 'wrap' }}>
             <Typography variant="body2">
-              <strong>{o.totals.quantity}</strong> pcs
+              <strong>{o.totals.quantity}</strong> {t('pcs')}
             </Typography>
             {o.totals.weightMg > 0 && (
               <Typography variant="body2">
@@ -89,13 +90,13 @@ export default function PurchaseOrderDetailPage() {
             )}
             {o.totals.amountPaise > 0 && (
               <Typography variant="body2">
-                Estimate <strong>{formatINR(o.totals.amountPaise, { decimals: 0 })}</strong>
+                {t('Estimate')} <strong>{formatINR(o.totals.amountPaise, { decimals: 0 })}</strong>
               </Typography>
             )}
           </Stack>
           {o.note && (
             <Typography variant="body2" color="textSecondary" sx={{ mt: 1.5, px: 1 }}>
-              Note: {o.note}
+              {t('Note: {{note}}', { note: o.note })}
             </Typography>
           )}
         </Grid>
@@ -103,38 +104,37 @@ export default function PurchaseOrderDetailPage() {
           <Card>
             <CardContent>
               <Typography variant="subtitle1" sx={{ fontWeight: 700, mb: 1.5 }}>
-                Timeline
+                {t('Timeline')}
               </Typography>
               {o.expectedDate && open && (
                 <Typography variant="body2" sx={{ mb: 1.5, color: o.overdue ? 'error.main' : 'text.secondary', fontWeight: o.overdue ? 600 : 400 }}>
-                  Expected by {formatDate(o.expectedDate)}
-                  {o.overdue ? ' — overdue' : ''}
+                  {(o.overdue ? t('Expected by {{expectedDate}} — overdue', { expectedDate: formatDate(o.expectedDate) }) : t('Expected by {{expectedDate}}', { expectedDate: formatDate(o.expectedDate) }))}
                 </Typography>
               )}
               <Stack spacing={1.5}>
-                {o.timeline.map((t, i) => (
+                {o.timeline.map((event, i) => (
                   <Stack key={i} direction="row" spacing={1.25}>
-                    <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: STEP_COLOR[t.status] ?? 'divider', mt: 0.75, flexShrink: 0 }} />
+                    <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: STEP_COLOR[event.status] ?? 'divider', mt: 0.75, flexShrink: 0 }} />
                     <Box>
                       <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                        {STEP_LABEL[t.status] ?? t.status}
+                        {STEP_LABEL[event.status] ?? event.status}
                       </Typography>
                       <Typography variant="caption" color="textSecondary" sx={{ display: 'block' }}>
-                        {formatDateTime(t.at)}
-                        {t.by ? ` · ${t.by.name}` : ''}
+                        {formatDateTime(event.at)}
+                        {event.by ? ` · ${event.by.name}` : ''}
                       </Typography>
-                      {t.note && <Typography variant="caption">{t.note}</Typography>}
+                      {event.note && <Typography variant="caption">{event.note}</Typography>}
                     </Box>
                   </Stack>
                 ))}
               </Stack>
               {o.purchase && (
                 <Button component={RouterLink} to={`/purchases/${o.purchase.id}`} variant="outlined" fullWidth sx={{ mt: 2 }}>
-                  Open bill {o.purchase.purchaseNo}
+                  {t('Open bill {{purchaseNo}}', { purchaseNo: o.purchase.purchaseNo })}
                 </Button>
               )}
               <Link component={RouterLink} to={`/suppliers/${o.supplier.id}`} variant="body2" sx={{ display: 'block', mt: 1.5 }}>
-                Open supplier →
+                {t('Open supplier →')}
               </Link>
             </CardContent>
           </Card>
@@ -142,14 +142,14 @@ export default function PurchaseOrderDetailPage() {
       </Grid>
 
       <Dialog open={cancelling} onClose={() => setCancelling(false)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ fontWeight: 600 }}>Cancel order {o.orderNo}?</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 600 }}>{t('Cancel order {{orderNo}}?', { orderNo: o.orderNo })}</DialogTitle>
         <DialogContent>
-          <TextField label="Reason" value={reason} onChange={(e) => setReason(e.target.value)} sx={{ mt: 1 }} autoFocus slotProps={{ htmlInput: { maxLength: 200 } }} />
+          <TextField label={t('Reason')} value={reason} onChange={(e) => setReason(e.target.value)} sx={{ mt: 1 }} autoFocus slotProps={{ htmlInput: { maxLength: 200 } }} />
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setCancelling(false)}>Keep order</Button>
+          <Button onClick={() => setCancelling(false)}>{t('Keep order')}</Button>
           <Button color="error" variant="contained" onClick={doCancel} disabled={reason.trim().length < 3 || cancelState.isLoading}>
-            Cancel order
+            {t('Cancel order')}
           </Button>
         </DialogActions>
       </Dialog>

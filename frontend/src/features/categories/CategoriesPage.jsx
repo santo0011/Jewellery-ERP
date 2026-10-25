@@ -51,16 +51,17 @@ import {
   useDeleteCategoryMutation,
   useUpdateCategoryMutation,
 } from './categoryApi.js';
+import { t } from '../../i18n/index.js';
 
-const formSchema = categorySchema.omit({ sortOrder: true }).extend({ sortOrder: z.string().regex(/^\d{0,4}$/, 'Whole number up to 9999') });
+const formSchema = categorySchema.omit({ sortOrder: true }).extend({ sortOrder: z.string().regex(/^\d{0,4}$/, t('Whole number up to 9999')) });
 
 /** Each metal gets its own accent so a category's default metal reads at a glance. */
 const METAL_LOOK = {
-  gold: { label: 'Gold', tile: 'linear-gradient(135deg, #E9CF6E 0%, #C9A227 55%, #A8841B 100%)', ink: '#171717', chip: 'rgba(201, 162, 39, 0.14)', chipInk: '#7A5E0F' },
-  silver: { label: 'Silver', tile: 'linear-gradient(135deg, #EEF1F4 0%, #BFC6CE 55%, #8E98A3 100%)', ink: '#22272C', chip: 'rgba(142, 152, 163, 0.18)', chipInk: '#4C5560' },
-  platinum: { label: 'Platinum', tile: 'linear-gradient(135deg, #DCE3EA 0%, #9AA9B7 55%, #6E7F8D 100%)', ink: '#171717', chip: 'rgba(110, 127, 141, 0.16)', chipInk: '#3E4C58' },
+  gold: { label: t('Gold'), tile: 'linear-gradient(135deg, #E9CF6E 0%, #C9A227 55%, #A8841B 100%)', ink: '#171717', chip: 'rgba(201, 162, 39, 0.14)', chipInk: '#7A5E0F' },
+  silver: { label: t('Silver'), tile: 'linear-gradient(135deg, #EEF1F4 0%, #BFC6CE 55%, #8E98A3 100%)', ink: '#22272C', chip: 'rgba(142, 152, 163, 0.18)', chipInk: '#4C5560' },
+  platinum: { label: t('Platinum'), tile: 'linear-gradient(135deg, #DCE3EA 0%, #9AA9B7 55%, #6E7F8D 100%)', ink: '#171717', chip: 'rgba(110, 127, 141, 0.16)', chipInk: '#3E4C58' },
 };
-const NO_METAL = { label: 'Any metal', tile: 'linear-gradient(135deg, #F1EEE6 0%, #D9D4C7 100%)', ink: '#6B6760', chip: 'rgba(107, 103, 96, 0.10)', chipInk: '#6B6760' };
+const NO_METAL = { label: t('Any metal'), tile: 'linear-gradient(135deg, #F1EEE6 0%, #D9D4C7 100%)', ink: '#6B6760', chip: 'rgba(107, 103, 96, 0.10)', chipInk: '#6B6760' };
 const lookOf = (metal) => METAL_LOOK[metal] ?? NO_METAL;
 
 function CategoryDialog({ state, roots, onClose }) {
@@ -88,7 +89,7 @@ function CategoryDialog({ state, roots, onClose }) {
     try {
       if (editing) await update({ id: state.category.id, ...payload }).unwrap();
       else await create(payload).unwrap();
-      toast.success(editing ? 'Category updated' : 'Category created');
+      toast.success(editing ? t('Category updated') : t('Category created'));
       onClose();
     } catch (err) {
       if (!applyServerErrors(err, setError)) toast.error(getErrorMessage(err));
@@ -98,32 +99,32 @@ function CategoryDialog({ state, roots, onClose }) {
   return (
     <Dialog open={Boolean(state)} onClose={onClose} maxWidth="xs" fullWidth>
       <form noValidate onSubmit={onSubmit}>
-        <DialogTitle sx={{ fontWeight: 600, pb: 0.5 }}>{editing ? `Edit ${state.category.name}` : parentName ? `New subcategory in ${parentName}` : 'New category'}</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 600, pb: 0.5 }}>{editing ? t('Edit {{name}}', { name: state.category.name }) : parentName ? t('New subcategory in {{parentName}}', { parentName }) : t('New category')}</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="textSecondary" sx={{ mb: 1.5 }}>
-            {parentName ? 'For example "Ladies rings" inside Rings.' : 'Group your jewellery the way your counter staff think about it.'}
+            {parentName ? t('For example "Ladies rings" inside Rings.') : t('Group your jewellery the way your counter staff think about it.')}
           </Typography>
           <Grid container spacing={2} sx={{ pt: 1 }}>
             <Grid size={12}>
-              <RHFTextField control={control} name="name" label="Name" autoFocus />
+              <RHFTextField control={control} name="name" label={t('Name')} autoFocus />
             </Grid>
             <Grid size={6}>
-              <RHFSelect control={control} name="defaultMetal" label="Default metal" options={METAL_OPTIONS} placeholder="Any" />
+              <RHFSelect control={control} name="defaultMetal" label={t('Default metal')} options={METAL_OPTIONS} placeholder={t('Any')} />
             </Grid>
             <Grid size={6}>
-              <RHFTextField control={control} name="hsnCode" label="HSN code" helperText="Blank uses tax settings" slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 8 } }} />
+              <RHFTextField control={control} name="hsnCode" label={t('HSN code')} helperText={t('Blank uses tax settings')} slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 8 } }} />
             </Grid>
             <Grid size={6}>
-              <RHFTextField control={control} name="sortOrder" label="Sort order" helperText="Lower shows first" slotProps={{ htmlInput: { inputMode: 'numeric' } }} />
+              <RHFTextField control={control} name="sortOrder" label={t('Sort order')} helperText={t('Lower shows first')} slotProps={{ htmlInput: { inputMode: 'numeric', 'data-number': true } }} />
             </Grid>
           </Grid>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
           <Button color="secondary" onClick={onClose}>
-            Cancel
+            {t('Cancel')}
           </Button>
           <Button type="submit" variant="contained" loading={createState.isLoading || updateState.isLoading}>
-            {editing ? 'Save' : 'Create'}
+            {editing ? t('Save') : t('Create')}
           </Button>
         </DialogActions>
       </form>
@@ -143,26 +144,26 @@ function ActionIcon({ title, onClick, label, danger, disabled, children }) {
   );
 }
 
-const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
+const plural = (n, one, many) => t(n === 1 ? `{{n}} ${one}` : `{{n}} ${many}`, { n });
 
 /** Edit / delete (and, for a category, add a subcategory) — a small rounded group of icon buttons. */
 function RowActions({ category, sub, canCreate, canEdit, canDelete, onEdit, onAddChild, onDelete }) {
-  const blocked = category.children?.length ? 'Remove its subcategories first' : category.productCount ? 'In use by products' : null;
+  const blocked = category.children?.length ? t('Remove its subcategories first') : category.productCount ? t('In use by products') : null;
   if (!canCreate && !canEdit && !canDelete) return null;
   return (
     <Stack direction="row" sx={{ flexShrink: 0, alignItems: 'center', p: 0.25, borderRadius: 2, border: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
       {canCreate && !sub && (
-        <ActionIcon title="Add subcategory" label={`Add subcategory to ${category.name}`} onClick={onAddChild}>
+        <ActionIcon title={t('Add subcategory')} label={t('Add subcategory to {{name}}', { name: category.name })} onClick={onAddChild}>
           <AddRoundedIcon sx={{ fontSize: 18 }} />
         </ActionIcon>
       )}
       {canEdit && (
-        <ActionIcon title="Edit" label={`Edit ${category.name}`} onClick={onEdit}>
+        <ActionIcon title={t('Edit')} label={t('Edit {{name}}', { name: category.name })} onClick={onEdit}>
           <EditOutlinedIcon sx={{ fontSize: 17 }} />
         </ActionIcon>
       )}
       {canDelete && (
-        <ActionIcon title={blocked ?? 'Delete'} label={`Delete ${category.name}`} onClick={onDelete} disabled={Boolean(blocked)} danger>
+        <ActionIcon title={blocked ?? t('Delete')} label={t('Delete {{name}}', { name: category.name })} onClick={onDelete} disabled={Boolean(blocked)} danger>
           <DeleteOutlineRoundedIcon sx={{ fontSize: 17 }} />
         </ActionIcon>
       )}
@@ -180,7 +181,7 @@ function MetaLine({ category, products }) {
         <span>{look.label}</span>
       </Stack>
       <Box component="span" sx={{ opacity: 0.4 }}>•</Box>
-      <span>{category.hsnCode ? `HSN ${category.hsnCode}` : 'HSN from tax settings'}</span>
+      <span>{category.hsnCode ? t('HSN {{hsnCode}}', { hsnCode: category.hsnCode }) : t('HSN from tax settings')}</span>
       <Box component="span" sx={{ opacity: 0.4 }}>•</Box>
       <Box component="span" sx={{ fontWeight: 600, color: products ? 'text.primary' : 'text.secondary' }}>
         {plural(products, 'product', 'products')}
@@ -195,7 +196,7 @@ function SubToggle({ count, open, onClick, name }) {
     <ButtonBase
       onClick={onClick}
       aria-expanded={open}
-      aria-label={`${open ? 'Hide' : 'Show'} subcategories of ${name}`}
+      aria-label={(open ? t('Hide subcategories of {{name}}', { name }) : t('Show subcategories of {{name}}', { name }))}
       sx={{
         flexShrink: 0,
         gap: 0.5,
@@ -234,7 +235,7 @@ function SubTile({ category, actions }) {
         </Typography>
         <Typography variant="caption" color="textSecondary" noWrap sx={{ display: 'block' }}>
           {plural(category.productCount, 'product', 'products')}
-          {category.hsnCode ? ` · HSN ${category.hsnCode}` : ''}
+          {category.hsnCode ? t(' · HSN {{hsnCode}}', { hsnCode: category.hsnCode }) : ''}
           {category.defaultMetal ? ` · ${look.label}` : ''}
         </Typography>
       </Box>
@@ -310,7 +311,7 @@ function CategoryTable({ roots, expandAll, canCreate, canEdit, canDelete, onEdit
                       {root.name}
                     </Typography>
                     {root.isSystem && (
-                      <Tooltip title="Standard category">
+                      <Tooltip title={t('Standard category')}>
                         <VerifiedOutlinedIcon sx={{ fontSize: 16, color: 'primary.dark', flexShrink: 0 }} />
                       </Tooltip>
                     )}
@@ -351,7 +352,7 @@ function CategoryTable({ roots, expandAll, canCreate, canEdit, canDelete, onEdit
                         sx={{ minHeight: 52, gap: 0.75, borderRadius: 2.5, border: '1px dashed', borderColor: 'rgba(var(--brand-rgb), 0.45)', color: 'var(--brand-strong)', fontSize: '0.8125rem', fontWeight: 700, transition: 'background-color 160ms', '&:hover': { bgcolor: 'rgba(var(--brand-rgb), 0.08)' } }}
                       >
                         <AddRoundedIcon sx={{ fontSize: 18 }} />
-                        Add subcategory
+                        {t('Add subcategory')}
                       </ButtonBase>
                     )}
                   </Box>
@@ -392,7 +393,7 @@ export default function CategoriesPage() {
   const seed = async () => {
     try {
       const res = await addDefaults().unwrap();
-      toast.success(res.message);
+      toast.success(t(res.message));
     } catch (err) {
       toast.error(getErrorMessage(err));
     }
@@ -401,7 +402,7 @@ export default function CategoriesPage() {
   const confirmDelete = async () => {
     try {
       await remove(toDelete.id).unwrap();
-      toast.success('Category deleted');
+      toast.success(t('Category deleted'));
     } catch (err) {
       toast.error(getErrorMessage(err));
     }
@@ -411,21 +412,21 @@ export default function CategoriesPage() {
   return (
     <>
       <PageHeader
-        title="Product categories"
-        subtitle="Organise jewellery into categories and subcategories."
-        breadcrumbs={[{ label: 'Settings' }, { label: 'Product categories' }]}
+        title={t('Product categories')}
+        subtitle={t('Organise jewellery into categories and subcategories.')}
+        breadcrumbs={[{ label: t('Settings') }, { label: t('Product categories') }]}
         actions={
           canCreate && (
             <Stack direction="row" spacing={1}>
               {tree.length > 0 && (
-                <Tooltip title="Bring back any standard category that was deleted">
+                <Tooltip title={t('Bring back any standard category that was deleted')}>
                   <Button color="secondary" variant="outlined" startIcon={<RestoreRoundedIcon />} onClick={seed} loading={seeding}>
-                    Restore standard
+                    {t('Restore standard')}
                   </Button>
                 </Tooltip>
               )}
               <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setDialog({})}>
-                New category
+                {t('New category')}
               </Button>
             </Stack>
           )
@@ -438,12 +439,12 @@ export default function CategoriesPage() {
       ) : !tree.length ? (
         <Card>
           <EmptyState
-            title="No categories yet"
-            description="Start with the standard jewellery categories: rings, necklaces, bangles, chains and more."
+            title={t('No categories yet')}
+            description={t('Start with the standard jewellery categories: rings, necklaces, bangles, chains and more.')}
             action={
               canCreate && (
                 <Button variant="contained" onClick={seed} loading={seeding}>
-                  Add standard categories
+                  {t('Add standard categories')}
                 </Button>
               )
             }
@@ -452,15 +453,15 @@ export default function CategoriesPage() {
       ) : (
         <>
           <SummaryCards>
-            <SummaryCard icon={CategoryOutlinedIcon} label="Categories" value={tree.length} caption="Top-level groups" />
-            <SummaryCard icon={AccountTreeOutlinedIcon} label="Subcategories" value={subCount} caption="Inside the categories" tone="blue" />
-            <SummaryCard icon={DiamondOutlinedIcon} label="Products" value={productCount} caption="Filed under a category" tone="green" />
-            <SummaryCard icon={CategoryOutlinedIcon} label="Not used yet" value={unused} caption={unused ? 'No products in them' : 'Every category is in use'} tone={unused ? 'amber' : 'grey'} />
+            <SummaryCard icon={CategoryOutlinedIcon} label={t('Categories')} value={tree.length} caption={t('Top-level groups')} />
+            <SummaryCard icon={AccountTreeOutlinedIcon} label={t('Subcategories')} value={subCount} caption={t('Inside the categories')} tone="blue" />
+            <SummaryCard icon={DiamondOutlinedIcon} label={t('Products')} value={productCount} caption={t('Filed under a category')} tone="green" />
+            <SummaryCard icon={CategoryOutlinedIcon} label={t('Not used yet')} value={unused} caption={unused ? t('No products in them') : t('Every category is in use')} tone={unused ? 'amber' : 'grey'} />
           </SummaryCards>
 
           <TextField
             size="small"
-            placeholder="Search categories and subcategories"
+            placeholder={t('Search categories and subcategories')}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             sx={{ mb: 2, width: { xs: '100%', sm: 360 }, '& .MuiOutlinedInput-root': { bgcolor: 'background.paper' } }}
@@ -484,7 +485,7 @@ export default function CategoriesPage() {
             />
           ) : (
             <Card>
-              <EmptyState title="Nothing matches" description={`No category or subcategory is called "${search.trim()}".`} action={<Button onClick={() => setSearch('')}>Clear search</Button>} />
+              <EmptyState title={t('Nothing matches')} description={t('No category or subcategory is called "{{search}}".', { search: search.trim() })} action={<Button onClick={() => setSearch('')}>{t('Clear search')}</Button>} />
             </Card>
           )}
         </>
@@ -492,9 +493,9 @@ export default function CategoriesPage() {
       <CategoryDialog state={dialog} roots={tree} onClose={() => setDialog(null)} />
       <ConfirmDialog
         open={Boolean(toDelete)}
-        title={`Delete ${toDelete?.name}?`}
-        message="This cannot be undone."
-        confirmLabel="Delete"
+        title={t('Delete {{name}}?', { name: toDelete?.name })}
+        message={t('This cannot be undone.')}
+        confirmLabel={t('Delete')}
         danger
         loading={deleting}
         onConfirm={confirmDelete}

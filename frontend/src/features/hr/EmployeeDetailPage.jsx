@@ -28,6 +28,7 @@ import { EmployeePhotoEditor } from './EmployeePhoto.jsx';
 import { useEmployeeQuery, useSetEmployeeStatusMutation } from './hrApi.js';
 import { EmploymentChip, formatDays, monthLabel, PayrollStatusChip, todayIso } from './hrUi.jsx';
 import ViewTabs from '../../components/ViewTabs.jsx';
+import { t } from '../../i18n/index.js';
 
 const dayAfter = (iso) => new Date(Date.parse(`${iso}T00:00:00Z`) + 86400000).toISOString().slice(0, 10);
 
@@ -74,7 +75,7 @@ export default function EmployeeDetailPage() {
     const status = statusDialog;
     try {
       await setStatus({ id, status, ...(status === 'left' ? { exitDate: statusDate } : { rejoinDate: statusDate }), note: statusNote.trim() || null }).unwrap();
-      toast.success(status === 'left' ? `${e.name} marked as left` : `${e.name} rejoined on ${formatDate(statusDate)}`);
+      toast.success(status === 'left' ? t('{{name}} marked as left', { name: e.name }) : t('{{name}} rejoined on {{statusDate}}', { name: e.name, statusDate: formatDate(statusDate) }));
       setStatusDialog(null);
     } catch (err) {
       toast.error(getErrorMessage(err));
@@ -87,23 +88,23 @@ export default function EmployeeDetailPage() {
   return (
     <>
       <PageHeader
-        title="Employee"
-        back={{ to: '/hr/employees', label: 'Employees' }}
+        title={t('Employee')}
+        back={{ to: '/hr/employees', label: t('Employees') }}
         actions={
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
             {canEdit && left && (
               <Button variant="contained" startIcon={<ReplayRoundedIcon />} onClick={() => openStatus('active')}>
-                Rejoin
+                {t('Rejoin')}
               </Button>
             )}
             {canAdvance && !left && (
               <Button variant="outlined" startIcon={<PaymentsOutlinedIcon />} onClick={() => setAdvancing(true)}>
-                Give advance
+                {t('Give advance')}
               </Button>
             )}
             {canEdit && (
               <>
-                <IconButton aria-label="More actions" onClick={(ev) => setMenu(ev.currentTarget)}>
+                <IconButton aria-label={t('More actions')} onClick={(ev) => setMenu(ev.currentTarget)}>
                   <MoreVertRoundedIcon />
                 </IconButton>
                 <Menu anchorEl={menu} open={Boolean(menu)} onClose={() => setMenu(null)} anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }} transformOrigin={{ vertical: 'top', horizontal: 'right' }}>
@@ -112,14 +113,14 @@ export default function EmployeeDetailPage() {
                       <ListItemIcon>
                         <ReplayRoundedIcon fontSize="small" />
                       </ListItemIcon>
-                      Rejoin
+                      {t('Rejoin')}
                     </MenuItem>
                   ) : (
                     <MenuItem onClick={() => openStatus('left')} sx={{ color: 'error.main' }}>
                       <ListItemIcon>
                         <LogoutRoundedIcon fontSize="small" color="error" />
                       </ListItemIcon>
-                      Mark as left
+                      {t('Mark as left')}
                     </MenuItem>
                   )}
                 </Menu>
@@ -149,15 +150,15 @@ export default function EmployeeDetailPage() {
             </Box>
           </Stack>
           <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, 1fr)', sm: `repeat(${e.payVisible ? 4 : 2}, auto)` }, columnGap: { xs: 2, sm: 4 }, rowGap: { xs: 1, sm: 1.5 }, width: { xs: '100%', md: 'auto' }, pt: { xs: 1.5, md: 0 }, borderTop: { xs: 1, md: 0 }, borderColor: 'divider' }}>
-            <Fact label="Mobile">
+            <Fact label={t('Mobile')}>
               <Link href={`tel:${e.mobile}`} underline="hover" color="inherit" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5 }}>
                 <CallOutlinedIcon sx={{ fontSize: 15, color: 'text.secondary' }} />
                 {e.mobile}
               </Link>
             </Fact>
-            <Fact label={left ? 'Left on' : 'Joined'}>{formatDate(left ? e.exitDate : e.joiningDate)}</Fact>
-            {e.payVisible && <Fact label="Salary / month">{formatINR(e.grossPaise, { decimals: 0 })}</Fact>}
-            {e.payVisible && <Fact label="Advance due">{e.advanceBalancePaise ? <Amount paise={e.advanceBalancePaise} tone="due" decimals={0} /> : <Box component="span" sx={{ color: 'success.main' }}>Nil</Box>}</Fact>}
+            <Fact label={left ? t('Left on') : t('Joined')}>{formatDate(left ? e.exitDate : e.joiningDate)}</Fact>
+            {e.payVisible && <Fact label={t('Salary / month')}>{formatINR(e.grossPaise, { decimals: 0 })}</Fact>}
+            {e.payVisible && <Fact label={t('Advance due')}>{e.advanceBalancePaise ? <Amount paise={e.advanceBalancePaise} tone="due" decimals={0} /> : <Box component="span" sx={{ color: 'success.main' }}>{t('Nil')}</Box>}</Fact>}
           </Box>
         </CardContent>
       </Card>
@@ -166,11 +167,11 @@ export default function EmployeeDetailPage() {
         value={tab}
         onChange={setTab}
         items={[
-          { value: 'details', label: 'Details' },
-          att && { value: 'attendance', label: 'Attendance' },
-          e.payslips && { value: 'payslips', label: 'Payslips', count: e.payslips.length },
-          { value: 'history', label: 'History', count: e.history?.length ?? 0 },
-          e.advances && { value: 'advances', label: 'Advances', count: openAdvances ? `${openAdvances} open` : e.advances.length },
+          { value: 'details', label: t('Details') },
+          att && { value: 'attendance', label: t('Attendance') },
+          e.payslips && { value: 'payslips', label: t('Payslips'), count: e.payslips.length },
+          { value: 'history', label: t('History'), count: e.history?.length ?? 0 },
+          e.advances && { value: 'advances', label: t('Advances'), count: openAdvances ? t('{{openAdvances}} open', { openAdvances }) : e.advances.length },
         ]}
       />
 
@@ -181,15 +182,15 @@ export default function EmployeeDetailPage() {
       {tab === 'payslips' && e.payslips && (
         <DataTable
           columns={[
-            { key: 'month', label: 'Month', render: (p) => <Typography variant="body2" sx={{ fontWeight: 600 }}>{monthLabel(p.month)}</Typography> },
-            { key: 'days', label: 'Paid days', render: (p) => `${formatDays(p.payableDays)} / ${p.daysInMonth}` },
-            { key: 'net', label: 'Net pay', align: 'right', render: (p) => <Amount paise={p.netPaise} tone={p.status === 'draft' ? undefined : p.paid ? 'paid' : 'due'} decimals={0} /> },
-            { key: 'status', label: 'Status', render: (p) => (p.status === 'draft' ? <PayrollStatusChip status="draft" /> : <PayrollStatusChip status={p.paid ? 'paid' : 'finalised'} />) },
-            { key: 'actions', label: 'Action', align: 'right', width: 80, render: (p) => <ViewButton title="Payslip" onClick={() => navigate(`/hr/payroll/${p.runId}/payslip/${id}`)} name={monthLabel(p.month)} /> },
+            { key: 'month', label: t('Month'), render: (p) => <Typography variant="body2" sx={{ fontWeight: 600 }}>{monthLabel(p.month)}</Typography> },
+            { key: 'days', label: t('Paid days'), render: (p) => `${formatDays(p.payableDays)} / ${p.daysInMonth}` },
+            { key: 'net', label: t('Net pay'), align: 'right', render: (p) => <Amount paise={p.netPaise} tone={p.status === 'draft' ? undefined : p.paid ? 'paid' : 'due'} decimals={0} /> },
+            { key: 'status', label: t('Status'), render: (p) => (p.status === 'draft' ? <PayrollStatusChip status="draft" /> : <PayrollStatusChip status={p.paid ? 'paid' : 'finalised'} />) },
+            { key: 'actions', label: t('Action'), align: 'right', width: 80, render: (p) => <ViewButton title={t('Payslip')} onClick={() => navigate(`/hr/payroll/${p.runId}/payslip/${id}`)} name={monthLabel(p.month)} /> },
           ]}
           rows={e.payslips}
           getRowId={(p) => p.runId}
-          empty={{ title: 'No payslips yet', description: 'Payslips appear here once a payroll that includes this employee is run.' }}
+          empty={{ title: t('No payslips yet'), description: t('Payslips appear here once a payroll that includes this employee is run.') }}
         />
       )}
 
@@ -205,11 +206,11 @@ export default function EmployeeDetailPage() {
           columns={[
             {
               key: 'given',
-              label: 'Given',
+              label: t('Given'),
               render: (a) => (
                 <Box>
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>
-                    {formatINR(a.amountPaise, { decimals: 0 })} on {formatDate(a.businessDate)}
+                    {t('{{amount}} on {{businessDate}}', { amount: formatINR(a.amountPaise, { decimals: 0 }), businessDate: formatDate(a.businessDate) })}
                   </Typography>
                   <Typography variant="caption" color="textSecondary">
                     {a.advanceNo}
@@ -220,19 +221,19 @@ export default function EmployeeDetailPage() {
             },
             {
               key: 'plan',
-              label: 'Cut from',
+              label: t('Cut from'),
               render: (a) => (
                 <Box>
-                  <Typography variant="body2">{a.recoverFrom ? `${monthLabel(a.recoverFrom)} salary` : 'Next payroll'}</Typography>
+                  <Typography variant="body2">{a.recoverFrom ? t('{{monthLabel}} salary', { monthLabel: monthLabel(a.recoverFrom) }) : t('Next payroll')}</Typography>
                   <Typography variant="caption" color="textSecondary">
-                    {a.instalments <= 1 ? 'All at once' : `${formatINR(a.installmentPaise, { decimals: 0 })} × ${a.instalments} months`}
+                    {a.instalments <= 1 ? t('All at once') : t('{{installment}} × {{instalments}} months', { installment: formatINR(a.installmentPaise, { decimals: 0 }), instalments: a.instalments })}
                   </Typography>
                 </Box>
               ),
             },
             {
               key: 'progress',
-              label: 'Recovered',
+              label: t('Recovered'),
               width: 200,
               render: (a) => (
                 <Box sx={{ minWidth: 150 }}>
@@ -241,45 +242,45 @@ export default function EmployeeDetailPage() {
                       {formatINR(a.recoveredPaise, { decimals: 0 })}
                     </Typography>
                     <Typography variant="caption" sx={{ fontWeight: 600, color: a.balancePaise ? 'error.main' : 'success.main' }}>
-                      {a.balancePaise ? `${formatINR(a.balancePaise, { decimals: 0 })} left` : 'Done'}
+                      {a.balancePaise ? t('{{balance}} left', { balance: formatINR(a.balancePaise, { decimals: 0 }) }) : t('Done')}
                     </Typography>
                   </Stack>
                   <LinearProgress variant="determinate" value={Math.round((a.recoveredPaise / a.amountPaise) * 100)} color={a.balancePaise ? 'warning' : 'success'} sx={{ height: 6, borderRadius: 3 }} />
                 </Box>
               ),
             },
-            { key: 'actions', label: 'Action', align: 'right', width: 100, render: (a) => <AdvanceActions advance={a} canEdit={canAdvance} onEdit={(x) => setEditAdvance({ ...x, employee: { id: e.id, name: e.name } })} /> },
+            { key: 'actions', label: t('Action'), align: 'right', width: 100, render: (a) => <AdvanceActions advance={a} canEdit={canAdvance} onEdit={(x) => setEditAdvance({ ...x, employee: { id: e.id, name: e.name } })} /> },
           ]}
           rows={e.advances}
-          empty={{ title: 'No advances', description: 'Advances given to this employee and their recovery show here.' }}
+          empty={{ title: t('No advances'), description: t('Advances given to this employee and their recovery show here.') }}
         />
       )}
 
       <AdvanceDrawer open={advancing} employee={e} onClose={() => setAdvancing(false)} />
       <AdvanceDrawer open={Boolean(editAdvance)} advance={editAdvance} onClose={() => setEditAdvance(null)} />
       <Dialog open={Boolean(statusDialog)} onClose={() => setStatusDialog(null)} maxWidth="xs" fullWidth>
-        <DialogTitle sx={{ fontWeight: 600 }}>{statusDialog === 'left' ? `Mark ${e.name} as left?` : `Rejoin ${e.name}`}</DialogTitle>
+        <DialogTitle sx={{ fontWeight: 600 }}>{statusDialog === 'left' ? t('Mark {{name}} as left?', { name: e.name }) : t('Rejoin {{name}}', { name: e.name })}</DialogTitle>
         <DialogContent>
           <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
             {statusDialog === 'left'
-              ? 'They stop appearing in attendance after this date. Their last month’s salary is paid only up to this day.'
-              : `Left on ${formatDate(e.exitDate)}. The days in between are not on the rolls and are not paid.`}
+              ? t('They stop appearing in attendance after this date. Their last month’s salary is paid only up to this day.')
+              : t('Left on {{exitDate}}. The days in between are not on the rolls and are not paid.', { exitDate: formatDate(e.exitDate) })}
           </Typography>
           <Stack spacing={2}>
             <TextField
-              label={statusDialog === 'left' ? 'Last working day' : 'Rejoined on'}
+              label={statusDialog === 'left' ? t('Last working day') : t('Rejoined on')}
               type="date"
               value={statusDate}
               onChange={(ev) => setStatusDate(ev.target.value)}
               slotProps={{ inputLabel: { shrink: true }, htmlInput: statusDialog === 'left' ? { min: e.joiningDate } : { min: e.exitDate ? dayAfter(e.exitDate) : undefined, max: todayIso() } }}
             />
-            <TextField label={statusDialog === 'left' ? 'Reason (optional)' : 'Note (optional)'} value={statusNote} onChange={(ev) => setStatusNote(ev.target.value)} slotProps={{ htmlInput: { maxLength: 200 } }} />
+            <TextField label={statusDialog === 'left' ? t('Reason (optional)') : t('Note (optional)')} value={statusNote} onChange={(ev) => setStatusNote(ev.target.value)} slotProps={{ htmlInput: { maxLength: 200 } }} />
           </Stack>
         </DialogContent>
         <DialogActions>
-          <Button onClick={() => setStatusDialog(null)}>Cancel</Button>
+          <Button onClick={() => setStatusDialog(null)}>{t('Cancel')}</Button>
           <Button color={statusDialog === 'left' ? 'error' : 'primary'} variant="contained" onClick={changeStatus} disabled={!statusDate || statusState.isLoading}>
-            {statusDialog === 'left' ? 'Mark as left' : 'Rejoin'}
+            {statusDialog === 'left' ? t('Mark as left') : t('Rejoin')}
           </Button>
         </DialogActions>
       </Dialog>

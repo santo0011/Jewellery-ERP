@@ -8,6 +8,7 @@ import { Link as RouterLink } from 'react-router';
 import { usePermission } from '../../hooks/usePermission.js';
 import { PaperPreview } from './PrintSheet.jsx';
 import { layoutLabel } from './printLayouts.js';
+import { t } from '../../i18n/index.js';
 
 /**
  * The invoice exactly as it will print, in this branch's saved paper size and design, before the print dialog
@@ -32,24 +33,24 @@ export default function PrintPreviewDialog({ open, onClose, sale, layout, logo }
       <DialogTitle sx={{ display: 'flex', alignItems: 'center', gap: 1.5, pr: 1.5 }}>
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <Typography variant="h4" component="span" sx={{ display: 'block' }}>
-            Print preview
+            {t('Print preview')}
           </Typography>
           <Stack direction="row" spacing={1} sx={{ mt: 0.75, alignItems: 'center', flexWrap: 'wrap', rowGap: 0.75 }}>
             <Chip size="small" icon={<PrintOutlinedIcon />} label={layoutLabel(layout)} sx={{ fontWeight: 600 }} />
-            {copies > 1 && <Chip size="small" variant="outlined" label={`${copies} copies`} />}
+            {copies > 1 && <Chip size="small" variant="outlined" label={t('{{copies}} copies', { copies })} />}
             {canSeeSettings && (
               <Link component={RouterLink} to="/settings/business?tab=print" variant="body2" underline="hover" onClick={onClose}>
-                Change design
+                {t('Change design')}
               </Link>
             )}
           </Stack>
         </Box>
         {canZoom && (
-          <IconButton onClick={() => setFit((f) => !f)} aria-label={fit ? 'Zoom in' : 'Fit to screen'}>
+          <IconButton onClick={() => setFit((f) => !f)} aria-label={fit ? t('Zoom in') : t('Fit to screen')}>
             {fit ? <ZoomInRoundedIcon /> : <ZoomOutRoundedIcon />}
           </IconButton>
         )}
-        <IconButton onClick={onClose} aria-label="Close preview">
+        <IconButton onClick={onClose} aria-label={t('Close preview')}>
           <CloseRoundedIcon />
         </IconButton>
       </DialogTitle>
@@ -58,10 +59,10 @@ export default function PrintPreviewDialog({ open, onClose, sale, layout, logo }
       </DialogContent>
       <DialogActions sx={{ px: 3, py: 1.5 }}>
         <Button color="secondary" onClick={onClose}>
-          Close
+          {t('Close')}
         </Button>
         <Button variant="contained" startIcon={<PrintOutlinedIcon />} onClick={print}>
-          Print
+          {t('Print')}
         </Button>
       </DialogActions>
     </Dialog>

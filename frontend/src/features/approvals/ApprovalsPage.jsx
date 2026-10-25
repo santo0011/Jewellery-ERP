@@ -11,6 +11,7 @@ import { formatDateTime } from '../../utils/format.js';
 import { DocStatusChip } from '../inventory/stockUi.jsx';
 import { useApprovalsQuery, useDecideApprovalMutation } from './approvalApi.js';
 import ViewButton from '../../components/ViewButton.jsx';
+import { t } from '../../i18n/index.js';
 
 function DecisionDialog({ request, onClose }) {
   const { data: session } = useSession();
@@ -22,7 +23,7 @@ function DecisionDialog({ request, onClose }) {
   const submit = async (decision) => {
     try {
       const res = await decide({ id: request.id, decision, comment: comment.trim() || undefined }).unwrap();
-      toast.success(res.status === 'approved' ? `${request.docNo} approved and posted` : `${request.docNo} rejected`);
+      toast.success(res.status === 'approved' ? t('{{docNo}} approved and posted', { docNo: request.docNo }) : t('{{docNo}} rejected', { docNo: request.docNo }));
       onClose();
     } catch (err) {
       toast.error(getErrorMessage(err));
@@ -39,24 +40,24 @@ function DecisionDialog({ request, onClose }) {
           {request.summary}
         </Typography>
         <Typography variant="caption" color="textSecondary">
-          Requested by {request.requestedBy?.name} on {formatDateTime(request.createdAt)}
+          {t('Requested by {{name}} on {{createdAt}}', { name: request.requestedBy?.name, createdAt: formatDateTime(request.createdAt) })}
         </Typography>
         {own && (
           <Typography variant="body2" color="warning" sx={{ mt: 2 }}>
-            You raised this request. Only a full-access administrator can approve their own requests.
+            {t('You raised this request. Only a full-access administrator can approve their own requests.')}
           </Typography>
         )}
-        <TextField label="Comment" value={comment} onChange={(e) => setComment(e.target.value)} multiline minRows={2} sx={{ mt: 2 }} />
+        <TextField label={t('Comment')} value={comment} onChange={(e) => setComment(e.target.value)} multiline minRows={2} sx={{ mt: 2 }} />
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
         <Button color="secondary" onClick={onClose} disabled={isLoading}>
-          Cancel
+          {t('Cancel')}
         </Button>
         <Button color="error" onClick={() => submit('reject')} loading={isLoading && originalArgs?.decision === 'reject'} disabled={isLoading}>
-          Reject
+          {t('Reject')}
         </Button>
         <Button variant="contained" onClick={() => submit('approve')} loading={isLoading && originalArgs?.decision === 'approve'} disabled={isLoading}>
-          Approve & post
+          {t('Approve & post')}
         </Button>
       </DialogActions>
     </Dialog>
@@ -71,7 +72,7 @@ export default function ApprovalsPage() {
   const columns = [
     {
       key: 'doc',
-      label: 'Request',
+      label: t('Request'),
       render: (r) => (
         <Box>
           <Typography variant="subtitle2">
@@ -83,21 +84,21 @@ export default function ApprovalsPage() {
         </Box>
       ),
     },
-    { key: 'by', label: 'Requested', render: (r) => `${r.requestedBy?.name ?? '—'}, ${formatDateTime(r.createdAt)}` },
-    { key: 'decided', label: 'Decision', render: (r) => (r.decidedBy ? `${r.decidedBy.name}${r.comment ? ` — “${r.comment}”` : ''}` : '—') },
-    { key: 'status', label: 'Status', render: (r) => <DocStatusChip status={r.status} /> },
+    { key: 'by', label: t('Requested'), render: (r) => `${r.requestedBy?.name ?? '—'}, ${formatDateTime(r.createdAt)}` },
+    { key: 'decided', label: t('Decision'), render: (r) => (r.decidedBy ? `${r.decidedBy.name}${r.comment ? ` — “${r.comment}”` : ''}` : '—') },
+    { key: 'status', label: t('Status'), render: (r) => <DocStatusChip status={r.status} /> },
     {
       key: 'actions',
-      label: 'Action',
+      label: t('Action'),
       align: 'right',
       width: 56,
-      render: (r) => r.status === 'pending' && <ViewButton onClick={() => setActive(r)} title="Review" name={r.docNo} icon={RateReviewOutlinedIcon} />,
+      render: (r) => r.status === 'pending' && <ViewButton onClick={() => setActive(r)} title={t('Review')} name={r.docNo} icon={RateReviewOutlinedIcon} />,
     },
   ];
 
   return (
     <>
-      <PageHeader title="Approvals" subtitle="Requests waiting for a second pair of eyes before they change stock or money." />
+      <PageHeader title={t('Approvals')} subtitle={t('Requests waiting for a second pair of eyes before they change stock or money.')} />
       <DataTable
         columns={columns}
         rows={data?.items}
@@ -105,15 +106,15 @@ export default function ApprovalsPage() {
         fetching={isFetching}
         error={error}
         onRetry={refetch}
-        empty={{ title: list.filters.status === 'pending' ? 'Nothing waiting for approval' : 'No requests', description: 'You will see requests here for the areas you can approve.' }}
+        empty={{ title: list.filters.status === 'pending' ? t('Nothing waiting for approval') : t('No requests'), description: t('You will see requests here for the areas you can approve.') }}
         pagination={list.pagination(data?.meta)}
         toolbar={
           <Stack direction="row" spacing={1.5}>
-            <TextField select label="Status" value={list.filters.status} onChange={(e) => list.setFilter('status', e.target.value)} sx={{ maxWidth: 200 }}>
-              <MenuItem value="pending">Pending</MenuItem>
-              <MenuItem value="approved">Approved</MenuItem>
-              <MenuItem value="rejected">Rejected</MenuItem>
-              <MenuItem value="">All</MenuItem>
+            <TextField select slotProps={{ inputLabel: { shrink: true }, select: { displayEmpty: true } }} label={t('Status')} value={list.filters.status} onChange={(e) => list.setFilter('status', e.target.value)} sx={{ maxWidth: 200 }}>
+              <MenuItem value="pending">{t('Pending')}</MenuItem>
+              <MenuItem value="approved">{t('Approved')}</MenuItem>
+              <MenuItem value="rejected">{t('Rejected')}</MenuItem>
+              <MenuItem value="">{t('All')}</MenuItem>
             </TextField>
           </Stack>
         }

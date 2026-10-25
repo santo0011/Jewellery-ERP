@@ -8,6 +8,7 @@ import {
   resetPasswordSchema,
   verifyResetCodeSchema,
   updateProfileSchema,
+  languageSchema,
 } from '@jerp/shared/schemas';
 import { authenticate } from '../../middleware/authenticate.js';
 import { authLimiter, signupLimiter } from '../../middleware/rateLimiters.js';
@@ -28,6 +29,7 @@ router.post('/reset-password', authLimiter, validate({ body: resetPasswordSchema
 router.use(authenticate);
 router.get('/me', controller.me);
 router.patch('/me', validate({ body: updateProfileSchema }), controller.updateProfile);
+router.patch('/me/language', validate({ body: languageSchema }), controller.setLanguage);
 router.post('/change-password', validate({ body: changePasswordSchema }), controller.changePassword);
 router.post('/logout-all', controller.logoutAll);
 router.get('/sessions', controller.listSessions);

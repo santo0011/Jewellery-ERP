@@ -3,18 +3,19 @@ import { formatINR } from '@jerp/shared';
 import { useState } from 'react';
 import { compactINR, niceMax, useWidth } from '../home/charts.jsx';
 import { seriesSx } from '../home/shareCharts.jsx';
+import { t, getLocale } from '../../i18n/index.js';
 
 // A loss bar: the theme's error colour (a CSS variable, since SVG fill does not take palette names).
 const LOSS = 'var(--mui-palette-error-main)';
 const inr = (p) => formatINR(p, { decimals: 0 });
-const dayLabel = (iso) => new Date(`${iso}T00:00:00Z`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', timeZone: 'UTC' });
-const monthLabel = (m) => new Date(`${m}-01T00:00:00Z`).toLocaleDateString('en-IN', { month: 'short', year: '2-digit', timeZone: 'UTC' });
+const dayLabel = (iso) => new Date(`${iso}T00:00:00Z`).toLocaleDateString(getLocale(), { day: 'numeric', month: 'short', timeZone: 'UTC' });
+const monthLabel = (m) => new Date(`${m}-01T00:00:00Z`).toLocaleDateString(getLocale(), { month: 'short', year: '2-digit', timeZone: 'UTC' });
 const AXIS = { fontSize: 11, fill: 'var(--mui-palette-text-secondary)', fontVariantNumeric: 'tabular-nums' };
 
 // Sales and expenses: the first two categorical slots (blue, orange), validated light and dark; never cycled.
 const SERIES = [
-  { key: 'salesPaise', label: 'Sales', slot: 0 },
-  { key: 'expensesPaise', label: 'Expenses', slot: 1 },
+  { key: 'salesPaise', label: t('Sales'), slot: 0 },
+  { key: 'expensesPaise', label: t('Expenses'), slot: 1 },
 ];
 
 /** Legend: swatch, name and the period total for each line (identity is never colour alone). */
@@ -68,12 +69,12 @@ export function SalesExpenseChart({ days, height = 260 }) {
     <Box>
       <LineLegend totals={totals} />
       <Box ref={ref} sx={{ position: 'relative', width: '100%' }} onMouseLeave={() => setActive(null)}>
-        <Box component="svg" width={width} height={height} role="img" aria-label="Daily sales and expenses" onMouseMove={onMove} onTouchStart={(e) => onMove(e.touches[0] ? { ...e, clientX: e.touches[0].clientX, currentTarget: e.currentTarget } : e)} sx={{ display: 'block', overflow: 'visible', touchAction: 'pan-y' }}>
-          {ticks.map((t) => (
-            <g key={t}>
-              <Box component="line" x1={pad.left} x2={width - pad.right} y1={y(t)} y2={y(t)} sx={{ stroke: t === 0 ? 'var(--mui-palette-text-disabled)' : 'var(--mui-palette-divider)', strokeWidth: 1 }} />
-              <Box component="text" x={pad.left - 8} y={y(t)} dy="0.32em" textAnchor="end" sx={AXIS}>
-                {compactINR(t)}
+        <Box component="svg" width={width} height={height} role="img" aria-label={t('Daily sales and expenses')} onMouseMove={onMove} onTouchStart={(e) => onMove(e.touches[0] ? { ...e, clientX: e.touches[0].clientX, currentTarget: e.currentTarget } : e)} sx={{ display: 'block', overflow: 'visible', touchAction: 'pan-y' }}>
+          {ticks.map((tick) => (
+            <g key={tick}>
+              <Box component="line" x1={pad.left} x2={width - pad.right} y1={y(tick)} y2={y(tick)} sx={{ stroke: tick === 0 ? 'var(--mui-palette-text-disabled)' : 'var(--mui-palette-divider)', strokeWidth: 1 }} />
+              <Box component="text" x={pad.left - 8} y={y(tick)} dy="0.32em" textAnchor="end" sx={AXIS}>
+                {compactINR(tick)}
               </Box>
             </g>
           ))}
@@ -99,7 +100,7 @@ export function SalesExpenseChart({ days, height = 260 }) {
         </Box>
         {empty && (
           <Typography variant="body2" color="textSecondary" sx={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none' }}>
-            No sales or expenses yet this month
+            {t('No sales or expenses yet this month')}
           </Typography>
         )}
         {hovered && !empty && (
@@ -146,7 +147,7 @@ export function MonthlyProfitBars({ months, height = 220 }) {
 
   return (
     <Box ref={ref} sx={{ position: 'relative', width: '100%' }} onMouseLeave={() => setActive(null)}>
-      <Box component="svg" width={width} height={height} role="img" aria-label="Net profit by month" sx={{ display: 'block', overflow: 'visible' }}>
+      <Box component="svg" width={width} height={height} role="img" aria-label={t('Net profit by month')} sx={{ display: 'block', overflow: 'visible' }}>
         <Box component="line" x1={pad.left} x2={width - pad.right} y1={zero} y2={zero} sx={{ stroke: 'var(--mui-palette-text-disabled)', strokeWidth: 1 }} />
         {months.map((m, i) => {
           const v = m.netProfitPaise;
@@ -179,7 +180,7 @@ export function MonthlyProfitBars({ months, height = 220 }) {
       {hovered && (
         <Box sx={{ position: 'absolute', top: 0, left: Math.min(Math.max(pad.left + slot * active + slot / 2, 90), width - 90), transform: 'translateX(-50%)', px: 1.25, py: 0.75, borderRadius: 1.5, bgcolor: 'background.paper', border: 1, borderColor: 'divider', boxShadow: 3, pointerEvents: 'none', whiteSpace: 'nowrap', minWidth: 160 }}>
           <Typography variant="caption" color="textSecondary">
-            {new Date(`${hovered.month}-01T00:00:00Z`).toLocaleDateString('en-IN', { month: 'long', year: 'numeric', timeZone: 'UTC' })}
+            {new Date(`${hovered.month}-01T00:00:00Z`).toLocaleDateString(getLocale(), { month: 'long', year: 'numeric', timeZone: 'UTC' })}
           </Typography>
           {[
             ['Sales', hovered.salesPaise],
@@ -188,7 +189,7 @@ export function MonthlyProfitBars({ months, height = 220 }) {
             ['Net profit', hovered.netProfitPaise],
           ].map(([k, v]) => (
             <Stack key={k} direction="row" spacing={2} sx={{ justifyContent: 'space-between' }}>
-              <Typography variant="caption">{k}</Typography>
+              <Typography variant="caption">{t(k)}</Typography>
               <Typography variant="caption" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', color: k === 'Net profit' ? (v < 0 ? 'error.main' : 'success.main') : 'text.primary' }}>
                 {inr(v)}
               </Typography>

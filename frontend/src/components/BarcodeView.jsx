@@ -2,6 +2,7 @@ import { Box } from '@mui/material';
 import JsBarcode from 'jsbarcode';
 import { QRCodeSVG } from 'qrcode.react';
 import { useEffect, useRef } from 'react';
+import { t } from '../i18n/index.js';
 
 export default function BarcodeView({ value, symbology = 'code128', height = 56 }) {
   const ref = useRef(null);
@@ -14,7 +15,7 @@ export default function BarcodeView({ value, symbology = 'code128', height = 56 
   if (!value) return null;
   return (
     <Box sx={{ display: 'inline-flex', p: 1.5, bgcolor: '#fff', borderRadius: 1, border: 1, borderColor: 'divider' }}>
-      {symbology === 'qr' ? <QRCodeSVG value={value} size={height * 1.6} marginSize={0} /> : <svg ref={ref} role="img" aria-label={`Barcode ${value}`} />}
+      {symbology === 'qr' ? <QRCodeSVG value={value} size={height * 1.6} marginSize={0} /> : <svg ref={ref} role="img" aria-label={t('Barcode {{value}}', { value })} />}
     </Box>
   );
 }

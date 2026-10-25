@@ -13,6 +13,9 @@ export const orderApi = baseApi.injectEndpoints({
     createOrder: build.mutation({ query: (data) => ({ url: '/orders', method: 'post', data }), transformResponse: unwrapData, invalidatesTags: [{ type: 'Order', id: 'LIST' }, 'Audit'] }),
     updateOrder: build.mutation({ query: ({ id, ...data }) => ({ url: `/orders/${id}`, method: 'put', data }), transformResponse: unwrapData, invalidatesTags: changed }),
     addOrderAdvance: build.mutation({ query: ({ id, ...data }) => ({ url: `/orders/${id}/advances`, method: 'post', data }), transformResponse: unwrapData, invalidatesTags: changed }),
+    // The customer's own gold: received after booking, or an entry made by mistake given back.
+    addCustomerMetal: build.mutation({ query: ({ id, ...data }) => ({ url: `/orders/${id}/customer-metal`, method: 'post', data }), transformResponse: unwrapData, invalidatesTags: (r, e, { id }) => [{ type: 'Order', id }, { type: 'Order', id: 'LIST' }, 'Stock', 'Audit'] }),
+    removeCustomerMetal: build.mutation({ query: ({ id, lineId }) => ({ url: `/orders/${id}/customer-metal/${lineId}`, method: 'delete' }), transformResponse: unwrapData, invalidatesTags: (r, e, { id }) => [{ type: 'Order', id }, { type: 'Order', id: 'LIST' }, 'Stock', 'Audit'] }),
     setOrderStatus: build.mutation({ query: ({ id, ...data }) => ({ url: `/orders/${id}/status`, method: 'patch', data }), transformResponse: unwrapData, invalidatesTags: changed }),
     finishOrderItem: build.mutation({
       query: ({ id, index, ...data }) => ({ url: `/orders/${id}/items/${index}/finish`, method: 'post', data }),
@@ -38,4 +41,4 @@ export const orderApi = baseApi.injectEndpoints({
   }),
 });
 
-export const { useOrdersQuery, useOrderQuery, useCreateOrderMutation, useUpdateOrderMutation, useAddOrderAdvanceMutation, useSetOrderStatusMutation, useCancelOrderMutation, useFinishOrderItemMutation, useEstimateOrderMutation, useAddOrderImageMutation, useRemoveOrderImageMutation } = orderApi;
+export const { useOrdersQuery, useOrderQuery, useCreateOrderMutation, useUpdateOrderMutation, useAddOrderAdvanceMutation, useAddCustomerMetalMutation, useRemoveCustomerMetalMutation, useSetOrderStatusMutation, useCancelOrderMutation, useFinishOrderItemMutation, useEstimateOrderMutation, useAddOrderImageMutation, useRemoveOrderImageMutation } = orderApi;

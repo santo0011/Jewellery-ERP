@@ -27,9 +27,10 @@ import { applyServerErrors, getErrorMessage } from '../../utils/errors.js';
 import { formatDate } from '../../utils/format.js';
 import { useCreateOrganisationMutation, useDeleteOrganisationMutation, useLazyPincodeQuery, useOrganisationsQuery, useSetOrganisationStatusMutation, useUpdateOrganisationMutation } from './platformApi.js';
 import { SubscriptionChip } from '../billing/billingUi.jsx';
+import { t } from '../../i18n/index.js';
 
 /** Organisations are 'suspended' in the data; the panel calls that Deactivated. */
-export const OrgStatusChip = ({ status }) => <StatusChip status={status} label={status === 'suspended' ? 'Deactivated' : undefined} />;
+export const OrgStatusChip = ({ status }) => <StatusChip status={status} label={status === 'suspended' ? t('Deactivated') : undefined} />;
 
 /** Branches in use against the subscription's limit (2 on a free trial, else the plan's; null = unlimited). */
 export function BranchUsage({ used, limit }) {
@@ -39,7 +40,7 @@ export function BranchUsage({ used, limit }) {
         {used}
         <Typography component="span" variant="caption" color="textSecondary">
           {' '}
-          · unlimited
+          {t('· unlimited')}
         </Typography>
       </Typography>
     );
@@ -50,7 +51,7 @@ export function BranchUsage({ used, limit }) {
         {used} / {limit}
         <Typography component="span" variant="caption" color="textSecondary">
           {' '}
-          · {Math.max(0, limit - used)} free
+          {t('· {{Math}} free', { Math: Math.max(0, limit - used) })}
         </Typography>
       </Typography>
       <LinearProgress variant="determinate" value={Math.min(100, (used / limit) * 100)} color={used >= limit ? 'warning' : 'primary'} sx={{ height: 4, borderRadius: 2, mt: 0.5 }} />
@@ -60,7 +61,7 @@ export function BranchUsage({ used, limit }) {
 
 // The input holds text; check it is whole days, then apply the same rule as the API.
 const formSchema = platformCreateOrganisationSchema.extend({
-  freeDays: z.string().trim().min(1, 'Enter the free days (0 for none)').regex(/^\d+$/, 'Enter whole days, e.g. 14').transform(Number).pipe(z.number().max(365, 'At most 365 days')),
+  freeDays: z.string().trim().min(1, t('Enter the free days (0 for none)')).regex(/^\d+$/, t('Enter whole days, e.g. 14')).transform(Number).pipe(z.number().max(365, t('At most 365 days'))),
 });
 // No password: a 6-digit sign-in code is emailed instead (an empty password here would fail validation unseen).
 const EMPTY = { organisationName: '', ownerName: '', email: '', mobile: '', stateCode: '', freeDays: '14', address: addressFormValues() };
@@ -86,7 +87,7 @@ function CreateOrganisationDrawer({ open, onClose }) {
   const onSubmit = handleSubmit(async (values) => {
     try {
       const org = await create(values).unwrap();
-      toast.success(`${org.name} created`);
+      toast.success(t('{{name}} created', { name: org.name }));
       onClose();
       setCreated(org);
     } catch (err) {
@@ -98,12 +99,12 @@ function CreateOrganisationDrawer({ open, onClose }) {
     <>
     <LoginCodeDialog
       result={created?.loginEmail}
-      title={created ? `${created.name} is ready` : ''}
+      title={created ? t('{{name}} is ready', { name: created.name }) : ''}
       onClose={() => {
         setCreated(null);
       }}
     />
-    <FormDrawer open={open} title="New organisation" subtitle="Creates the business, its head office branch, standard roles and its login." onClose={onClose} onSubmit={onSubmit} submitting={isLoading} submitLabel="Create organisation" width={640}>
+    <FormDrawer open={open} title={t('New organisation')} subtitle={t('Creates the business, its head office branch, standard roles and its login.')} onClose={onClose} onSubmit={onSubmit} submitting={isLoading} submitLabel={t('Create organisation')} width={640}>
       <Grid container spacing={2}>
         {error && !error.data?.error?.details && (
           <Grid size={12}>
@@ -111,45 +112,45 @@ function CreateOrganisationDrawer({ open, onClose }) {
           </Grid>
         )}
         <Grid size={12}>
-          <RHFTextField control={control} name="organisationName" label="Business name" placeholder="e.g. ABC Jewellery" autoFocus />
+          <RHFTextField control={control} name="organisationName" label={t('Business name')} placeholder={t('e.g. ABC Jewellery')} autoFocus />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
           <RHFTextField
             control={control}
             name="freeDays"
-            label="Free use"
-            placeholder="e.g. 14"
+            label={t('Free use')}
+            placeholder={t('e.g. 14')}
             required
-            slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 3 }, input: { endAdornment: <InputAdornment position="end">days</InputAdornment> } }}
+            slotProps={{ htmlInput: { inputMode: 'numeric', 'data-number': true, maxLength: 3 }, input: { endAdornment: <InputAdornment position="end">{t('days')}</InputAdornment> } }}
           />
         </Grid>
         <Grid size={12}>
           <Alert severity="info" variant="outlined">
-            During the free days the organisation can run {TRIAL_BRANCH_LIMIT} branches, head office included. After that, branches, users and products follow the subscription plan it takes.
+            {t('During the free days the organisation can run {{TRIAL_BRANCH_LIMIT}} branches, head office included. After that, branches, users and products follow the subscription plan it takes.', { TRIAL_BRANCH_LIMIT })}
           </Alert>
         </Grid>
         <Grid size={12}>
           <Typography variant="overline" color="textSecondary" sx={{ display: 'block' }}>
-            Registered address
+            {t('Registered address')}
           </Typography>
           <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mb: 1.5 }}>
-            Start with the PIN code — the post office, city, district and state fill in by themselves. Also used for the head office branch.
+            {t('Start with the PIN code — the post office, city, district and state fill in by themselves. Also used for the head office branch.')}
           </Typography>
           <PincodeAddressFields control={control} setValue={setValue} lookup={(pin) => findPincode(pin, true).unwrap()} />
         </Grid>
         <Grid size={12}>
           <Typography variant="overline" color="textSecondary">
-            Organisation login
+            {t('Organisation login')}
           </Typography>
         </Grid>
         <Grid size={12}>
-          <RHFTextField control={control} name="ownerName" label="Owner name" />
+          <RHFTextField control={control} name="ownerName" label={t('Owner name')} />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
-          <RHFTextField control={control} name="email" label="Login email" type="email" autoComplete="off" />
+          <RHFTextField control={control} name="email" label={t('Login email')} type="email" autoComplete="off" />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
-          <RHFTextField control={control} name="mobile" label="Owner mobile" slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 10 } }} />
+          <RHFTextField control={control} name="mobile" label={t('Owner mobile')} slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 10 } }} />
         </Grid>
 
       </Grid>
@@ -160,16 +161,16 @@ function CreateOrganisationDrawer({ open, onClose }) {
 
 
 /** "3 products, 1 customer" — why an organisation can no longer be deleted. */
-export const recordsText = (records = []) => records.map((r) => `${r.count} ${r.type}${r.count === 1 ? '' : 's'}`).join(', ');
+export const recordsText = (records = []) => records.map((r) => t(r.count === 1 ? `{{count}} ${r.type}` : `{{count}} ${r.type}s`, { count: r.count })).join(', ');
 
 const editSchema = platformUpdateOrganisationSchema.extend({
   // Blank (a paid organisation, where the field is locked) leaves the free days alone.
   freeDays: z
     .string()
     .trim()
-    .regex(/^\d*$/, 'Enter whole days, e.g. 14')
+    .regex(/^\d*$/, t('Enter whole days, e.g. 14'))
     .transform((v) => (v === '' ? undefined : Number(v)))
-    .pipe(z.number().max(365, 'At most 365 days').optional()),
+    .pipe(z.number().max(365, t('At most 365 days')).optional()),
 });
 
 const editValues = (org) => ({
@@ -199,7 +200,7 @@ export function EditOrganisationDrawer({ organisation, onClose }) {
   const onSubmit = handleSubmit(async (values) => {
     try {
       const org = await update({ id: organisation.id, ...values }).unwrap();
-      toast.success(`${org.name} updated`);
+      toast.success(t('{{name}} updated', { name: org.name }));
       onClose();
     } catch (err) {
       applyServerErrors(err, setError);
@@ -209,12 +210,12 @@ export function EditOrganisationDrawer({ organisation, onClose }) {
   return (
     <FormDrawer
       open={Boolean(organisation)}
-      title="Edit organisation"
-      subtitle="Changing the email changes the organisation's login email."
+      title={t('Edit organisation')}
+      subtitle={t('Changing the email changes the organisation\'s login email.')}
       onClose={onClose}
       onSubmit={onSubmit}
       submitting={isLoading}
-      submitLabel="Save changes"
+      submitLabel={t('Save changes')}
       width={640}
     >
       <Grid container spacing={2}>
@@ -224,36 +225,36 @@ export function EditOrganisationDrawer({ organisation, onClose }) {
           </Grid>
         )}
         <Grid size={12}>
-          <RHFTextField control={control} name="organisationName" label="Business name" autoFocus />
+          <RHFTextField control={control} name="organisationName" label={t('Business name')} autoFocus />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
           <RHFTextField
             control={control}
             name="freeDays"
-            label="Free use"
-            placeholder={organisation?.freeDays == null ? 'Paid plan' : 'e.g. 14'}
+            label={t('Free use')}
+            placeholder={organisation?.freeDays == null ? t('Paid plan') : t('e.g. 14')}
             disabled={organisation?.freeDays == null}
-            slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 3 }, input: { endAdornment: <InputAdornment position="end">days</InputAdornment> } }}
+            slotProps={{ htmlInput: { inputMode: 'numeric', 'data-number': true, maxLength: 3 }, input: { endAdornment: <InputAdornment position="end">{t('days')}</InputAdornment> } }}
           />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
-          <RHFTextField control={control} name="email" label="Login email" type="email" autoComplete="off" />
+          <RHFTextField control={control} name="email" label={t('Login email')} type="email" autoComplete="off" />
         </Grid>
         <Grid size={{ xs: 12, sm: 6 }}>
-          <RHFTextField control={control} name="mobile" label="Business phone" slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 10 } }} />
+          <RHFTextField control={control} name="mobile" label={t('Business phone')} slotProps={{ htmlInput: { inputMode: 'numeric', maxLength: 10 } }} />
         </Grid>
         <Grid size={12}>
           <Typography variant="overline" color="textSecondary" sx={{ display: 'block' }}>
-            Registered address
+            {t('Registered address')}
           </Typography>
           <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mb: 1.5 }}>
-            Change the PIN code to fill post office, city, district and state again — fields you edited yourself are kept.
+            {t('Change the PIN code to fill post office, city, district and state again — fields you edited yourself are kept.')}
           </Typography>
           <PincodeAddressFields control={control} setValue={setValue} lookup={(pin) => findPincode(pin, true).unwrap()} />
         </Grid>
         <Grid size={12}>
           <Typography variant="caption" color="textSecondary">
-            To change its password, the organisation uses “Forgot password” on the sign-in page — a 6-digit code is emailed to the login email.
+            {t('To change its password, the organisation uses “Forgot password” on the sign-in page — a 6-digit code is emailed to the login email.')}
           </Typography>
         </Grid>
       </Grid>
@@ -268,14 +269,14 @@ export function EditOrganisationDrawer({ organisation, onClose }) {
 export function ExpiryCell({ subscription: s }) {
   if (!s?.endsAt) return <Typography variant="body2" color="textSecondary">—</Typography>;
   const tone = s.expired ? 'error.main' : s.daysLeft <= 7 ? 'warning.main' : 'success.main';
-  const note = s.expired ? 'Expired' : s.daysLeft === 0 ? 'Expires today' : `${s.daysLeft} day${s.daysLeft === 1 ? '' : 's'} left`;
+  const note = s.expired ? t('Expired') : s.daysLeft === 0 ? t('Expires today') : (s.daysLeft === 1 ? t('{{daysLeft}} day left', { daysLeft: s.daysLeft }) : t('{{daysLeft}} days left', { daysLeft: s.daysLeft }));
   return (
     <Box>
       <Typography variant="body2" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
         {formatDate(s.endsAt)}
       </Typography>
       <Typography variant="caption" sx={{ color: tone, fontWeight: 600, whiteSpace: 'nowrap' }}>
-        {s.status === 'trial' && !s.expired ? `Trial · ${note}` : note}
+        {s.status === 'trial' && !s.expired ? t('Trial · {{note}}', { note }) : note}
       </Typography>
     </Box>
   );
@@ -284,20 +285,20 @@ export function ExpiryCell({ subscription: s }) {
 const orgColumns = [
   {
     key: 'name',
-    label: 'Organisation',
+    label: t('Organisation'),
     render: (o) => (
       <Box>
         <Typography variant="subtitle2">{o.name}</Typography>
         <Typography variant="caption" color="textSecondary">
-          Since {formatDate(o.createdAt)}
+          {t('Since {{createdAt}}', { createdAt: formatDate(o.createdAt) })}
         </Typography>
       </Box>
     ),
   },
-  { key: 'owner', label: 'Owner', render: (o) => (o.owner ? `${o.owner.name} · ${o.owner.email}` : '—') },
+  { key: 'owner', label: t('Owner'), render: (o) => (o.owner ? `${o.owner.name} · ${o.owner.email}` : '—') },
   {
     key: 'plan',
-    label: 'Plan · users',
+    label: t('Plan · users'),
     render: (o) => (
       <Box>
         <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
@@ -307,13 +308,13 @@ const orgColumns = [
           {o.subscription && <SubscriptionChip status={o.subscription.status} />}
         </Stack>
         <Typography variant="caption" color={o.userLimit != null && o.activeUsers >= o.userLimit ? 'warning.main' : 'textSecondary'}>
-          {o.activeUsers} / {o.userLimit ?? '∞'} users
+          {t('{{activeUsers}} / {{value}} users', { activeUsers: o.activeUsers, value: o.userLimit ?? '∞' })}
         </Typography>
       </Box>
     ),
   },
-  { key: 'expires', label: 'Expires', render: (o) => <ExpiryCell subscription={o.subscription} /> },
-  { key: 'status', label: 'Status', render: (o) => <OrgStatusChip status={o.status} /> },
+  { key: 'expires', label: t('Expires'), render: (o) => <ExpiryCell subscription={o.subscription} /> },
+  { key: 'status', label: t('Status'), render: (o) => <OrgStatusChip status={o.status} /> },
 ];
 
 /** Table columns with View / Edit buttons, plus the edit drawer they open. Rows themselves are not clickable. */
@@ -326,7 +327,7 @@ function useOrganisationTable() {
   const confirmToggle = async () => {
     try {
       await setStatus({ id: toggling.id, status: deactivating ? 'suspended' : 'active' }).unwrap();
-      toast.success(deactivating ? `${toggling.name} deactivated` : `${toggling.name} activated`);
+      toast.success(deactivating ? t('{{name}} deactivated', { name: toggling.name }) : t('{{name}} activated', { name: toggling.name }));
       setToggling(null);
     } catch (err) {
       toast.error(getErrorMessage(err));
@@ -337,7 +338,7 @@ function useOrganisationTable() {
   const confirmDelete = async () => {
     try {
       await removeOrg(deleting.id).unwrap();
-      toast.success(`${deleting.name} deleted`);
+      toast.success(t('{{name}} deleted', { name: deleting.name }));
     } catch (err) {
       toast.error(getErrorMessage(err));
     }
@@ -348,29 +349,29 @@ function useOrganisationTable() {
     ...orgColumns,
     {
       key: 'actions',
-      label: 'Action',
+      label: t('Action'),
       align: 'right',
       width: 168,
       render: (o) => (
         <Stack direction="row" spacing={0.5} sx={{ justifyContent: 'flex-end' }}>
-          <Tooltip title="View">
-            <IconButton size="small" onClick={() => view(o)} aria-label={`View ${o.name}`}>
+          <Tooltip title={t('View')}>
+            <IconButton size="small" onClick={() => view(o)} aria-label={t('View {{name}}', { name: o.name })}>
               <VisibilityOutlinedIcon fontSize="small" />
             </IconButton>
           </Tooltip>
-          <Tooltip title="Edit">
-            <IconButton size="small" onClick={() => setEditing(o)} aria-label={`Edit ${o.name}`}>
+          <Tooltip title={t('Edit')}>
+            <IconButton size="small" onClick={() => setEditing(o)} aria-label={t('Edit {{name}}', { name: o.name })}>
               <EditOutlinedIcon fontSize="small" />
             </IconButton>
           </Tooltip>
-          <Tooltip title={o.status === 'active' ? 'Deactivate' : 'Activate'}>
-            <IconButton size="small" color={o.status === 'active' ? 'error' : 'success'} onClick={() => setToggling(o)} aria-label={`${o.status === 'active' ? 'Deactivate' : 'Activate'} ${o.name}`}>
+          <Tooltip title={o.status === 'active' ? t('Deactivate') : t('Activate')}>
+            <IconButton size="small" color={o.status === 'active' ? 'error' : 'success'} onClick={() => setToggling(o)} aria-label={o.status === 'active' ? t('Deactivate {{name}}', { name: o.name }) : t('Activate {{name}}', { name: o.name })}>
               <PowerSettingsNewRoundedIcon fontSize="small" />
             </IconButton>
           </Tooltip>
-          <Tooltip title={o.canDelete ? 'Delete — nothing has been added yet' : `Cannot delete: it has ${recordsText(o.records)}`}>
+          <Tooltip title={o.canDelete ? t('Delete — nothing has been added yet') : t('Cannot delete: it has {{recordsText}}', { recordsText: recordsText(o.records) })}>
             <span>
-              <IconButton size="small" color="error" disabled={!o.canDelete} onClick={() => setDeleting(o)} aria-label={`Delete ${o.name}`}>
+              <IconButton size="small" color="error" disabled={!o.canDelete} onClick={() => setDeleting(o)} aria-label={t('Delete {{name}}', { name: o.name })}>
                 <DeleteOutlineRoundedIcon fontSize="small" />
               </IconButton>
             </span>
@@ -384,13 +385,13 @@ function useOrganisationTable() {
       <EditOrganisationDrawer organisation={editing} onClose={() => setEditing(null)} />
       <ConfirmDialog
         open={Boolean(toggling)}
-        title={deactivating ? `Deactivate ${toggling?.name}?` : `Activate ${toggling?.name}?`}
+        title={deactivating ? t('Deactivate {{name}}?', { name: toggling?.name }) : t('Activate {{name}}?', { name: toggling?.name })}
         message={
           deactivating
-            ? 'Everyone in this organisation is signed out at once and cannot sign in until you activate it again. At sign-in they will see that the organisation is deactivated. Their data is kept.'
-            : 'Users of this organisation will be able to sign in again.'
+            ? t('Everyone in this organisation is signed out at once and cannot sign in until you activate it again. At sign-in they will see that the organisation is deactivated. Their data is kept.')
+            : t('Users of this organisation will be able to sign in again.')
         }
-        confirmLabel={deactivating ? 'Deactivate' : 'Activate'}
+        confirmLabel={deactivating ? t('Deactivate') : t('Activate')}
         danger={deactivating}
         loading={savingStatus}
         onConfirm={confirmToggle}
@@ -398,9 +399,9 @@ function useOrganisationTable() {
       />
       <ConfirmDialog
         open={Boolean(deleting)}
-        title={`Delete ${deleting?.name}?`}
-        message="It has no records yet, so it will be removed completely: its login, head office, roles and settings. This cannot be undone."
-        confirmLabel="Delete organisation"
+        title={t('Delete {{name}}?', { name: deleting?.name })}
+        message={t('It has no records yet, so it will be removed completely: its login, head office, roles and settings. This cannot be undone.')}
+        confirmLabel={t('Delete organisation')}
         danger
         loading={removing}
         onConfirm={confirmDelete}
@@ -420,11 +421,11 @@ export default function AdminOrganisationsPage() {
   return (
     <>
       <PageHeader
-        title="Organisations"
-        subtitle="Each organisation is one jewellery business. You control how many branches it can open."
+        title={t('Organisations')}
+        subtitle={t('Each organisation is one jewellery business. You control how many branches it can open.')}
         actions={
           <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setOpen(true)}>
-            New organisation
+            {t('New organisation')}
           </Button>
         }
       />
@@ -436,15 +437,15 @@ export default function AdminOrganisationsPage() {
         fetching={isFetching}
         error={error}
         onRetry={refetch}
-        empty={list.filtered ? { title: 'No matching organisations' } : { title: 'No organisations yet', description: 'Create the first jewellery business on the platform.' }}
+        empty={list.filtered ? { title: t('No matching organisations') } : { title: t('No organisations yet'), description: t('Create the first jewellery business on the platform.') }}
         pagination={list.pagination(data?.meta)}
         toolbar={
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.5}>
-            <SearchField value={list.search} onChange={list.setSearch} placeholder="Search name, GSTIN, email or phone" />
-            <TextField select label="Status" value={list.filters.status} onChange={(e) => list.setFilter('status', e.target.value)} sx={{ maxWidth: { sm: 180 } }}>
-              <MenuItem value="">All</MenuItem>
-              <MenuItem value="active">Active</MenuItem>
-              <MenuItem value="suspended">Deactivated</MenuItem>
+            <SearchField value={list.search} onChange={list.setSearch} placeholder={t('Search name, GSTIN, email or phone')} />
+            <TextField select slotProps={{ inputLabel: { shrink: true }, select: { displayEmpty: true } }} label={t('Status')} value={list.filters.status} onChange={(e) => list.setFilter('status', e.target.value)} sx={{ maxWidth: { sm: 180 } }}>
+              <MenuItem value="">{t('All')}</MenuItem>
+              <MenuItem value="active">{t('Active')}</MenuItem>
+              <MenuItem value="suspended">{t('Deactivated')}</MenuItem>
             </TextField>
           </Stack>
         }

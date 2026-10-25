@@ -19,6 +19,7 @@ import { getErrorMessage } from '../../utils/errors.js';
 import { formatDate, formatDateTime } from '../../utils/format.js';
 import ExpenseFormDrawer from './ExpenseFormDrawer.jsx';
 import { useExpenseCategoriesQuery, useExpensesQuery, useVoidExpenseMutation } from './financeApi.js';
+import { t } from '../../i18n/index.js';
 
 const inr = (p) => formatINR(p, { decimals: 0 });
 const modeLabel = (m) => EXPENSE_PAY_MODES.find((x) => x.value === m)?.label ?? m;
@@ -37,7 +38,7 @@ function VoidDialog({ expense, onClose }) {
   const submit = async () => {
     try {
       await voidExpense({ id: expense.id, reason: reason.trim() }).unwrap();
-      toast.success(`${expense.expenseNo} voided`);
+      toast.success(t('{{expenseNo}} voided', { expenseNo: expense.expenseNo }));
       onClose();
     } catch (err) {
       toast.error(getErrorMessage(err));
@@ -47,19 +48,19 @@ function VoidDialog({ expense, onClose }) {
     <Dialog open={Boolean(expense)} onClose={isLoading ? undefined : onClose} maxWidth="xs" fullWidth>
       {expense && (
         <>
-          <DialogTitle sx={{ fontWeight: 600 }}>Void {expense.expenseNo}?</DialogTitle>
+          <DialogTitle sx={{ fontWeight: 600 }}>{t('Void {{expenseNo}}?', { expenseNo: expense.expenseNo })}</DialogTitle>
           <DialogContent>
             <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-              {inr(expense.amountPaise)} · {expense.category.name} on {formatDate(expense.date)}. It stays on record as voided and is taken out of that month’s expenses.
+              {t('{{inr}} · {{name}} on {{date}}. It stays on record as voided and is taken out of that month’s expenses.', { inr: inr(expense.amountPaise), name: expense.category.name, date: formatDate(expense.date) })}
             </Typography>
-            <TextField autoFocus label="Reason" placeholder="e.g. Entered twice" value={reason} onChange={(e) => setReason(e.target.value)} slotProps={{ htmlInput: { maxLength: 200 } }} />
+            <TextField autoFocus label={t('Reason')} placeholder={t('e.g. Entered twice')} value={reason} onChange={(e) => setReason(e.target.value)} slotProps={{ htmlInput: { maxLength: 200 } }} />
           </DialogContent>
           <DialogActions sx={{ px: 3, pb: 2 }}>
             <Button color="secondary" onClick={onClose} disabled={isLoading}>
-              Keep it
+              {t('Keep it')}
             </Button>
             <Button variant="contained" color="error" onClick={submit} disabled={reason.trim().length < 3} loading={isLoading}>
-              Void expense
+              {t('Void expense')}
             </Button>
           </DialogActions>
         </>
@@ -80,7 +81,7 @@ function HistoryDialog({ expense, onClose }) {
               {[...expense.history].reverse().map((h, i) => (
                 <Box key={i}>
                   <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                    <Chip size="small" label={h.action === 'created' ? 'Entered' : h.action === 'edited' ? 'Corrected' : 'Voided'} color={h.action === 'voided' ? 'error' : h.action === 'edited' ? 'warning' : 'default'} variant="outlined" sx={{ height: 22 }} />
+                    <Chip size="small" label={h.action === 'created' ? t('Entered') : h.action === 'edited' ? t('Corrected') : t('Voided')} color={h.action === 'voided' ? 'error' : h.action === 'edited' ? 'warning' : 'default'} variant="outlined" sx={{ height: 22 }} />
                     <Typography variant="caption" color="textSecondary">
                       {formatDateTime(h.at)}
                       {h.by ? ` · ${h.by.name}` : ''}
@@ -93,7 +94,7 @@ function HistoryDialog({ expense, onClose }) {
                   )}
                   {h.changes?.map((c) => (
                     <Typography key={c.field} variant="caption" color="textSecondary" sx={{ display: 'block' }}>
-                      {c.field}: {showValue(c.field, c.from)} → <strong>{showValue(c.field, c.to)}</strong>
+                      {t(c.field)}: {showValue(c.field, c.from)} → <strong>{showValue(c.field, c.to)}</strong>
                     </Typography>
                   ))}
                 </Box>
@@ -101,7 +102,7 @@ function HistoryDialog({ expense, onClose }) {
             </Stack>
           </DialogContent>
           <DialogActions sx={{ px: 3, pb: 2 }}>
-            <Button onClick={onClose}>Close</Button>
+            <Button onClick={onClose}>{t('Close')}</Button>
           </DialogActions>
         </>
       )}
@@ -125,7 +126,7 @@ export default function ExpensesPage() {
   const columns = [
     {
       key: 'date',
-      label: 'Date',
+      label: t('Date'),
       render: (e) => (
         <Box>
           <Typography variant="body2" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
@@ -139,12 +140,12 @@ export default function ExpensesPage() {
     },
     {
       key: 'category',
-      label: 'Category',
+      label: t('Category'),
       render: (e) => <Chip size="small" label={e.category.name} sx={{ height: 24, fontWeight: 600, bgcolor: 'rgba(var(--brand-rgb), 0.12)', color: 'var(--brand-strong)' }} />,
     },
     {
       key: 'note',
-      label: 'Description',
+      label: t('Description'),
       wide: true,
       render: (e) => (
         <Box sx={{ minWidth: 0 }}>
@@ -159,10 +160,10 @@ export default function ExpensesPage() {
         </Box>
       ),
     },
-    { key: 'mode', label: 'Paid by', render: (e) => modeLabel(e.mode) },
+    { key: 'mode', label: t('Paid by'), render: (e) => modeLabel(e.mode) },
     {
       key: 'amount',
-      label: 'Amount',
+      label: t('Amount'),
       align: 'right',
       render: (e) =>
         e.status === 'void' ? (
@@ -170,7 +171,7 @@ export default function ExpensesPage() {
             <Typography variant="body2" sx={{ textDecoration: 'line-through', color: 'text.disabled', fontVariantNumeric: 'tabular-nums' }}>
               {inr(e.amountPaise)}
             </Typography>
-            <Chip size="small" label="Voided" color="error" variant="outlined" sx={{ height: 20, fontSize: 11 }} />
+            <Chip size="small" label={t('Voided')} color="error" variant="outlined" sx={{ height: 20, fontSize: 11 }} />
           </Stack>
         ) : (
           <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
@@ -180,26 +181,26 @@ export default function ExpensesPage() {
     },
     {
       key: 'actions',
-      label: 'Action',
+      label: t('Action'),
       align: 'right',
       width: 128,
       render: (e) => (
         <Stack direction="row" sx={{ justifyContent: 'flex-end' }}>
-          <Tooltip title="History">
-            <IconButton size="small" onClick={() => setHistory(e)} aria-label={`History of ${e.expenseNo}`}>
+          <Tooltip title={t('History')}>
+            <IconButton size="small" onClick={() => setHistory(e)} aria-label={t('History of {{expenseNo}}', { expenseNo: e.expenseNo })}>
               <HistoryRoundedIcon fontSize="small" />
             </IconButton>
           </Tooltip>
           {canEdit && e.status === 'active' && (
-            <Tooltip title="Correct">
-              <IconButton size="small" onClick={() => setDrawer(e)} aria-label={`Correct ${e.expenseNo}`}>
+            <Tooltip title={t('Correct')}>
+              <IconButton size="small" onClick={() => setDrawer(e)} aria-label={t('Correct {{expenseNo}}', { expenseNo: e.expenseNo })}>
                 <EditOutlinedIcon fontSize="small" />
               </IconButton>
             </Tooltip>
           )}
           {canVoid && e.status === 'active' && (
-            <Tooltip title="Void">
-              <IconButton size="small" onClick={() => setVoiding(e)} aria-label={`Void ${e.expenseNo}`} sx={{ color: 'error.main' }}>
+            <Tooltip title={t('Void')}>
+              <IconButton size="small" onClick={() => setVoiding(e)} aria-label={t('Void {{expenseNo}}', { expenseNo: e.expenseNo })} sx={{ color: 'error.main' }}>
                 <BlockRoundedIcon fontSize="small" />
               </IconButton>
             </Tooltip>
@@ -212,21 +213,21 @@ export default function ExpensesPage() {
   return (
     <>
       <PageHeader
-        title="Expenses"
-        subtitle="Shop costs — electricity, rent, transport and the like. Salary is added from Payroll."
+        title={t('Expenses')}
+        subtitle={t('Shop costs — electricity, rent, transport and the like. Salary is added from Payroll.')}
         actions={
           canCreate && (
             <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => setDrawer('new')}>
-              Add expense
+              {t('Add expense')}
             </Button>
           )
         }
       />
       {s && (
         <SummaryCards>
-          <SummaryCard icon={PaymentsOutlinedIcon} label="Total spent" value={inr(s.totalPaise)} caption={list.filters.from ? `Since ${formatDate(list.filters.from)}${list.filters.to ? ` to ${formatDate(list.filters.to)}` : ''}` : 'All dates'} tone="amber" hideCaptionOnPhone={false} />
-          <SummaryCard icon={ReceiptLongOutlinedIcon} label="Entries" value={s.count} caption="Voided ones not counted" tone="blue" />
-          <SummaryCard icon={CategoryOutlinedIcon} label="Biggest head" value={top ? top.name : '—'} caption={top ? `${inr(top.amountPaise)} · ${s.totalPaise ? Math.round((top.amountPaise / s.totalPaise) * 100) : 0}%` : 'Nothing spent yet'} tone="gold" hideCaptionOnPhone={false} />
+          <SummaryCard icon={PaymentsOutlinedIcon} label={t('Total spent')} value={inr(s.totalPaise)} caption={list.filters.from ? (list.filters.to ? t('Since {{from}} to {{to}}', { from: formatDate(list.filters.from), to: formatDate(list.filters.to) }) : t('Since {{from}}', { from: formatDate(list.filters.from) })) : t('All dates')} tone="amber" hideCaptionOnPhone={false} />
+          <SummaryCard icon={ReceiptLongOutlinedIcon} label={t('Entries')} value={s.count} caption={t('Voided ones not counted')} tone="blue" />
+          <SummaryCard icon={CategoryOutlinedIcon} label={t('Biggest head')} value={top ? top.name : '—'} caption={top ? `${inr(top.amountPaise)} · ${s.totalPaise ? Math.round((top.amountPaise / s.totalPaise) * 100) : 0}%` : t('Nothing spent yet')} tone="gold" hideCaptionOnPhone={false} />
         </SummaryCards>
       )}
       <DataTable
@@ -236,28 +237,28 @@ export default function ExpensesPage() {
         fetching={isFetching}
         error={error}
         onRetry={refetch}
-        empty={list.filtered ? { title: 'No expenses match', description: 'Try another date range or category.' } : { title: 'No expenses yet', description: 'Add the shop’s costs as you pay them — they show in Profit & loss.' }}
+        empty={list.filtered ? { title: t('No expenses match'), description: t('Try another date range or category.') } : { title: t('No expenses yet'), description: t('Add the shop’s costs as you pay them — they show in Profit & loss.') }}
         pagination={list.pagination(data?.meta)}
         toolbar={
           <Stack direction={{ xs: 'column', md: 'row' }} spacing={1.5}>
-            <SearchField value={list.search} onChange={list.setSearch} placeholder="Search description, reference or no." />
+            <SearchField value={list.search} onChange={list.setSearch} placeholder={t('Search description, reference or no.')} />
             <Stack direction="row" spacing={1.5} sx={{ flexShrink: 0 }}>
-              <TextField type="date" label="From" value={list.filters.from} onChange={(e) => list.setFilter('from', e.target.value)} slotProps={{ inputLabel: { shrink: true } }} sx={{ width: { xs: '50%', md: 160 } }} />
-              <TextField type="date" label="To" value={list.filters.to} onChange={(e) => list.setFilter('to', e.target.value)} slotProps={{ inputLabel: { shrink: true } }} sx={{ width: { xs: '50%', md: 160 } }} />
+              <TextField type="date" label={t('From')} value={list.filters.from} onChange={(e) => list.setFilter('from', e.target.value)} slotProps={{ inputLabel: { shrink: true } }} sx={{ width: { xs: '50%', md: 160 } }} />
+              <TextField type="date" label={t('To')} value={list.filters.to} onChange={(e) => list.setFilter('to', e.target.value)} slotProps={{ inputLabel: { shrink: true } }} sx={{ width: { xs: '50%', md: 160 } }} />
             </Stack>
             <Stack direction="row" spacing={1.5} sx={{ flexShrink: 0 }}>
-              <TextField select label="Category" value={list.filters.categoryId} onChange={(e) => list.setFilter('categoryId', e.target.value)} sx={{ width: { xs: '50%', md: 180 } }}>
-                <MenuItem value="">All categories</MenuItem>
+              <TextField select slotProps={{ inputLabel: { shrink: true }, select: { displayEmpty: true } }} label={t('Category')} value={list.filters.categoryId} onChange={(e) => list.setFilter('categoryId', e.target.value)} sx={{ width: { xs: '50%', md: 180 } }}>
+                <MenuItem value="">{t('All categories')}</MenuItem>
                 {categories.map((c) => (
                   <MenuItem key={c.id} value={c.id}>
                     {c.name}
                   </MenuItem>
                 ))}
               </TextField>
-              <TextField select label="Show" value={list.filters.status} onChange={(e) => list.setFilter('status', e.target.value)} sx={{ width: { xs: '50%', md: 140 } }}>
-                <MenuItem value="">All</MenuItem>
-                <MenuItem value="active">Active</MenuItem>
-                <MenuItem value="void">Voided</MenuItem>
+              <TextField select slotProps={{ inputLabel: { shrink: true }, select: { displayEmpty: true } }} label={t('Show')} value={list.filters.status} onChange={(e) => list.setFilter('status', e.target.value)} sx={{ width: { xs: '50%', md: 140 } }}>
+                <MenuItem value="">{t('All')}</MenuItem>
+                <MenuItem value="active">{t('Active')}</MenuItem>
+                <MenuItem value="void">{t('Voided')}</MenuItem>
               </TextField>
             </Stack>
           </Stack>

@@ -1,7 +1,12 @@
+import { bnBD, enUS, hiIN } from '@mui/material/locale';
 import { createTheme } from '@mui/material/styles';
 import { createElement } from 'react';
 import { ButtonPulse } from '../components/PulseLoader.jsx';
+import { getLanguage } from '../i18n/index.js';
 import { BRAND_DEFAULTS, BRAND_DEFAULTS_DARK, fonts, tokens } from './tokens.js';
+
+// MUI's own words (Rows per page, Close, …) in the app's language.
+const MUI_LOCALE = { en: enUS, bn: bnBD, hi: hiIN };
 
 // Mobile first: phones (< 600px) get tighter headings; touch screens get finger-sized targets.
 const PHONE = '@media (max-width:599.95px)';
@@ -168,4 +173,4 @@ export const theme = createTheme({
     },
     MuiTooltip: { defaultProps: { arrow: true } },
   },
-});
+}, MUI_LOCALE[getLanguage()] ?? enUS);

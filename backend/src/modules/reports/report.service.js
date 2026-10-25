@@ -1047,7 +1047,8 @@ const REPORTS = [
         const byMode = (mode) => sum(paidLines.filter((l) => l.paid.mode === mode), (l) => l.netPaise);
         const netPaise = sum(r.lines, (l) => l.netPaise);
         const paidPaise = sum(paidLines, (l) => l.netPaise);
-        const lastPaid = paidLines.reduce((d, l) => (!d || l.paid.at > d ? l.paid.at : d), null);
+        // `paid.at` sits in a loosely typed field: read it as a date whatever form it was saved in.
+        const lastPaid = paidLines.reduce((d, l) => (!d || new Date(l.paid.at) > d ? new Date(l.paid.at) : d), null);
         const status = r.status === 'draft' ? 'Draft' : paidPaise >= netPaise ? 'Paid' : paidPaise > 0 ? 'Partly paid' : 'Unpaid';
         return {
           month: new Date(`${r.month}-01T00:00:00Z`).toLocaleString('en-IN', { month: 'long', year: 'numeric', timeZone: 'UTC' }),
