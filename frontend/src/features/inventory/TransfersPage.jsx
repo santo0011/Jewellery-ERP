@@ -1,4 +1,6 @@
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
+import CheckRoundedIcon from '@mui/icons-material/CheckRounded';
+import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import { Alert, Box, Button, Grid, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { useEffect, useState } from 'react';
 import toast from 'react-hot-toast';
@@ -145,12 +147,13 @@ export default function TransfersPage() {
 
   const actions =
     viewing?.canReceive && canTransfer ? (
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mr: 'auto', alignItems: { sm: 'center' }, width: { xs: '100%', sm: 'auto' } }}>
-        <TextField size="small" placeholder={t('Reason if rejecting')} value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} sx={{ minWidth: 220 }} />
-        <Button color="error" disabled={rejectReason.trim().length < 3} loading={rejectState.isLoading} onClick={() => act(() => reject({ id: viewing.id, reason: rejectReason.trim() }), t('Transfer rejected; items returned'))}>
+      // The buttons keep their width and stay on one line; the reason box takes whatever room is left.
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ mr: 'auto', flex: 1, alignItems: { sm: 'center' }, width: { xs: '100%', sm: 'auto' }, '& .MuiButton-root': { whiteSpace: 'nowrap', flexShrink: 0 } }}>
+        <TextField size="small" placeholder={t('Reason if rejecting')} value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} sx={{ flex: 1, minWidth: { sm: 180 } }} />
+        <Button color="error" variant="outlined" startIcon={<CloseRoundedIcon />} disabled={rejectReason.trim().length < 3} loading={rejectState.isLoading} onClick={() => act(() => reject({ id: viewing.id, reason: rejectReason.trim() }), t('Transfer rejected; items returned'))}>
           {t('Reject')}
         </Button>
-        <Button variant="contained" loading={receiveState.isLoading} onClick={() => act(() => receive(viewing.id), t('Items received into stock'))}>
+        <Button variant="contained" startIcon={<CheckRoundedIcon />} loading={receiveState.isLoading} onClick={() => act(() => receive(viewing.id), t('Items received into stock'))}>
           {t('Receive all')}
         </Button>
       </Stack>
