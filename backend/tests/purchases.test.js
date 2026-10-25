@@ -12,7 +12,9 @@ async function setup() {
   const supplier = (await api().post('/api/v1/suppliers').set(bearer(t)).send({ companyName: 'Bowbazar Ornaments', mobile: '9830011111', address: {}, supplies: ['jewellery'] })).body.data;
   const draft = async () =>
     (await api().post('/api/v1/products').set(bearer(t)).send({ name: 'Ring', categoryId: ring.id, jewelleryType: 'plain_gold', metal: 'gold', purity: 916, grossWeightMg: 5000, wastage: { mode: 'none', value: 0 }, making: { type: 'fixed', value: 1 }, branchId: ho })).body.data;
-  return { t, orgId: me.organisation.id, ho, supplier, draft };
+  // Order lines are picked from saved items: one made when a test needs it (item codes count up from IT0001).
+  const chain = async () => (await api().post('/api/v1/items').set(bearer(t)).send({ name: 'Rope Chain', categoryId: ring.id, jewelleryType: 'plain_gold', metal: 'gold', purity: 916 })).body.data;
+  return { t, orgId: me.organisation.id, ho, supplier, draft, chain };
 }
 
 const journals = (ctx) =>
@@ -27,7 +29,7 @@ describe('purchases', () => {
     const ctx = await setup();
     const today = new Date().toISOString().slice(0, 10);
     const order = (
-      await api().post('/api/v1/purchases/orders').set(bearer(ctx.t)).send({ supplierId: ctx.supplier.id, branchId: ctx.ho, lines: [{ description: '22K rings', metal: 'gold', purity: 916, quantity: 2, weightMg: 10000, amountPaise: 12000000 }] })
+      await api().post('/api/v1/purchases/orders').set(bearer(ctx.t)).send({ supplierId: ctx.supplier.id, branchId: ctx.ho, lines: [{ itemId: (await ctx.chain()).id, quantity: 2, weightMg: 10000, amountPaise: 12000000 }] })
     ).body.data;
     expect(order).toMatchObject({ status: 'open', orderNo: expect.stringMatching(/^PO\/HO\//), totals: { quantity: 2, amountPaise: 12000000 } });
 
@@ -72,7 +74,7 @@ describe('purchases', () => {
 
   it('cancels an open order with a reason', async () => {
     const ctx = await setup();
-    const order = (await api().post('/api/v1/purchases/orders').set(bearer(ctx.t)).send({ supplierId: ctx.supplier.id, branchId: ctx.ho, lines: [{ description: 'Chains', metal: 'gold', purity: 916 }] })).body.data;
+    const order = (await api().post('/api/v1/purchases/orders').set(bearer(ctx.t)).send({ supplierId: ctx.supplier.id, branchId: ctx.ho, lines: [{ itemId: (await ctx.chain()).id }] })).body.data;
     const res = await api().post(`/api/v1/purchases/orders/${order.id}/cancel`).set(bearer(ctx.t)).send({ reason: 'Supplier out of stock' });
     expect(res.body.data.status).toBe('cancelled');
     expect(res.body.data.timeline.map((x) => x.status)).toEqual(['open', 'cancelled']);
@@ -86,27 +88,36 @@ describe('supplier page figures', () => {
     const today = new Date().toISOString().slice(0, 10);
     const piece = await ctx.draft();
     await api().post('/api/v1/purchases').set(bearer(ctx.t)).send({ supplierId: ctx.supplier.id, branchId: ctx.ho, billNo: 'S-1', billDate: today, items: [{ productId: piece.id, costPaise: 5000000 }], gstPaise: 150000, paidNow: { amountPaise: 2000000, mode: 'cash' } });
-    await api().post('/api/v1/purchases/orders').set(bearer(ctx.t)).send({ supplierId: ctx.supplier.id, branchId: ctx.ho, lines: [{ description: 'Chains', metal: 'gold', purity: 916 }] });
+    await api().post('/api/v1/purchases/orders').set(bearer(ctx.t)).send({ supplierId: ctx.supplier.id, branchId: ctx.ho, lines: [{ itemId: (await ctx.chain()).id }] });
     const s = (await api().get(`/api/v1/suppliers/${ctx.supplier.id}`).set(bearer(ctx.t))).body.data;
     expect(s.stats).toMatchObject({ bills: 1, purchasedPaise: 5150000, paidPaise: 2000000, billDuePaise: 3150000, duePaise: 3150000, unpaidBills: 1, openOrders: 1, lastBillDate: today });
   });
 });
 
 describe('receiving a purchase order', () => {
-  it('returns the saved item behind each order line, so the bill can be filled from it', async () => {
+  it('takes only saved items, and fills each line from its item', async () => {
     const ctx = await setup();
     const ring = (await api().get('/api/v1/categories').set(bearer(ctx.t))).body.data.find((c) => c.name === 'Ring');
     const item = (await api().post('/api/v1/items').set(bearer(ctx.t)).send({ name: 'Plain Gold Ring', categoryId: ring.id, jewelleryType: 'plain_gold', metal: 'gold', purity: 916, wastage: { mode: 'none', value: 0 }, making: { type: 'per_gram', value: 50000 } })).body.data;
-    const lines = [
-      { description: 'Plain Gold Ring', itemId: item.id, metal: 'gold', purity: 916, quantity: 2, weightMg: 8000, amountPaise: 6000000 },
-      { description: ' plain gold  RING ', metal: 'gold', purity: 916, quantity: 1, weightMg: 4000, amountPaise: 3000000 }, // typed by hand
-      { description: 'Plain Gold Ring', metal: 'gold', purity: 750, quantity: 1 }, // same name, another purity
-      { description: 'Temple necklace', metal: 'gold', purity: 916, quantity: 1 },
-    ];
-    const order = (await api().post('/api/v1/purchases/orders').set(bearer(ctx.t)).send({ supplierId: ctx.supplier.id, branchId: ctx.ho, lines })).body.data;
-    const got = (await api().get(`/api/v1/purchases/orders/${order.id}`).set(bearer(ctx.t))).body.data;
-    expect(got.lines.map((l) => l.item?.id ?? null)).toEqual([item.id, item.id, null, null]);
-    expect(got.lines[0]).toMatchObject({ itemId: item.id, quantity: 2, weightMg: 8000, amountPaise: 6000000, item: { name: 'Plain Gold Ring', purityLabel: '22K (916)' } });
+    const place = (lines) => api().post('/api/v1/purchases/orders').set(bearer(ctx.t)).send({ supplierId: ctx.supplier.id, branchId: ctx.ho, lines });
+
+    // A line typed by hand (no item), or an item that does not exist: refused.
+    const typed = await place([{ description: 'Temple necklace', metal: 'gold', purity: 916, quantity: 1 }]);
+    expect(typed.status).toBe(400);
+    expect(typed.body.error.details[0].path).toBe('lines.0.itemId');
+    const unknown = await place([{ itemId: '64b000000000000000000000', quantity: 1 }]);
+    expect(unknown.status).toBe(400);
+    expect(unknown.body.error.details[0].path).toBe('lines.0.itemId');
+
+    // Name, metal and purity come from the item, whatever the request says.
+    const placed = await place([{ itemId: item.id, description: 'Something else', metal: 'silver', purity: 925, quantity: 2, weightMg: 8000, amountPaise: 6000000 }]);
+    expect(placed.status).toBe(201);
+    const got = (await api().get(`/api/v1/purchases/orders/${placed.body.data.id}`).set(bearer(ctx.t))).body.data;
+    expect(got.lines[0]).toMatchObject({ itemId: item.id, description: 'Plain Gold Ring', metal: 'gold', purity: 916, quantity: 2, weightMg: 8000, amountPaise: 6000000, item: { name: 'Plain Gold Ring', purityLabel: '22K (916)' } });
+
+    // An item that was switched off cannot be ordered.
+    expect((await api().patch(`/api/v1/items/${item.id}/status`).set(bearer(ctx.t)).send({ status: 'inactive' })).status).toBe(200);
+    expect((await place([{ itemId: item.id }])).status).toBe(400);
   });
 });
 

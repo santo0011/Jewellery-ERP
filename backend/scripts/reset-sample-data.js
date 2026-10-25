@@ -1,5 +1,7 @@
-// Clears the business data of every organisation in the local database and fills it again with realistic sample
-// data for every module: masters, stock, raw metal, purchases, sales, orders, old gold, HR, expenses and payments.
+// Clears the business data of every organisation in the local database and fills it again with a small, realistic
+// set of sample data for every module: masters, stock, raw metal, purchases, sales, orders, old gold, HR, expenses
+// and payments. Each list gets about five records (one per day over the last five days), enough to try every screen
+// without wading through pages of data.
 //
 // Usage: npm run seed:reset-sample -- --yes        (local MongoDB only)
 //
@@ -17,7 +19,7 @@ const { connectDb, disconnectDb } = await import('../src/config/db.js');
 const { createApp } = await import('../src/app.js');
 const { signAccessToken, createRefreshSecret } = await import('../src/modules/auth/token.service.js');
 
-const DAYS = 30;
+const DAYS = 4; // days 4 … 0: five days of activity
 
 if (!process.argv.includes('--yes')) {
   console.error('\nThis deletes all business data (customers, stock, bills, journals …) of every organisation.\nRun again with --yes to go ahead:  npm run seed:reset-sample -- --yes\n');
@@ -40,16 +42,13 @@ const CLEAR = [
 
 const RealDate = Date;
 let offsetMs = 0;
-class ShiftedDate extends RealDate {
-  constructor(...args) {
-    if (args.length === 0) super(RealDate.now() + offsetMs);
-    else super(...args);
-  }
-  static now() {
-    return RealDate.now() + offsetMs;
-  }
-}
-globalThis.Date = ShiftedDate;
+// A proxy, not a subclass: `new Date()` still makes a real Date, so dates saved in loosely typed (Mixed) fields stay
+// dates in the database (a subclass instance is stored there as a number).
+globalThis.Date = new Proxy(RealDate, {
+  construct: (target, args) => (args.length ? new target(...args) : new target(RealDate.now() + offsetMs)),
+  apply: () => new RealDate(RealDate.now() + offsetMs).toString(),
+  get: (target, prop) => (prop === 'now' ? () => RealDate.now() + offsetMs : Reflect.get(target, prop)),
+});
 /** Moves the clock to `daysAgo` days before today, at the given hour (IST). */
 const travelTo = (daysAgo, hour = 11) => {
   offsetMs = 0;
@@ -146,7 +145,22 @@ const CATALOGUE = [
   ['Silver bracelet', 'Bracelet', 'silver', 'silver', 925, 15, 30, 35, 5],
 ];
 // Designs saved as catalogue items: picked on purchases, purchase orders and when making jewellery.
-const ITEM_NAMES = ['Plain gold ring', 'Rope chain', 'Kolkata bala', 'Stud earrings', 'Om pendant', 'Nose pin', 'Mangalsutra', 'Machine bangles (pair)', 'Silver anklet (pair)', 'Silver bracelet'];
+const ITEM_NAMES = ['Plain gold ring', 'Rope chain', 'Kolkata bala', 'Stud earrings', 'Silver anklet (pair)'];
+// Opening pieces (rows of CATALOGUE): ring, bala, jhumka, choker, and a silver anklet for the second branch.
+const OPENING_PIECES = [0, 5, 7, 11, 15];
+// The sale of each day: day 3 takes old gold in exchange, day 2 is half on credit at the second branch, day 1 has two
+// pieces (one comes back as a return), day 0 is cancelled later. The fifth invoice is the delivered customer order.
+const SALES_PLAN = { 3: { exchange: true }, 2: { branch: 1, credit: 0.5 }, 1: { pieces: 2 }, 0: {} };
+const ORDERS = [
+  // [description, category, grams, estimate ₹]
+  ['22K bridal necklace set', 'Necklace', 40, 520000],
+  ['Pair of Kolkata bala', 'Bangles', 20, 260000],
+  ['Custom name pendant', 'Pendant', 4, 52000],
+  ['22K wedding ring, size 16', 'Ring', 6, 78000],
+  ['Mangalsutra with black beads', 'Mangalsutra', 12, 155000],
+];
+// What happens to each order today, oldest first.
+const ORDER_STAGES = ['delivered', 'ready', 'in_progress', 'cancelled', 'booked'];
 
 const SUPPLIERS = [
   ['Kolkata Bullion Co', ['gold'], 0],
@@ -160,11 +174,9 @@ const EMPLOYEES = [
   // [name, designation, branch index, basic ₹]
   ['Bimal Pal', 'Store manager', 0, 32000],
   ['Asha Roy', 'Sales executive', 0, 18000],
-  ['Tapas Dey', 'Sales executive', 0, 17000],
   ['Mousumi Kar', 'Cashier', 0, 16000],
   ['Ratan Shil', 'Karigar', 0, 22000],
   ['Joyita Nandi', 'Branch in-charge', 1, 26000],
-  ['Sumon Hazra', 'Sales executive', 1, 16500],
 ];
 
 const EXPENSES = [
@@ -222,11 +234,11 @@ async function seedOrganisation(owner) {
   step(`Suppliers: ${suppliers.length}`);
 
   const customers = [];
-  for (let i = 0; i < 28; i += 1) {
+  for (let i = 0; i < 5; i += 1) {
     const [city, pincode] = pick(CITIES);
     const body = { name: `${FIRST[i % FIRST.length]} ${pick(LAST)}`, mobile: mobile(), address: { line1: `${between(1, 220)}, ${pick(STREETS)}`, city, stateCode: '19', pincode } };
     if (i % 3 === 0) body.pan = pan();
-    if (i % 9 === 4) body.openingBalancePaise = rupees(between(5, 40) * 1000); // owes from before
+    if (i === 4) body.openingBalancePaise = rupees(between(5, 40) * 1000); // owes from before
     customers.push(await post('/customers', body));
   }
   const withPan = customers.filter((c) => c.pan);
@@ -248,14 +260,16 @@ async function seedOrganisation(owner) {
   step(`Catalogue items: ${Object.keys(items).length}`);
 
   // Rates and opening stock -----------------------------------------
+  // Everything before the first day happens early on day 4, before the day's work starts.
+  travelTo(DAYS, 9);
   const rates = { ...BASE_RATES };
   const postRates = () => post('/rates', { rates: Object.entries(rates).map(([k, ratePerGramPaise]) => ({ metal: k.split(':')[0], purity: Number(k.split(':')[1]), ratePerGramPaise })) });
   await postRates();
 
   const stock = { [ho]: [], [second]: [] };
-  for (let n = 0; n < 40; n += 1) {
-    const [name, category, jewelleryType, metal, purity, gMin, gMax, makingPerG, wastagePct, stone] = CATALOGUE[n % CATALOGUE.length];
-    const branchId = n % 3 === 2 ? second : ho;
+  for (const [n, row] of OPENING_PIECES.entries()) {
+    const [name, category, jewelleryType, metal, purity, gMin, gMax, makingPerG, wastagePct, stone] = CATALOGUE[row];
+    const branchId = n === OPENING_PIECES.length - 1 ? second : ho;
     const grossWeightMg = between(gMin * 1000, gMax * 1000);
     const stones = stone ? [{ type: stone, count: between(1, 12), weight: stone === 'diamond' ? between(10, 60) : between(200, 1500), weightUnit: stone === 'diamond' ? 'ct' : 'g', ratePaise: stone === 'diamond' ? rupees(between(450, 900)) : rupees(between(5, 40)) }] : [];
     const product = await post('/products', {
@@ -290,25 +304,26 @@ async function seedOrganisation(owner) {
   if (second !== ho) await post('/inventory/opening', { branchId: second, metalLines: [{ metal: 'gold', purity: 916, kind: 'old_gold', grossWeightMg: 22000, valuePaise: Math.round(22 * rates['gold:916'] * 0.92) }] });
   step(`Opening stock: ${stock[ho].length + stock[second].length} pieces, raw gold and silver (${opening.docNo})`);
 
-  // Purchase orders: one stays open, one is received later, one cancelled.
-  travelTo(DAYS);
+  // Purchase orders: three stay open, one is received on day 4, one is cancelled.
   const poLine = (item, qty, grams) => ({ description: item.name, itemId: item.id, metal: item.metal, purity: item.purity, quantity: qty, weightMg: grams * 1000 * qty, amountPaise: Math.round(grams * qty * rates[`${item.metal}:${item.purity}`] * 0.95) });
   const poOpen = await post('/purchases/orders', { supplierId: suppliers[1].id, branchId: ho, lines: [poLine(items['Kolkata bala'], 2, 16), poLine(items['Rope chain'], 3, 10)], note: 'For Durga Puja' });
-  const poReceive = await post('/purchases/orders', { supplierId: suppliers[4].id, branchId: ho, lines: [poLine(items['Stud earrings'], 4, 3), poLine(items['Nose pin'], 5, 1.5)] });
+  await post('/purchases/orders', { supplierId: suppliers[0].id, branchId: ho, lines: [poLine(items['Plain gold ring'], 4, 4)] });
+  await post('/purchases/orders', { supplierId: suppliers[1].id, branchId: ho, lines: [poLine(items['Stud earrings'], 6, 3)], note: 'Light weight designs' });
+  const poReceive = await post('/purchases/orders', { supplierId: suppliers[4].id, branchId: ho, lines: [poLine(items['Stud earrings'], 4, 3), poLine(items['Plain gold ring'], 2, 4)] });
   const poCancel = await post('/purchases/orders', { supplierId: suppliers[3].id, branchId: ho, lines: [poLine(items['Silver anklet (pair)'], 6, 40)] });
   await post(`/purchases/orders/${poCancel.id}/cancel`, { reason: 'Supplier out of stock' });
-  step(`Purchase orders: 3 (${poOpen.orderNo} open, one to receive, one cancelled)`);
+  step(`Purchase orders: 5 (${poOpen.orderNo} and two more open, one to receive, one cancelled)`);
 
-  // Branch transfers: two pieces sent and received now; one piece kept back to send on the last day.
+  // Branch transfers: one piece sent and received now; one piece kept back to send on the last day.
   let inTransitPiece = null;
   if (second !== ho) {
-    const sent = stock[ho].splice(0, 2);
+    const sent = stock[ho].splice(0, 1);
     const t1 = await attempt('transfer', () => post('/inventory/transfers', { fromBranchId: ho, toBranchId: second, productIds: sent, note: 'For the weekend rush' }));
     if (t1 && (await attempt('receive transfer', () => post(`/inventory/transfers/${t1.id}/receive`)))) stock[second].push(...sent);
     inTransitPiece = stock[ho].pop();
   }
 
-  // Day by day ---------------------------------------------------------
+  // Day by day: one of each kind of record a day ------------------------
   let sales = 0;
   let purchases = 0;
   let productions = 0;
@@ -326,8 +341,11 @@ async function seedOrganisation(owner) {
 
   for (let daysAgo = DAYS; daysAgo >= 0; daysAgo -= 1) {
     travelTo(daysAgo, 10);
-    for (const key of Object.keys(rates)) rates[key] = Math.round(rates[key] * (1 + (rand() - 0.45) * 0.012));
-    await postRates();
+    // The first day's rates were posted with the opening stock.
+    if (daysAgo < DAYS) {
+      for (const key of Object.keys(rates)) rates[key] = Math.round(rates[key] * (1 + (rand() - 0.45) * 0.012));
+      await postRates();
+    }
 
     const date = isoDaysAgo(daysAgo);
     const sunday = new RealDate(`${date}T00:00:00Z`).getUTCDay() === 0;
@@ -338,20 +356,20 @@ async function seedOrganisation(owner) {
       }
     }
 
-    // Purchases: new pieces from catalogue items, sometimes with bullion; paid in full, in part or later.
-    if (daysAgo % 5 === 1) {
-      travelTo(daysAgo, 12);
-      const receiving = daysAgo === 26;
+    // Purchase: new pieces from catalogue items, sometimes with bullion; paid in full, in part or later.
+    {
+      travelTo(daysAgo, 11);
+      const receiving = daysAgo === DAYS;
       const supplier = receiving ? suppliers[4] : pick([suppliers[0], suppliers[1], suppliers[4]]);
       const fresh = receiving
-        ? [...Array.from({ length: 4 }, () => newPiece(items['Stud earrings'])), ...Array.from({ length: 5 }, () => newPiece(items['Nose pin']))]
-        : Array.from({ length: between(2, 5) }, () => newPiece(pick(goldItems)));
-      const metalLines = !receiving && rand() < 0.4 ? [{ metal: 'gold', purity: 916, kind: 'bullion', grossWeightMg: between(20, 50) * 1000, valuePaise: 0 }] : [];
+        ? [...Array.from({ length: 4 }, () => newPiece(items['Stud earrings'])), ...Array.from({ length: 2 }, () => newPiece(items['Plain gold ring']))]
+        : Array.from({ length: between(1, 2) }, () => newPiece(pick(goldItems)));
+      const metalLines = !receiving && daysAgo % 2 === 1 ? [{ metal: 'gold', purity: 916, kind: 'bullion', grossWeightMg: between(20, 50) * 1000, valuePaise: 0 }] : [];
       for (const l of metalLines) l.valuePaise = Math.round((l.grossWeightMg / 1000) * rates['gold:916']);
       const goods = fresh.reduce((n, p) => n + p.costPaise, 0) + metalLines.reduce((n, l) => n + l.valuePaise, 0);
       const gstPaise = Math.round(goods * 0.03);
       const total = goods + gstPaise;
-      const paid = pick([0, 0.5, 1]);
+      const paid = [1, 0, 0.5, 1, 0][daysAgo];
       const bill = await attempt('purchase', () =>
         post('/purchases', {
           supplierId: supplier.id,
@@ -369,57 +387,11 @@ async function seedOrganisation(owner) {
       if (bill) purchases += 1;
     }
 
-    // Sales: one to four a day across the branches; some on credit, some with old gold in exchange.
-    const todaysSales = sunday ? between(2, 5) : between(1, 4);
-    for (let s = 0; s < todaysSales; s += 1) {
-      const branchId = pick([ho, ho, ho, second]);
-      if (stock[branchId].length < 3) continue;
-      travelTo(daysAgo, between(11, 20));
-      branchHeader = branchId;
-      const saleItems = stock[branchId].splice(0, rand() < 0.25 ? 2 : 1).map((productId) => ({ productId }));
-      let customerId = rand() < 0.85 ? pick(customers).id : undefined;
-      const exchange = customerId && rand() < 0.15 ? [{ description: pick(['Old bangle', 'Old chain', 'Broken earrings', 'Old ring']), metal: 'gold', purity: 916, grossWeightMg: between(15, 30) * 100, lessWeightMg: between(0, 2) * 100, deductionBps: 200, ratePerGramPaise: Math.round(rates['gold:916'] * 0.95) }] : undefined;
-      let quote = await attempt('quote', () => post('/sales/quote', { branchId, customerId, items: saleItems, ...(exchange && { oldGold: exchange }) }));
-      if (quote?.compliance?.panRequired) {
-        customerId = pick(withPan).id;
-        quote = await attempt('quote', () => post('/sales/quote', { branchId, customerId, items: saleItems, ...(exchange && { oldGold: exchange }) }));
-      }
-      if (!quote) continue;
-      const total = quote.payablePaise ?? quote.totals.grandTotalPaise;
-      const credit = customerId && !exchange ? pick([0, 0, 0, 0, 0, 0.5, 1]) : 0;
-      const creditPaise = Math.round(total * credit);
-      const payments = creditPaise ? [{ mode: 'credit', amountPaise: creditPaise }, ...(total - creditPaise ? [{ mode: 'upi', amountPaise: total - creditPaise }] : [])] : payable(total);
-      const sale = await attempt('sale', () => post('/sales', { branchId, customerId, items: saleItems, ...(exchange && { oldGold: exchange }), payments }));
-      if (sale) {
-        sales += 1;
-        saleLog.push({ ...sale, customerId, creditPaise, daysAgo });
-        if (exchange) oldGold += 1;
-      }
-    }
-    branchHeader = ho;
-
-    // Customer orders, every few days.
-    if (daysAgo % 4 === 2) {
-      travelTo(daysAgo, 13);
-      const [description, category, grams, estimate] = pick([['22K bridal necklace set', 'Necklace', 40, 520000], ['Pair of Kolkata bala', 'Bangles', 20, 260000], ['Custom name pendant', 'Pendant', 4, 52000], ['22K wedding ring, size 16', 'Ring', 6, 78000], ['Mangalsutra with black beads', 'Mangalsutra', 12, 155000]]);
-      const customer = pick(customers);
-      const order = await attempt('order', () =>
-        post('/orders', {
-          branchId: ho,
-          customerId: customer.id,
-          items: [{ description, categoryId: catOf(category), metal: 'gold', purity: 916, approxWeightMg: grams * 1000, estimatedPaise: rupees(estimate) }],
-          advance: { mode: pick(['cash', 'upi']), amountPaise: rupees(Math.round(estimate * 0.25)) },
-          note: pick([null, 'Customer wants it before the wedding', 'Design from the photo on WhatsApp']),
-        }),
-      );
-      if (order) orders.push({ ...order, customerId: customer.id, grams });
-    }
-
-    // Making jewellery from raw gold, once a week.
-    if (daysAgo % 7 === 3) {
-      travelTo(daysAgo, 15);
-      const item = pick([items['Plain gold ring'], items['Om pendant'], items['Stud earrings']]);
-      const pieces = Array.from({ length: between(2, 3) }, () => ({ itemId: item.id, grossWeightMg: between(25, 45) * 100, ...(huidMandatory || rand() < 0.6 ? { huid: huid() } : {}) }));
+    // Making jewellery from raw gold: one piece a day, put on the shelf for sale.
+    {
+      travelTo(daysAgo, 12);
+      const item = pick([items['Plain gold ring'], items['Stud earrings']]);
+      const pieces = [{ itemId: item.id, grossWeightMg: between(25, 45) * 100, ...(huidMandatory || rand() < 0.6 ? { huid: huid() } : {}) }];
       const used = pieces.reduce((n, p) => n + p.grossWeightMg, 0) + between(2, 6) * 100;
       const made = await attempt('production', () => post('/inventory/production', { branchId: ho, metalUsed: [{ metal: 'gold', purity: 916, kind: pick(['old_gold', 'bullion']), grossWeightMg: used }], pieces, makingPaise: rupees(between(4, 9) * 100), makingMode: 'cash', note: `Made by Ratan Shil` }));
       if (made) {
@@ -428,17 +400,64 @@ async function seedOrganisation(owner) {
       }
     }
 
-    // Old gold bought from a walk-in customer.
-    if (daysAgo % 6 === 0) {
+    // Customer order: one a day. Order bills are large: PAN is needed on them, so orders go to customers who gave it.
+    {
+      travelTo(daysAgo, 13);
+      const [description, category, grams, estimate] = ORDERS[DAYS - daysAgo];
+      const customer = withPan[(DAYS - daysAgo) % withPan.length];
+      // Every other order: the customer brings some of their own old gold towards it.
+      const ownGold = daysAgo % 2 === 0 ? [{ description: pick(['Old chain', 'Old bangles', 'Broken earrings']), metal: 'gold', purity: 916, grossWeightMg: Math.round(grams * 1000 * pick([0.4, 0.6, 0.8])), lessWeightMg: between(1, 4) * 100 }] : [];
+      const order = await attempt('order', () =>
+        post('/orders', {
+          branchId: ho,
+          customerId: customer.id,
+          items: [{ description, categoryId: catOf(category), metal: 'gold', purity: 916, approxWeightMg: grams * 1000, estimatedPaise: rupees(estimate) }],
+          advance: { mode: pick(['cash', 'upi']), amountPaise: rupees(Math.round(estimate * (ownGold.length ? 0.1 : 0.25))) },
+          customerMetal: ownGold,
+          notes: pick([null, 'Customer wants it before the wedding', 'Design from the photo on WhatsApp']),
+        }),
+      );
+      if (order) orders.push({ ...order, customerId: customer.id, grams, stage: ORDER_STAGES[DAYS - daysAgo] });
+    }
+
+    // Sale of the day (see SALES_PLAN).
+    const plan = SALES_PLAN[daysAgo];
+    const saleBranch = plan?.branch ? second : ho;
+    if (plan && stock[saleBranch].length >= (plan.pieces ?? 1)) {
+      travelTo(daysAgo, between(15, 17));
+      branchHeader = saleBranch;
+      const saleItems = stock[saleBranch].splice(0, plan.pieces ?? 1).map((productId) => ({ productId }));
+      let customerId = pick(customers).id;
+      const exchange = plan.exchange ? [{ description: pick(['Old bangle', 'Old chain', 'Broken earrings', 'Old ring']), metal: 'gold', purity: 916, grossWeightMg: between(15, 30) * 100, lessWeightMg: between(0, 2) * 100, deductionBps: 200, ratePerGramPaise: Math.round(rates['gold:916'] * 0.95) }] : undefined;
+      let quote = await attempt('quote', () => post('/sales/quote', { branchId: saleBranch, customerId, items: saleItems, ...(exchange && { oldGold: exchange }) }));
+      if (quote?.compliance?.panRequired) {
+        customerId = pick(withPan).id;
+        quote = await attempt('quote', () => post('/sales/quote', { branchId: saleBranch, customerId, items: saleItems, ...(exchange && { oldGold: exchange }) }));
+      }
+      if (quote) {
+        const total = quote.payablePaise ?? quote.totals.grandTotalPaise;
+        const creditPaise = Math.round(total * (plan.credit ?? 0));
+        const payments = creditPaise ? [{ mode: 'credit', amountPaise: creditPaise }, ...(total - creditPaise ? [{ mode: 'upi', amountPaise: total - creditPaise }] : [])] : payable(total);
+        const sale = await attempt('sale', () => post('/sales', { branchId: saleBranch, customerId, items: saleItems, ...(exchange && { oldGold: exchange }), payments }));
+        if (sale) {
+          sales += 1;
+          saleLog.push({ ...sale, customerId, creditPaise, daysAgo });
+        }
+      }
+    }
+    branchHeader = ho;
+
+    // Old gold bought from a walk-in customer (on day 3 old gold comes in as an exchange on the sale instead).
+    if (daysAgo !== 3) {
       travelTo(daysAgo, 16);
       const og = await attempt('old gold', () => post('/old-gold', { branchId: ho, customerId: pick(customers).id, lines: [{ description: pick(['Old chain', 'Old bangle', 'Broken necklace']), metal: 'gold', purity: 916, grossWeightMg: between(4, 15) * 1000, lessWeightMg: between(0, 5) * 100, deductionBps: 300, ratePerGramPaise: Math.round(rates['gold:916'] * 0.94) }], payout: { mode: pick(['cash', 'upi', 'bank']) } }));
       if (og) oldGold += 1;
     }
 
-    // Shop expenses.
-    if (daysAgo % 3 === 0) {
+    // Shop expense: a different kind each day, the rent on the last day.
+    {
       travelTo(daysAgo, 18);
-      const [cat, min, max, note] = daysAgo === 0 ? EXPENSES[5] : pick(EXPENSES.slice(0, 5));
+      const [cat, min, max, note] = daysAgo === 0 ? EXPENSES[5] : EXPENSES[DAYS - daysAgo];
       if (expenseCats[cat]) {
         const e = await attempt('expense', () => post('/expenses', { branchId: pick([ho, ho, second]), date, categoryId: expenseCats[cat], amountPaise: rupees(between(min, max)), mode: pick(['cash', 'cash', 'upi', 'bank']), note }));
         if (e) expenses += 1;
@@ -447,24 +466,28 @@ async function seedOrganisation(owner) {
   }
   step(`Metal rates: ${DAYS + 1} days`);
   step(`Purchases: ${purchases} (one received against a purchase order)`);
-  step(`Sales invoices: ${sales} (some on credit, some with old gold exchange)`);
+  step(`Sales invoices: ${sales} (one on credit, one with old gold exchange)`);
   step(`Jewellery made from raw gold: ${productions}`);
-  step(`Old gold taken: ${oldGold}`);
+  step(`Old gold bought: ${oldGold} (and one taken in exchange on a sale)`);
   step(`Expenses: ${expenses}`);
 
   // Today: settle, move orders along, returns, transfers, payroll ---------------------
-  travelTo(0, 12);
+  travelTo(0, 19);
 
-  // Orders: oldest delivered, then ready, in progress, one cancelled, the newest stay booked.
-  for (const [i, order] of orders.entries()) {
-    const stage = i < 2 ? 'delivered' : i < 4 ? 'ready' : i < 6 ? 'in_progress' : i === 6 ? 'cancelled' : 'booked';
+  // Orders, oldest first: delivered, ready, in progress (with a second advance), cancelled, booked.
+  for (const order of orders) {
+    const { stage } = order;
     await attempt(`order ${order.orderNo}`, async () => {
       if (stage === 'booked') return;
       if (stage === 'cancelled') return post(`/orders/${order.id}/cancel`, { reason: 'Customer cancelled the order', refundMode: 'cash' });
       await patch(`/orders/${order.id}/status`, { status: 'in_progress', note: 'Sent to karigar' });
-      if (i === 5) await post(`/orders/${order.id}/advances`, { mode: 'upi', amountPaise: rupees(10000), reference: `UPI-${between(100, 999)}` });
-      if (stage === 'in_progress') return;
-      const finished = await post(`/orders/${order.id}/items/0/finish`, { grossWeightMg: Math.round(order.grams * 1000 * (0.97 + rand() * 0.06)), huid: huid(), wastage: { mode: 'percent', value: 800 }, making: { type: 'per_gram', value: rupees(550) } });
+      if (stage === 'in_progress') return post(`/orders/${order.id}/advances`, { mode: 'upi', amountPaise: rupees(10000), reference: `UPI-${between(100, 999)}` });
+      // Made from the customer's gold first, the rest from the shop's bullion; a little is lost in the making.
+      const finishedMg = Math.round(order.grams * 1000 * (0.97 + rand() * 0.06));
+      const needMg = Math.round(finishedMg * 1.03);
+      const customerMg = Math.min(needMg, order.customerMetalBalance?.[0]?.leftMg ?? 0);
+      const materials = [...(customerMg ? [{ source: 'customer', metal: 'gold', purity: 916, grossWeightMg: customerMg }] : []), ...(needMg > customerMg ? [{ source: 'shop', metal: 'gold', purity: 916, kind: 'bullion', grossWeightMg: needMg - customerMg }] : [])];
+      const finished = await post(`/orders/${order.id}/items/0/finish`, { grossWeightMg: finishedMg, huid: huid(), wastage: { mode: 'percent', value: 800 }, making: { type: 'per_gram', value: rupees(550) }, materials, karigarPaise: rupees(Math.round(order.grams * 350)), karigarMode: 'cash' });
       await patch(`/orders/${order.id}/status`, { status: 'ready' });
       if (stage === 'ready') return;
       const lines = [{ productId: finished.items[0].product.id }];
@@ -473,14 +496,14 @@ async function seedOrganisation(owner) {
       await post('/sales', { branchId: ho, customerId: order.customerId, orderId: order.id, items: lines, payments: [{ mode: due > cashLimit ? 'bank' : 'upi', amountPaise: due }] });
     });
   }
-  step(`Customer orders: ${orders.length} (booked, in progress, ready, delivered and one cancelled)`);
+  step(`Customer orders: ${orders.length} (delivered, ready, in progress, cancelled and booked)`);
 
   // Collect some credit, return one piece, cancel one bill.
   const onCredit = saleLog.filter((s) => s.creditPaise > 0);
   for (const s of onCredit.slice(0, Math.ceil(onCredit.length / 2))) {
     await attempt('collect due', () => post(`/customers/${s.customerId}/payments`, { branchId: s.branch?.id ?? ho, mode: pick(['cash', 'upi']), amountPaise: Math.min(s.creditPaise, rupees(between(5, 30) * 1000)) }));
   }
-  const returnable = saleLog.find((s) => s.daysAgo > 3 && s.daysAgo < 12 && !s.creditPaise && s.items?.length);
+  const returnable = saleLog.find((s) => s.daysAgo === 1 && s.items?.length);
   if (returnable) await attempt('sales return', () => post(`/sales/${returnable.id}/returns`, { productIds: [returnable.items[0].productId], refundMode: 'cash', reason: 'Size does not fit' }));
   const cancellable = saleLog.findLast((s) => s.daysAgo === 0 && !s.creditPaise && s.id !== returnable?.id);
   if (cancellable) await attempt('sale cancel', () => post(`/sales/${cancellable.id}/cancel`, { reason: 'Wrong item billed' }));

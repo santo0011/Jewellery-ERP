@@ -317,9 +317,23 @@ export async function listMovements({ page, limit, branchId: chosen, productId, 
   if (metal) filter.metal = metal;
   if (from || to) filter.createdAt = dayRange(from, to, (await todayContext()).timezone);
 
-  const [items, total] = await Promise.all([StockMovement.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(), StockMovement.countDocuments(filter)]);
+  const [items, total, sides] = await Promise.all([
+    StockMovement.find(filter).sort({ createdAt: -1 }).skip((page - 1) * limit).limit(limit).lean(),
+    StockMovement.countDocuments(filter),
+    // Header cards: what came in and went out under the same filters (pieces count by quantity, metal by weight).
+    StockMovement.aggregate([
+      { $match: filter },
+      { $group: { _id: '$direction', count: { $sum: 1 }, pieces: { $sum: { $cond: [{ $ne: ['$productId', null] }, { $ifNull: ['$qty', 1] }, 0] } }, grossMg: { $sum: '$grossMg' }, fineMg: { $sum: '$fineMg' }, valuePaise: { $sum: { $ifNull: ['$valuePaise', 0] } } } },
+    ]),
+  ]);
   const maps = await nameMaps({ branchIds: items.map((m) => m.branchId), userIds: items.map((m) => m.createdBy), productIds: items.map((m) => m.productId) });
   const cost = canSeeCost();
+  const side = (d) => {
+    const s = sides.find((x) => x._id === d) ?? {};
+    return { count: s.count ?? 0, pieces: s.pieces ?? 0, grossMg: s.grossMg ?? 0, fineMg: s.fineMg ?? 0, ...(cost && { valuePaise: s.valuePaise ?? 0 }) };
+  };
+  const stockIn = side(1);
+  const stockOut = side(-1);
   return {
     items: items.map((m) => ({
       id: m._id,
@@ -343,6 +357,12 @@ export async function listMovements({ page, limit, branchId: chosen, productId, 
       createdBy: pick(maps.users, m.createdBy),
       createdAt: m.createdAt,
     })),
-    meta: { page, limit, total, pages: Math.max(1, Math.ceil(total / limit)) },
+    meta: {
+      page,
+      limit,
+      total,
+      pages: Math.max(1, Math.ceil(total / limit)),
+      summary: { in: stockIn, out: stockOut, netGrossMg: stockIn.grossMg - stockOut.grossMg, netFineMg: stockIn.fineMg - stockOut.fineMg, ...(cost && { netValuePaise: stockIn.valuePaise - stockOut.valuePaise }) },
+    },
   };
 }

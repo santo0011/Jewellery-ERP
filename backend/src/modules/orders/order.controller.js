@@ -31,6 +31,14 @@ export async function addAdvance(req, res) {
   sendCreated(res, await orderService.addAdvance(req.valid.params.id, req.valid.body), { message: 'Advance received' });
 }
 
+export async function addCustomerMetal(req, res) {
+  sendCreated(res, await orderService.addCustomerMetal(req.valid.params.id, req.valid.body), { message: 'Customer gold received' });
+}
+
+export async function removeCustomerMetal(req, res) {
+  sendOk(res, await orderService.removeCustomerMetal(req.valid.params.id, req.valid.params.lineId), { message: 'Customer gold given back' });
+}
+
 export async function finishItem(req, res) {
   const order = await orderService.finishOrderItem(req.valid.params.id, req.valid.params.index, req.valid.body);
   sendOk(res, order, { message: 'Finished piece tagged and added to stock' });

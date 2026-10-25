@@ -50,6 +50,23 @@ export const advanceSchema = z.object({
   reference: optionalText(60),
 });
 
+// Gold (or silver) the customer hands over for the order: weighed, purity checked, valued at that day's rate and
+// held as an advance. `lessWeightMg` is dirt, stones or solder taken off the weight.
+export const customerMetalLineSchema = z
+  .object({
+    description: optionalText(120),
+    metal: z.enum(METAL_OPTIONS.map((m) => m.value), { error: 'Select a metal' }),
+    purity: z.number({ error: 'Select the purity' }).int(),
+    grossWeightMg: z.number({ error: 'Enter the weight' }).int().min(1, 'Weight must be more than zero').max(1e8),
+    lessWeightMg: z.number().int().min(0).max(1e8).default(0),
+    // Per gram of this purity; taken from today's rates when left out.
+    ratePerGramPaise: optional(z.number().int().min(1).max(1e9)),
+  })
+  .refine((l) => PURITIES[l.metal]?.some((p) => p.fineness === l.purity), { path: ['purity'], message: 'Unknown purity for this metal' })
+  .refine((l) => l.lessWeightMg < l.grossWeightMg, { path: ['lessWeightMg'], message: 'Less weight must be below the weight' });
+
+export const orderCustomerMetalSchema = z.object({ lines: z.array(customerMetalLineSchema).min(1, 'Add the gold received').max(10) });
+
 export const orderSchema = z.object({
   branchId: objectIdSchema,
   customerId: objectIdSchema,
@@ -57,6 +74,7 @@ export const orderSchema = z.object({
   expectedDate: optional(isoDate),
   priority: z.enum(['normal', 'urgent']).default('normal'),
   advance: advanceSchema.optional(),
+  customerMetal: z.array(customerMetalLineSchema).max(10).default([]),
   notes: optionalText(1000),
 });
 
@@ -81,7 +99,24 @@ export const orderListQuerySchema = listQuerySchema.extend({
 
 export const isOpenOrder = (status) => OPEN_ORDER_STATUSES.includes(status);
 
-/** The finished piece for one order line: it becomes a tagged stock item at the order's branch, ready to bill. */
+/**
+ * Metal given to the karigar for one order piece: from the customer's own gold on this order, or from the shop's raw
+ * stock (a kind: bullion, old gold, scrap).
+ */
+const orderMaterialSchema = z
+  .object({
+    source: z.enum(['customer', 'shop']),
+    metal: z.enum(METAL_OPTIONS.map((m) => m.value)),
+    purity: z.number().int(),
+    kind: z.enum(['bullion', 'old_gold', 'scrap']).optional(),
+    grossWeightMg: z.number({ error: 'Enter the weight' }).int().min(1, 'Weight must be more than zero').max(1e8),
+  })
+  .refine((m) => m.source === 'customer' || m.kind, { path: ['kind'], message: 'Pick the stock it came from' });
+
+/**
+ * The finished piece for one order line: the metal it was made from (customer's and shop's), the karigar's charge, and
+ * the piece's real weight and bill charges. It is kept with the order (not listed in Products) until delivered.
+ */
 export const orderFinishSchema = z.object({
   name: optionalText(120),
   categoryId: optional(objectIdSchema),
@@ -90,8 +125,10 @@ export const orderFinishSchema = z.object({
   huid: optional(z.string().trim().toUpperCase().regex(/^[A-Z0-9]{6}$/, 'HUID is 6 letters or digits')),
   wastage: z.object({ mode: z.enum(['percent', 'weight', 'none']), value: z.number().int().min(0).max(1e8) }),
   making: z.object({ type: z.enum(['per_gram', 'percent', 'fixed']), value: z.number().int().min(0).max(1e12) }),
-  costPricePaise: optional(z.number().int().min(0).max(1e12)),
-});
+  materials: z.array(orderMaterialSchema).max(10).default([]),
+  karigarPaise: z.number().int().min(0).max(1e12).default(0),
+  karigarMode: z.enum(ADVANCE_PAYMENT_MODES).optional(),
+}).refine((v) => !v.karigarPaise || v.karigarMode, { path: ['karigarMode'], message: 'Choose how the karigar was paid' });
 
 export const orderItemParamsSchema = z.object({ id: objectIdSchema, index: z.coerce.number().int().min(0).max(49) });
 

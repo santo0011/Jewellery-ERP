@@ -286,3 +286,88 @@ describe('billing an order piece without picking the order', () => {
     expect(row).toMatchObject({ advancePaise: 0, duePaise: quote.totals.grandTotalPaise - 3000000, paymentStatus: 'partly_paid' });
   });
 });
+
+describe("the customer's own gold and making the order piece", () => {
+  it('takes the gold as an advance, makes the piece from customer and shop gold, keeps it out of Products, and bills it', async () => {
+    const ctx = await setup();
+    // Shop raw stock: 10 g of 22K bullion at ₹7,000/g.
+    await api().post('/api/v1/inventory/opening').set(bearer(ctx.t)).send({ branchId: ctx.ho, metalLines: [{ metal: 'gold', purity: 916, kind: 'bullion', grossWeightMg: 10000, valuePaise: 7000000 }] });
+
+    // Booked with ₹10,000 cash and 8.5 g of the customer's 22K (0.5 g less for dirt) → 8 g at today's ₹7,250/g.
+    const booked = await api()
+      .post('/api/v1/orders')
+      .set(bearer(ctx.t))
+      .send(orderBody(ctx, { advance: { mode: 'cash', amountPaise: 1000000 }, customerMetal: [{ description: 'Old bangle', metal: 'gold', purity: 916, grossWeightMg: 8500, lessWeightMg: 500 }] }));
+    expect(booked.status).toBe(201);
+    const order = booked.body.data;
+    expect(order.customerMetal[0]).toMatchObject({ netWeightMg: 8000, ratePerGramPaise: 725000, valuePaise: 5800000 });
+    expect(order.advancePaise).toBe(1000000 + 5800000);
+    expect(order.customerMetalBalance).toEqual([expect.objectContaining({ metal: 'gold', purity: 916, receivedMg: 8000, leftMg: 8000 })]);
+    const pools = (await api().get('/api/v1/inventory/summary').set(bearer(ctx.t))).body.data.metalPools;
+    expect(pools.find((p) => p.kind === 'customer_gold')).toMatchObject({ grossMg: 8000, valuePaise: 5800000 });
+
+    // Customer's gold cannot be picked by hand on a general production or purchase.
+    const misuse = await api().post('/api/v1/inventory/production').set(bearer(ctx.t)).send({ branchId: ctx.ho, metalUsed: [{ metal: 'gold', purity: 916, kind: 'customer_gold', grossWeightMg: 1000 }], pieces: [] });
+    expect(misuse.status).toBe(400);
+
+    // More than the customer gave is refused.
+    const finish = (body) => api().post(`/api/v1/orders/${order.id}/items/0/finish`).set(bearer(ctx.t)).send({ huid: 'ORD123', wastage: { mode: 'percent', value: 800 }, making: { type: 'per_gram', value: 50000 }, ...body });
+    expect((await finish({ grossWeightMg: 10000, materials: [{ source: 'customer', metal: 'gold', purity: 916, grossWeightMg: 9000 }] })).status).toBe(400);
+
+    // Made from all 8 g of the customer's gold + 2.4 g of shop bullion, ₹1,500 karigar in cash; the ring weighs 10 g.
+    const made = await finish({ grossWeightMg: 10000, materials: [{ source: 'customer', metal: 'gold', purity: 916, grossWeightMg: 8000 }, { source: 'shop', metal: 'gold', purity: 916, kind: 'bullion', grossWeightMg: 2400 }], karigarPaise: 150000, karigarMode: 'cash' });
+    expect(made.status).toBe(200);
+    const done = made.body.data;
+    const piece = done.items[0].product;
+    expect(piece.status).toBe('in_stock');
+    // Cost = customer gold as credited (₹58,000) + shop bullion at ₹7,000/g (₹16,800) + karigar ₹1,500.
+    expect(done.items[0].make).toMatchObject({ metalCostPaise: 5800000 + 1680000, karigarPaise: 150000, costPaise: 7630000, finishedGrossMg: 10000 });
+    // 10.4 g of 22K given; 10 g in the piece: 0.4 g of 22K lost → its fine weight is the wastage.
+    expect(done.material).toMatchObject({ customerFineMg: 7328, shopFineMg: 2198, finishedFineMg: 9160 });
+    expect(done.material.wastageFineMg).toBe(7328 + 2198 - 9160);
+    expect(done.customerMetalBalance[0]).toMatchObject({ usedMg: 8000, leftMg: 0 });
+
+    // Not listed in Products; still found by its own id for the order.
+    const products = (await api().get('/api/v1/products').set(bearer(ctx.t))).body.data;
+    expect(products.find((p) => p.id === piece.id)).toBeUndefined();
+    // Karigar's charge: stock against cash. Nothing goes to opening equity.
+    const lines = (await ledger(ctx, 'order')).flat();
+    expect(lines.some(([key]) => key === 'opening_equity')).toBe(false);
+    expect(lines).toEqual(expect.arrayContaining([['inventory', 150000, 0], ['cash', 0, 150000]]));
+
+    // Billed on the order: both advances (cash and gold value) come off.
+    const quote = (await api().post('/api/v1/sales/quote').set(bearer(ctx.t)).send({ branchId: ctx.ho, orderId: order.id, items: [{ productId: piece.id }] })).body.data;
+    const due = quote.totals.grandTotalPaise - 6800000;
+    const sale = await api().post('/api/v1/sales').set(bearer(ctx.t)).send({ branchId: ctx.ho, orderId: order.id, items: [{ productId: piece.id }], payments: [{ mode: 'upi', amountPaise: due }] });
+    expect(sale.status).toBe(201);
+    expect((await api().get(`/api/v1/orders/${order.id}`).set(bearer(ctx.t))).body.data.status).toBe('delivered');
+  });
+
+  it('gives unused customer gold back on cancel and refunds the rest; a wrong entry can be removed', async () => {
+    const ctx = await setup();
+    const order = (
+      await api()
+        .post('/api/v1/orders')
+        .set(bearer(ctx.t))
+        .send(orderBody(ctx, { advance: { mode: 'cash', amountPaise: 500000 }, customerMetal: [{ metal: 'gold', purity: 916, grossWeightMg: 4000 }] }))
+    ).body.data;
+    const added = (await api().post(`/api/v1/orders/${order.id}/customer-metal`).set(bearer(ctx.t)).send({ lines: [{ metal: 'gold', purity: 916, grossWeightMg: 2000, ratePerGramPaise: 700000 }] })).body.data;
+    expect(added.advancePaise).toBe(500000 + 2900000 + 1400000);
+
+    // The second entry was a mistake: removed, its gold and value go back.
+    const wrong = added.customerMetal[1];
+    const removed = (await api().delete(`/api/v1/orders/${order.id}/customer-metal/${wrong.id}`).set(bearer(ctx.t))).body.data;
+    expect(removed.advancePaise).toBe(500000 + 2900000);
+    expect(removed.customerMetalBalance[0]).toMatchObject({ receivedMg: 4000, leftMg: 4000 });
+
+    // Cancelled: the 4 g go back as gold, the ₹5,000 cash is refunded.
+    const cancelled = await api().post(`/api/v1/orders/${order.id}/cancel`).set(bearer(ctx.t)).send({ reason: 'Customer changed mind', refundMode: 'cash' });
+    expect(cancelled.status).toBe(200);
+    expect(cancelled.body.data).toMatchObject({ status: 'cancelled', advancePaise: 0 });
+    expect(cancelled.body.data.customerMetalBalance[0]).toMatchObject({ returnedMg: 4000, leftMg: 0 });
+    const pools = (await api().get('/api/v1/inventory/summary').set(bearer(ctx.t))).body.data.metalPools;
+    expect(pools.find((p) => p.kind === 'customer_gold')?.grossMg ?? 0).toBe(0);
+    // Every order journal balances.
+    for (const entry of await ledger(ctx, 'order')) expect(entry.reduce((n, [, d, c]) => n + d - c, 0)).toBe(0);
+  });
+});

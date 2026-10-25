@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ADJUSTMENT_REASONS, METAL_OPTIONS, METAL_POOL_KINDS, PURITIES } from '../enums.js';
+import { ADJUSTMENT_REASONS, METAL_OPTIONS, SELECTABLE_METAL_POOL_KINDS, PURITIES } from '../enums.js';
 import { listQuerySchema, objectIdSchema, optionalText } from './common.js';
 
 const values = (list) => list.map((o) => o.value);
@@ -36,7 +36,7 @@ const metalLineSchema = z
   .object({
     metal: z.enum(values(METAL_OPTIONS)),
     purity: z.number().int(),
-    kind: z.enum(values(METAL_POOL_KINDS)),
+    kind: z.enum(values(SELECTABLE_METAL_POOL_KINDS)),
     direction: z.enum(['in', 'out']).default('in'),
     grossWeightMg: mg('Weight'),
     valuePaise: paise.default(0),

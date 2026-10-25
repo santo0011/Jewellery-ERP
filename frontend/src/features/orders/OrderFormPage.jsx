@@ -21,7 +21,9 @@ import { useSession } from '../../hooks/usePermission.js';
 import { tokens } from '../../theme/tokens.js';
 import { applyServerErrors, getErrorMessage } from '../../utils/errors.js';
 import { useCategoriesQuery } from '../categories/categoryApi.js';
+import { useCurrentRatesQuery } from '../rates/rateApi.js';
 import { ErrorState, LoadingState } from '../../components/StateViews.jsx';
+import CustomerGoldEditor, { goldLinesToPayload, goldLinesValue } from './CustomerGoldEditor.jsx';
 import { useAddOrderImageMutation, useCreateOrderMutation, useEstimateOrderMutation, useOrderQuery, useUpdateOrderMutation } from './orderApi.js';
 import { ADVANCE_MODE_OPTIONS } from './orderUi.jsx';
 import { t } from '../../i18n/index.js';
@@ -430,6 +432,10 @@ export default function OrderFormPage() {
   const [estimates, setEstimates] = useState([]);
   const [photos, setPhotos] = useState([]);
   const [saving, setSaving] = useState(false);
+  // The customer's own gold handed over now (valued at today's rate, counted in the advance).
+  const [goldLines, setGoldLines] = useState([]);
+  const [goldErrors, setGoldErrors] = useState({});
+  const { data: rates } = useCurrentRatesQuery();
 
   const { control, handleSubmit, setError, setValue, getValues, getFieldState, trigger, reset, watch } = useForm({
     resolver: zodResolver(formSchema),
@@ -467,7 +473,8 @@ export default function OrderFormPage() {
   const advanceAmount = useWatch({ control, name: 'advanceAmount' });
 
   const estimate = items.reduce((s, i) => s + safe(() => paiseOf(i.estimate), 0) * (Number(i.quantity) || 0), 0);
-  const advance = editing ? (editOrder?.advancePaise ?? 0) : safe(() => paiseOf(advanceAmount), 0);
+  const goldValue = editing ? 0 : goldLinesValue(goldLines, rates);
+  const advance = editing ? (editOrder?.advancePaise ?? 0) : safe(() => paiseOf(advanceAmount), 0) + goldValue;
 
   const calculate = async () => {
     // Show what is missing on the form (same messages as booking) before asking for prices.
@@ -520,6 +527,10 @@ export default function OrderFormPage() {
       items: v.items.map((i) => ({ ...toApiItem(i), description: i.description, estimatedPaise: paiseOf(i.estimate), huid: i.metal === 'gold' && i.huid ? i.huid : null, notes: i.notes || null })),
       ...(paiseOf(v.advanceAmount) > 0 && { advance: { mode: v.advanceMode, amountPaise: paiseOf(v.advanceAmount), reference: v.advanceReference || null } }),
     };
+    const gold = goldLinesToPayload(goldLines);
+    setGoldErrors(gold.errors);
+    if (Object.keys(gold.errors).length) return toast.error(t('Check the customer gold'));
+    if (gold.payload.length) payload.customerMetal = gold.payload;
     setSaving(true);
     try {
       const order = await createOrder(payload).unwrap();
@@ -650,6 +661,15 @@ export default function OrderFormPage() {
                     <RHFTextField control={control} name="advanceAmount" label={t('Advance received (₹)')} placeholder="0" slotProps={{ htmlInput: { inputMode: 'decimal' } }} />
                     <RHFSelect control={control} name="advanceMode" label={t('Paid by')} options={ADVANCE_MODE_OPTIONS} />
                     <RHFTextField control={control} name="advanceReference" label={t('Reference')} placeholder={t('UPI / card ref. (optional)')} />
+                    <Box>
+                      <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
+                        {t('Customer’s own gold (optional)')}
+                      </Typography>
+                      <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mb: 1 }}>
+                        {t('Gold the customer gives for this order. Valued at today’s rate and counted in the advance.')}
+                      </Typography>
+                      <CustomerGoldEditor lines={goldLines} onChange={setGoldLines} errors={goldErrors} />
+                    </Box>
                   </>
                 )}
                 <RHFTextField control={control} name="notes" label={t('Order notes')} multiline minRows={2} />

@@ -1,7 +1,7 @@
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import { Autocomplete, Box, Button, Grid, IconButton, InputAdornment, MenuItem, Stack, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
-import { decimalToScaledInt, formatINR, formatWeight, METAL_OPTIONS, PURITIES, toPaise } from '@jerp/shared';
+import { decimalToScaledInt, formatINR, formatWeight, METAL_OPTIONS, toPaise } from '@jerp/shared';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { useSelector } from 'react-redux';
@@ -26,7 +26,9 @@ import CurrencyRupeeOutlinedIcon from '@mui/icons-material/CurrencyRupeeOutlined
 import { useDeleteStatus } from '../../services/recordApi.js';
 import { t } from '../../i18n/index.js';
 
-const blankLine = () => ({ description: '', itemId: null, metal: 'gold', purity: 916, quantity: '1', weight: '', amount: '' });
+// A line is a saved item (picked, never typed) with how many, roughly how heavy and roughly how much.
+const blankLine = () => ({ item: null, quantity: '1', weight: '', amount: '' });
+const metalLabel = (m) => METAL_OPTIONS.find((o) => o.value === m)?.label ?? m;
 const toMg = (v) => {
   try {
     return v ? (decimalToScaledInt(v, 3) ?? 0) : 0;
@@ -61,13 +63,13 @@ function NewOrderDrawer({ open, onClose }) {
   const submit = async (e) => {
     e?.preventDefault?.();
     setTried(true);
-    if (!supplier || lines.some((l) => l.description.trim().length < 2 || toMg(l.weight) === null || toP(l.amount) === null)) return;
+    if (!supplier || lines.some((l) => !l.item || toMg(l.weight) === null || toP(l.amount) === null)) return;
     try {
       const order = await create({
         supplierId: supplier.id,
         branchId,
         ...(expectedDate && { expectedDate }),
-        lines: lines.map((l) => ({ description: l.description.trim(), ...(l.itemId && { itemId: l.itemId }), metal: l.metal, purity: Number(l.purity), quantity: Math.max(1, Number(l.quantity) || 1), weightMg: toMg(l.weight), amountPaise: toP(l.amount) })),
+        lines: lines.map((l) => ({ itemId: l.item.id, quantity:Math.max(1, Number(l.quantity) || 1), weightMg: toMg(l.weight), amountPaise: toP(l.amount) })),
         note: note.trim() || null,
       }).unwrap();
       toast.success(t('Order {{orderNo}} placed with {{name}}', { orderNo: order.orderNo, name: order.supplier.name }));
@@ -108,48 +110,18 @@ function NewOrderDrawer({ open, onClose }) {
         </Grid>
 
         <Typography variant="subtitle2">{t('Items')}</Typography>
-        <ItemPicker
-          size="small"
-          label={t('Add from saved items')}
-          helperText={t('Pick a saved item to fill its name, metal and purity — or type the line yourself below.')}
-          onPick={(item) =>
-            setLines((ls) => {
-              const line = { ...blankLine(), description: item.name, itemId: item.id, metal: item.metal, purity: item.purity };
-              // Fill the first empty line, otherwise add one.
-              const empty = ls.findIndex((l) => !l.description.trim());
-              return empty >= 0 ? ls.map((l, j) => (j === empty ? line : l)) : [...ls, line];
-            })
-          }
-        />
         {lines.map((l, i) => (
           <Box key={i} sx={{ p: 1.5, border: 1, borderColor: 'divider', borderRadius: 2 }}>
             <Grid container spacing={1.5}>
+              {/* Only a saved item can be chosen (search, or add a new saved item); its metal and purity come with it. */}
               <Grid size={{ xs: 12, sm: 7 }}>
-                <TextField size="small" label={t('Item')} placeholder={t('e.g. 22K bangles, 2 pairs')} value={l.description} onChange={(e) => set(i, { description: e.target.value, itemId: null })} error={tried && l.description.trim().length < 2} />
+                <ItemPicker size="small" label={t('Item')} value={l.item} onPick={(item) => set(i, { item })} error={tried && !l.item} helperText={tried && !l.item ? t('Pick an item from the list') : ' '} />
               </Grid>
               <Grid size={{ xs: 6, sm: 2.5 }}>
-                <TextField
-                  size="small"
-                  select
-                  label={t('Metal')}
-                  value={l.metal}
-                  onChange={(e) => set(i, { metal: e.target.value, purity: PURITIES[e.target.value]?.[0]?.fineness ?? 0, itemId: null })}
-                >
-                  {METAL_OPTIONS.map((m) => (
-                    <MenuItem key={m.value} value={m.value}>
-                      {m.label}
-                    </MenuItem>
-                  ))}
-                </TextField>
+                <TextField size="small" label={t('Metal')} value={l.item ? metalLabel(l.item.metal) : '—'} slotProps={{ input: { readOnly: true } }} />
               </Grid>
               <Grid size={{ xs: 6, sm: 2.5 }}>
-                <TextField size="small" select label={t('Purity')} value={l.purity} onChange={(e) => set(i, { purity: e.target.value, itemId: null })}>
-                  {(PURITIES[l.metal] ?? []).map((p) => (
-                    <MenuItem key={p.fineness} value={p.fineness}>
-                      {p.label}
-                    </MenuItem>
-                  ))}
-                </TextField>
+                <TextField size="small" label={t('Purity')} value={l.item?.purityLabel ?? '—'} slotProps={{ input: { readOnly: true } }} />
               </Grid>
               <Grid size={{ xs: 4, sm: 2 }}>
                 <TextField size="small" label={t('Qty')} value={l.quantity} onChange={(e) => set(i, { quantity: e.target.value.replace(/\D/g, '') })} />

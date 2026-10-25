@@ -48,6 +48,9 @@ const productSchema = new mongoose.Schema(
     branchId: { type: ObjectId, ref: 'Branch', required: true },
     description: { type: String, default: null },
     tags: { type: [String], default: [] },
+    // Made for a customer's order: kept with that order (not listed in Products) until delivered. Cleared if the
+    // order is cancelled or the piece comes back, so it becomes ordinary stock.
+    orderId: { type: ObjectId, ref: 'Order', default: null },
     images: { type: [{ _id: false, fileId: { type: ObjectId, ref: 'FileAsset' } }], default: [] },
     status: { type: String, enum: Object.values(PRODUCT_STATUS), default: PRODUCT_STATUS.DRAFT },
     isDeleted: { type: Boolean, default: false },

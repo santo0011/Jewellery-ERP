@@ -1,10 +1,12 @@
-import { OPEN_ORDER_STATUSES, ORDER_STATUS, stoneWeightToMg } from '@jerp/shared';
+import { fineWeightMg, OPEN_ORDER_STATUSES, ORDER_STATUS, stoneWeightToMg } from '@jerp/shared';
 import { productSchema } from '@jerp/shared/schemas';
 import { withTransaction } from '../../config/db.js';
 import { AUDIT_ACTIONS, recordAudit } from '../../core/audit/audit.service.js';
 import { requireContext } from '../../core/context/requestContext.js';
 import { PAYMENT_ACCOUNT } from '../../core/ledger/paymentAccounts.js';
 import { priceLine } from '../../core/pricing/pricingEngine.js';
+import { MetalStock } from '../../core/stock/metalStock.model.js';
+import { moveMetal, moveProducts } from '../../core/stock/stockLedger.service.js';
 import { FileAsset } from '../../core/storage/fileAsset.model.js';
 import { detectImageType, storage } from '../../core/storage/storage.service.js';
 import { randomToken } from '../../utils/crypto.js';
@@ -15,10 +17,9 @@ import { todayContext } from '../../utils/businessDate.js';
 import { searchFilter } from '../../utils/pagination.js';
 import { Category } from '../categories/category.model.js';
 import { Customer } from '../customers/customer.model.js';
-import { accessibleBranchFilter, nameMaps, oid, pick, requireBranch, viewBranchFor } from '../inventory/inventory.helpers.js';
-import { createOpeningStock } from '../inventory/inventory.service.js';
+import { accessibleBranchFilter, canSeeCost, nameMaps, oid, pick, requireBranch, viewBranchFor } from '../inventory/inventory.helpers.js';
 import { Product } from '../products/product.model.js';
-import { createProduct } from '../products/product.service.js';
+import { insertPieces, preparePieces } from '../products/product.service.js';
 import { getApplicableRate } from '../rates/rate.service.js';
 import { getSettings } from '../settings/settings.service.js';
 import { Sale, billDue } from '../sales/sale.model.js';
@@ -56,6 +57,149 @@ async function receipt(order, branchCode, payment, today, session) {
   return entry;
 }
 
+// ---------------------------------------------------------------- the customer's own gold
+
+const CUSTOMER_GOLD = 'customer_gold';
+const metalKey = (l) => `${l.metal}|${l.purity}`;
+const grams = (mg) => (mg / 1000).toFixed(3);
+
+/**
+ * The customer's gold on this order, by metal and purity: what was received (and not given back), what has gone into
+ * pieces, and what is left — with its value (as credited to the customer) shared out by weight.
+ */
+export function customerGoldBalance(order) {
+  const by = new Map();
+  const row = (l) => {
+    const key = metalKey(l);
+    if (!by.has(key)) by.set(key, { metal: l.metal, purity: l.purity, receivedMg: 0, receivedPaise: 0, usedMg: 0, usedPaise: 0 });
+    return by.get(key);
+  };
+  for (const l of order.customerMetal ?? []) {
+    if (l.returnedAt) continue;
+    const r = row(l);
+    r.receivedMg += l.netWeightMg;
+    r.receivedPaise += l.valuePaise;
+  }
+  for (const item of order.items) {
+    for (const m of item.make?.materials ?? []) {
+      if (m.source !== 'customer') continue;
+      const r = row(m);
+      r.usedMg += m.grossWeightMg;
+      r.usedPaise += m.valuePaise;
+    }
+  }
+  // Given back when the order was cancelled.
+  for (const g of order.customerMetalReturned ?? []) {
+    const r = row(g);
+    r.returnedMg = (r.returnedMg ?? 0) + g.netWeightMg;
+    r.returnedPaise = (r.returnedPaise ?? 0) + g.valuePaise;
+  }
+  return [...by.values()].map((r) => ({ ...r, returnedMg: r.returnedMg ?? 0, leftMg: r.receivedMg - r.usedMg - (r.returnedMg ?? 0), leftPaise: r.receivedPaise - r.usedPaise - (r.returnedPaise ?? 0) }));
+}
+
+/**
+ * Takes the customer's gold in: it goes into the branch's raw stock as "customer gold", valued at the day's rate, and
+ * that value is held for the customer as an advance (so the delivery bill deducts it, like a cash advance).
+ */
+async function receiveCustomerMetal(order, branchCode, lines, today, session) {
+  const { userId } = requireContext();
+  for (const [i, l] of lines.entries()) {
+    const rate = l.ratePerGramPaise ?? (await getApplicableRate(l.metal, l.purity, today.now, { session }))?.ratePerGramPaise;
+    if (!rate) throw ApiError.badRequest(`No ${l.metal} ${l.purity} rate for today. Enter the rate per gram.`, [{ path: `customerMetal.${i}.ratePerGramPaise`, message: 'Enter the rate' }], 'VALIDATION_ERROR');
+    const netWeightMg = l.grossWeightMg - (l.lessWeightMg ?? 0);
+    const valuePaise = Math.round((netWeightMg * rate) / 1000);
+    const receiptNo = await nextDocumentNo({ prefix: 'RCPT', branchCode, financialYear: today.financialYear }, { session });
+    const source = { docType: 'order', docId: order._id, docNo: receiptNo };
+    const why = `${order.customer.name}'s ${l.metal} for order ${order.orderNo}`;
+    await moveMetal({ type: 'order_metal_in', branchId: order.branchId, line: { metal: l.metal, purity: l.purity, kind: CUSTOMER_GOLD, grossWeightMg: netWeightMg, valuePaise, direction: 'in' }, source, businessDate: today.businessDate, note: why }, { session });
+    await postJournal(
+      {
+        voucherType: 'order_advance',
+        date: today.now,
+        businessDate: today.businessDate,
+        financialYear: today.financialYear,
+        narration: `Received ${why} (${grams(netWeightMg)} g)`,
+        source,
+        lines: [
+          { account: 'inventory', debit: valuePaise, branchId: order.branchId },
+          { account: 'customer_advances', credit: valuePaise, branchId: order.branchId, party: { type: 'customer', id: order.customerId } },
+        ],
+      },
+      { session },
+    );
+    order.customerMetal.push({ receiptNo, description: l.description ?? null, metal: l.metal, purity: l.purity, grossWeightMg: l.grossWeightMg, lessWeightMg: l.lessWeightMg ?? 0, netWeightMg, fineWeightMg: fineWeightMg(netWeightMg, l.purity), ratePerGramPaise: rate, valuePaise, at: today.now, by: userId });
+    order.advances.push({ receiptNo, mode: 'gold', amountPaise: valuePaise, reference: `${grams(netWeightMg)} g ${l.metal} ${l.purity}`, at: today.now, by: userId });
+    order.advancePaise += valuePaise;
+  }
+}
+
+/** Gives customer gold back: out of the raw stock, its value off the advance. */
+async function returnCustomerMetal(order, { metal, purity, netWeightMg, valuePaise }, reason, branchCode, today, session) {
+  const { userId } = requireContext();
+  const receiptNo = await nextDocumentNo({ prefix: 'RCPT', branchCode, financialYear: today.financialYear }, { session });
+  const source = { docType: 'order', docId: order._id, docNo: receiptNo };
+  try {
+    await moveMetal({ type: 'order_metal_return', branchId: order.branchId, line: { metal, purity, kind: CUSTOMER_GOLD, grossWeightMg: netWeightMg, valuePaise, direction: 'out' }, source, businessDate: today.businessDate, note: reason }, { session });
+  } catch (err) {
+    if (err.code !== 'INSUFFICIENT_STOCK') throw err;
+    throw ApiError.conflict(`The customer's ${metal} on ${order.orderNo} is no longer in stock`, 'CUSTOMER_GOLD_USED');
+  }
+  await postJournal(
+    {
+      voucherType: 'order_refund',
+      date: today.now,
+      businessDate: today.businessDate,
+      financialYear: today.financialYear,
+      narration: `${order.customer.name}'s ${metal} given back (${grams(netWeightMg)} g) — order ${order.orderNo}`,
+      source,
+      lines: [
+        { account: 'customer_advances', debit: valuePaise, branchId: order.branchId, party: { type: 'customer', id: order.customerId } },
+        { account: 'inventory', credit: valuePaise, branchId: order.branchId },
+      ],
+    },
+    { session },
+  );
+  order.advances.push({ receiptNo, mode: 'gold', amountPaise: -valuePaise, reference: `${grams(netWeightMg)} g ${metal} ${purity} given back`, at: today.now, by: userId });
+  order.advancePaise -= valuePaise;
+}
+
+/** More of the customer's gold received after booking. */
+export async function addCustomerMetal(id, { lines }) {
+  const order = await findOrder(id);
+  assertOpen(order);
+  const branch = await requireBranch(order.branchId, { active: false });
+  const today = await todayContext();
+  await withTransaction(async (session) => {
+    const fresh = await findOrder(id, session);
+    assertOpen(fresh);
+    await receiveCustomerMetal(fresh, branch.code, lines, today, session);
+    await fresh.save({ session });
+    await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'order', recordType: 'Order', recordId: fresh._id, meta: { name: fresh.orderNo, customerGold: lines.length } }, { session });
+  });
+  return getOrder(id);
+}
+
+/** A customer gold entry made by mistake: given back, as long as that much of it has not gone into a piece. */
+export async function removeCustomerMetal(id, lineId) {
+  const order = await findOrder(id);
+  assertOpen(order);
+  const branch = await requireBranch(order.branchId, { active: false });
+  const today = await todayContext();
+  await withTransaction(async (session) => {
+    const fresh = await findOrder(id, session);
+    assertOpen(fresh);
+    const line = fresh.customerMetal.id(lineId);
+    if (!line || line.returnedAt) throw ApiError.notFound('Customer gold entry');
+    const left = customerGoldBalance(fresh).find((r) => r.metal === line.metal && r.purity === line.purity);
+    if (!left || left.leftMg < line.netWeightMg) throw ApiError.conflict('Part of this gold is already in a finished piece, so it cannot be removed', 'CUSTOMER_GOLD_USED');
+    await returnCustomerMetal(fresh, line, `Entry ${line.receiptNo} removed`, branch.code, today, session);
+    line.returnedAt = today.now;
+    await fresh.save({ session });
+    await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'order', recordType: 'Order', recordId: fresh._id, meta: { name: fresh.orderNo, customerGoldRemoved: line.receiptNo } }, { session });
+  });
+  return getOrder(id);
+}
+
 async function findOrder(id, session) {
   const order = await Order.findOne({ _id: id, ...accessibleBranchFilter() }).session(session ?? null);
   if (!order) throw ApiError.notFound('Order');
@@ -66,7 +210,7 @@ const assertOpen = (order) => {
   if (!OPEN_ORDER_STATUSES.includes(order.status)) throw ApiError.conflict(`Order ${order.orderNo} is ${order.status}`, 'INVALID_STATE');
 };
 
-export async function createOrder({ branchId, customerId, items, expectedDate, priority, advance, notes }) {
+export async function createOrder({ branchId, customerId, items, expectedDate, priority, advance, customerMetal = [], notes }) {
   const { userId } = requireContext();
   const branch = await requireBranch(branchId);
   const customer = await Customer.findOne({ _id: customerId, isDeleted: false }).lean();
@@ -106,9 +250,10 @@ export async function createOrder({ branchId, customerId, items, expectedDate, p
     if (advance) {
       doc.advances.push(await receipt(doc, branch.code, advance, today, session));
       doc.advancePaise = advance.amountPaise;
-      await doc.save({ session });
     }
-    await recordAudit({ action: AUDIT_ACTIONS.CREATE, module: 'order', recordType: 'Order', recordId: doc._id, meta: { name: orderNo, customer: customer.name, advance: doc.advancePaise } }, { session });
+    if (customerMetal.length) await receiveCustomerMetal(doc, branch.code, customerMetal, today, session);
+    if (advance || customerMetal.length) await doc.save({ session });
+    await recordAudit({ action: AUDIT_ACTIONS.CREATE, module: 'order', recordType: 'Order', recordId: doc._id, meta: { name: orderNo, customer: customer.name, advance: doc.advancePaise, customerGold: customerMetal.length } }, { session });
     return doc;
   });
   return getOrder(order._id);
@@ -185,7 +330,9 @@ export async function cancelOrder(id, { reason, refundMode }) {
   const { userId } = requireContext();
   const order = await findOrder(id);
   assertOpen(order);
-  if (order.advancePaise > 0 && !refundMode) {
+  // The customer's gold not yet in a piece goes back as gold; the rest of the advance is refunded in money.
+  const goldBack = customerGoldBalance(order).filter((r) => r.leftMg > 0);
+  if (order.advancePaise - goldBack.reduce((n, r) => n + r.leftPaise, 0) > 0 && !refundMode) {
     throw ApiError.badRequest('Choose how the advance is refunded', [{ path: 'refundMode', message: 'Select a refund mode' }], 'VALIDATION_ERROR');
   }
   const branch = await requireBranch(order.branchId, { active: false });
@@ -193,6 +340,12 @@ export async function cancelOrder(id, { reason, refundMode }) {
   await withTransaction(async (session) => {
     const fresh = await findOrder(id, session);
     assertOpen(fresh);
+    for (const r of customerGoldBalance(fresh).filter((x) => x.leftMg > 0)) {
+      await returnCustomerMetal(fresh, { metal: r.metal, purity: r.purity, netWeightMg: r.leftMg, valuePaise: r.leftPaise }, `Order ${fresh.orderNo} cancelled`, branch.code, today, session);
+      fresh.customerMetalReturned.push({ metal: r.metal, purity: r.purity, netWeightMg: r.leftMg, valuePaise: r.leftPaise, at: today.now });
+    }
+    // Pieces already made for it are the shop's to sell now.
+    await Product.updateMany({ orderId: fresh._id }, { $set: { orderId: null } }, { session });
     if (fresh.advancePaise > 0) {
       fresh.advances.push(await receipt(fresh, branch.code, { mode: refundMode, amountPaise: -fresh.advancePaise, reference: 'Refund on cancellation' }, today, session));
       fresh.advancePaise = 0;
@@ -272,6 +425,20 @@ export async function getOrder(id) {
   const categoryName = new Map(categories.map((c) => [String(c._id), c.name]));
   const productById = new Map(products.map((p) => [String(p._id), { id: p._id, sku: p.sku, status: p.status, grossWeightMg: p.grossWeightMg, huid: p.huid }]));
   const { businessDate } = await todayContext();
+  const cost = canSeeCost();
+  const made = o.items.map((i) => i.make).filter(Boolean);
+  const sumOf = (list, fn) => list.reduce((n, x) => n + (fn(x) ?? 0), 0);
+  const fineFrom = (source) => sumOf(made, (m) => sumOf(m.materials.filter((x) => x.source === source), (x) => x.fineWeightMg));
+  const makeView = (m) =>
+    m && {
+      materials: m.materials.map((x) => ({ source: x.source, metal: x.metal, purity: x.purity, kind: x.kind, grossWeightMg: x.grossWeightMg, fineWeightMg: x.fineWeightMg, ...(cost && { valuePaise: x.valuePaise }) })),
+      finishedGrossMg: m.finishedGrossMg,
+      finishedFineMg: m.finishedFineMg,
+      wastageFineMg: m.wastageFineMg,
+      karigarMode: m.karigarMode,
+      ...(cost && { metalCostPaise: m.metalCostPaise, karigarPaise: m.karigarPaise, costPaise: m.costPaise }),
+      at: m.at,
+    };
   return {
     id: o._id,
     orderNo: o.orderNo,
@@ -280,7 +447,21 @@ export async function getOrder(id) {
     businessDate: o.businessDate,
     branch: pick(maps.branches, o.branchId),
     customer: o.customer,
-    items: o.items.map((i) => ({ ...i, categoryName: i.categoryId ? (categoryName.get(String(i.categoryId)) ?? null) : null, product: i.productId ? (productById.get(String(i.productId)) ?? null) : null })),
+    items: o.items.map((i) => ({ ...i, make: makeView(i.make), categoryName: i.categoryId ? (categoryName.get(String(i.categoryId)) ?? null) : null, product: i.productId ? (productById.get(String(i.productId)) ?? null) : null })),
+    // The customer's own gold: each entry as received, and by purity what is left to use.
+    customerMetal: (o.customerMetal ?? []).map((l) => ({ id: l._id, receiptNo: l.receiptNo, description: l.description, metal: l.metal, purity: l.purity, grossWeightMg: l.grossWeightMg, lessWeightMg: l.lessWeightMg, netWeightMg: l.netWeightMg, fineWeightMg: l.fineWeightMg, ratePerGramPaise: l.ratePerGramPaise, valuePaise: l.valuePaise, returnedAt: l.returnedAt, at: l.at })),
+    customerMetalBalance: customerGoldBalance(o).map((r) => ({ metal: r.metal, purity: r.purity, receivedMg: r.receivedMg, usedMg: r.usedMg, returnedMg: r.returnedMg, leftMg: r.leftMg, leftPaise: r.leftPaise })),
+    // Material for the pieces made so far: fine metal from the customer and from the shop, what ended up in the
+    // pieces, the wastage between them, and (if allowed) what it all cost.
+    material: {
+      customerFineMg: fineFrom('customer'),
+      shopFineMg: fineFrom('shop'),
+      usedFineMg: fineFrom('customer') + fineFrom('shop'),
+      finishedGrossMg: sumOf(made, (m) => m.finishedGrossMg),
+      finishedFineMg: sumOf(made, (m) => m.finishedFineMg),
+      wastageFineMg: sumOf(made, (m) => m.wastageFineMg),
+      ...(cost && { metalCostPaise: sumOf(made, (m) => m.metalCostPaise), karigarPaise: sumOf(made, (m) => m.karigarPaise), costPaise: sumOf(made, (m) => m.costPaise) }),
+    },
     estimatedPaise: o.estimatedPaise,
     advancePaise: o.advancePaise,
     balancePaise: Math.max(0, o.estimatedPaise - o.advancePaise),
@@ -392,52 +573,129 @@ export async function removeOrderImage(id, fileId) {
 const JEWELLERY_TYPE_FOR_METAL = { gold: 'plain_gold', silver: 'silver', platinum: 'platinum' };
 
 /**
- * The karigar has made the piece for line `index`: tag it as a product at the order's branch and put it in stock,
- * so it can be scanned onto the bill. The product is linked to the line straight away, so a retry after a failed
- * stock step finishes the same product instead of making another.
+ * The karigar has made the piece for line `index`. The metal it took comes out of stock — the customer's own gold on
+ * this order (at the value credited to them) and/or the shop's raw stock (at its average cost) — and the karigar's
+ * charge is paid. The piece is tagged at the order's branch and kept with the order: it is not listed in Products and
+ * can be billed only on this order. Its cost is the metal plus the karigar's charge; wastage is the fine metal given
+ * minus the fine metal in the piece.
  */
 export async function finishOrderItem(id, index, input) {
+  const { userId } = requireContext();
   const order = await findOrder(id);
   assertOpen(order);
   const item = order.items[index];
   if (!item) throw ApiError.notFound('Order item');
-
-  let product = item.productId ? await Product.findById(item.productId).lean() : null;
-  if (product && product.status !== 'draft') throw ApiError.conflict(`This item is already finished as ${product.sku}`, 'ALREADY_FINISHED');
-
-  if (!product) {
-    const categoryId = input.categoryId ?? item.categoryId ?? (await Category.findOne({ name: 'Custom Jewellery' }).select('_id').lean())?._id;
-    if (!categoryId) throw ApiError.badRequest('Select a category for the finished piece', [{ path: 'categoryId', message: 'Select a category' }], 'VALIDATION_ERROR');
-    const purity = input.purity ?? item.purity;
-    if (!purity) throw ApiError.badRequest('Select the purity of the finished piece', [{ path: 'purity', message: 'Select a purity' }], 'VALIDATION_ERROR');
-    const created = await createProduct(
-      productSchema.parse({
-        name: input.name || item.description,
-        categoryId: String(categoryId),
-        jewelleryType: item.jewelleryType ?? JEWELLERY_TYPE_FOR_METAL[item.metal] ?? 'plain_gold',
-        metal: item.metal,
-        purity,
-        grossWeightMg: input.grossWeightMg,
-        // The finished piece carries what was agreed on the order: stones, extra charges and how it is priced.
-        stones: item.stones ?? [],
-        otherChargePaise: item.otherChargePaise ?? 0,
-        pricingMode: item.pricingMode ?? 'rate_based',
-        fixedPricePaise: item.pricingMode === 'fixed' ? item.fixedPricePaise : null,
-        wastage: input.wastage,
-        making: input.making,
-        huid: input.huid ?? item.huid ?? null,
-        costPricePaise: input.costPricePaise ?? null,
-        branchId: String(order.branchId),
-        description: [item.notes, item.size && `Size ${item.size}`, `Made for order ${order.orderNo} (${order.customer.name})`].filter(Boolean).join(' · '),
-        tags: ['order'],
-      }),
-    );
-    product = { _id: created.id, sku: created.sku };
-    await Order.updateOne({ _id: order._id }, { $set: { [`items.${index}.productId`]: created.id } });
+  if (item.productId) {
+    const done = await Product.findById(item.productId).select('sku').lean();
+    throw ApiError.conflict(`This item is already finished${done ? ` as ${done.sku}` : ''}`, 'ALREADY_FINISHED');
   }
+  const branch = await requireBranch(order.branchId, { active: false });
+  const today = await todayContext();
 
-  await createOpeningStock({ branchId: String(order.branchId), productIds: [String(product._id)], metalLines: [], note: `Made for order ${order.orderNo}` });
-  await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'order', recordType: 'Order', recordId: order._id, meta: { name: order.orderNo, finished: product.sku } });
+  const categoryId = input.categoryId ?? item.categoryId ?? (await Category.findOne({ name: 'Custom Jewellery' }).select('_id').lean())?._id;
+  if (!categoryId) throw ApiError.badRequest('Select a category for the finished piece', [{ path: 'categoryId', message: 'Select a category' }], 'VALIDATION_ERROR');
+  const purity = input.purity ?? item.purity;
+  if (!purity) throw ApiError.badRequest('Select the purity of the finished piece', [{ path: 'purity', message: 'Select a purity' }], 'VALIDATION_ERROR');
+
+  // The metal given to the karigar, each line valued: customer's gold at what it was credited, shop's at average cost.
+  const balance = customerGoldBalance(order);
+  const shopPools = await MetalStock.find({ branchId: order.branchId, kind: { $ne: CUSTOMER_GOLD } }).lean();
+  const takenFromCustomer = new Map();
+  const materials = input.materials.map((m, i) => {
+    if (m.metal !== item.metal) throw ApiError.badRequest(`This piece is ${item.metal}; ${m.metal} cannot go into it`, [{ path: `materials.${i}.metal`, message: `Use ${item.metal}` }], 'VALIDATION_ERROR');
+    if (m.source === 'customer') {
+      const key = metalKey(m);
+      const r = balance.find((b) => metalKey(b) === key);
+      const already = takenFromCustomer.get(key) ?? 0;
+      if (!r || r.leftMg - already < m.grossWeightMg) {
+        throw ApiError.badRequest(`Only ${grams(Math.max(0, (r?.leftMg ?? 0) - already))} g of the customer's ${m.metal} ${m.purity} is left on this order`, [{ path: `materials.${i}.grossWeightMg`, message: 'More than the customer gave' }], 'VALIDATION_ERROR');
+      }
+      takenFromCustomer.set(key, already + m.grossWeightMg);
+      return { source: 'customer', metal: m.metal, purity: m.purity, kind: CUSTOMER_GOLD, grossWeightMg: m.grossWeightMg, fineWeightMg: fineWeightMg(m.grossWeightMg, m.purity), valuePaise: Math.round((r.leftPaise * m.grossWeightMg) / r.leftMg) };
+    }
+    const pool = shopPools.find((p) => p.metal === m.metal && p.purity === m.purity && p.kind === m.kind);
+    if (!pool || pool.grossMg < m.grossWeightMg) {
+      throw ApiError.conflict(`Not enough ${m.metal} ${m.purity} ${m.kind.replace('_', ' ')} in stock — ${grams(pool?.grossMg ?? 0)} g available`, 'INSUFFICIENT_STOCK', [{ path: `materials.${i}.grossWeightMg`, message: 'More than in stock' }]);
+    }
+    return { source: 'shop', metal: m.metal, purity: m.purity, kind: m.kind, grossWeightMg: m.grossWeightMg, fineWeightMg: fineWeightMg(m.grossWeightMg, m.purity), valuePaise: pool.grossMg > 0 ? Math.round((pool.valuePaise * m.grossWeightMg) / pool.grossMg) : 0 };
+  });
+  const metalCostPaise = materials.reduce((n, m) => n + m.valuePaise, 0);
+  const karigarPaise = input.karigarPaise ?? 0;
+  // What is in the books for it: the metal (moved within stock) plus the karigar's charge (paid now).
+  const costPaise = metalCostPaise + karigarPaise;
+
+  const parsed = productSchema.safeParse({
+    name: input.name || item.description,
+    categoryId: String(categoryId),
+    jewelleryType: item.jewelleryType ?? JEWELLERY_TYPE_FOR_METAL[item.metal] ?? 'plain_gold',
+    metal: item.metal,
+    purity,
+    grossWeightMg: input.grossWeightMg,
+    // The finished piece carries what was agreed on the order: stones, extra charges and how it is priced.
+    stones: item.stones ?? [],
+    otherChargePaise: item.otherChargePaise ?? 0,
+    pricingMode: item.pricingMode ?? 'rate_based',
+    fixedPricePaise: item.pricingMode === 'fixed' ? item.fixedPricePaise : null,
+    wastage: input.wastage,
+    making: input.making,
+    huid: input.huid ?? item.huid ?? null,
+    costPricePaise: costPaise,
+    branchId: String(order.branchId),
+    description: [item.notes, item.size && `Size ${item.size}`, `Made for order ${order.orderNo} (${order.customer.name})`].filter(Boolean).join(' · '),
+    tags: ['order'],
+  });
+  if (!parsed.success) {
+    const issue = parsed.error.issues[0];
+    throw ApiError.badRequest(issue.message, [{ path: issue.path.join('.'), message: issue.message }], 'VALIDATION_ERROR');
+  }
+  const [prepared] = await preparePieces([parsed.data]);
+  prepared.doc.orderId = order._id;
+
+  await withTransaction(async (session) => {
+    const fresh = await findOrder(id, session);
+    assertOpen(fresh);
+    if (fresh.items[index].productId) throw ApiError.conflict('This item was finished by someone else. Refresh.', 'CONCURRENT_UPDATE');
+    const [piece] = await insertPieces([prepared], { session });
+    const source = { docType: 'order', docId: fresh._id, docNo: fresh.orderNo };
+    for (const m of materials) {
+      await moveMetal({ type: 'production_use', branchId: fresh.branchId, line: { metal: m.metal, purity: m.purity, kind: m.kind, grossWeightMg: m.grossWeightMg, valuePaise: m.valuePaise, direction: 'out' }, source, businessDate: today.businessDate, note: `Made into ${piece.sku} for ${fresh.customer.name}` }, { session });
+    }
+    await moveProducts({ type: 'production', productIds: [piece._id], branchId: fresh.branchId, expectedBranchId: fresh.branchId, source, businessDate: today.businessDate, note: `Made for order ${fresh.orderNo}` }, { session });
+    if (karigarPaise > 0) {
+      await postJournal(
+        {
+          voucherType: 'production',
+          date: today.now,
+          businessDate: today.businessDate,
+          financialYear: today.financialYear,
+          narration: `Karigar charge for ${piece.sku} — order ${fresh.orderNo}`,
+          source,
+          lines: [
+            { account: 'inventory', debit: karigarPaise, branchId: fresh.branchId },
+            { account: PAYMENT_ACCOUNT[input.karigarMode], credit: karigarPaise, branchId: fresh.branchId },
+          ],
+        },
+        { session },
+      );
+    }
+    const usedFine = materials.reduce((n, m) => n + m.fineWeightMg, 0);
+    fresh.items[index].productId = piece._id;
+    fresh.items[index].make = {
+      materials,
+      metalCostPaise,
+      karigarPaise,
+      karigarMode: karigarPaise > 0 ? input.karigarMode : null,
+      costPaise,
+      finishedGrossMg: piece.grossWeightMg,
+      finishedFineMg: piece.fineWeightMg,
+      wastageFineMg: materials.length ? usedFine - piece.fineWeightMg : 0,
+      at: today.now,
+      by: userId,
+    };
+    fresh.markModified('items');
+    await fresh.save({ session });
+    await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'order', recordType: 'Order', recordId: fresh._id, meta: { name: fresh.orderNo, finished: piece.sku, costPaise } }, { session });
+  });
   return getOrder(id);
 }
 

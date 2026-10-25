@@ -426,4 +426,7 @@ export default {
   "Use Profile & security to change your own password": ["নিজের পাসওয়ার্ড বদলাতে প্রোফাইল ও নিরাপত্তা ব্যবহার করুন", "अपना पासवर्ड बदलने के लिए प्रोफ़ाइल और सुरक्षा इस्तेमाल करें"],
   "The owner’s password can only be changed by the owner": ["মালিকের পাসওয়ার্ড শুধু মালিকই বদলাতে পারেন", "मालिक का पासवर्ड केवल मालिक ही बदल सकते हैं"],
   "This is a branch login. Change its password from Settings → Branches.": ["এটি একটি শাখার লগইন। সেটিংস → শাখা থেকে এর পাসওয়ার্ড বদলান।", "यह शाखा लॉगिन है। इसका पासवर्ड सेटिंग्स → शाखाएँ से बदलें।"],
+  "The jewellery made weighs more than the metal given ({{used}} g)": ["তৈরি গয়নার ওজন দেওয়া সোনার ({{used}} g) চেয়ে বেশি", "बने गहनों का वज़न दी गई धातु ({{used}} g) से ज़्यादा है"],
+  "Pick an item from the list": ["তালিকা থেকে একটি আইটেম বাছুন", "सूची से एक आइटम चुनें"],
+  "Pick the item from the list": ["তালিকা থেকে আইটেমটি বাছুন", "सूची से आइटम चुनें"],
 };

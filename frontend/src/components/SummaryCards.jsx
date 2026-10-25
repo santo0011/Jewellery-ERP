@@ -97,7 +97,9 @@ export function SummaryCard({ icon: Icon, label, value, caption, tone = 'gold', 
 }
 
 /** The row of cards above a list: 2 per row on phones and tablets, 3 on small laptops, all in one row (up to 5) on desktop. */
-export default function SummaryCards({ children }) {
-  const count = [children].flat().filter(Boolean).length;
-  return <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(2, 1fr)', md: `repeat(${Math.min(Math.max(count, 1), 3)}, 1fr)`, lg: `repeat(${Math.min(Math.max(count, 1), 5)}, 1fr)` }, gap: { xs: 1.25, sm: 2 }, mb: { xs: 2, sm: 2.5 }, alignItems: 'stretch' }}>{children}</Box>;
+export default function SummaryCards({ children, oneLine = false }) {
+  const count = [children].flat(Infinity).filter(Boolean).length;
+  // `oneLine`: keep every card in a single row from tablet width up (for a set of four that belongs together).
+  const md = oneLine ? count : Math.min(count, 3);
+  return <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(2, minmax(0, 1fr))', sm: 'repeat(2, 1fr)', md: `repeat(${Math.max(md, 1)}, minmax(0, 1fr))`, lg: `repeat(${Math.min(Math.max(count, 1), 5)}, minmax(0, 1fr))` }, gap: { xs: 1.25, sm: 2 }, mb: { xs: 2, sm: 2.5 }, alignItems: 'stretch' }}>{children}</Box>;
 }

@@ -2,6 +2,8 @@ import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import ArrowForwardRoundedIcon from '@mui/icons-material/ArrowForwardRounded';
 import BuildCircleOutlinedIcon from '@mui/icons-material/BuildCircleOutlined';
 import DiamondOutlinedIcon from '@mui/icons-material/DiamondOutlined';
+import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
+import PersonOutlineRoundedIcon from '@mui/icons-material/PersonOutlineRounded';
 import ScaleOutlinedIcon from '@mui/icons-material/ScaleOutlined';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import { Box, Button, Card, CardContent, Chip, IconButton, Stack, Tooltip, Typography } from '@mui/material';
@@ -25,7 +27,6 @@ const inr = (p) => formatINR(p, { decimals: 0 });
 const kindLabel = (k) => METAL_POOL_KINDS.find((x) => x.value === k)?.label ?? k;
 const metalName = (m) => t(m.charAt(0).toUpperCase() + m.slice(1));
 const metalPurity = (l) => `${metalName(l.metal)} ${purityLabel(l.metal, l.purity)}`;
-const METALS = ['gold', 'silver', 'platinum'];
 
 function Step({ no, title, text, action }) {
   return (
@@ -288,8 +289,14 @@ export default function RawMaterialsPage() {
   const [editingId, setEditingId] = useState(null);
   const { data, isLoading, error, refetch } = useStockSummaryQuery({});
   const pools = (data?.metalPools ?? []).filter((p) => p.grossMg !== 0);
-  const byMetal = METALS.map((m) => ({ metal: m, fine: pools.filter((p) => p.metal === m).reduce((n, p) => n + p.fineMg, 0), gross: pools.filter((p) => p.metal === m).reduce((n, p) => n + p.grossMg, 0) })).filter((m) => m.gross);
   const value = pools.reduce((n, p) => n + (p.valuePaise ?? 0), 0);
+  // Card totals: the shop's own metal by metal, and customers' gold held for their orders kept apart.
+  const total = (list) => ({ gross: list.reduce((n, p) => n + p.grossMg, 0), fine: list.reduce((n, p) => n + p.fineMg, 0) });
+  const own = pools.filter((p) => p.kind !== 'customer_gold');
+  const gold = total(own.filter((p) => p.metal === 'gold'));
+  const silver = total(own.filter((p) => p.metal === 'silver'));
+  const customerGold = total(pools.filter((p) => p.kind === 'customer_gold'));
+  const weightOrNil = (mg) => (mg ? formatWeight(mg) : t('Nil'));
 
   return (
     <>
@@ -309,13 +316,15 @@ export default function RawMaterialsPage() {
           )
         }
       />
-      <SummaryCards>
-        {byMetal.length ? (
-          byMetal.map((m) => <SummaryCard key={m.metal} icon={ScaleOutlinedIcon} label={t('Raw {{metal}}', { metal: m.metal })} value={formatWeight(m.gross)} caption={t('{{fine}} fine (pure)', { fine: formatWeight(m.fine) })} tone={m.metal === 'gold' ? 'gold' : 'grey'} />)
+      <SummaryCards oneLine>
+        <SummaryCard icon={ScaleOutlinedIcon} label={t('Raw {{metal}}', { metal: t('Gold') })} value={weightOrNil(gold.gross)} caption={gold.gross ? t('{{fine}} fine (pure)', { fine: formatWeight(gold.fine) }) : t('Buy it on a purchase bill')} tone="gold" />
+        <SummaryCard icon={ScaleOutlinedIcon} label={t('Raw {{metal}}', { metal: t('Silver') })} value={weightOrNil(silver.gross)} caption={silver.gross ? t('{{fine}} fine (pure)', { fine: formatWeight(silver.fine) }) : t('Buy it on a purchase bill')} tone="grey" />
+        <SummaryCard icon={PersonOutlineRoundedIcon} label={t('Customer gold')} value={weightOrNil(customerGold.gross)} caption={t('Kept for their orders, not the shop’s')} tone="blue" />
+        {showCost ? (
+          <SummaryCard icon={DiamondOutlinedIcon} label={t('Value of raw stock')} value={inr(value)} caption={t('At what it cost')} tone="green" />
         ) : (
-          <SummaryCard icon={ScaleOutlinedIcon} label={t('Raw metal')} value={t('Nil')} caption={t('Buy it on a purchase bill')} tone="grey" />
+          <SummaryCard icon={Inventory2OutlinedIcon} label={t('Lots')} value={pools.length.toLocaleString('en-IN')} caption={t('By metal, purity and kind')} tone="amber" />
         )}
-        {showCost && <SummaryCard icon={DiamondOutlinedIcon} label={t('Value of raw stock')} value={inr(value)} caption={t('At what it cost')} tone="green" />}
       </SummaryCards>
       <HowItWorks canBuy={canBuy} canMake={canMake} onAddGold={() => setAddingGold(true)} onMake={() => setMaking(true)} />
       <ViewTabs

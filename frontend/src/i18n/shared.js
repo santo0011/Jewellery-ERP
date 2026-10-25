@@ -25,6 +25,7 @@ export const JEWELLERY_TYPES = options(shared.JEWELLERY_TYPES);
 export const STONE_TYPES = options(shared.STONE_TYPES);
 export const PRODUCT_STATUS_LABELS = labels(shared.PRODUCT_STATUS_LABELS);
 export const METAL_POOL_KINDS = options(shared.METAL_POOL_KINDS);
+export const SELECTABLE_METAL_POOL_KINDS = options(shared.SELECTABLE_METAL_POOL_KINDS);
 export const ADJUSTMENT_REASONS = options(shared.ADJUSTMENT_REASONS);
 export const MOVEMENT_TYPE_LABELS = labels(shared.MOVEMENT_TYPE_LABELS);
 export const EXPENSE_PAY_MODES = options(shared.EXPENSE_PAY_MODES);

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { EXPENSE_PAY_MODES, METAL_OPTIONS, METAL_POOL_KINDS, PURITIES } from '../enums.js';
+import { EXPENSE_PAY_MODES, METAL_OPTIONS, SELECTABLE_METAL_POOL_KINDS, PURITIES } from '../enums.js';
 import { listQuerySchema, objectIdSchema, optionalText, requiredText } from './common.js';
 
 const values = (list) => list.map((o) => o.value);
@@ -43,7 +43,7 @@ const metalUseSchema = z
   .object({
     metal: z.enum(values(METAL_OPTIONS)),
     purity: z.number().int(),
-    kind: z.enum(values(METAL_POOL_KINDS)),
+    kind: z.enum(values(SELECTABLE_METAL_POOL_KINDS)),
     grossWeightMg: mg('Weight'),
   })
   .refine((l) => (PURITIES[l.metal] ?? []).some((p) => p.fineness === l.purity), { message: 'Pick a valid purity', path: ['purity'] });

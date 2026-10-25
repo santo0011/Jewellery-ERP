@@ -54,6 +54,12 @@ export async function createProduction({ branchId, metalUsed, pieces, makingPais
     if (!metals.has(item.metal)) throw ApiError.badRequest(`${item.name} is ${item.metal}, but no ${item.metal} is used`, [{ path: `pieces.${i}.itemId`, message: `Add the ${item.metal} used` }], 'VALIDATION_ERROR');
   });
 
+  // Pieces are made only from the metal given (this form has no stones), so together they cannot weigh more than it.
+  const usedMg = sum(used, (l) => l.grossWeightMg);
+  if (sum(pieces, (p) => p.grossWeightMg) > usedMg) {
+    throw ApiError.badRequest(`The jewellery made weighs more than the metal given (${(usedMg / 1000).toFixed(3)} g)`, [{ path: 'pieces', message: 'More than the metal given' }], 'VALIDATION_ERROR');
+  }
+
   const metalValuePaise = sum(used, (l) => l.valuePaise);
   const totalCostPaise = metalValuePaise + makingPaise;
   const totalWeight = sum(pieces, (p) => p.grossWeightMg);

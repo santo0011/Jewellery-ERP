@@ -1,5 +1,6 @@
 import { zodResolver } from '@hookform/resolvers/zod';
 import AddCardOutlinedIcon from '@mui/icons-material/AddCardOutlined';
+import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import BlockRoundedIcon from '@mui/icons-material/BlockRounded';
 import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
@@ -18,7 +19,8 @@ import { usePermission } from '../../hooks/usePermission.js';
 import { applyServerErrors, getErrorMessage } from '../../utils/errors.js';
 import { formatDate, formatDateTime } from '../../utils/format.js';
 import { purityLabel } from '../products/productForm.js';
-import { useAddOrderAdvanceMutation, useCancelOrderMutation, useOrderQuery, useSetOrderStatusMutation } from './orderApi.js';
+import { useAddCustomerMetalMutation, useAddOrderAdvanceMutation, useCancelOrderMutation, useOrderQuery, useRemoveCustomerMetalMutation, useSetOrderStatusMutation } from './orderApi.js';
+import CustomerGoldEditor, { emptyGoldLine, goldLinesToPayload } from './CustomerGoldEditor.jsx';
 import FinishItemDialog from './FinishItemDialog.jsx';
 import OrderPhotos from './OrderPhotos.jsx';
 import { ADVANCE_MODE_OPTIONS, NEXT_STEP, OrderStatusChip, paymentLabel } from './orderUi.jsx';
@@ -93,9 +95,14 @@ function CancelDialog({ order, open, onClose }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
+  // The customer's gold not yet in a piece goes back as gold; only the rest of the advance is refunded in money.
+  const goldBack = (order.customerMetalBalance ?? []).filter((r) => r.leftMg > 0);
+  const goldBackPaise = goldBack.reduce((n, r) => n + r.leftPaise, 0);
+  const moneyBack = Math.max(0, order.advancePaise - goldBackPaise);
+
   const onSubmit = handleSubmit(async (v) => {
     try {
-      await cancel({ id: order.id, reason: v.reason, ...(order.advancePaise > 0 && { refundMode: v.refundMode }) }).unwrap();
+      await cancel({ id: order.id, reason: v.reason, ...(moneyBack > 0 && { refundMode: v.refundMode }) }).unwrap();
       toast.success(t('Order {{orderNo}} cancelled', { orderNo: order.orderNo }));
       onClose();
     } catch (err) {
@@ -109,14 +116,19 @@ function CancelDialog({ order, open, onClose }) {
         <DialogTitle sx={{ fontWeight: 600 }}>{t('Cancel order?')}</DialogTitle>
         <DialogContent>
           <Stack spacing={2} sx={{ pt: 0.5 }}>
-            {order.advancePaise > 0 && (
+            {goldBack.length > 0 && (
+              <Alert severity="info">
+                {t('{{weight}} of {{name}}’s gold is given back to them.', { weight: <strong>{goldBack.map((r) => `${formatWeight(r.leftMg)} ${purityLabel(r.metal, r.purity)}`).join(', ')}</strong>, name: order.customer.name })}
+              </Alert>
+            )}
+            {moneyBack > 0 && (
               <Alert severity="warning">
-                {t('The advance of {{amount}} will be refunded to {{name}}.', { amount: <strong>{formatINR(order.advancePaise)}</strong>, name: order.customer.name })}
+                {t('The advance of {{amount}} will be refunded to {{name}}.', { amount: <strong>{formatINR(moneyBack)}</strong>, name: order.customer.name })}
               </Alert>
             )}
             {error && !error.data?.error?.details && <Alert severity="error">{getErrorMessage(error)}</Alert>}
             <RHFTextField control={control} name="reason" label={t('Reason')} autoFocus multiline minRows={2} />
-            {order.advancePaise > 0 && <RHFSelect control={control} name="refundMode" label={t('Refund by')} options={ADVANCE_MODE_OPTIONS} />}
+            {moneyBack > 0 && <RHFSelect control={control} name="refundMode" label={t('Refund by')} options={ADVANCE_MODE_OPTIONS} />}
           </Stack>
         </DialogContent>
         <DialogActions sx={{ px: 3, pb: 2 }}>
@@ -129,6 +141,146 @@ function CancelDialog({ order, open, onClose }) {
         </DialogActions>
       </form>
     </Dialog>
+  );
+}
+
+/** More of the customer's own gold received after booking. */
+function CustomerGoldDialog({ order, open, onClose }) {
+  const [add, { isLoading, error, reset: resetMutation }] = useAddCustomerMetalMutation();
+  const [lines, setLines] = useState([]);
+  const [errors, setErrors] = useState({});
+  useEffect(() => {
+    if (open) {
+      setLines([emptyGoldLine()]);
+      setErrors({});
+      resetMutation();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  const save = async () => {
+    const { payload, errors: errs } = goldLinesToPayload(lines);
+    setErrors(errs);
+    if (!payload.length || Object.keys(errs).length) return;
+    try {
+      await add({ id: order.id, lines: payload }).unwrap();
+      toast.success(t('Customer gold received'));
+      onClose();
+    } catch {
+      /* shown below */
+    }
+  };
+
+  return (
+    <Dialog open={open} onClose={isLoading ? undefined : onClose} maxWidth="sm" fullWidth>
+      <DialogTitle sx={{ fontWeight: 600 }}>{t('Customer’s gold')}</DialogTitle>
+      <DialogContent>
+        <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
+          {t('Weigh it and check the purity. It is valued at today’s rate and added to the advance; it is used only for this order.')}
+        </Typography>
+        {error && <Alert severity="error" sx={{ mb: 2 }}>{getErrorMessage(error)}</Alert>}
+        <CustomerGoldEditor lines={lines} onChange={setLines} errors={errors} />
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2 }}>
+        <Button color="secondary" onClick={onClose} disabled={isLoading}>
+          {t('Cancel')}
+        </Button>
+        <Button variant="contained" onClick={save} loading={isLoading} disabled={!lines.length}>
+          {t('Save')}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+/** The customer's gold on the order (as received, and what is left to use), and the material behind the pieces made. */
+function MaterialCard({ order, canEdit, onAdd }) {
+  const [remove, { isLoading: removing }] = useRemoveCustomerMetalMutation();
+  const open = ['booked', 'in_progress', 'ready'].includes(order.status);
+  const lines = order.customerMetal ?? [];
+  const m = order.material ?? {};
+  const madeAny = order.items.some((i) => i.make);
+  if (!lines.length && !madeAny && !(open && canEdit)) return null;
+
+  const drop = async (line) => {
+    try {
+      await remove({ id: order.id, lineId: line.id }).unwrap();
+      toast.success(t('Customer gold given back'));
+    } catch (err) {
+      toast.error(getErrorMessage(err));
+    }
+  };
+
+  return (
+    <Card sx={{ mb: 3 }}>
+      <CardContent>
+        <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 1.5 }}>
+          <Typography variant="h4">{t('Gold & material')}</Typography>
+          {open && canEdit && (
+            <Button size="small" startIcon={<AddRoundedIcon />} onClick={onAdd}>
+              {t('Customer gold')}
+            </Button>
+          )}
+        </Stack>
+
+        <Typography variant="overline" color="textSecondary">
+          {t('Customer’s gold')}
+        </Typography>
+        {lines.length === 0 ? (
+          <Typography variant="body2" color="textSecondary" sx={{ mb: 1 }}>
+            {t('None given.')}
+          </Typography>
+        ) : (
+          <Stack spacing={1} sx={{ mb: 1.5 }}>
+            {lines.map((l) => (
+              <Stack key={l.id} direction="row" spacing={1} sx={{ alignItems: 'center', opacity: l.returnedAt ? 0.5 : 1 }}>
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                    {formatWeight(l.netWeightMg)} {purityLabel(l.metal, l.purity)}
+                    {l.description ? ` · ${l.description}` : ''}
+                  </Typography>
+                  <Typography variant="caption" color="textSecondary">
+                    {[l.receiptNo, t('fine {{fine}}', { fine: formatWeight(l.fineWeightMg) }), `${formatINR(l.valuePaise, { decimals: 0 })} @ ${formatINR(l.ratePerGramPaise, { decimals: 0 })}/g`, l.returnedAt && t('given back')].filter(Boolean).join(' · ')}
+                  </Typography>
+                </Box>
+                {open && canEdit && !l.returnedAt && (
+                  <Button size="small" color="secondary" onClick={() => drop(l)} disabled={removing}>
+                    {t('Remove')}
+                  </Button>
+                )}
+              </Stack>
+            ))}
+            {(order.customerMetalBalance ?? []).map((r) => (
+              <MoneyRow key={`${r.metal}${r.purity}`} label={t('{{purity}} left to use', { purity: purityLabel(r.metal, r.purity) })} value={`${formatWeight(r.leftMg)} / ${formatWeight(r.receivedMg)}`} />
+            ))}
+          </Stack>
+        )}
+
+        {madeAny && (
+          <>
+            <Divider sx={{ my: 1.5 }} />
+            <Typography variant="overline" color="textSecondary">
+              {t('Pieces made (fine gold)')}
+            </Typography>
+            <Stack spacing={0.75}>
+              <MoneyRow label={t('From customer')} value={formatWeight(m.customerFineMg)} />
+              <MoneyRow label={t('From shop stock')} value={formatWeight(m.shopFineMg)} />
+              <MoneyRow label={t('Total given to karigar')} value={formatWeight(m.usedFineMg)} strong />
+              <MoneyRow label={t('In the finished pieces')} value={formatWeight(m.finishedFineMg)} />
+              <MoneyRow label={t('Wastage')} value={formatWeight(m.wastageFineMg)} tone={m.wastageFineMg > 0 ? 'due' : undefined} />
+              {m.costPaise != null && (
+                <>
+                  <Divider />
+                  <MoneyRow label={t('Gold cost')} value={formatINR(m.metalCostPaise)} />
+                  <MoneyRow label={t('Karigar charge')} value={formatINR(m.karigarPaise)} />
+                  <MoneyRow label={t('Production cost')} value={formatINR(m.costPaise)} strong />
+                </>
+              )}
+            </Stack>
+          </>
+        )}
+      </CardContent>
+    </Card>
   );
 }
 
@@ -351,7 +503,15 @@ export default function OrderDetailPage() {
                         </TableCell>
                         <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                           {i.product ? (
-                            <Chip size="small" label={`${i.product.sku} · ${formatWeight(i.product.grossWeightMg)}`} color={i.product.status === 'in_stock' ? 'success' : 'default'} variant="outlined" onClick={() => navigate(`/products/${i.product.id}`)} />
+                            // Kept with the order (not in Products): its tag, weight and what it was made from.
+                            <Box>
+                              <Chip size="small" label={`${i.product.sku} · ${formatWeight(i.product.grossWeightMg)}`} color={i.product.status === 'in_stock' ? 'success' : 'default'} variant="outlined" />
+                              {i.make?.materials?.length > 0 && (
+                                <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 0.25 }}>
+                                  {i.make.materials.map((x) => `${x.source === 'customer' ? t('customer') : t('shop')} ${formatWeight(x.grossWeightMg)}`).join(' + ')}
+                                </Typography>
+                              )}
+                            </Box>
                           ) : open && canFinish ? (
                             <Button size="small" variant="outlined" onClick={() => setFinishing(n)}>
                               {t('Finish item')}
@@ -460,6 +620,8 @@ export default function OrderDetailPage() {
             </CardContent>
           </Card>
 
+          <MaterialCard order={order} canEdit={canEdit} onAdd={() => setDialog('gold')} />
+
           <Card>
             <CardContent>
               <Typography variant="h4" sx={{ mb: 2 }}>
@@ -489,6 +651,7 @@ export default function OrderDetailPage() {
 
       <AdvanceDialog order={order} open={dialog === 'advance'} onClose={() => setDialog(null)} />
       <CancelDialog order={order} open={dialog === 'cancel'} onClose={() => setDialog(null)} />
+      <CustomerGoldDialog order={order} open={dialog === 'gold'} onClose={() => setDialog(null)} />
       <FinishItemDialog order={order} index={finishing} onClose={() => setFinishing(null)} />
     </>
   );

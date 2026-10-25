@@ -1,7 +1,7 @@
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
 import { Box, Button, Grid, IconButton, InputAdornment, MenuItem, Paper, TextField, Typography } from '@mui/material';
-import { decimalToScaledInt, fineWeightMg, formatWeight, METAL_OPTIONS, METAL_POOL_KINDS, PURITIES, toPaise } from '@jerp/shared';
+import { decimalToScaledInt, fineWeightMg, formatWeight, METAL_OPTIONS, PURITIES, SELECTABLE_METAL_POOL_KINDS, toPaise } from '@jerp/shared';
 import { t } from '../../i18n/index.js';
 
 export const emptyMetalLine = (direction = 'in') => ({ metal: 'gold', purity: 995, kind: 'bullion', direction, weight: '', value: '' });
@@ -71,7 +71,7 @@ export default function MetalLinesEditor({ lines, onChange, errors = {}, allowDi
               </Grid>
               <Grid size={{ xs: 12, sm: allowDirection ? 3 : 4 }}>
                 <TextField select label={t('Type')} value={l.kind} onChange={(e) => update(i, { kind: e.target.value })}>
-                  {METAL_POOL_KINDS.map((k) => (
+                  {SELECTABLE_METAL_POOL_KINDS.map((k) => (
                     <MenuItem key={k.value} value={k.value}>
                       {k.label}
                     </MenuItem>

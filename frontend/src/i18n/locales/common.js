@@ -535,6 +535,8 @@ export default {
   "Select branch": ["শাখা বাছুন", "शाखा चुनें"],
   "Branch filter": ["শাখা ফিল্টার", "शाखा फ़िल्टर"],
   "Every branch together": ["সব শাখা একসাথে", "सभी शाखाएँ एक साथ"],
+  "Show data for": ["কোন শাখার তথ্য দেখাবে", "किस शाखा का डेटा दिखाएँ"],
+  "{{count}} branches together": ["{{count}}টি শাখা একসাথে", "{{count}} शाखाएँ एक साथ"],
   "Home": ["হোম", "होम"],
   "Adjustments": ["সমন্বয়", "समायोजन"],
   "Purchase": ["ক্রয়", "ख़रीद"],

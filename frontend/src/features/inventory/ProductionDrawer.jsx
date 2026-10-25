@@ -68,7 +68,7 @@ export default function ProductionDrawer({ open, onClose, pools = [], onAddGold 
 
   // One metal row ready to fill: the branch's first metal in stock (none if it has no raw metal).
   const firstRow = (b) => {
-    const pool = pools.find((p) => String(p.branch?.id) === String(b) && p.grossMg > 0);
+    const pool = pools.find((p) => String(p.branch?.id) === String(b) && p.grossMg > 0 && p.kind !== 'customer_gold');
     return pool ? [{ key: poolKey(pool), weight: '' }] : [];
   };
 
@@ -86,7 +86,8 @@ export default function ProductionDrawer({ open, onClose, pools = [], onAddGold 
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  const here = useMemo(() => pools.filter((p) => String(p.branch?.id) === String(branchId) && p.grossMg > 0), [pools, branchId]);
+  // Customers' gold held for their orders is used only from the order, never here.
+  const here = useMemo(() => pools.filter((p) => String(p.branch?.id) === String(branchId) && p.grossMg > 0 && p.kind !== 'customer_gold'), [pools, branchId]);
   const poolOf = (key) => here.find((p) => poolKey(p) === key);
   const metalRows = metal.map((m) => {
     const pool = poolOf(m.key);
@@ -99,6 +100,8 @@ export default function ProductionDrawer({ open, onClose, pools = [], onAddGold 
   const makingPaise = paiseOf(making);
   const usedMg = metalRows.reduce((n, r) => n + r.mg, 0);
   const madeMg = pieces.reduce((n, p) => n + mgOf(p.weight), 0);
+  // The pieces are made from the gold given only, so they cannot weigh more than it.
+  const overweight = usedMg > 0 && madeMg > usedMg;
 
   const submit = async () => {
     const e = {};
@@ -113,6 +116,7 @@ export default function ProductionDrawer({ open, onClose, pools = [], onAddGold 
       if (!(mgOf(p.weight) > 0)) e[`pw${i}`] = t('Enter weight');
       if (p.huid && !/^[A-Za-z0-9]{6}$/.test(p.huid)) e[`ph${i}`] = t('6 letters or digits');
     });
+    if (overweight) e.pieces = t('The jewellery made ({{made}}) weighs more than the gold given ({{used}}). Check the weights.', { made: formatWeight(madeMg), used: formatWeight(usedMg) });
     setErrors(e);
     // Say what is missing, even when that part of the form is scrolled out of view.
     if (Object.keys(e).length) {
@@ -313,9 +317,9 @@ export default function ProductionDrawer({ open, onClose, pools = [], onAddGold 
                 </Stack>
               </>
             )}
-            {madeMg > usedMg && usedMg > 0 && (
-              <Typography variant="caption" sx={{ color: 'warning.main', display: 'block', mt: 0.75 }}>
-                {t('The pieces weigh more than the metal used — check the weights (stones count in a piece’s weight).')}
+            {overweight && (
+              <Typography variant="caption" sx={{ color: 'error.main', display: 'block', mt: 0.75, fontWeight: 600 }}>
+                {t('The jewellery made ({{made}}) weighs more than the gold given ({{used}}). Check the weights.', { made: formatWeight(madeMg), used: formatWeight(usedMg) })}
               </Typography>
             )}
           </Box>
