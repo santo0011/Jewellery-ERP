@@ -1,5 +1,5 @@
 import mongoose from 'mongoose';
-import { hasPermission, OPEN_ORDER_STATUSES, ORDER_STATUS, PRODUCT_STATUS, SALE_STATUS } from '@jerp/shared';
+import { DEFAULT_MAX_ROUND_OFF_PAISE, hasPermission, OPEN_ORDER_STATUSES, ORDER_STATUS, PRODUCT_STATUS, SALE_STATUS } from '@jerp/shared';
 import { withTransaction } from '../../config/db.js';
 import { AUDIT_ACTIONS, recordAudit } from '../../core/audit/audit.service.js';
 import { requireContext } from '../../core/context/requestContext.js';
@@ -12,6 +12,9 @@ import { ApiError } from '../../utils/ApiError.js';
 import { dayRange, todayContext } from '../../utils/businessDate.js';
 import { maskTail } from '../../utils/mask.js';
 import { searchFilter } from '../../utils/pagination.js';
+import { customerAdvanceLeft } from '../customers/customerAdvance.js';
+import { customerDues, receiveDue, voidReceipt } from '../customers/customerReceipt.service.js';
+import { CustomerReceipt } from '../customers/customerReceipt.model.js';
 import { Customer } from '../customers/customer.model.js';
 import { accessibleBranchFilter, nameMaps, oid, pick, requireBranch, viewBranchFor } from '../inventory/inventory.helpers.js';
 import { assertCanTakeOldGold, cancelExchangeFor, priceOldGold, recordOldGold } from '../oldgold/oldGold.service.js';
@@ -40,16 +43,8 @@ function pricingInputs(p, discountPaise) {
   };
 }
 
-/**
- * Advance the customer paid before their first bill (entered as a minus "old due" on the customer), less what
- * earlier bills have already used. Cancelled bills give theirs back.
- */
-export async function customerAdvanceLeft(customer, { session } = {}) {
-  const held = Math.max(0, -(customer?.openingBalancePaise ?? 0));
-  if (!held) return 0;
-  const used = await Sale.find({ customerId: customer._id, status: SALE_STATUS.COMPLETED, customerAdvancePaise: { $gt: 0 } }).select('customerAdvancePaise').session(session ?? null).lean();
-  return held - used.reduce((s, x) => s + x.customerAdvancePaise, 0);
-}
+// Advance paid before (a minus opening balance) still free: less what bills used and what orders took when booked.
+export { customerAdvanceLeft };
 
 /** Paid (money received now, plus any advance used) and due (left on the customer's account) for one bill. */
 export function billBalance(s) {
@@ -58,7 +53,7 @@ export function billBalance(s) {
   return { paidPaise: paid, duePaise: due, collectedLaterPaise: s.duePaidPaise ?? 0, paymentStatus: due <= 0 ? 'paid' : paid > 0 ? 'partly_paid' : 'due' };
 }
 
-async function buildQuote({ branchId, customerId: requestedCustomerId, orderId: requestedOrderId, items, useCustomerAdvance = true, oldGold: oldGoldInput = [] }) {
+async function buildQuote({ branchId, customerId: requestedCustomerId, orderId: requestedOrderId, items, useCustomerAdvance = false, addPreviousDue = false, oldGold: oldGoldInput = [], roundOff: roundOffRule }) {
   const { permissions } = requireContext();
   if (items.some((i) => i.discountPaise > 0) && !hasPermission(permissions, 'sales.discount')) {
     throw ApiError.forbidden('You are not allowed to give discounts', 'DISCOUNT_FORBIDDEN');
@@ -140,8 +135,9 @@ async function buildQuote({ branchId, customerId: requestedCustomerId, orderId: 
   const interState = Boolean(sellerState && buyerState && sellerState !== buyerState);
   const totals = priceInvoice(
     lines.map((l) => l.breakdown),
-    { interState, roundOff: settings.tax.roundOff },
+    { interState, roundOff: settings.tax.roundOff, rule: roundOffRule },
   );
+  assertRoundOff(totals, settings, permissions);
 
   const advancePaise = order?.advancePaise ?? 0;
   if (advancePaise > totals.grandTotalPaise) {
@@ -163,6 +159,10 @@ async function buildQuote({ branchId, customerId: requestedCustomerId, orderId: 
   // The customer's own advance (from before) is used next, as far as the bill needs it.
   const customerAdvanceLeftPaise = customer ? Math.max(0, await customerAdvanceLeft(customer)) : 0;
   const customerAdvancePaise = useCustomerAdvance ? Math.min(customerAdvanceLeftPaise, totals.grandTotalPaise - advancePaise - oldGoldPaise) : 0;
+  // Their due from before (old due and earlier bills) stays on those bills; chosen, it is added to what is collected
+  // now, and money paid beyond this bill goes to it.
+  const previousDuePaise = customer ? (await customerDues(customer._id)).totalDuePaise : 0;
+  const previousDueAddedPaise = addPreviousDue ? previousDuePaise : 0;
 
   const panRequired = totals.grandTotalPaise > settings.jewellery.panRequiredAbovePaise;
   return {
@@ -173,6 +173,8 @@ async function buildQuote({ branchId, customerId: requestedCustomerId, orderId: 
     oldGold,
     oldGoldPaise,
     payablePaise: totals.grandTotalPaise - advancePaise - oldGoldPaise - customerAdvancePaise,
+    previousDuePaise,
+    previousDueAddedPaise,
     branch,
     org,
     customer,
@@ -185,10 +187,31 @@ async function buildQuote({ branchId, customerId: requestedCustomerId, orderId: 
     compliance: {
       panRequired,
       panMissing: panRequired && !customer?.pan,
+      panRequiredAbovePaise: settings.jewellery.panRequiredAbovePaise,
       cashLimitPaise: settings.jewellery.cashLimitPaise,
       cashLimitAction: settings.jewellery.cashLimitAction,
     },
   };
+}
+
+/**
+ * A bill rounded its own way (not the settings' automatic round-off) stays within the round-off limit (more would be
+ * a discount — give it as one), and rounding it lower than the automatic round-off needs the right to give discounts.
+ */
+function assertRoundOff(totals, settings, permissions) {
+  if (totals.grandTotalPaise <= 0) throw problem('The bill total must be more than zero', [{ path: 'roundOff', message: 'Round-off too large' }], 'ROUND_OFF_LIMIT');
+  if (totals.roundOff.mode === 'auto') return;
+  const limit = settings.tax.maxRoundOffPaise ?? DEFAULT_MAX_ROUND_OFF_PAISE;
+  if (Math.abs(totals.roundOffPaise) > limit) {
+    throw problem(
+      `Round-off of ${(Math.abs(totals.roundOffPaise) / 100).toFixed(2)} is more than the ${(limit / 100).toFixed(2)} allowed. Give a discount on the items instead.`,
+      [{ path: 'roundOff', message: 'More than the round-off limit' }],
+      'ROUND_OFF_LIMIT',
+    );
+  }
+  if (totals.roundOffPaise < totals.autoRoundOffPaise && !hasPermission(permissions, 'sales.discount')) {
+    throw ApiError.forbidden('Rounding the bill down needs permission to give discounts', 'ROUND_OFF_FORBIDDEN');
+  }
 }
 
 const serializeLine = (l) => ({
@@ -219,13 +242,20 @@ export async function quote(input) {
     oldGold: q.oldGold,
     oldGoldPaise: q.oldGoldPaise,
     payablePaise: q.payablePaise,
+    previousDuePaise: q.previousDuePaise,
+    previousDueAddedPaise: q.previousDueAddedPaise,
+    // This bill plus the due from before, when it was added.
+    toCollectPaise: q.payablePaise + q.previousDueAddedPaise,
+    // The most this bill may be rounded by its own way (Tax settings).
+    roundOffLimitPaise: q.settings.tax.maxRoundOffPaise ?? DEFAULT_MAX_ROUND_OFF_PAISE,
   };
 }
 
 /**
  * What the customer pays now may be less than the bill: for a known customer the rest stays due on their account
  * (one "credit" line), so 30,000 paid on a 50,000 bill is 30,000 paid + 20,000 due. Walk-ins pay in full.
- * Returns the payments to save.
+ * With the due from before added, money pays this bill first and what is more goes to that due (`dueReceipts`).
+ * Returns the payments to save on the bill and the due receipts to take.
  */
 function settlePayments(q, input) {
   if (input.some((p) => p.mode === 'credit') && !q.customer) throw problem('Credit sales need a customer', [{ path: 'payments', message: 'Select a customer for credit' }]);
@@ -233,24 +263,38 @@ function settlePayments(q, input) {
   const asked = input.filter((p) => p.mode === 'credit').reduce((s, p) => s + p.amountPaise, 0);
   const received = money.reduce((s, p) => s + p.amountPaise, 0);
   const payable = q.payablePaise;
+  const limit = payable + q.previousDueAddedPaise;
   const rupeesOf = (v) => (v / 100).toFixed(2);
-  if (received + asked > payable || (!q.customer && received !== payable)) {
+  if (received + asked > limit || (!q.customer && received !== payable)) {
     const advance = q.advancePaise || q.customerAdvancePaise;
     const after = advance && q.oldGoldPaise ? 'the advance and old gold' : advance ? 'the advance' : 'the old gold';
-    const what = advance || q.oldGoldPaise ? `the amount due after ${after} (${rupeesOf(payable)})` : `the invoice total (${rupeesOf(payable)})`;
-    const message = received + asked > payable ? `Payments (${rupeesOf(received + asked)}) are more than ${what}` : `Payments (${rupeesOf(received)}) must equal ${what}. Select the customer to keep the rest as due.`;
+    const what = q.previousDueAddedPaise
+      ? `this bill plus the previous due (${rupeesOf(limit)})`
+      : advance || q.oldGoldPaise
+        ? `the amount due after ${after} (${rupeesOf(payable)})`
+        : `the invoice total (${rupeesOf(payable)})`;
+    const message = received + asked > limit ? `Payments (${rupeesOf(received + asked)}) are more than ${what}` : `Payments (${rupeesOf(received)}) must equal ${what}. Select the customer to keep the rest as due.`;
     throw ApiError.badRequest(message, [{ path: 'payments', message: 'Payments do not match the total' }], 'PAYMENT_MISMATCH');
   }
-  const due = payable - received;
-  const payments = due > 0 ? [...money, { mode: 'credit', amountPaise: due, reference: null }] : money;
-  const cash = payments.filter((p) => p.mode === 'cash').reduce((s, p) => s + p.amountPaise, 0);
+  // Money pays this bill first; the rest goes to the due from before.
+  let billLeft = payable;
+  const billMoney = [];
+  const dueReceipts = [];
+  for (const p of money) {
+    const take = Math.min(p.amountPaise, billLeft);
+    if (take) billMoney.push({ ...p, amountPaise: take });
+    if (p.amountPaise > take) dueReceipts.push({ mode: p.mode, amountPaise: p.amountPaise - take, reference: p.reference ?? null });
+    billLeft -= take;
+  }
+  const payments = billLeft > 0 ? [...billMoney, { mode: 'credit', amountPaise: billLeft, reference: null }] : billMoney;
+  const cash = money.filter((p) => p.mode === 'cash').reduce((s, p) => s + p.amountPaise, 0);
   if (cash > q.compliance.cashLimitPaise && q.compliance.cashLimitAction === 'block') {
     throw problem(`Cash of ${(cash / 100).toFixed(2)} exceeds the limit of ${(q.compliance.cashLimitPaise / 100).toFixed(2)} (Section 269ST)`, [{ path: 'payments', message: 'Cash limit exceeded' }], 'CASH_LIMIT');
   }
   if (q.compliance.panMissing) {
     throw problem(q.customer ? `PAN is required for ${q.customer.name} on bills of this value` : 'Select a customer with PAN for bills of this value', [{ path: 'customerId', message: 'PAN required' }], 'PAN_REQUIRED');
   }
-  return payments;
+  return { payments, dueReceipts };
 }
 
 const sellerSnapshot = (org, branch) => ({
@@ -277,7 +321,7 @@ export async function createSale({ payments: requested, notes, ...input }, idemp
     if (existing) return serializeSale(existing);
   }
   const q = await buildQuote(input);
-  const payments = settlePayments(q, requested);
+  const { payments, dueReceipts } = settlePayments(q, requested);
   const { today, branch, settings } = q;
 
   const sale = await withTransaction(async (session) => {
@@ -285,6 +329,14 @@ export async function createSale({ payments: requested, notes, ...input }, idemp
     // Old gold handed over goes into the old-gold pool under its own number, linked to this bill.
     const saleId = new mongoose.Types.ObjectId();
     const oldGold = q.oldGold ? await recordOldGold({ type: 'exchange', branch, customer: q.customer, priced: q.oldGold, today, saleId, invoiceNo }, { session }) : null;
+    // Paid towards the due from before: receipts against the earlier bills / old due, read again in this transaction.
+    const takenForDue = [];
+    for (const r of dueReceipts) {
+      const dues = await customerDues(q.customer._id, { session });
+      if (r.amountPaise > dues.totalDuePaise) throw ApiError.conflict(`${q.customer.name}'s due changed while billing. Try again.`, 'CONCURRENT_UPDATE');
+      const doc = await receiveDue(dues, { branch, ...r, note: `Paid with ${invoiceNo}`, withSale: { saleId, invoiceNo } }, today, session);
+      takenForDue.push({ id: doc._id, receiptNo: doc.receiptNo, mode: doc.mode, amountPaise: doc.amountPaise });
+    }
     const items = q.lines.map((l) => ({
       productId: l.product._id,
       sku: l.product.sku,
@@ -327,6 +379,9 @@ export async function createSale({ payments: requested, notes, ...input }, idemp
           customerAdvancePaise: q.customerAdvancePaise,
           oldGoldPaise: q.oldGoldPaise,
           oldGold: oldGold && { id: oldGold._id, docNo: oldGold.docNo, lines: q.oldGold.lines },
+          previousDuePaise: q.previousDueAddedPaise,
+          previousDueCollectedPaise: takenForDue.reduce((n, r) => n + r.amountPaise, 0),
+          dueReceipts: takenForDue,
           idempotencyKey: idempotencyKey ?? null,
           createdBy: userId,
         },
@@ -381,7 +436,14 @@ export async function createSale({ payments: requested, notes, ...input }, idemp
       { session },
     );
     await recordAudit(
-      { action: AUDIT_ACTIONS.CREATE, module: 'sales', recordType: 'Sale', recordId: doc._id, meta: { name: invoiceNo, invoiceNo, total: q.totals.grandTotalPaise, items: items.length, ...(oldGold && { oldGold: oldGold.docNo, oldGoldValue: q.oldGoldPaise }) } },
+      {
+        action: AUDIT_ACTIONS.CREATE,
+        module: 'sales',
+        recordType: 'Sale',
+        recordId: doc._id,
+        meta: { name: invoiceNo, invoiceNo, total: q.totals.grandTotalPaise, items: items.length, ...(oldGold && { oldGold: oldGold.docNo, oldGoldValue: q.oldGoldPaise }) },
+        undo: { type: 'sale.create', branchId: branch._id },
+      },
       { session },
     );
     return doc;
@@ -421,6 +483,11 @@ async function serializeSale(s, returns) {
     customerAdvancePaise: s.customerAdvancePaise ?? 0,
     oldGoldPaise: s.oldGoldPaise ?? 0,
     oldGold: s.oldGold ?? null,
+    // Due from before added on this bill: what it was, what was paid on it here, and what is still owed of it.
+    previousDuePaise: s.previousDuePaise ?? 0,
+    previousDueCollectedPaise: s.previousDueCollectedPaise ?? 0,
+    previousDueLeftPaise: Math.max(0, (s.previousDuePaise ?? 0) - (s.previousDueCollectedPaise ?? 0)),
+    dueReceipts: s.dueReceipts ?? [],
     ...billBalance(s),
     createdBy: pick(maps.users, s.createdBy),
     cancelledAt: s.cancelledAt,
@@ -529,6 +596,10 @@ export async function cancelSale(id, reason) {
     await reverseJournalsFor(source, { date: today.now, businessDate: today.businessDate, financialYear: today.financialYear, narration: `Cancellation of ${sale.invoiceNo}` }, { session });
     // The old gold goes back to the customer (the journal above already took it off stock).
     if (sale.oldGoldPaise) await cancelExchangeFor(sale._id, today, reason, { session });
+    // Money paid on the due from before with this bill is taken back too: those bills / old due are owed again.
+    for (const r of sale.dueReceipts ?? []) {
+      if (await CustomerReceipt.exists({ _id: r.id, status: { $ne: 'void' } }).session(session)) await voidReceipt(r.id, `Invoice ${sale.invoiceNo} cancelled: ${reason}`);
+    }
     if (sale.orderId) {
       // The advance is back in customer advances (journal reversed), so the order is ready to bill again.
       await Order.updateOne(

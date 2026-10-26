@@ -6,7 +6,8 @@ const { ObjectId } = mongoose.Schema.Types;
 const supplierSnapshot = { id: ObjectId, code: String, name: String, gstin: String, mobile: String };
 
 const purchaseItemSchema = new mongoose.Schema(
-  { productId: { type: ObjectId, ref: 'Product', required: true }, sku: String, name: String, metal: String, purity: Number, grossWeightMg: Number, fineWeightMg: Number, costPaise: { type: Number, required: true } },
+  // newPiece: the piece was made by this bill (not a draft picked on it) — cancelling the bill retires it.
+  { productId: { type: ObjectId, ref: 'Product', required: true }, sku: String, name: String, metal: String, purity: Number, grossWeightMg: Number, fineWeightMg: Number, costPaise: { type: Number, required: true }, newPiece: { type: Boolean, default: false } },
   { _id: false },
 );
 
@@ -16,7 +17,8 @@ const purchaseMetalSchema = new mongoose.Schema(
 );
 
 const supplierPaymentSchema = new mongoose.Schema(
-  { date: String, at: Date, mode: String, amountPaise: Number, reference: { type: String, default: null }, by: { type: ObjectId, ref: 'User' }, paymentNo: { type: String, default: null } }, // paymentNo: part of a payment on the supplier's account
+  // paymentNo: part of a payment on the supplier's account. reversalOf: this (negative) line takes back the payment made at that time (Undo).
+  { date: String, at: Date, mode: String, amountPaise: Number, reference: { type: String, default: null }, by: { type: ObjectId, ref: 'User' }, paymentNo: { type: String, default: null }, reversalOf: { type: Date, default: null } },
   { _id: false },
 );
 
@@ -48,6 +50,13 @@ const purchaseSchema = new mongoose.Schema(
     businessDate: { type: String, required: true }, // day it was entered
     note: { type: String, default: null },
     billImages: { type: [{ _id: false, fileId: { type: ObjectId, ref: 'FileAsset' } }], default: [] }, // photos/scans of the supplier's bill
+    // Cancelled (by Undo): stock, metal and ledger reversed; the bill stays on record. Its bill no. gets a
+    // "(cancelled …)" suffix so the corrected bill can be entered again; the original is kept in originalBillNo.
+    status: { type: String, enum: ['active', 'cancelled'], default: 'active' },
+    cancelledAt: { type: Date, default: null },
+    cancelledBy: { type: ObjectId, ref: 'User', default: null },
+    cancelReason: { type: String, default: null },
+    originalBillNo: { type: String, default: null },
     createdBy: { type: ObjectId, ref: 'User', required: true },
   },
   { timestamps: true },
@@ -90,3 +99,6 @@ purchaseOrderSchema.index({ organisationId: 1, orderNo: 1 }, { unique: true });
 purchaseOrderSchema.index({ organisationId: 1, status: 1, expectedDate: 1 });
 
 export const PurchaseOrder = mongoose.model('PurchaseOrder', purchaseOrderSchema);
+
+/** Bills that count: every purchase total and due leaves out cancelled bills. */
+export const LIVE_BILL = Object.freeze({ status: { $ne: 'cancelled' } });

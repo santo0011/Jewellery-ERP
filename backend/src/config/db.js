@@ -1,4 +1,6 @@
+import './transactions.js';
 import mongoose from 'mongoose';
+import { getContext, runWithContext } from '../core/context/requestContext.js';
 import { env } from './env.js';
 import { logger } from './logger.js';
 
@@ -17,4 +19,12 @@ export async function disconnectDb() {
   await mongoose.disconnect();
 }
 
-export const withTransaction = (fn) => mongoose.connection.transaction((session) => fn(session));
+/**
+ * Runs `fn` in a transaction. Called while one is already open (an undo running a module's own cancel, say), it joins
+ * that one, so everything commits — or rolls back — together.
+ */
+export function withTransaction(fn) {
+  const ctx = getContext();
+  if (ctx?.txSession) return fn(ctx.txSession);
+  return mongoose.connection.transaction((session) => runWithContext({ ...ctx, txSession: session }, () => fn(session)));
+}

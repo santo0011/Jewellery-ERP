@@ -120,7 +120,8 @@ export const NAV_GROUPS = [
     label: t('Users & access'),
     items: [
       { label: t('Roles & permissions'), path: '/settings/roles', icon: AdminPanelSettingsOutlinedIcon, permission: 'role.view' },
-      { label: t('Audit log'), path: '/settings/audit-log', icon: HistoryRoundedIcon, permission: 'audit.view' },
+      // Activity and Undo history, as two tabs.
+      { label: t('Audit log'), path: '/settings/audit-log', icon: HistoryRoundedIcon, permission: ['audit.view', 'undo.view'] },
     ],
   },
 ];

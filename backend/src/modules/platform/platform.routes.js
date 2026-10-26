@@ -5,8 +5,9 @@ import * as platformAuth from './platformAuth.service.js';
 import { idParamsSchema, platformCreateOrganisationSchema, platformOrgListQuerySchema, platformOrgStatusSchema, platformUpdateOrganisationSchema } from '@jerp/shared/schemas';
 import { validate } from '../../middleware/validate.js';
 import * as controller from './platform.controller.js';
-import { assignPlanSchema, billingPaymentListQuerySchema, emailSettingsSchema, emailTestSchema, planSchema } from '@jerp/shared/schemas';
+import { assignPlanSchema, billingPaymentListQuerySchema, emailSettingsSchema, emailTestSchema, planSchema, platformUndoHistoryQuerySchema, undoReasonSchema } from '@jerp/shared/schemas';
 import * as emailSettings from './emailSettings.service.js';
+import * as platformUndo from './platformUndo.service.js';
 import { lookupPincode } from '../../core/address/pincode.service.js';
 import * as platformService from './platform.service.js';
 import { listPlatformReports, runPlatformReport } from './platformReports.service.js';
@@ -90,6 +91,19 @@ router.get('/payments', validate({ query: billingPaymentListQuerySchema }), asyn
 router.get('/organisations/:id/billing', validate({ params: idParamsSchema }), async (req, res) => sendOk(res, await billing.organisationBilling(req.valid.params.id)));
 router.post('/organisations/:id/subscription', validate({ params: idParamsSchema, body: assignPlanSchema }), async (req, res) =>
   sendOk(res, await billing.assignPlan(req.valid.params.id, req.valid.body, req.platformAdmin, meta(req)), { message: 'Subscription updated' }),
+);
+
+// Undo: the platform's own stack (organisations, plans, subscriptions, email settings).
+router.get('/undo/latest', async (req, res) => sendOk(res, await platformUndo.platformLatest()));
+router.get('/undo/history', validate({ query: platformUndoHistoryQuerySchema }), async (req, res) => {
+  const { items, meta: page } = await platformUndo.platformUndoHistory(req.valid.query);
+  sendOk(res, items, { meta: page });
+});
+router.post('/undo/:id/undo', validate({ params: idParamsSchema, body: undoReasonSchema }), async (req, res) =>
+  sendOk(res, await platformUndo.platformUndo(req.valid.params.id, req.valid.body, req.platformAdmin, meta(req)), { message: 'Action undone' }),
+);
+router.post('/undo/:id/dismiss', validate({ params: idParamsSchema, body: undoReasonSchema }), async (req, res) =>
+  sendOk(res, await platformUndo.platformDismiss(req.valid.params.id, req.valid.body, req.platformAdmin, meta(req)), { message: 'Action kept' }),
 );
 
 export default router;

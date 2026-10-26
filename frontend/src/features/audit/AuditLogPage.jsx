@@ -1,9 +1,15 @@
+import HistoryRoundedIcon from '@mui/icons-material/HistoryRounded';
 import SearchRoundedIcon from '@mui/icons-material/SearchRounded';
+import UndoRoundedIcon from '@mui/icons-material/UndoRounded';
 import { Box, Chip, InputAdornment, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { AUDIT_ACTION_LABELS, AUDIT_MODULES, formatINR, formatPercent } from '@jerp/shared';
 import { useState } from 'react';
 import DataTable from '../../components/DataTable.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
+import ViewTabs from '../../components/ViewTabs.jsx';
+import { useTabParam } from '../../hooks/useListParams.js';
+import { usePermission } from '../../hooks/usePermission.js';
+import { UndoHistoryTab } from '../undo/UndoHistoryPage.jsx';
 import { useDebounce } from '../../hooks/useDebounce.js';
 import { formatDateTime } from '../../utils/format.js';
 import { useAuditLogsQuery } from './auditApi.js';
@@ -40,7 +46,8 @@ function Changes({ changes }) {
   );
 }
 
-export default function AuditLogPage() {
+/** The Activity tab: every sign-in and change, newest first, with filters. */
+function ActivityTab() {
   const [search, setSearch] = useState('');
   const [module, setModule] = useState('');
   const [action, setAction] = useState('');
@@ -95,11 +102,6 @@ export default function AuditLogPage() {
 
   return (
     <>
-      <PageHeader
-        title={t('Audit log')}
-        subtitle={t('A permanent record of sign-ins and changes made in your business.')}
-        breadcrumbs={[{ label: t('Settings') }, { label: t('Audit log') }]}
-      />
       <DataTable
         columns={columns}
         rows={data?.items}
@@ -140,6 +142,37 @@ export default function AuditLogPage() {
           </Stack>
         }
       />
+    </>
+  );
+}
+
+/**
+ * Audit log: what happened (Activity) and what was undone (Undo history) on one page, as tabs. Each tab shows only
+ * to people who may see it; the page opens on the first one they have.
+ */
+export default function AuditLogPage() {
+  const canAudit = usePermission('audit.view');
+  const canUndo = usePermission('undo.view');
+  const [tab, setTab] = useTabParam(canAudit ? 'activity' : 'undo');
+  const current = tab === 'undo' && canUndo ? 'undo' : canAudit ? 'activity' : 'undo';
+  return (
+    <>
+      <PageHeader
+        title={t('Audit log')}
+        subtitle={current === 'undo' ? t('What was undone or kept — by whom, when and why. Nothing here is ever removed.') : t('A permanent record of sign-ins and changes made in your business.')}
+        breadcrumbs={[{ label: t('Settings') }, { label: t('Audit log') }]}
+      />
+      {canAudit && canUndo && (
+        <ViewTabs
+          value={current}
+          onChange={setTab}
+          items={[
+            { value: 'activity', label: t('Activity'), icon: HistoryRoundedIcon },
+            { value: 'undo', label: t('Undo history'), short: t('Undo'), icon: UndoRoundedIcon },
+          ]}
+        />
+      )}
+      {current === 'undo' ? <UndoHistoryTab /> : <ActivityTab />}
     </>
   );
 }

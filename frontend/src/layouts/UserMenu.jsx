@@ -35,17 +35,17 @@ export default function UserMenu({ user, caption }) {
       <ButtonBase
         onClick={(e) => setAnchor(e.currentTarget)}
         aria-label={t('Account menu')}
-        sx={{ flexShrink: 0, gap: 1, p: { xs: 0.25, lg: 0.5 }, pr: { lg: 1 }, borderRadius: 999, border: { lg: 1 }, borderColor: { lg: 'divider' }, bgcolor: { lg: 'background.paper' }, transition: 'border-color 160ms ease', '&:hover': { borderColor: 'rgba(var(--brand-rgb), 0.5)' } }}
+        sx={{ flexShrink: 0, gap: 0.75, height: 34, p: 0.25, pr: { lg: 0.875 }, borderRadius: 999, border: { lg: 1 }, borderColor: { lg: 'divider' }, bgcolor: { lg: 'background.paper' }, transition: 'border-color 160ms ease', '&:hover': { borderColor: 'rgba(var(--brand-rgb), 0.5)' } }}
       >
         <Box sx={{ p: '2px', borderRadius: '50%', background: 'linear-gradient(135deg, var(--brand-light), var(--brand) 55%, var(--brand-deep))' }}>
-          <Avatar sx={{ width: 34, height: 34, bgcolor: 'secondary.main', color: 'primary.main', fontSize: '0.8125rem', fontWeight: 700, border: '2px solid', borderColor: 'background.paper' }}>{initials(user.name)}</Avatar>
+          <Avatar sx={{ width: 24, height: 24, bgcolor: 'secondary.main', color: 'primary.main', fontSize: '0.6875rem', fontWeight: 700, border: '2px solid', borderColor: 'background.paper' }}>{initials(user.name)}</Avatar>
         </Box>
         <Box sx={{ display: { xs: 'none', lg: 'block' }, textAlign: 'left', maxWidth: 160 }}>
-          <Typography noWrap sx={{ fontSize: '0.8125rem', fontWeight: 700, lineHeight: 1.25 }}>
+          <Typography noWrap sx={{ fontSize: '0.8125rem', fontWeight: 700, lineHeight: 1.2 }}>
             {user.name}
           </Typography>
           {caption && (
-            <Typography noWrap sx={{ fontSize: '0.6875rem', color: 'text.secondary', lineHeight: 1.3 }}>
+            <Typography noWrap sx={{ fontSize: '0.625rem', color: 'text.secondary', lineHeight: 1.2 }}>
               {caption}
             </Typography>
           )}

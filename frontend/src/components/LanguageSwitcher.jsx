@@ -31,11 +31,11 @@ export default function LanguageSwitcher({ onSave, compact = false, sx }) {
         title={t('Language')}
         sx={{
           flexShrink: 0,
-          height: 40,
-          minWidth: 40,
+          height: 34,
+          minWidth: 34,
           px: compact ? 0 : 1.25,
           gap: 0.75,
-          borderRadius: 2.5,
+          borderRadius: 2,
           border: 1,
           borderColor: 'divider',
           bgcolor: 'background.paper',

@@ -1,6 +1,6 @@
 import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
-import { Box, Button, Grid, IconButton, InputAdornment, MenuItem, Paper, TextField, Typography } from '@mui/material';
+import { Box, Button, Grid, IconButton, InputAdornment, MenuItem, Paper, Stack, TextField, Typography } from '@mui/material';
 import { decimalToScaledInt, fineWeightMg, formatINR, formatWeight, METAL_OPTIONS, PURITIES, toPaise } from '@jerp/shared';
 import { useCurrentRatesQuery } from '../rates/rateApi.js';
 import { t } from '../../i18n/index.js';
@@ -64,18 +64,22 @@ export default function CustomerGoldEditor({ lines, onChange, errors = {} }) {
         const net = (mg(l.weight) ?? 0) - (mg(l.less) ?? 0);
         const rate = rateFor(l, rates);
         const noRate = !rate && net > 0;
+        // Two fields a row whatever the screen: this sits in narrow places (the order form's side panel).
         return (
-          <Paper key={i} variant="outlined" sx={{ p: 1.5, mb: 1.25 }}>
+          <Paper key={i} variant="outlined" sx={{ p: 1.5, mb: 1.25, borderRadius: 2.5 }}>
+            <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 1.25 }}>
+              <Typography variant="caption" sx={{ fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'text.secondary' }}>
+                {t('Gold {{value}}', { value: i + 1 })}
+              </Typography>
+              <IconButton size="small" onClick={() => onChange(lines.filter((_, j) => j !== i))} aria-label={t('Remove')} sx={{ mr: -0.5 }}>
+                <CloseRoundedIcon fontSize="small" />
+              </IconButton>
+            </Stack>
             <Grid container spacing={1.25} sx={{ alignItems: 'flex-start' }}>
-              <Grid size={{ xs: 12, sm: 'grow' }}>
+              <Grid size={12}>
                 <TextField size="small" label={t('What is it')} placeholder={t('e.g. Old bangle')} value={l.description} onChange={(e) => update(i, { description: e.target.value })} slotProps={{ htmlInput: { maxLength: 120 } }} />
               </Grid>
-              <Grid size="auto">
-                <IconButton size="small" onClick={() => onChange(lines.filter((_, j) => j !== i))} aria-label={t('Remove')}>
-                  <CloseRoundedIcon fontSize="small" />
-                </IconButton>
-              </Grid>
-              <Grid size={{ xs: 6, sm: 3 }}>
+              <Grid size={6}>
                 <TextField size="small" select label={t('Metal')} value={l.metal} onChange={(e) => update(i, { metal: e.target.value, purity: PURITIES[e.target.value][0].fineness })}>
                   {METAL_OPTIONS.map((m) => (
                     <MenuItem key={m.value} value={m.value}>
@@ -84,7 +88,7 @@ export default function CustomerGoldEditor({ lines, onChange, errors = {} }) {
                   ))}
                 </TextField>
               </Grid>
-              <Grid size={{ xs: 6, sm: 3 }}>
+              <Grid size={6}>
                 <TextField size="small" select label={t('Purity')} value={l.purity} onChange={(e) => update(i, { purity: e.target.value })}>
                   {(PURITIES[l.metal] ?? []).map((p) => (
                     <MenuItem key={p.fineness} value={p.fineness}>
@@ -93,29 +97,37 @@ export default function CustomerGoldEditor({ lines, onChange, errors = {} }) {
                   ))}
                 </TextField>
               </Grid>
-              <Grid size={{ xs: 6, sm: 3 }}>
+              <Grid size={6}>
                 <TextField size="small" label={t('Weight')} value={l.weight} onChange={(e) => update(i, { weight: num(e.target.value) })} error={Boolean(errors[`${i}.weight`])} helperText={errors[`${i}.weight`]} slotProps={{ input: { endAdornment: <InputAdornment position="end">{t('g')}</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }} />
               </Grid>
-              <Grid size={{ xs: 6, sm: 3 }}>
-                <TextField size="small" label={t('Less (dirt, stones)')} value={l.less} placeholder="0" onChange={(e) => update(i, { less: num(e.target.value) })} error={Boolean(errors[`${i}.less`])} helperText={errors[`${i}.less`]} slotProps={{ input: { endAdornment: <InputAdornment position="end">{t('g')}</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }} />
+              <Grid size={6}>
+                <TextField size="small" label={t('Less')} value={l.less} placeholder="0" onChange={(e) => update(i, { less: num(e.target.value) })} error={Boolean(errors[`${i}.less`])} helperText={errors[`${i}.less`] ?? t('Dirt, stones')} slotProps={{ input: { endAdornment: <InputAdornment position="end">{t('g')}</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }} />
               </Grid>
               {/* No rate saved today for this purity: it has to be typed in. */}
               {(noRate || l.rate) && (
-                <Grid size={{ xs: 12, sm: 6 }}>
+                <Grid size={12}>
                   <TextField size="small" label={t('Rate per gram')} value={l.rate} onChange={(e) => update(i, { rate: num(e.target.value) })} error={Boolean(errors[`${i}.rate`]) || noRate} helperText={errors[`${i}.rate`] ?? (noRate ? t('No rate today for this purity — enter it') : ' ')} slotProps={{ input: { startAdornment: <InputAdornment position="start">₹</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }} />
                 </Grid>
               )}
             </Grid>
             {net > 0 && (
-              <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 0.75 }}>
-                {t('Net {{net}} · fine {{fine}}', { net: formatWeight(net), fine: formatWeight(fineWeightMg(net, Number(l.purity))) })}
-                {rate ? t(' · worth {{value}} at {{rate}}/g', { value: formatINR(Math.round((net * rate) / 1000), { decimals: 0 }), rate: formatINR(rate, { decimals: 0 }) }) : ''}
-              </Typography>
+              // What it comes to: net and fine weight, and its value counted in the advance.
+              <Stack direction="row" sx={{ mt: 1.25, px: 1.25, py: 1, borderRadius: 1.5, bgcolor: 'rgba(var(--brand-rgb), 0.08)', alignItems: 'center', justifyContent: 'space-between', gap: 1, flexWrap: 'wrap' }}>
+                <Typography variant="caption" color="textSecondary">
+                  {t('Net {{net}} · fine {{fine}}', { net: formatWeight(net), fine: formatWeight(fineWeightMg(net, Number(l.purity))) })}
+                  {rate ? ` · ${formatINR(rate, { decimals: 0 })}/g` : ''}
+                </Typography>
+                {rate ? (
+                  <Typography variant="body2" sx={{ fontWeight: 700, color: 'var(--brand-strong)' }}>
+                    {formatINR(Math.round((net * rate) / 1000), { decimals: 0 })}
+                  </Typography>
+                ) : null}
+              </Stack>
             )}
           </Paper>
         );
       })}
-      <Button size="small" startIcon={<AddRoundedIcon />} onClick={() => onChange([...lines, emptyGoldLine()])}>
+      <Button size="small" variant={lines.length ? 'text' : 'outlined'} startIcon={<AddRoundedIcon />} onClick={() => onChange([...lines, emptyGoldLine()])}>
         {lines.length ? t('Add more gold') : t('Customer gave gold')}
       </Button>
     </Box>

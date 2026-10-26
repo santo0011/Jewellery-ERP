@@ -5,7 +5,7 @@ import { AUDIT_ACTIONS, recordAudit } from '../../core/audit/audit.service.js';
 import { requireContext } from '../../core/context/requestContext.js';
 import { FileAsset } from '../../core/storage/fileAsset.model.js';
 import { detectImageType, storage } from '../../core/storage/storage.service.js';
-import { postJournal } from '../../core/ledger/posting.service.js';
+import { postJournal, reverseJournalsFor } from '../../core/ledger/posting.service.js';
 import { PAYMENT_ACCOUNT } from '../../core/ledger/paymentAccounts.js';
 import { nextDocumentNo } from '../../core/numbering/numbering.service.js';
 import { moveMetal, moveProducts } from '../../core/stock/stockLedger.service.js';
@@ -19,7 +19,8 @@ import { itemsForOrderLines, itemsForPieces } from '../items/item.service.js';
 import { Product } from '../products/product.model.js';
 import { insertPieces, preparePieces } from '../products/product.service.js';
 import { Supplier } from '../suppliers/supplier.model.js';
-import { Purchase, PurchaseOrder } from './purchase.model.js';
+import { metalShortfall, piecesGone } from '../undo/undo.checks.js';
+import { LIVE_BILL, Purchase, PurchaseOrder } from './purchase.model.js';
 
 const sum = (list, fn) => list.reduce((s, x) => s + (fn(x) ?? 0), 0);
 const countBy = (list) => list.reduce((m, k) => m.set(k, (m.get(k) ?? 0) + 1), new Map());
@@ -52,6 +53,8 @@ function serializePurchase(p, maps) {
     paidPaise: p.paidPaise,
     duePaise: due,
     paymentStatus: p.paymentStatus,
+    status: p.status ?? 'active',
+    ...(p.status === 'cancelled' && { cancelledAt: p.cancelledAt, cancelReason: p.cancelReason, originalBillNo: p.originalBillNo }),
     note: p.note,
     billImages: (p.billImages ?? []).map((i) => String(i.fileId)),
     createdBy: pick(maps.users, p.createdBy),
@@ -76,8 +79,8 @@ export async function listPurchases({ page, limit, q, supplierId, branchId: chos
   const today = await todayContext();
   const month = today.businessDate.slice(0, 7);
   const [monthAgg, dueAgg] = await Promise.all([
-    Purchase.aggregate([{ $match: { ...accessibleBranchFilter(), billDate: { $gte: `${month}-01`, $lte: `${month}-31` } } }, { $group: { _id: null, total: { $sum: '$totals.totalPaise' }, bills: { $sum: 1 } } }]),
-    Purchase.aggregate([{ $match: { ...accessibleBranchFilter(), paymentStatus: { $ne: 'paid' } } }, { $group: { _id: null, due: { $sum: { $subtract: ['$totals.totalPaise', '$paidPaise'] } }, bills: { $sum: 1 } } }]),
+    Purchase.aggregate([{ $match: { ...accessibleBranchFilter(), ...LIVE_BILL, billDate: { $gte: `${month}-01`, $lte: `${month}-31` } } }, { $group: { _id: null, total: { $sum: '$totals.totalPaise' }, bills: { $sum: 1 } } }]),
+    Purchase.aggregate([{ $match: { ...accessibleBranchFilter(), ...LIVE_BILL, paymentStatus: { $ne: 'paid' } } }, { $group: { _id: null, due: { $sum: { $subtract: ['$totals.totalPaise', '$paidPaise'] } }, bills: { $sum: 1 } } }]),
   ]);
   return {
     items: items.map((p) => serializePurchase(p, maps)),
@@ -198,7 +201,7 @@ export async function createPurchase({ supplierId, branchId, billNo, billDate, o
     const created = preparedPieces.length ? await insertPieces(preparedPieces, { session }) : [];
     const allRows = [
       ...itemRows,
-      ...created.map((p) => ({ productId: p._id, sku: p.sku, name: p.name, metal: p.metal, purity: p.purity, grossWeightMg: p.grossWeightMg, fineWeightMg: p.fineWeightMg, costPaise: p.costPricePaise })),
+      ...created.map((p) => ({ productId: p._id, sku: p.sku, name: p.name, metal: p.metal, purity: p.purity, grossWeightMg: p.grossWeightMg, fineWeightMg: p.fineWeightMg, costPaise: p.costPricePaise, newPiece: true })),
     ];
     const purchaseNo = await nextDocumentNo({ prefix: 'PUR', branchCode: branch.code, financialYear: today.financialYear }, { session });
     const [doc] = await Purchase.create(
@@ -260,14 +263,14 @@ export async function createPurchase({ supplierId, branchId, billNo, billDate, o
         { session },
       );
     }
-    await recordAudit({ action: AUDIT_ACTIONS.CREATE, module: 'purchase', recordType: 'Purchase', recordId: doc._id, meta: { name: purchaseNo, supplier: supplier.companyName, billNo, totalPaise } }, { session });
+    await recordAudit({ action: AUDIT_ACTIONS.CREATE, module: 'purchase', recordType: 'Purchase', recordId: doc._id, meta: { name: purchaseNo, supplier: supplier.companyName, billNo, totalPaise }, undo: { type: 'purchase.create', branchId } }, { session });
     return doc;
   });
   return getPurchase(purchase._id);
 }
 
 async function postSupplierPayment({ doc, amountPaise, mode, date, today, session }) {
-  await postJournal(
+  return postJournal(
     {
       voucherType: 'supplier_payment',
       date: at(date, today),
@@ -293,6 +296,7 @@ export async function payPurchase(id, { amountPaise, mode, reference, date }) {
   await withTransaction(async (session) => {
     const doc = await Purchase.findOne({ _id: id, ...accessibleBranchFilter() }).session(session);
     if (!doc) throw ApiError.notFound('Purchase');
+    if (doc.status === 'cancelled') throw ApiError.conflict('This bill is cancelled', 'INVALID_STATE');
     const due = doc.totals.totalPaise - doc.paidPaise;
     if (due <= 0) throw ApiError.conflict('This bill is already fully paid', 'INVALID_STATE');
     if (amountPaise > due) throw ApiError.badRequest(`Only ₹${(due / 100).toLocaleString('en-IN')} is due`, [{ path: 'amountPaise', message: 'More than the amount due' }], 'VALIDATION_ERROR');
@@ -300,8 +304,98 @@ export async function payPurchase(id, { amountPaise, mode, reference, date }) {
     doc.paidPaise += amountPaise;
     doc.paymentStatus = paymentStatus(doc.paidPaise, doc.totals.totalPaise);
     await doc.save({ session });
-    await postSupplierPayment({ doc, amountPaise, mode, date: day, today, session });
-    await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'purchase', recordType: 'Purchase', recordId: doc._id, meta: { name: doc.purchaseNo, payment: amountPaise, mode } }, { session });
+    const journal = await postSupplierPayment({ doc, amountPaise, mode, date: day, today, session });
+    await recordAudit(
+      {
+        action: AUDIT_ACTIONS.UPDATE,
+        module: 'purchase',
+        recordType: 'Purchase',
+        recordId: doc._id,
+        meta: { name: doc.purchaseNo, payment: amountPaise, mode },
+        undo: { type: 'purchase.payment', branchId: doc.branchId, label: `${doc.purchaseNo} — payment`, data: { at: today.now, amountPaise, journalId: journal?._id ?? null } },
+      },
+      { session },
+    );
+  });
+  return getPurchase(id);
+}
+
+// ---------------------------------------------------------------- taking back (Undo)
+
+/** Payments on a bill that were made after it was entered (and not taken back): they must be taken back first. */
+const laterPayments = (p) => p.payments.filter((x, i) => x.amountPaise > 0 && (i > 0 || x.paymentNo) && !p.payments.some((r) => r.reversalOf && new Date(r.reversalOf).getTime() === new Date(x.at).getTime()));
+
+/** Why a bill cannot be cancelled now, or null: its pieces and metal must still be here, untouched, and later payments taken back. */
+export async function purchaseCancelBlock(p) {
+  if (p.status === 'cancelled') return 'It is already cancelled.';
+  if (laterPayments(p).length) return 'Payments were made on this bill since it was entered — take those back first.';
+  const gone = p.items.length ? await piecesGone(p.items.map((i) => i.productId), p.branchId) : null;
+  if (gone) return `${gone} Pieces that are sold or moved cannot leave stock with the bill.`;
+  return p.metalLines.length ? metalShortfall(p.branchId, p.metalLines) : null;
+}
+
+/**
+ * Cancels a bill entered by mistake. Nothing is deleted: its pieces leave stock (pieces the bill made are retired;
+ * drafts picked on it are drafts again), its metal leaves Raw materials, its ledger entries are reversed (a payment
+ * made with it comes back to cash / bank), and a purchase order it received is open again. The bill stays, cancelled.
+ */
+export async function cancelPurchase(id, reason) {
+  const { userId } = requireContext();
+  const today = await todayContext();
+  const p = await findPurchase(id);
+  const block = await purchaseCancelBlock(p);
+  if (block) throw ApiError.conflict(`${p.purchaseNo} cannot be cancelled: ${block}`, 'INVALID_STATE');
+  await withTransaction(async (session) => {
+    const claimed = await Purchase.findOneAndUpdate(
+      { _id: p._id, ...LIVE_BILL },
+      { $set: { status: 'cancelled', cancelledAt: today.now, cancelledBy: userId, cancelReason: reason, originalBillNo: p.billNo, billNo: `${p.billNo} (cancelled ${p.purchaseNo})` } },
+      { session },
+    );
+    if (!claimed) throw ApiError.conflict('This bill is already cancelled', 'INVALID_STATE');
+    const source = { docType: 'purchase', docId: p._id, docNo: p.purchaseNo };
+    const note = `Bill ${p.billNo} cancelled: ${reason}`;
+    if (p.items.length) await moveProducts({ type: 'purchase_cancel', productIds: p.items.map((i) => i.productId), branchId: p.branchId, expectedBranchId: p.branchId, source, businessDate: today.businessDate, note }, { session });
+    const made = p.items.filter((i) => i.newPiece).map((i) => i.productId);
+    if (made.length) await Product.updateMany({ _id: { $in: made } }, { $set: { isDeleted: true, updatedBy: userId } }, { session });
+    for (const line of p.metalLines) {
+      const { metal, purity, kind, grossWeightMg, valuePaise } = line;
+      await moveMetal({ type: 'purchase_cancel', branchId: p.branchId, line: { metal, purity, kind, grossWeightMg, valuePaise, direction: 'out' }, source, businessDate: today.businessDate, note }, { session });
+    }
+    await reverseJournalsFor(source, { date: today.now, businessDate: today.businessDate, financialYear: today.financialYear, narration: `Cancellation of ${p.purchaseNo} (bill ${p.billNo})` }, { session });
+    if (p.orderId) {
+      await PurchaseOrder.updateOne(
+        { _id: p.orderId, purchaseId: p._id },
+        { $set: { status: 'open', purchaseId: null, purchaseNo: null }, $push: { timeline: { status: 'open', at: today.now, by: userId, note: `${p.purchaseNo} cancelled` } } },
+        { session },
+      );
+    }
+    await recordAudit({ action: AUDIT_ACTIONS.CANCEL, module: 'purchase', recordType: 'Purchase', recordId: p._id, meta: { name: p.purchaseNo, billNo: p.billNo, reason } }, { session });
+  });
+  return getPurchase(id);
+}
+
+/** Takes back one payment on a bill (Undo): a matching negative line is added and that payment's entry reversed. */
+export async function reversePurchasePayment(id, { at, journalId }, reason) {
+  const { userId } = requireContext();
+  const today = await todayContext();
+  await withTransaction(async (session) => {
+    const doc = await Purchase.findOne({ _id: id, ...accessibleBranchFilter() }).session(session);
+    if (!doc) throw ApiError.notFound('Purchase');
+    if (doc.status === 'cancelled') throw ApiError.conflict('This bill is cancelled', 'INVALID_STATE');
+    const paid = doc.payments.find((x) => x.amountPaise > 0 && new Date(x.at).getTime() === new Date(at).getTime());
+    if (!paid) throw ApiError.notFound('Payment');
+    if (doc.payments.some((r) => r.reversalOf && new Date(r.reversalOf).getTime() === new Date(at).getTime())) throw ApiError.conflict('This payment was already taken back', 'INVALID_STATE');
+    const reversed = await reverseJournalsFor(
+      { docType: 'purchase', docId: doc._id },
+      { date: today.now, businessDate: today.businessDate, financialYear: today.financialYear, narration: `Payment on ${doc.purchaseNo} taken back`, only: { _id: journalId } },
+      { session },
+    );
+    if (!reversed) throw ApiError.conflict('This payment’s entry was already reversed', 'INVALID_STATE');
+    doc.payments.push({ date: today.businessDate, at: today.now, mode: paid.mode, amountPaise: -paid.amountPaise, reference: `Taken back: ${reason}`, by: userId, reversalOf: paid.at });
+    doc.paidPaise -= paid.amountPaise;
+    doc.paymentStatus = paymentStatus(doc.paidPaise, doc.totals.totalPaise);
+    await doc.save({ session });
+    await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'purchase', recordType: 'Purchase', recordId: doc._id, meta: { name: doc.purchaseNo, paymentTakenBack: paid.amountPaise, reason } }, { session });
   });
   return getPurchase(id);
 }
@@ -390,7 +484,7 @@ export async function createPurchaseOrder({ supplierId, branchId, expectedDate, 
       ],
       { session },
     );
-    await recordAudit({ action: AUDIT_ACTIONS.CREATE, module: 'purchase', recordType: 'PurchaseOrder', recordId: doc._id, meta: { name: orderNo, supplier: supplier.companyName } }, { session });
+    await recordAudit({ action: AUDIT_ACTIONS.CREATE, module: 'purchase', recordType: 'PurchaseOrder', recordId: doc._id, meta: { name: orderNo, supplier: supplier.companyName }, undo: { type: 'purchaseOrder.create', branchId: branch._id } }, { session });
     return doc;
   });
   return getPurchaseOrder(order._id);
@@ -404,6 +498,15 @@ export async function cancelPurchaseOrder(id, { reason }) {
     { $set: { status: 'cancelled' }, $push: { timeline: { status: 'cancelled', at: today.now, by: userId, note: reason } } },
   );
   if (!res.modifiedCount) throw ApiError.conflict('Only an open order can be cancelled', 'INVALID_STATE');
-  await recordAudit({ action: AUDIT_ACTIONS.STATUS_CHANGE, module: 'purchase', recordType: 'PurchaseOrder', recordId: oid(id), meta: { reason }, changes: [{ field: 'status', from: 'open', to: 'cancelled' }] });
+  const order = await PurchaseOrder.findById(id).select('orderNo branchId').lean();
+  await recordAudit({
+    action: AUDIT_ACTIONS.STATUS_CHANGE,
+    module: 'purchase',
+    recordType: 'PurchaseOrder',
+    recordId: oid(id),
+    meta: { name: order.orderNo, reason },
+    changes: [{ field: 'status', from: 'open', to: 'cancelled' }],
+    undo: { type: 'purchaseOrder.cancel', branchId: order.branchId },
+  });
   return getPurchaseOrder(id);
 }

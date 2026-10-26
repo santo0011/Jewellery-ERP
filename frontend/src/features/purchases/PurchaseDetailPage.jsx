@@ -1,5 +1,5 @@
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
-import { Box, Button, Card, CardContent, Dialog, DialogActions, DialogContent, DialogTitle, Divider, Grid, InputAdornment, Link, LinearProgress, Stack, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
+import { Alert, Box, Button, Card, CardContent, Dialog, DialogActions, DialogContent, DialogTitle, Divider, Grid, InputAdornment, Link, LinearProgress, Stack, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material';
 import { formatINR, formatWeight, METAL_POOL_KINDS, toPaise } from '@jerp/shared';
 import { useState } from 'react';
 import toast from 'react-hot-toast';
@@ -111,8 +111,8 @@ export default function PurchaseDetailPage() {
         back={{ to: '/purchases', label: t('Purchases') }}
         actions={
           <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-            <PaymentChip status={p.paymentStatus} />
-            {canPay && p.duePaise > 0 && (
+            <PaymentChip status={p.paymentStatus} cancelled={p.status === 'cancelled'} />
+            {canPay && p.duePaise > 0 && p.status !== 'cancelled' && (
               <Button variant="contained" startIcon={<PaymentsOutlinedIcon />} onClick={() => setPaying(true)}>
                 {t('Pay supplier')}
               </Button>
@@ -121,6 +121,12 @@ export default function PurchaseDetailPage() {
         }
       />
 
+      {p.status === 'cancelled' && (
+        <Alert severity="warning" variant="outlined" sx={{ mb: 2 }}>
+          {t('This bill was cancelled on {{date}}: its pieces and metal left stock and its entries were reversed. Original bill no. {{billNo}}.', { date: formatDate(p.cancelledAt), billNo: p.originalBillNo })}
+          {p.cancelReason && ` — “${p.cancelReason}”`}
+        </Alert>
+      )}
       <Grid container spacing={2}>
         <Grid size={{ xs: 12, md: 8 }}>
           <Stack spacing={2}>

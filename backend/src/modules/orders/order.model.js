@@ -81,6 +81,9 @@ const orderSchema = new mongoose.Schema(
     estimatedPaise: { type: Number, default: 0 },
     advances: { type: [advanceSchema], default: [] },
     advancePaise: { type: Number, default: 0 },
+    // Of the advance, what the customer had paid before (their general advance), moved onto the order when booked.
+    // Set back to 0 when the order is cancelled (it returns to the customer's advance).
+    customerAdvanceUsedPaise: { type: Number, default: 0 },
     customerMetal: { type: [customerMetalSchema], default: [] },
     // Customer gold not yet used, handed back when the order was cancelled: [{ metal, purity, netWeightMg, valuePaise, at }].
     customerMetalReturned: { type: [Mixed], default: [] },

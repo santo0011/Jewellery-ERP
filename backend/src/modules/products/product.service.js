@@ -1,5 +1,7 @@
 import mongoose from 'mongoose';
 import { BRANCH_STATUS, deriveWeights, hasPermission, PLAN_LIMITS, PRODUCT_STATUS, PURITIES } from '@jerp/shared';
+import { productSchema } from '@jerp/shared/schemas';
+import { editSnapshot } from '../undo/undo.snapshot.js';
 import { withTransaction } from '../../config/db.js';
 import { AUDIT_ACTIONS, recordAudit } from '../../core/audit/audit.service.js';
 import { requireContext } from '../../core/context/requestContext.js';
@@ -21,7 +23,7 @@ import { Product } from './product.model.js';
 import { viewBranchFor } from '../inventory/inventory.helpers.js';
 
 const MAX_IMAGES = 8;
-const stockIdentity = (p) => ({
+export const stockIdentity = (p) => ({
   metal: p.metal,
   purity: p.purity,
   stockType: p.stockType,
@@ -150,6 +152,9 @@ const toDocument = (input, category, settings) => ({
   ...deriveWeights(input),
 });
 
+/** A product as its edit form sends it (for Undo): the stored record, dates as YYYY-MM-DD. */
+export const productFormValues = (p) => (p ? { ...p, hallmarkDate: p.hallmarkDate ? new Date(p.hallmarkDate).toISOString().slice(0, 10) : null } : null);
+
 async function findProduct(id) {
   const product = await Product.findOne({ _id: id, isDeleted: false, ...branchScope() });
   if (!product) throw ApiError.notFound('Product');
@@ -212,7 +217,7 @@ export async function createProduct(input) {
   const product = await withTransaction(async (session) => {
     const sku = await nextCode('product', settings.barcode.skuPrefix, 6, { session });
     const [doc] = await Product.create([{ ...toDocument(input, category, settings), sku, barcode: sku, createdBy: userId, updatedBy: userId }], { session });
-    await recordAudit({ action: AUDIT_ACTIONS.CREATE, module: 'product', recordType: 'Product', recordId: doc._id, meta: { name: doc.name, sku } }, { session });
+    await recordAudit({ action: AUDIT_ACTIONS.CREATE, module: 'product', recordType: 'Product', recordId: doc._id, meta: { name: doc.name, sku }, undo: { type: 'product.create', branchId: doc.branchId } }, { session });
     return doc;
   });
   return getProduct(product._id);
@@ -229,7 +234,7 @@ export async function setProductHuid(id, huid) {
   product.huid = huid;
   product.updatedBy = userId;
   await product.save();
-  await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'product', recordType: 'Product', recordId: product._id, meta: { name: product.name, sku: product.sku }, changes: [{ field: 'huid', from, to: huid }] });
+  await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'product', recordType: 'Product', recordId: product._id, meta: { name: product.name, sku: product.sku }, changes: [{ field: 'huid', from, to: huid }], undo: { type: 'product.huid', branchId: product.branchId, data: { from, to: huid } } });
   return getProduct(id);
 }
 
@@ -254,7 +259,15 @@ export async function updateProduct(id, input) {
   const changes = diffChanges(before, product.toObject(), TRACKED);
   if (!changes.length) return getProduct(id);
   await product.save();
-  await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'product', recordType: 'Product', recordId: product._id, meta: { name: product.name, sku: product.sku }, changes });
+  await recordAudit({
+    action: AUDIT_ACTIONS.UPDATE,
+    module: 'product',
+    recordType: 'Product',
+    recordId: product._id,
+    meta: { name: product.name, sku: product.sku },
+    changes,
+    undo: { type: 'product.update', branchId: product.branchId, data: editSnapshot(productSchema, productFormValues(before), productFormValues(product.toObject())) },
+  });
   return getProduct(id);
 }
 

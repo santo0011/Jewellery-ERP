@@ -7,6 +7,8 @@ import { deleteRecord } from '../records/record.deletion.js';
 import { diffChanges } from '../../utils/diff.js';
 import { Product } from '../products/product.model.js';
 import { Category } from './category.model.js';
+import { categorySchema } from '@jerp/shared/schemas';
+import { editSnapshot } from '../undo/undo.snapshot.js';
 
 const serialize = (c, counts) => ({
   id: c._id,
@@ -59,7 +61,7 @@ export async function listCategories() {
 export async function createCategory(input) {
   await assertParent(input.parentId);
   const category = await Category.create({ ...input, createdBy: requireContext().userId }).catch(duplicateName);
-  await recordAudit({ action: AUDIT_ACTIONS.CREATE, module: 'category', recordType: 'Category', recordId: category._id, meta: { name: category.name } });
+  await recordAudit({ action: AUDIT_ACTIONS.CREATE, module: 'category', recordType: 'Category', recordId: category._id, meta: { name: category.name }, undo: { type: 'category.create', branchId: null } });
   return serialize(category.toObject());
 }
 
@@ -71,7 +73,7 @@ export async function updateCategory(id, input) {
   const changes = diffChanges(before, category.toObject(), ['name', 'parentId', 'defaultMetal', 'hsnCode', 'sortOrder']);
   if (!changes.length) return serialize(before);
   await category.save().catch(duplicateName);
-  await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'category', recordType: 'Category', recordId: category._id, meta: { name: category.name }, changes });
+  await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'category', recordType: 'Category', recordId: category._id, meta: { name: category.name }, changes, undo: { type: 'category.update', branchId: null, data: editSnapshot(categorySchema, before, category.toObject()) } });
   return serialize(category.toObject());
 }
 

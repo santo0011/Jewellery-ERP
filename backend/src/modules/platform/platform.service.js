@@ -168,7 +168,10 @@ export async function createOrganisation(input, admin, meta) {
   const { organisation } = await withTransaction((session) =>
     onboardOrganisation({ ...input, passwordHash, mustChangePassword: Boolean(otp), platformAdminId: admin.adminId }, session),
   );
-  await recordPlatformAudit({ adminId: admin.adminId, action: 'organisation_create', organisationId: organisation._id, changes: { name: input.organisationName, owner: input.email, freeDays: input.freeDays } }, meta);
+  await recordPlatformAudit(
+    { adminId: admin.adminId, action: 'organisation_create', organisationId: organisation._id, changes: { name: input.organisationName, owner: input.email, freeDays: input.freeDays }, undo: { type: 'platform.orgCreate', recordType: 'Organisation', label: input.organisationName } },
+    meta,
+  );
   const loginEmail = otp ? await deliverLoginCode('organisationWelcome', { name: input.ownerName, organisationName: input.organisationName, email: input.email, otp }) : null;
   return { ...(await getOrganisation(organisation._id)), loginEmail };
 }
@@ -222,6 +225,9 @@ export async function updateOrganisation(id, { organisationName, email, password
   if (!changes.length) return getOrganisation(id);
 
   const passwordHash = password && owner ? await bcrypt.hash(password, env.BCRYPT_ROUNDS) : null;
+  // For Undo: the edit form's values before and after (a new password is never put back).
+  const formOf = (o, ownerEmail, days) => ({ organisationName: o.name, email: ownerEmail, mobile: o.phone, stateCode: o.address?.stateCode ?? null, address: Object.fromEntries(ADDRESS_FIELDS.map((f) => [f, o.address?.[f] ?? null])), freeDays: days });
+  const formBefore = formOf(org, owner?.email ?? org.email, currentFreeDays);
   await withTransaction(async (session) => {
     const orgFields = changes.filter((c) => c.field in next);
     if (orgFields.length) await Organisation.updateOne({ _id: org._id }, { $set: Object.fromEntries(orgFields.map((c) => [c.field, c.to])) }, { session });
@@ -234,7 +240,17 @@ export async function updateOrganisation(id, { organisationName, email, password
       await Session.updateMany({ userId: owner._id, revokedAt: null }, { $set: { revokedAt: new Date(), revokedReason: 'credentials_changed_by_platform' } }, { session });
     }
   });
-  await recordPlatformAudit({ adminId: admin.adminId, action: 'organisation_update', organisationId: org._id, changes }, meta);
+  const updated = await Organisation.findById(org._id).setOptions(SKIP).lean();
+  await recordPlatformAudit(
+    {
+      adminId: admin.adminId,
+      action: 'organisation_update',
+      organisationId: org._id,
+      changes,
+      undo: { type: 'platform.orgUpdate', recordType: 'Organisation', label: updated.name, data: { before: formBefore, after: formOf(updated, emailChanged ? email : (owner?.email ?? org.email), freeDaysChanged ? freeDays : currentFreeDays), passwordReset: Boolean(passwordHash) } },
+    },
+    meta,
+  );
   // The head office branch shares the registered address.
   const saved = await Organisation.findById(org._id).select('address').lean();
   await copyToHeadOffice(org._id, saved.address, { changes });
@@ -251,7 +267,10 @@ export async function setOrganisationStatus(id, status, admin, meta) {
         await Session.updateMany({ organisationId: org._id, revokedAt: null }, { $set: { revokedAt: new Date(), revokedReason: 'organisation_deactivated' } }, { session });
       }
     });
-    await recordPlatformAudit({ adminId: admin.adminId, action: 'organisation_status', organisationId: org._id, changes: { from: org.status, to: status } }, meta);
+    await recordPlatformAudit(
+      { adminId: admin.adminId, action: 'organisation_status', organisationId: org._id, changes: { from: org.status, to: status }, undo: { type: 'platform.orgStatus', recordType: 'Organisation', label: org.name, data: { from: org.status, to: status } } },
+      meta,
+    );
   }
   return getOrganisation(id);
 }
@@ -261,7 +280,7 @@ export async function setOrganisationStatus(id, status, admin, meta) {
 // ---------------------------------------------------------------------------
 
 // Made when the organisation is created (or by simply signing in): on their own these are not the organisation's records.
-const SETUP_ONLY = new Set(['Organisation', 'Subscription', 'Settings', 'AuditLog', 'Session', 'Counter', 'PlatformAudit']);
+const SETUP_ONLY = new Set(['Organisation', 'Subscription', 'Settings', 'AuditLog', 'UndoAction', 'Session', 'Counter', 'PlatformAudit']);
 // Models onboarding also fills: only what was added on top of the starting set counts.
 const BEYOND_SETUP = {
   Branch: { isHeadOffice: { $ne: true } },
@@ -278,7 +297,9 @@ const RECORD_LABEL = {
   AttendanceCalendar: 'holiday calendar', PayrollRun: 'payroll run', SalaryAdvance: 'salary advance', JournalEntry: 'ledger entry', ApprovalRequest: 'approval', FileAsset: 'file',
 };
 
-const tenantModels = () => Object.values(mongoose.models).filter((M) => M.schema.path('organisationId') && M.modelName !== 'PlatformAudit');
+// The platform's own logs (its audit trail and Undo stack) mention organisations but are not theirs: never counted or deleted with them.
+const PLATFORM_LOGS = new Set(['PlatformAudit', 'PlatformUndoAction']);
+const tenantModels = () => Object.values(mongoose.models).filter((M) => M.schema.path('organisationId') && !PLATFORM_LOGS.has(M.modelName));
 
 /** For each organisation, what it has created itself, e.g. [{ type: 'product', count: 3 }]. Empty means it can be deleted. */
 async function recordsByOrg(orgIds) {
@@ -293,7 +314,7 @@ async function recordsByOrg(orgIds) {
   return found;
 }
 
-const recordsOf = async (orgId) => (await recordsByOrg([orgId])).get(String(orgId));
+export const recordsOf = async (orgId) => (await recordsByOrg([orgId])).get(String(orgId));
 
 /** Removes an organisation that has no records of its own (only what creating it set up). Anything more and it is refused. */
 export async function deleteOrganisation(id, admin, meta) {

@@ -68,3 +68,12 @@ describe('formatting', () => {
     expect(formatWeight(12345)).toBe('12.345 g');
   });
 });
+
+describe('formatINR short form', () => {
+  it('drops .00 for whole rupees but never rounds paise away', () => {
+    expect(formatINR(200000, { decimals: 0 })).toBe('₹2,000');
+    expect(formatINR(200050, { decimals: 0 })).toBe('₹2,000.50');
+    expect(formatINR(200050)).toBe('₹2,000.50');
+    expect(formatINR(-150, { decimals: 0 })).toBe('-₹1.50');
+  });
+});

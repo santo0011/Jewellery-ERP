@@ -23,6 +23,7 @@ export const DEFAULT_SETTINGS = Object.freeze({
     hsnBullion: '7108',
     hsnSilverArticles: '7114',
     roundOff: 'nearest_rupee',
+    maxRoundOffPaise: 10000, // ₹100
   },
   jewellery: {
     enabledPurities: {

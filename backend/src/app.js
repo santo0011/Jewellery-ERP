@@ -1,3 +1,4 @@
+import './config/transactions.js'; // first: every model must join open transactions
 import { randomUUID } from 'node:crypto';
 import cookieParser from 'cookie-parser';
 import cors from 'cors';

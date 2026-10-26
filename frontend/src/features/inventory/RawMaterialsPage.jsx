@@ -178,6 +178,7 @@ function MadeTab({ showCost }) {
               </Typography>
               <Typography variant="caption" color="textSecondary">
                 {d.productionNo}
+                {d.status === 'cancelled' && ` · ${t('Cancelled')}`}
               </Typography>
             </Box>
           ),

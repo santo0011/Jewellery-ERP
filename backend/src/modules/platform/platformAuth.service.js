@@ -6,12 +6,32 @@ import { safeEqualHex, sha256 } from '../../utils/crypto.js';
 import { Session } from '../auth/session.model.js';
 import { createRefreshSecret, decodeRefreshToken, encodeRefreshToken, signPlatformToken, verifyPlatformToken } from '../auth/token.service.js';
 import { assertEmailAvailable } from '../users/emailAvailability.js';
+import { PlatformUndoAction } from '../../core/undo/platformUndoAction.model.js';
 import { PlatformAdmin, PlatformAudit } from './platformAdmin.model.js';
 
 const DUMMY_HASH = bcrypt.hashSync('timing-equaliser', 10);
 const invalid = () => ApiError.unauthorized('Please sign in again', 'REFRESH_INVALID');
 
-export const recordPlatformAudit = (entry, meta = {}) => PlatformAudit.create({ ...entry, ip: meta.ip, userAgent: meta.userAgent });
+/**
+ * Records a Super Admin action. `entry.undo` ({ type, label?, data?, recordType?, recordId? }) also puts it on the
+ * platform's Undo stack (see platformUndo.service.js) — except actions an undo itself does (meta.undoRun).
+ */
+export async function recordPlatformAudit({ undo, ...entry }, meta = {}) {
+  const audit = await PlatformAudit.create({ ...entry, ip: meta.ip, userAgent: meta.userAgent });
+  if (undo && !meta.undoRun) {
+    await PlatformUndoAction.create({
+      type: undo.type,
+      recordType: undo.recordType ?? null,
+      recordId: undo.recordId ?? entry.organisationId ?? null,
+      organisationId: entry.organisationId ?? null,
+      label: undo.label ?? null,
+      data: undo.data,
+      auditId: audit._id,
+      createdByAdminId: entry.adminId ?? null,
+    });
+  }
+  return audit;
+}
 
 async function openSession(admin, meta, signedInWith = 'password') {
   const { secret, hash } = createRefreshSecret();

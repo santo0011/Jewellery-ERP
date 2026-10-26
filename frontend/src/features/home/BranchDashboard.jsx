@@ -1,27 +1,33 @@
+import AssignmentOutlinedIcon from '@mui/icons-material/AssignmentOutlined';
+import CalendarMonthOutlinedIcon from '@mui/icons-material/CalendarMonthOutlined';
+import CategoryOutlinedIcon from '@mui/icons-material/CategoryOutlined';
 import DiamondOutlinedIcon from '@mui/icons-material/DiamondOutlined';
+import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
 import PendingActionsOutlinedIcon from '@mui/icons-material/PendingActionsOutlined';
+import PeopleAltOutlinedIcon from '@mui/icons-material/PeopleAltOutlined';
+import PlaceOutlinedIcon from '@mui/icons-material/PlaceOutlined';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
-import { Box, Card, CardContent, Divider, Grid, Link, Stack, ToggleButton, ToggleButtonGroup, Typography, useMediaQuery } from '@mui/material';
+import ShowChartRoundedIcon from '@mui/icons-material/ShowChartRounded';
+import { Box, ButtonBase, Grid, Stack, Typography, useMediaQuery } from '@mui/material';
 import { formatINR, formatWeight, ORDER_STATUS_LABELS } from '@jerp/shared';
 import { useState } from 'react';
 import { Link as RouterLink } from 'react-router';
-import ClampText from '../../components/ClampText.jsx';
 import SummaryCards, { SummaryCard } from '../../components/SummaryCards.jsx';
 import { ErrorState, LoadingState } from '../../components/StateViews.jsx';
-import { formatDate, formatDateTime } from '../../utils/format.js';
+import { usePermission } from '../../hooks/usePermission.js';
+import { getLocale, t, tValue } from '../../i18n/index.js';
+import { fonts } from '../../theme/tokens.js';
+import { formatDate } from '../../utils/format.js';
+import { useFinanceSummaryQuery } from '../finance/financeApi.js';
+import { SalesExpenseChart } from '../finance/financeCharts.jsx';
 import { OrderStatusChip } from '../orders/orderUi.jsx';
 import { purityLabel } from '../products/productForm.js';
-import { BarList } from './charts.jsx';
-import { AreaChart, ShareBars, StackedBar } from './shareCharts.jsx';
 import { useBranchDashboardQuery } from './dashboardApi.js';
-import { useNavigate } from 'react-router';
-import { usePermission } from '../../hooks/usePermission.js';
-import { useFinanceSummaryQuery } from '../finance/financeApi.js';
-import { ProfitSnapshot } from '../finance/ProfitPage.jsx';
-import { getLocale, t, tValue } from '../../i18n/index.js';
+import { EmptyNote, goldBg, Initials, Panel, PanelLink, PeriodSwitch, RankList, ShareBar, StatTile } from './dashboardUi.jsx';
+import { AreaChart, DonutChart } from './shareCharts.jsx';
 
-// The same three periods on every dashboard; all time (since the branch's first bill) is the default.
+// The same three periods on every dashboard.
 const PERIODS = [
   { value: 'today', label: t('Today'), phrase: t('today') },
   { value: 'month', label: t('This month'), phrase: t('this month') },
@@ -39,56 +45,25 @@ const collectedCaption = (by) => {
   const parts = COLLECTION_PARTS.filter(([key]) => by?.[key] > 0).map(([key, label]) => `${label} ${formatINR(by[key], { decimals: 0 })}`);
   return parts.length ? parts.join(' · ') : t('Bills, orders, dues and advances');
 };
-// Phones: tighter gaps between cards, so more of the dashboard fits on a screen.
-const GAP = { xs: 1.5, sm: 2 };
-const ROW_GAP = { xs: 1.5, sm: 2.5 };
+// Phones: tighter gaps between panels, so more of the dashboard fits on a screen.
+const GAP = { xs: 1.5, sm: 2.5 };
 const metalName = (m) => t(m.charAt(0).toUpperCase() + m.slice(1));
-
-function Panel({ title, subtitle, action, children }) {
-  return (
-    <Card sx={{ height: '100%' }}>
-      <CardContent sx={{ p: { xs: 1.75, sm: 2.5 }, '&:last-child': { pb: { xs: 1.75, sm: 2.5 } } }}>
-        <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'flex-start', mb: { xs: 1.5, sm: 2 }, gap: 1 }}>
-          <Box sx={{ minWidth: 0 }}>
-            <Typography variant="h5" sx={{ fontSize: { xs: '0.9375rem', sm: '1rem' } }}>{title}</Typography>
-            {subtitle && (
-              <ClampText lines={2} lineHeight={1.4} variant="caption" color="textSecondary" sx={{ mt: 0.25 }}>
-                {subtitle}
-              </ClampText>
-            )}
-          </Box>
-          {action}
-        </Stack>
-        {children}
-      </CardContent>
-    </Card>
-  );
-}
+const inr = (p) => formatINR(p, { decimals: 0 });
+const DUE = 'var(--mui-palette-error-main)';
 
 const shortDay = (ymd, bucket) => {
   const d = new Date(`${ymd}T00:00:00`);
   if (bucket === 'month') return d.toLocaleDateString(getLocale(), { month: 'short', year: '2-digit' });
   return d.toLocaleDateString(getLocale(), { day: 'numeric', month: 'short' });
 };
-
 /** 0–23 → "9 am", "12 pm", "5 pm". */
 const hourLabel = (h) => t(h < 12 ? '{{h}} am' : '{{h}} pm', { h: h % 12 || 12 });
+const timeOf = (at) => new Date(at).toLocaleTimeString(getLocale(), { hour: 'numeric', minute: '2-digit' });
+const dayOf = (at) => new Date(at).toLocaleDateString(getLocale(), { day: 'numeric', month: 'short' });
 
-/** The branch at a glance: today, the period's sales trend and mix, collections, orders and stock. */
-/** This month's sales against expenses, day by day, and the net profit so far — opens Profit & loss. */
-function MonthProfit({ branchId }) {
-  const navigate = useNavigate();
-  const { data } = useFinanceSummaryQuery({ branchId }, { skip: !branchId });
-  if (!data) return null;
-  return (
-    <Box sx={{ mb: ROW_GAP }}>
-      <ProfitSnapshot data={data} onOpen={() => navigate('/finance')} />
-    </Box>
-  );
-}
-
+/** The branch at a glance: the period's figures, sales trend and mix, best sellers, stock, orders and latest bills. */
 export default function BranchDashboard({ branchId }) {
-  const canSeeProfit = usePermission('report.finance');
+  const canSeeMonth = usePermission('report.finance');
   const [period, setPeriod] = useState('today');
   const { data, isLoading, isFetching, error, refetch } = useBranchDashboardQuery({ branchId, period }, { skip: !branchId });
   const phone = useMediaQuery((theme) => theme.breakpoints.down('sm'));
@@ -97,179 +72,296 @@ export default function BranchDashboard({ branchId }) {
   if (error) return <ErrorState error={error} onRetry={refetch} />;
   const { sales, orders, stock } = data;
   const monthly = data.range.bucket === 'month';
+  const phrase = periodPhrase(period);
 
   return (
     <Box sx={{ opacity: isFetching ? 0.6 : 1, transition: 'opacity 150ms' }}>
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={{ xs: 1.25, sm: 1.5 }} sx={{ mb: ROW_GAP, alignItems: { sm: 'center' }, justifyContent: 'space-between' }}>
-        <Box sx={{ minWidth: 0 }}>
-          <Typography variant="h4" noWrap sx={{ fontSize: { xs: '1.0625rem', sm: '1.125rem' } }}>
-            {data.branch.name}
-          </Typography>
-          <Typography variant="caption" color="textSecondary">
-            {formatDate(data.range.from)} – {formatDate(data.range.to)}
-          </Typography>
-        </Box>
-        {/* Phones: three equal segments across the width, with short labels. */}
-        <ToggleButtonGroup exclusive size="small" value={period} onChange={(e, v) => v && setPeriod(v)} aria-label={t('Period')} sx={{ width: { xs: '100%', sm: 'auto' } }}>
-          {PERIODS.map(({ value, label, short }) => (
-            <ToggleButton key={value} value={value} sx={{ px: { xs: 1, sm: 1.75 }, flex: { xs: 1, sm: 'none' } }}>
-              {phone && short ? short : label}
-            </ToggleButton>
-          ))}
-        </ToggleButtonGroup>
+      {/* Which branch and dates, and the period. */}
+      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25} sx={{ mb: { xs: 1.75, sm: 2.25 }, alignItems: { sm: 'center' }, justifyContent: 'space-between' }}>
+        <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', minWidth: 0 }}>
+          <Box sx={(theme) => ({ width: 36, height: 36, flexShrink: 0, borderRadius: '50%', display: 'grid', placeItems: 'center', ...goldBg(theme), color: 'var(--brand-contrast)' })}>
+            <PlaceOutlinedIcon sx={{ fontSize: 19 }} />
+          </Box>
+          <Box sx={{ minWidth: 0 }}>
+            <Typography noWrap sx={{ fontWeight: 700, fontSize: { xs: '1rem', sm: '1.0625rem' }, lineHeight: 1.25 }}>
+              {data.branch.name}
+            </Typography>
+            <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', color: 'text.secondary' }}>
+              <CalendarMonthOutlinedIcon sx={{ fontSize: 13 }} />
+              <Typography variant="caption" noWrap>
+                {data.range.from === data.range.to ? formatDate(data.range.from) : `${formatDate(data.range.from)} – ${formatDate(data.range.to)}`}
+              </Typography>
+            </Stack>
+          </Box>
+        </Stack>
+        <PeriodSwitch value={period} options={PERIODS} onChange={setPeriod} short={phone} />
       </Stack>
 
       {sales && (
         <SummaryCards>
-          <SummaryCard hideCaptionOnPhone icon={ReceiptLongOutlinedIcon} label={t('Sales · {{periodPhrase}}', { periodPhrase: periodPhrase(period) })} value={formatINR(sales.period.revenuePaise, { decimals: 0 })} caption={t('{{bills}} bills · avg {{averageBill}}', { bills: sales.period.bills, averageBill: formatINR(sales.period.averageBillPaise, { decimals: 0 }) })} tone="blue" />
-          <SummaryCard hideCaptionOnPhone icon={PaymentsOutlinedIcon} label={t('Collected · {{periodPhrase}}', { periodPhrase: periodPhrase(period) })} value={formatINR(sales.period.collectedPaise, { decimals: 0 })} caption={collectedCaption(sales.period.collectedBreakdown)} tone="green" valueTone="paid" />
-          <SummaryCard hideCaptionOnPhone icon={PendingActionsOutlinedIcon} label={t('Due · {{periodPhrase}}', { periodPhrase: periodPhrase(period) })} value={formatINR(sales.period.creditDuePaise, { decimals: 0 })} caption={sales.period.dueBills ? (sales.period.dueBills === 1 ? t('{{dueBills}} bill still unpaid', { dueBills: sales.period.dueBills }) : t('{{dueBills}} bills still unpaid', { dueBills: sales.period.dueBills })) : t('Nothing due')} tone={sales.period.creditDuePaise ? 'red' : 'green'} valueTone={sales.period.creditDuePaise ? 'due' : undefined} />
-          <SummaryCard hideCaptionOnPhone icon={DiamondOutlinedIcon} label={t('Items sold')} value={sales.period.items} caption={(sales.period.discountPaise ? t('{{grossWeight}} gross · {{discount}} discount', { grossWeight: formatWeight(sales.period.grossWeightMg), discount: formatINR(sales.period.discountPaise, { decimals: 0 }) }) : t('{{grossWeight}} gross', { grossWeight: formatWeight(sales.period.grossWeightMg) }))} tone="amber" />
+          <SummaryCard hideCaptionOnPhone icon={ReceiptLongOutlinedIcon} label={t('Sales · {{periodPhrase}}', { periodPhrase: phrase })} value={inr(sales.period.revenuePaise)} caption={t('{{bills}} bills · avg {{averageBill}}', { bills: sales.period.bills, averageBill: inr(sales.period.averageBillPaise) })} tone="blue" />
+          <SummaryCard hideCaptionOnPhone icon={PaymentsOutlinedIcon} label={t('Collected · {{periodPhrase}}', { periodPhrase: phrase })} value={inr(sales.period.collectedPaise)} caption={collectedCaption(sales.period.collectedBreakdown)} tone="green" valueTone="paid" />
+          <SummaryCard hideCaptionOnPhone icon={PendingActionsOutlinedIcon} label={t('Due · {{periodPhrase}}', { periodPhrase: phrase })} value={inr(sales.period.creditDuePaise)} caption={sales.period.dueBills ? (sales.period.dueBills === 1 ? t('{{dueBills}} bill still unpaid', { dueBills: sales.period.dueBills }) : t('{{dueBills}} bills still unpaid', { dueBills: sales.period.dueBills })) : t('Nothing due')} tone={sales.period.creditDuePaise ? 'red' : 'green'} valueTone={sales.period.creditDuePaise ? 'due' : undefined} />
+          <SummaryCard hideCaptionOnPhone icon={DiamondOutlinedIcon} label={t('Items sold')} value={sales.period.items} caption={sales.period.discountPaise ? t('{{grossWeight}} gross · {{discount}} discount', { grossWeight: formatWeight(sales.period.grossWeightMg), discount: inr(sales.period.discountPaise) }) : t('{{grossWeight}} gross', { grossWeight: formatWeight(sales.period.grossWeightMg) })} tone="amber" />
         </SummaryCards>
       )}
 
-      {canSeeProfit && <MonthProfit branchId={branchId} />}
-
-      {sales && (
-        <Grid container spacing={GAP} sx={{ mb: ROW_GAP }}>
-          <Grid size={{ xs: 12, lg: 8 }}>
-            <Panel title={t('Sales trend')} subtitle={(sales.hourly ? t('Bill totals per hour · {{periodPhrase}}', { periodPhrase: periodPhrase(period) }) : (monthly ? t('Bill totals per month · {{periodPhrase}}', { periodPhrase: periodPhrase(period) }) : t('Bill totals per day · {{periodPhrase}}', { periodPhrase: periodPhrase(period) })))}>
-              <AreaChart
-                height={phone ? 170 : 240}
-                data={
-                  sales.hourly
-                    ? sales.hourly.map((h) => ({ key: h.hour, label: hourLabel(h.hour), value: h.totalPaise, detail: (h.bills === 1 ? t('{{hourLabel}} – {{hourLabel2}} · {{bills}} bill', { hourLabel: hourLabel(h.hour), hourLabel2: hourLabel((h.hour + 1) % 24), bills: h.bills }) : t('{{hourLabel}} – {{hourLabel2}} · {{bills}} bills', { hourLabel: hourLabel(h.hour), hourLabel2: hourLabel((h.hour + 1) % 24), bills: h.bills })) }))
-                    : sales.daily.map((d) => ({ key: d.date, label: shortDay(d.date, data.range.bucket), value: d.totalPaise, detail: t(d.bills === 1 ? '{{date}} · {{bills}} bill' : '{{date}} · {{bills}} bills', { date: monthly ? shortDay(d.date, 'month') : formatDate(d.date), bills: d.bills }) }))
+      <Grid container spacing={GAP}>
+        {sales && (
+          <>
+            <Grid size={{ xs: 12, lg: 8 }}>
+              <Panel
+                icon={ShowChartRoundedIcon}
+                title={t('Sales trend')}
+                subtitle={sales.hourly ? t('Bill totals per hour · {{periodPhrase}}', { periodPhrase: phrase }) : monthly ? t('Bill totals per month · {{periodPhrase}}', { periodPhrase: phrase }) : t('Bill totals per day · {{periodPhrase}}', { periodPhrase: phrase })}
+                action={
+                  <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
+                    <Typography sx={{ fontFamily: fonts.display, fontWeight: 700, fontSize: { xs: 20, sm: 24 }, lineHeight: 1, color: 'var(--brand-strong)' }}>{inr(sales.period.revenuePaise)}</Typography>
+                    <Typography variant="caption" color="textSecondary">
+                      {sales.period.bills === 1 ? t('{{count}} bill', { count: sales.period.bills }) : t('{{count}} bills', { count: sales.period.bills })}
+                    </Typography>
+                  </Box>
                 }
-              />
-            </Panel>
-          </Grid>
-          <Grid size={{ xs: 12, lg: 4 }}>
-            <Panel title={t('Payment mix')} subtitle={t('Money received, by mode: bills, orders, dues and advances')}>
-              <ShareBars rows={sales.byPaymentMode.map((r) => ({ ...r, label: t(r.label) }))} owedKeys={['credit']} totalLabel={t('Collected + on credit')} empty={t('No payments in this period')} />
-            </Panel>
-          </Grid>
-        </Grid>
-      )}
+              >
+                <AreaChart
+                  height={phone ? 170 : 250}
+                  data={
+                    sales.hourly
+                      ? sales.hourly.map((h) => ({ key: h.hour, label: hourLabel(h.hour), value: h.totalPaise, detail: h.bills === 1 ? t('{{hourLabel}} – {{hourLabel2}} · {{bills}} bill', { hourLabel: hourLabel(h.hour), hourLabel2: hourLabel((h.hour + 1) % 24), bills: h.bills }) : t('{{hourLabel}} – {{hourLabel2}} · {{bills}} bills', { hourLabel: hourLabel(h.hour), hourLabel2: hourLabel((h.hour + 1) % 24), bills: h.bills }) }))
+                      : sales.daily.map((d) => ({ key: d.date, label: shortDay(d.date, data.range.bucket), value: d.totalPaise, detail: t(d.bills === 1 ? '{{date}} · {{bills}} bill' : '{{date}} · {{bills}} bills', { date: monthly ? shortDay(d.date, 'month') : formatDate(d.date), bills: d.bills }) }))
+                  }
+                />
+              </Panel>
+            </Grid>
+            <Grid size={{ xs: 12, lg: 4 }}>
+              <PaymentMix rows={sales.byPaymentMode} />
+            </Grid>
+          </>
+        )}
 
-      <Grid container spacing={GAP} sx={{ mb: ROW_GAP }}>
+        {canSeeMonth && (
+          <Grid size={12}>
+            <MonthSales branchId={branchId} />
+          </Grid>
+        )}
+
         {sales && (
           <Grid size={{ xs: 12, md: 6, lg: 4 }}>
-            <Panel title={t('Sales by category')} subtitle={t('Value sold · items')}>
-              <BarList rows={sales.byCategory.map((c) => ({ ...c, caption: (c.extra === 1 ? t('{{extra}} item', { extra: c.extra }) : t('{{extra}} items', { extra: c.extra })) }))} empty={t('No items sold yet')} />
+            <Panel icon={CategoryOutlinedIcon} title={t('Top categories')} subtitle={t('Value sold · {{periodPhrase}}', { periodPhrase: phrase })}>
+              <RankList rows={sales.byCategory.map((c) => ({ key: c.key, label: tValue(c.label), value: c.value, caption: c.extra === 1 ? t('{{extra}} item', { extra: c.extra }) : t('{{extra}} items', { extra: c.extra }) }))} formatValue={inr} empty={t('No items sold yet')} />
+            </Panel>
+          </Grid>
+        )}
+        {sales && (
+          <Grid size={{ xs: 12, md: 6, lg: 4 }}>
+            <Panel icon={PeopleAltOutlinedIcon} title={t('Top customers')} subtitle={t('Who bought the most · {{periodPhrase}}', { periodPhrase: phrase })} action={<PanelLink to="/customers">{t('All')}</PanelLink>}>
+              <RankList avatar rows={(sales.topCustomers ?? []).map((c) => ({ key: String(c.id), label: c.name, value: c.value, to: `/customers/${c.id}`, caption: c.bills === 1 ? t('{{count}} bill', { count: c.bills }) : t('{{count}} bills', { count: c.bills }) }))} formatValue={inr} empty={t('No customer bills in this period')} />
             </Panel>
           </Grid>
         )}
         {stock && (
           <Grid size={{ xs: 12, md: 6, lg: 4 }}>
-            <Panel title={t('Stock in hand')} subtitle={t('Share of gross weight by purity')} action={<Link component={RouterLink} to="/inventory" variant="caption" sx={{ fontWeight: 600 }}>{t('Stock summary')}</Link>}>
-              <Stack direction="row" spacing={3} sx={{ mb: { xs: 1.5, sm: 2 } }}>
-                <Box>
-                  <Typography sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, fontWeight: 800, lineHeight: 1.1 }}>{stock.items}</Typography>
-                  <Typography variant="caption" color="textSecondary">
-                    {t('pieces')}
-                  </Typography>
-                </Box>
-                <Box>
-                  <Typography sx={{ fontSize: { xs: '1.25rem', sm: '1.5rem' }, fontWeight: 800, lineHeight: 1.1 }}>{formatWeight(stock.grossWeightMg)}</Typography>
-                  <Typography variant="caption" color="textSecondary">
-                    {t('gross weight')}
-                  </Typography>
-                </Box>
-              </Stack>
-              <StackedBar
-                rows={stock.byPurity.map((p) => ({ key: p.key, label: `${metalName(p.metal)} ${purityLabel(p.metal, p.purity)}`, value: p.value, caption: t('{{items}} pcs', { items: p.items }) }))}
-                formatValue={(v) => formatWeight(v)}
-                empty={t('Nothing in stock at this branch')}
-              />
-            </Panel>
+            <StockPanel stock={stock} />
           </Grid>
         )}
+
         {orders && (
-          <Grid size={{ xs: 12, md: 12, lg: 4 }}>
-            <Panel title={t('Customer orders')} subtitle={t('Open now · due this week')} action={<Link component={RouterLink} to="/orders" variant="caption" sx={{ fontWeight: 600 }}>{t('All orders')}</Link>}>
-              <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', mb: { xs: 1.5, sm: 2 } }}>
-                {[
-                  ['booked', orders.byStatus.booked],
-                  ['in_progress', orders.byStatus.in_progress],
-                  ['ready', orders.byStatus.ready],
-                ].map(([s, n]) => (
-                  <Box key={s} sx={{ flex: '1 1 0', minWidth: 72, px: 1, py: { xs: 0.5, sm: 0.75 }, borderRadius: 2, bgcolor: 'action.hover', textAlign: 'center' }}>
-                    <Typography sx={{ fontWeight: 800, fontSize: { xs: '1.05rem', sm: '1.15rem' }, lineHeight: 1.2 }}>{n}</Typography>
-                    <Typography variant="caption" color="textSecondary" noWrap>
-                      {ORDER_STATUS_LABELS[s]}
-                    </Typography>
-                  </Box>
-                ))}
-                {orders.overdue > 0 && (
-                  <Box sx={{ flex: '1 1 0', minWidth: 72, px: 1, py: 0.75, borderRadius: 2, bgcolor: 'rgba(198, 40, 40, 0.10)', textAlign: 'center' }}>
-                    <Typography sx={{ fontWeight: 800, fontSize: '1.15rem', lineHeight: 1.2, color: 'error.main' }}>{orders.overdue}</Typography>
-                    <Typography variant="caption" sx={{ color: 'error.main' }}>
-                      {t('Overdue')}
-                    </Typography>
-                  </Box>
-                )}
-              </Stack>
-              {orders.upcoming.length === 0 ? (
-                <Typography variant="body2" color="textSecondary" sx={{ py: { xs: 1, sm: 2 }, textAlign: 'center' }}>
-                  {t('Nothing due this week')}
-                </Typography>
-              ) : (
-                <Stack divider={<Divider flexItem />} spacing={1.25}>
-                  {orders.upcoming.map((o) => (
-                    <Stack key={o.id} direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                      <Box sx={{ flex: 1, minWidth: 0 }}>
-                        <Link component={RouterLink} to={`/orders/${o.id}`} variant="body2" underline="hover" sx={{ fontWeight: 600, color: 'text.primary' }}>
-                          {o.orderNo}
-                        </Link>
-                        <Typography variant="caption" color="textSecondary" component="div" noWrap>
-                          {tValue(o.customer)}
-                        </Typography>
-                      </Box>
-                      <Box sx={{ textAlign: 'right' }}>
-                        <Typography variant="caption" sx={{ fontWeight: 600, color: o.overdue ? 'error.main' : 'text.secondary', display: 'block' }}>
-                          {o.overdue ? t('Overdue · ') : ''}
-                          {formatDate(o.expectedDate)}
-                        </Typography>
-                        <OrderStatusChip status={o.status} />
-                      </Box>
-                    </Stack>
-                  ))}
-                </Stack>
-              )}
-            </Panel>
+          <Grid size={{ xs: 12, md: 6, lg: 5 }}>
+            <OrdersPanel orders={orders} />
+          </Grid>
+        )}
+        {sales && (
+          <Grid size={{ xs: 12, lg: orders ? 7 : 12 }}>
+            <RecentBills bills={phone ? sales.recent.slice(0, 5) : sales.recent} />
           </Grid>
         )}
       </Grid>
-
-      {sales && sales.recent.length > 0 && (
-        <Panel title={t('Recent bills')} action={<Link component={RouterLink} to="/sales" variant="caption" sx={{ fontWeight: 600 }}>{t('All invoices')}</Link>}>
-          {/* Phones: a plain list with rules between bills (the latest five); wider screens: a grid of small cards. */}
-          <Grid container spacing={{ xs: 0, sm: 1.5 }}>
-            {(phone ? sales.recent.slice(0, 5) : sales.recent).map((s, i, list) => (
-              <Grid key={s.id} size={{ xs: 12, sm: 6, lg: 4 }}>
-                <Stack
-                  direction="row"
-                  spacing={1}
-                  sx={{ alignItems: 'center', px: { xs: 0, sm: 1.25 }, py: { xs: 1.125, sm: 1.25 }, borderRadius: { xs: 0, sm: 2 }, border: '1px solid', borderColor: 'divider', borderWidth: { xs: i < list.length - 1 ? '0 0 1px' : 0, sm: '1px' } }}
-                >
-                  <Box sx={{ flex: 1, minWidth: 0 }}>
-                    <Link component={RouterLink} to={`/sales/${s.id}`} variant="body2" underline="hover" sx={{ fontWeight: 600, color: 'text.primary' }}>
-                      {s.invoiceNo}
-                    </Link>
-                    <Typography variant="caption" color="textSecondary" component="div" noWrap>
-                      {tValue(s.customer)} · {formatDateTime(s.at)}
-                    </Typography>
-                  </Box>
-                  <Typography variant="body2" sx={{ fontWeight: 700, whiteSpace: 'nowrap' }}>
-                    {formatINR(s.totalPaise, { decimals: 0 })}
-                  </Typography>
-                </Stack>
-              </Grid>
-            ))}
-          </Grid>
-        </Panel>
-      )}
     </Box>
+  );
+}
+
+/** Money received by mode, as a ring; what was left on credit is owed, not received, so it sits apart below. */
+function PaymentMix({ rows }) {
+  const received = rows.filter((r) => r.key !== 'credit').map((r) => ({ ...r, label: t(r.label) }));
+  const credit = rows.find((r) => r.key === 'credit')?.value ?? 0;
+  return (
+    <Panel icon={PaymentsOutlinedIcon} title={t('Payment mix')} subtitle={t('Money received, by mode')}>
+      <Box sx={{ display: 'grid', placeItems: 'center', pt: 0.5 }}>
+        <DonutChart stacked rows={received} size={168} thickness={22} centerLabel={t('Received')} empty={t('No payments in this period')} />
+      </Box>
+      {credit > 0 && (
+        <Stack direction="row" sx={{ mt: 2, px: 1.5, py: 1, borderRadius: 2, alignItems: 'center', justifyContent: 'space-between', bgcolor: 'rgba(155, 44, 44, 0.07)', border: '1px solid rgba(155, 44, 44, 0.2)' }}>
+          <Typography variant="body2" sx={{ fontWeight: 600, color: DUE }}>
+            {t('Left on credit')}
+          </Typography>
+          <Typography variant="body2" sx={{ fontWeight: 800, color: DUE }}>
+            {inr(credit)}
+          </Typography>
+        </Stack>
+      )}
+    </Panel>
+  );
+}
+
+/** This month, day by day: sales only, with the month's total, the daily average and the best day. */
+function MonthSales({ branchId }) {
+  const { data } = useFinanceSummaryQuery({ branchId }, { skip: !branchId });
+  if (!data) return null;
+  const soFar = data.days.filter((d) => !d.future);
+  const total = data.totals.salesPaise;
+  const best = soFar.reduce((top, d) => (d.salesPaise > (top?.salesPaise ?? 0) ? d : top), null);
+  const month = new Date(`${data.month}-01T00:00:00`).toLocaleDateString(getLocale(), { month: 'long', year: 'numeric' });
+  return (
+    <Panel icon={CalendarMonthOutlinedIcon} title={t('Sales this month')} subtitle={t('Every day of {{monthName}}', { monthName: month })} action={<PanelLink to="/sales">{t('Invoices')}</PanelLink>}>
+      <Grid container spacing={2.5} sx={{ alignItems: 'center' }}>
+        <Grid size={{ xs: 12, md: 9 }}>
+          <SalesExpenseChart days={data.days} height={210} salesOnly />
+        </Grid>
+        <Grid size={{ xs: 12, md: 3 }}>
+          <Stack direction={{ xs: 'row', md: 'column' }} spacing={1.25}>
+            <StatTile label={t('Sales')} value={inr(total)} />
+            <StatTile label={t('Daily average')} value={inr(soFar.length ? Math.round(total / soFar.length) : 0)} />
+            <StatTile label={best ? t('Best day ({{day}})', { day: Number(best.date.slice(8)) }) : t('Best day')} value={inr(best?.salesPaise ?? 0)} tone="success.main" />
+          </Stack>
+        </Grid>
+      </Grid>
+    </Panel>
+  );
+}
+
+/** Pieces and weight in stock, then each purity's share of the weight. */
+function StockPanel({ stock }) {
+  const top = stock.byPurity.slice(0, 5);
+  return (
+    <Panel icon={Inventory2OutlinedIcon} title={t('Stock in hand')} subtitle={t('By purity, share of gross weight')} action={<PanelLink to="/inventory">{t('Stock')}</PanelLink>}>
+      <Stack direction="row" spacing={1.25} sx={{ mb: 2 }}>
+        <StatTile label={t('pieces')} value={stock.items} />
+        <StatTile label={t('gross weight')} value={formatWeight(stock.grossWeightMg)} />
+      </Stack>
+      {top.length === 0 ? (
+        <EmptyNote>{t('Nothing in stock at this branch')}</EmptyNote>
+      ) : (
+        <Stack spacing={1.5}>
+          {top.map((p) => (
+            <Box key={p.key}>
+              <Stack direction="row" spacing={1} sx={{ justifyContent: 'space-between', alignItems: 'baseline', mb: 0.5 }}>
+                <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                  {metalName(p.metal)} {purityLabel(p.metal, p.purity)}
+                  <Typography component="span" variant="caption" color="textSecondary" sx={{ ml: 0.75 }}>
+                    {t('{{items}} pcs', { items: p.items })}
+                  </Typography>
+                </Typography>
+                <Typography variant="body2" sx={{ fontWeight: 700, whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' }}>
+                  {formatWeight(p.value)}
+                </Typography>
+              </Stack>
+              <ShareBar share={stock.grossWeightMg ? p.value / stock.grossWeightMg : 0} />
+            </Box>
+          ))}
+        </Stack>
+      )}
+    </Panel>
+  );
+}
+
+/** Orders as a pipeline (booked → in progress → ready), what needs attention, and what is due this week. */
+function OrdersPanel({ orders }) {
+  const steps = ['booked', 'in_progress', 'ready'];
+  return (
+    <Panel icon={AssignmentOutlinedIcon} title={t('Customer orders')} subtitle={t('Open now · due this week')} action={<PanelLink to="/orders">{t('All orders')}</PanelLink>}>
+      <Box sx={{ position: 'relative', display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', mb: 2 }}>
+        {/* The line the steps sit on. */}
+        <Box sx={{ position: 'absolute', top: 19, left: '16%', right: '16%', height: 2, bgcolor: 'rgba(var(--brand-rgb), 0.25)' }} />
+        {steps.map((s, i) => (
+          <Box key={s} sx={{ position: 'relative', textAlign: 'center' }}>
+            <Box sx={(theme) => ({ mx: 'auto', width: 40, height: 40, borderRadius: '50%', display: 'grid', placeItems: 'center', fontWeight: 800, fontSize: '1.0625rem', border: '2px solid', borderColor: 'background.paper', boxShadow: '0 0 0 1px rgba(var(--brand-rgb), 0.35)', ...(i === 2 ? { ...goldBg(theme), color: 'var(--brand-contrast)' } : { bgcolor: 'background.paper', color: 'text.primary' }) })}>{orders.byStatus[s]}</Box>
+            <Typography variant="caption" color="textSecondary" noWrap component="div" sx={{ mt: 0.5, fontWeight: 600 }}>
+              {ORDER_STATUS_LABELS[s]}
+            </Typography>
+          </Box>
+        ))}
+      </Box>
+      {(orders.overdue > 0 || orders.urgent > 0 || orders.advanceHeldPaise > 0) && (
+        <Stack direction="row" sx={{ gap: 0.75, flexWrap: 'wrap', mb: 1.75 }}>
+          {orders.overdue > 0 && <Pill tone="due">{t('{{count}} overdue', { count: orders.overdue })}</Pill>}
+          {orders.urgent > 0 && <Pill tone="warn">{t('{{count}} urgent', { count: orders.urgent })}</Pill>}
+          {orders.advanceHeldPaise > 0 && <Pill>{t('Advance held {{amount}}', { amount: inr(orders.advanceHeldPaise) })}</Pill>}
+        </Stack>
+      )}
+      {orders.upcoming.length === 0 ? (
+        <EmptyNote>{t('Nothing due this week')}</EmptyNote>
+      ) : (
+        <Stack spacing={1}>
+          {orders.upcoming.map((o) => (
+            <ButtonBase key={o.id} component={RouterLink} to={`/orders/${o.id}`} sx={{ justifyContent: 'flex-start', textAlign: 'left', gap: 1.25, p: 1, borderRadius: 2, border: 1, borderColor: o.overdue ? 'rgba(155, 44, 44, 0.3)' : 'divider', '&:hover': { bgcolor: 'action.hover' } }}>
+              <DateBadge ymd={o.expectedDate} overdue={o.overdue} />
+              <Box sx={{ flex: 1, minWidth: 0 }}>
+                <Typography variant="body2" noWrap sx={{ fontWeight: 600 }}>
+                  {tValue(o.customer)}
+                </Typography>
+                <Typography variant="caption" color="textSecondary" noWrap component="div">
+                  {o.orderNo}
+                  {o.priority === 'urgent' ? ` · ${t('Urgent')}` : ''}
+                </Typography>
+              </Box>
+              <OrderStatusChip status={o.status} />
+            </ButtonBase>
+          ))}
+        </Stack>
+      )}
+    </Panel>
+  );
+}
+
+/** The day of a date in a small calendar tile; red when it is past. */
+function DateBadge({ ymd, overdue }) {
+  const d = new Date(`${ymd}T00:00:00`);
+  return (
+    <Box sx={{ width: 40, flexShrink: 0, borderRadius: 1.5, overflow: 'hidden', textAlign: 'center', border: 1, borderColor: overdue ? 'rgba(155, 44, 44, 0.35)' : 'rgba(var(--brand-rgb), 0.35)' }}>
+      <Box sx={{ fontSize: '0.5625rem', fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', py: 0.25, color: '#fff', bgcolor: overdue ? DUE : 'var(--brand-strong)' }}>{d.toLocaleDateString(getLocale(), { month: 'short' })}</Box>
+      <Box sx={{ fontWeight: 800, fontSize: '0.9375rem', py: 0.25, color: overdue ? DUE : 'text.primary' }}>{d.getDate()}</Box>
+    </Box>
+  );
+}
+
+function Pill({ tone, children }) {
+  const style = tone === 'due' ? { color: DUE, bgcolor: 'rgba(155, 44, 44, 0.08)' } : tone === 'warn' ? { color: 'warning.main', bgcolor: 'rgba(183, 121, 31, 0.1)' } : { color: 'var(--brand-strong)', bgcolor: 'rgba(var(--brand-rgb), 0.1)' };
+  return <Box sx={{ px: 1.25, py: 0.375, borderRadius: 999, fontSize: '0.75rem', fontWeight: 700, whiteSpace: 'nowrap', ...style }}>{children}</Box>;
+}
+
+/** The latest bills: who, which invoice and when, and the amount. */
+function RecentBills({ bills }) {
+  return (
+    <Panel icon={ReceiptLongOutlinedIcon} title={t('Recent bills')} subtitle={t('The latest invoices at this branch')} action={<PanelLink to="/sales">{t('All invoices')}</PanelLink>}>
+      {bills.length === 0 ? (
+        <EmptyNote>{t('No bills yet')}</EmptyNote>
+      ) : (
+        <Grid container spacing={1}>
+          {bills.map((s) => (
+            <Grid key={s.id} size={{ xs: 12, sm: 6 }}>
+              <ButtonBase component={RouterLink} to={`/sales/${s.id}`} sx={{ width: '100%', justifyContent: 'flex-start', textAlign: 'left', gap: 1.25, p: 1.25, borderRadius: 2, border: 1, borderColor: 'divider', transition: 'border-color .15s, background-color .15s', '&:hover': { bgcolor: 'action.hover', borderColor: 'rgba(var(--brand-rgb), 0.4)' } }}>
+                <Initials name={tValue(s.customer)} />
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography variant="body2" noWrap sx={{ fontWeight: 600 }}>
+                    {tValue(s.customer)}
+                  </Typography>
+                  <Typography variant="caption" color="textSecondary" noWrap component="div">
+                    {s.invoiceNo} · {dayOf(s.at)}, {timeOf(s.at)}
+                  </Typography>
+                </Box>
+                <Box sx={{ textAlign: 'right', flexShrink: 0 }}>
+                  <Typography variant="body2" sx={{ fontWeight: 800, fontVariantNumeric: 'tabular-nums' }}>
+                    {inr(s.totalPaise)}
+                  </Typography>
+                  <Typography variant="caption" color="textSecondary">
+                    {s.items === 1 ? t('{{count}} item', { count: s.items }) : t('{{count}} items', { count: s.items })}
+                  </Typography>
+                </Box>
+              </ButtonBase>
+            </Grid>
+          ))}
+        </Grid>
+      )}
+    </Panel>
   );
 }

@@ -50,8 +50,12 @@ const PAYMENT_KIND = {
   refund: { title: t('Advance refunded'), icon: ReplayRoundedIcon, tone: 'due' },
   credit: { title: t('On credit (due)'), icon: CreditCardOffOutlinedIcon, tone: 'due' },
   collection: { title: t('Due collected'), icon: CallReceivedRoundedIcon, tone: 'paid' },
+  collection_void: { title: t('Due receipt taken back'), icon: ReplayRoundedIcon, tone: 'due' },
   customer_advance: { title: t('Advance paid'), icon: CallReceivedRoundedIcon, tone: 'paid' },
   customer_advance_refund: { title: t('Advance paid back'), icon: ReplayRoundedIcon, tone: 'due' },
+  // Advance paid before, moved onto an order when it was booked (and back if it was cancelled): no new money.
+  advance_adjusted: { title: t('Earlier advance adjusted on order'), icon: ReplayRoundedIcon, tone: 'paid' },
+  advance_adjusted_back: { title: t('Advance back from cancelled order'), icon: ReplayRoundedIcon, tone: 'paid' },
 };
 
 const BILL_STATUS = {
@@ -80,7 +84,7 @@ function PaymentsTimeline({ payments, openingBalance: balance }) {
       <CardContent>
         <Stack divider={<Divider flexItem />} spacing={1.5}>
           {rows.map((p, n) => {
-            const kind = PAYMENT_KIND[p.kind];
+            const kind = PAYMENT_KIND[p.kind === 'advance_adjusted' && p.amountPaise < 0 ? 'advance_adjusted_back' : p.kind];
             const Icon = kind.icon;
             return (
               <Stack key={n} direction="row" spacing={1.75} sx={{ alignItems: 'center' }}>
@@ -112,7 +116,7 @@ function PaymentsTimeline({ payments, openingBalance: balance }) {
                     {p.reference ? ` · ${p.reference}` : ''}
                   </Typography>
                 </Box>
-                <Amount paise={Math.abs(p.amountPaise)} tone={kind.tone} prefix={p.kind === 'refund' || p.kind === 'customer_advance_refund' ? '− ' : p.kind === 'credit' ? '' : '+ '} sx={{ fontSize: '1rem', fontWeight: 700 }} />
+                <Amount paise={Math.abs(p.amountPaise)} tone={kind.tone} prefix={p.kind === 'refund' || p.kind === 'customer_advance_refund' ? '− ' : p.kind === 'credit' || p.kind === 'advance_adjusted' ? '' : '+ '} sx={{ fontSize: '1rem', fontWeight: 700 }} />
               </Stack>
             );
           })}

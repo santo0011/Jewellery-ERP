@@ -60,17 +60,35 @@ function BalanceLine({ paise, tone, label, hint }) {
 }
 
 /**
- * What stands between you and the customer: what they owe (red — "Partly paid" when they have paid part) and/or the
- * advance you hold for them (green). Settled when there is nothing either way; a dash before their first bill.
+ * What stands between you and the customer, as one figure: what they owe less the advance you hold for them. More
+ * owed: Due (red — "Partly paid" when they have paid part); more held: Advance (green). The parts are in the tooltip
+ * and on the customer's page. Settled when it comes to nothing; a dash before their first bill.
  */
 function BalanceCell({ c }) {
   const advanceHint = [c.advanceLeftPaise > 0 && t('next bills'), c.orderAdvancePaise > 0 && t('orders')].filter(Boolean).join(' + ');
+  const net = (c.duePaise ?? 0) - (c.advancePaise ?? 0);
   if (c.duePaise > 0 || c.advancePaise > 0) {
+    // Both a due and an advance: say what made up the net figure.
+    const parts = c.duePaise > 0 && c.advancePaise > 0 ? t('Due {{due}} − advance {{advance}}', { due: formatINR(c.duePaise, { decimals: 0 }), advance: formatINR(c.advancePaise, { decimals: 0 }) }) : undefined;
+    if (net === 0) {
+      return (
+        <Tooltip title={parts ?? ''}>
+          <Box component="span" sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.5, px: 1, py: 0.25, borderRadius: 999, fontSize: '0.75rem', fontWeight: 700, color: MONEY_TONE.paid, bgcolor: 'rgba(46, 107, 79, 0.10)' }}>
+            <CheckRoundedIcon sx={{ fontSize: 14 }} /> {t('Settled')}
+          </Box>
+        </Tooltip>
+      );
+    }
     return (
-      <Stack spacing={0.75}>
-        {c.duePaise > 0 && <BalanceLine paise={c.duePaise} tone="due" label={c.paymentStatus === 'partly_paid' ? t('Partly paid') : t('Due')} />}
-        {c.advancePaise > 0 && <BalanceLine paise={c.advancePaise} tone="paid" label={t('Advance')} hint={advanceHint && t('for {{advanceHint}}', { advanceHint })} />}
-      </Stack>
+      <Tooltip title={parts ?? ''}>
+        <Box>
+          {net > 0 ? (
+            <BalanceLine paise={net} tone="due" label={c.paymentStatus === 'partly_paid' ? t('Partly paid') : t('Due')} />
+          ) : (
+            <BalanceLine paise={-net} tone="paid" label={t('Advance')} hint={advanceHint && t('for {{advanceHint}}', { advanceHint })} />
+          )}
+        </Box>
+      </Tooltip>
     );
   }
   if (c.paymentStatus === 'paid') {

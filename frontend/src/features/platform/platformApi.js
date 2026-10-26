@@ -69,7 +69,7 @@ const list = (r) => ({ items: r.data, meta: r.meta });
 export const platformApi = createApi({
   reducerPath: 'platformApi',
   baseQuery,
-  tagTypes: ['Org', 'Dashboard', 'Admin', 'Billing', 'Email'],
+  tagTypes: ['Org', 'Dashboard', 'Admin', 'Billing', 'Email', 'Undo'],
   endpoints: (build) => ({
     platformLogout: build.mutation({ query: () => ({ url: '/auth/logout', method: 'post' }) }),
     platformMe: build.query({ query: () => ({ url: '/auth/me' }), transformResponse: data, providesTags: ['Admin'] }),
@@ -113,6 +113,11 @@ export const platformApi = createApi({
       transformResponse: data,
       invalidatesTags: ['Org', 'Dashboard'],
     }),
+    // Undo: the platform's own stack. Undoing can change organisations, plans, billing and email settings.
+    platformUndoLatest: build.query({ query: () => ({ url: '/undo/latest' }), transformResponse: data, providesTags: ['Undo'] }),
+    platformUndoHistory: build.query({ query: (params) => ({ url: '/undo/history', params }), transformResponse: list, providesTags: ['Undo'] }),
+    platformUndo: build.mutation({ query: ({ id, reason }) => ({ url: `/undo/${id}/undo`, method: 'post', data: { reason } }), transformResponse: data, invalidatesTags: ['Undo', 'Org', 'Dashboard', 'Billing', 'Email'] }),
+    platformDismiss: build.mutation({ query: ({ id, reason }) => ({ url: `/undo/${id}/dismiss`, method: 'post', data: { reason } }), transformResponse: data, invalidatesTags: ['Undo'] }),
   }),
 });
 
@@ -147,4 +152,8 @@ export const {
   usePaymentsQuery,
   useOrganisationBillingQuery,
   useAssignPlanMutation,
+  useLazyPlatformUndoLatestQuery,
+  usePlatformUndoHistoryQuery,
+  usePlatformUndoMutation,
+  usePlatformDismissMutation,
 } = platformApi;

@@ -13,7 +13,7 @@ import { eligibleDays, monthBounds, offDays, onRollsOn } from '../hr/hr.service.
 import { accessibleBranchFilter, nameMaps, oid, pick, requireBranch } from '../inventory/inventory.helpers.js';
 import { Order } from '../orders/order.model.js';
 import { Product } from '../products/product.model.js';
-import { Purchase } from '../purchases/purchase.model.js';
+import { LIVE_BILL, Purchase } from '../purchases/purchase.model.js';
 import { Sale, SalesReturn, billDue } from '../sales/sale.model.js';
 
 // ---------------------------------------------------------------- helpers
@@ -226,7 +226,7 @@ const completedSales = async ({ from, to, branchId }) =>
 
 /** Supplier bills dated in the period, oldest first. */
 const supplierBills = async ({ from, to, branchId }) =>
-  Purchase.find({ ...(await branchScope(branchId)), billDate: { $gte: from, $lte: to } })
+  Purchase.find({ ...(await branchScope(branchId)), ...LIVE_BILL, billDate: { $gte: from, $lte: to } })
     .sort({ billDate: 1, createdAt: 1 })
     .lean();
 
@@ -269,12 +269,14 @@ const REPORTS = [
         grossMg: sum(s.items, (i) => i.grossWeightMg),
         taxablePaise: s.totals.taxablePaise,
         gstPaise: s.totals.gstPaise,
+        // Taxable + GST + round-off = total.
+        roundOffPaise: s.totals.roundOffPaise ?? 0,
         totalPaise: s.totals.grandTotalPaise,
         receivedPaise: received(s),
         duePaise: credit(s),
         _links: { invoiceNo: `/sales/${s._id}` },
       }));
-      const totals = totalsOf(rows, ['items', 'grossMg', 'taxablePaise', 'gstPaise', 'totalPaise', 'receivedPaise', 'duePaise']);
+      const totals = totalsOf(rows, ['items', 'grossMg', 'taxablePaise', 'gstPaise', 'roundOffPaise', 'totalPaise', 'receivedPaise', 'duePaise']);
       return {
         columns: [
           col('date', 'Date', 'date'),
@@ -284,6 +286,7 @@ const REPORTS = [
           col('grossMg', 'Gross wt', 'weight'),
           col('taxablePaise', 'Taxable', 'money'),
           col('gstPaise', 'GST', 'money'),
+          col('roundOffPaise', 'Round off', 'money'),
           col('totalPaise', 'Total', 'money', { strong: true }),
           col('receivedPaise', 'Received', 'money', { tone: 'paid' }),
           col('duePaise', 'Due', 'money', { tone: 'due' }),
@@ -293,6 +296,7 @@ const REPORTS = [
         summary: [
           { label: 'Bills', value: rows.length, type: 'number' },
           { label: 'Sales value', value: totals.totalPaise, type: 'money' },
+          { label: 'Round off', value: totals.roundOffPaise, type: 'money' },
           { label: 'Received', value: totals.receivedPaise, type: 'money', tone: 'paid' },
           { label: 'Due', value: totals.duePaise, type: 'money', tone: 'due' },
         ],

@@ -1,5 +1,6 @@
 import mongoose from 'mongoose';
 import { ADDRESS_FIELDS, ORG_ADMIN_ROLE_KEY, PLAN_KEYS, SUBSCRIPTION_STATUS, SYSTEM_ROLE_TEMPLATES } from '@jerp/shared';
+import { updateOrganisationSchema } from '@jerp/shared/schemas';
 import { env } from '../../config/env.js';
 import { AUDIT_ACTIONS, recordAudit } from '../../core/audit/audit.service.js';
 import { requireContext, runWithContext } from '../../core/context/requestContext.js';
@@ -18,6 +19,7 @@ import { Organisation } from './organisation.model.js';
 import { Subscription } from './subscription.model.js';
 import { copyToHeadOffice } from './headOfficeAddress.js';
 import { Plan } from '../billing/billing.models.js';
+import { editSnapshot } from '../undo/undo.snapshot.js';
 
 const EDITABLE_FIELDS = ['name', 'legalName', 'gstin', 'pan', 'phone', 'email', 'timezone', ...ADDRESS_FIELDS.map((f) => `address.${f}`), 'address.stateCode'];
 
@@ -126,7 +128,15 @@ export async function updateCurrentOrganisation(input) {
   if (changes.length === 0) return organisation.toObject();
 
   await organisation.save();
-  await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'organisation', recordType: 'Organisation', recordId: organisation._id, changes });
+  await recordAudit({
+    action: AUDIT_ACTIONS.UPDATE,
+    module: 'organisation',
+    recordType: 'Organisation',
+    recordId: organisation._id,
+    meta: { name: organisation.name },
+    changes,
+    undo: { type: 'organisation.update', branchId: null, data: editSnapshot(updateOrganisationSchema, before, organisation.toObject()) },
+  });
   // The head office branch shares this address.
   await copyToHeadOffice(organisation._id, organisation.address, { changes });
   return organisation.toObject();

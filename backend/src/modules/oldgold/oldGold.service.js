@@ -141,7 +141,7 @@ export async function createPurchase({ branchId, customerId, lines, payout, note
       },
       { session },
     );
-    await recordAudit({ action: AUDIT_ACTIONS.CREATE, module: 'oldgold', recordType: 'OldGold', recordId: og._id, meta: { name: og.docNo, total: priced.totalPaise, customer: customer.name } }, { session });
+    await recordAudit({ action: AUDIT_ACTIONS.CREATE, module: 'oldgold', recordType: 'OldGold', recordId: og._id, meta: { name: og.docNo, total: priced.totalPaise, customer: customer.name }, undo: { type: 'oldgold.create', branchId: og.branchId } }, { session });
     return og;
   });
   return getOldGold(doc._id);

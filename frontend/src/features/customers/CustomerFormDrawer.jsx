@@ -141,7 +141,7 @@ export default function CustomerFormDrawer({ open, customer, onClose, onCreated 
     // The field holds the advance still available; what bills already used stays on record (added back on save).
     const used = editing ? (customer.advanceUsedPaise ?? 0) : 0;
     if (used > 0 && balanceType === 'due' && amount > 0) {
-      setError('openingBalance', { message: t('{{used}} of the advance is already used on bills — an old due cannot be set', { used: formatINR(used) }) });
+      setError('openingBalance', { message: t('{{used}} of the advance is already used on bills or orders — an old due cannot be set', { used: formatINR(used) }) });
       return;
     }
     if (owes > 0 && balanceType === 'advance' && amount + used > advanceBefore) {
@@ -226,7 +226,7 @@ export default function CustomerFormDrawer({ open, customer, onClose, onCreated 
                 ? owes > 0
                   ? <KeepOnPhone>{t('Cannot be more than {{Math}} while {{owes}} is due.', { Math: formatINR(Math.max(0, advanceBefore - (customer?.advanceUsedPaise ?? 0)), { decimals: 0 }), owes: formatINR(owes, { decimals: 0 }) })}</KeepOnPhone>
                   : customer?.advanceUsedPaise > 0
-                    ? <KeepOnPhone>{t('Advance still available. {{advanceUsed}} was already used on bills.', { advanceUsed: formatINR(customer.advanceUsedPaise, { decimals: 0 }) })}</KeepOnPhone>
+                    ? <KeepOnPhone>{t('Advance still available. {{advanceUsed}} was already used on bills or orders.', { advanceUsed: formatINR(customer.advanceUsedPaise, { decimals: 0 }) })}</KeepOnPhone>
                     : t('Money they paid you in advance — used automatically on their next bills.')
                 : t('What they already owe you from before — shows in their due.')
             }

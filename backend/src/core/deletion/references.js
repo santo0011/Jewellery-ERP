@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 
-/** Records that never make another record "in use": the audit trail, sign-in sessions, stored files and number counters. */
-const NEVER_BLOCK = new Set(['AuditLog', 'PlatformAudit', 'Session', 'FileAsset', 'Counter']);
+/** Records that never make another record "in use": the audit trail and undo log, sign-in sessions, stored files and number counters. */
+const NEVER_BLOCK = new Set(['AuditLog', 'PlatformAudit', 'UndoAction', 'PlatformUndoAction', 'Session', 'FileAsset', 'Counter']);
 
 /** What a reference is called in "in use" messages. */
 const LABELS = {

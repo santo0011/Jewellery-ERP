@@ -17,7 +17,7 @@ import Sidebar from './Sidebar.jsx';
 import UserMenu from './UserMenu.jsx';
 import ForcePasswordChange from '../features/profile/ForcePasswordChange.jsx';
 import SubscriptionGate from '../features/billing/SubscriptionGate.jsx';
-import RateTicker from '../features/rates/RateTicker.jsx';
+import OrgUndoButton from '../features/undo/OrgUndoButton.jsx';
 import LanguageSwitcher from '../components/LanguageSwitcher.jsx';
 import { useSetLanguageMutation } from '../features/auth/authApi.js';
 import { syncAccountLanguage, t } from '../i18n/index.js';
@@ -209,11 +209,11 @@ export default function AppLayout() {
               </IconButton>
             )}
             <Box sx={{ flex: 1, minWidth: 0 }} />
-            {!(phone && branchControl) && <RateTicker />}
             {/* Branch filter on list pages of modules shared with a branch; one-branch picker on dashboard and billing. */}
             {branchControl && <BranchSwitcher branches={session.branches} allowAll={branchControl === 'filter'} />}
+            <OrgUndoButton />
             <LanguageSwitcher onSave={saveLanguageToAccount} compact={phone} />
-            <UserMenu user={session.user} caption={panelName} />
+            <UserMenu user={session.user} />
           </Toolbar>
         </AppBar>
 

@@ -318,4 +318,6 @@ export default {
   "{{organisations}} organisations": ["{{organisations}}টি প্রতিষ্ঠান", "{{organisations}} संगठन"],
   "Delete {{name}} plan?": ["{{name}} প্ল্যান মুছবেন?", "{{name}} प्लान हटाएँ?"],
   "No organisation has taken this plan, so it will be removed completely. This cannot be undone.": ["কোনো প্রতিষ্ঠান এই প্ল্যান নেয়নি, তাই এটি পুরোপুরি সরানো হবে। এটি ফেরানো যাবে না।", "किसी संगठन ने यह प्लान नहीं लिया है, इसलिए इसे पूरी तरह हटाया जाएगा। इसे वापस नहीं किया जा सकता।"],
+  "Subscription payments · last 12 months, online and manual": ["সাবস্ক্রিপশন পেমেন্ট · গত ১২ মাস, অনলাইন ও ম্যানুয়াল", "सब्सक्रिप्शन भुगतान · पिछले 12 महीने, ऑनलाइन और मैनुअल"],
+  "Super admin": ["সুপার অ্যাডমিন", "सुपर एडमिन"],
 };

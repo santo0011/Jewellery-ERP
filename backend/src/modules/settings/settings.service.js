@@ -47,7 +47,14 @@ export async function updateSection(section, input) {
   if (!changes.length) return current;
 
   await Settings.findOneAndUpdate({}, { $set: { [section]: value, updatedBy: userId } }, { upsert: true, setDefaultsOnInsert: true });
-  await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'settings', recordType: 'Settings', meta: { section }, changes });
+  await recordAudit({
+    action: AUDIT_ACTIONS.UPDATE,
+    module: 'settings',
+    recordType: 'Settings',
+    meta: { section, name: `${section[0].toUpperCase()}${section.slice(1)} settings` },
+    changes,
+    undo: { type: 'settings.update', branchId: null, data: { section, before: JSON.parse(JSON.stringify(current[section])), after: JSON.parse(JSON.stringify(value)) } },
+  });
   return getSettings();
 }
 
@@ -83,6 +90,13 @@ export async function updateBranchPrint(branchId, choice) {
 
   const branches = [...print.branches.filter((b) => String(b.branchId) !== String(branchId)), ...(choice ? [{ branchId: String(branchId), ...choice }] : [])];
   await Settings.findOneAndUpdate({}, { $set: { print: { ...print, branches }, updatedBy: userId } }, { upsert: true, setDefaultsOnInsert: true });
-  await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'settings', recordType: 'Settings', meta: { section: 'print', branch: branch.name }, changes });
+  await recordAudit({
+    action: AUDIT_ACTIONS.UPDATE,
+    module: 'settings',
+    recordType: 'Settings',
+    meta: { section: 'print', branch: branch.name, name: `Print settings — ${branch.name}` },
+    changes,
+    undo: { type: 'settings.branchPrint', branchId: branch._id, data: { branchId: String(branch._id), before: before ?? null, after: choice ?? null } },
+  });
   return getBranchPrint(branchId);
 }

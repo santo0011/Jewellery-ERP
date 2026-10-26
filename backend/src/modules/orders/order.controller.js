@@ -18,6 +18,7 @@ export async function update(req, res) {
 }
 
 export const estimate = async (req, res) => sendOk(res, await orderService.estimateOrder(req.valid.body));
+export const customerBalance = async (req, res) => sendOk(res, await orderService.customerBalance(req.valid.params.id));
 
 export async function addImage(req, res) {
   sendOk(res, await orderService.addOrderImage(req.valid.params.id, req.file), { message: 'Photo added' });

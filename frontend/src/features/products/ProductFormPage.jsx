@@ -201,8 +201,8 @@ export default function ProductFormPage() {
     try {
       const saved = editing ? await update({ id, ...payload }).unwrap() : await create(payload).unwrap();
       toast.success(editing ? t('Product updated') : t('Product {{sku}} created', { sku: saved.sku }));
-      // A new product goes back to the list (it shows there); an edit returns to the product.
-      navigate(editing ? `/products/${saved.id}` : '/products', { replace: !editing });
+      // Saved (new or edited): back to the product list. Replacing the form keeps Back from reopening it.
+      navigate('/products', { replace: true });
     } catch (err) {
       if (!applyServerErrors(err, setError)) toast.error(getErrorMessage(err));
     }

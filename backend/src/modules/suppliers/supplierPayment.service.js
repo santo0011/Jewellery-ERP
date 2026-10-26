@@ -2,12 +2,12 @@ import { withTransaction } from '../../config/db.js';
 import { AUDIT_ACTIONS, recordAudit } from '../../core/audit/audit.service.js';
 import { requireContext } from '../../core/context/requestContext.js';
 import { PAYMENT_ACCOUNT } from '../../core/ledger/paymentAccounts.js';
-import { postJournal } from '../../core/ledger/posting.service.js';
+import { postJournal, reverseJournalsFor } from '../../core/ledger/posting.service.js';
 import { nextDocumentNo } from '../../core/numbering/numbering.service.js';
 import { ApiError } from '../../utils/ApiError.js';
 import { financialYearLabel, todayContext } from '../../utils/businessDate.js';
 import { accessibleBranchFilter, nameMaps, pick, requireBranch } from '../inventory/inventory.helpers.js';
-import { Purchase } from '../purchases/purchase.model.js';
+import { LIVE_BILL, Purchase } from '../purchases/purchase.model.js';
 import { Supplier } from './supplier.model.js';
 import { SupplierPayment } from './supplierPayment.model.js';
 
@@ -35,7 +35,7 @@ export async function paySupplier(supplierId, { branchId, mode, amountPaise, ref
   const payment = await withTransaction(async (session) => {
     const supplier = await Supplier.findOne({ _id: supplierId, isDeleted: false }).session(session);
     if (!supplier) throw ApiError.notFound('Supplier');
-    const bills = await Purchase.find({ supplierId: supplier._id, paymentStatus: { $ne: 'paid' }, ...accessibleBranchFilter() }).sort({ billDate: 1, createdAt: 1 }).session(session);
+    const bills = await Purchase.find({ supplierId: supplier._id, paymentStatus: { $ne: 'paid' }, ...LIVE_BILL, ...accessibleBranchFilter() }).sort({ billDate: 1, createdAt: 1 }).session(session);
     const oldDue = openingDueLeft(supplier);
     const totalDue = oldDue + sum(bills, billDue);
     if (totalDue <= 0) throw ApiError.conflict(`Nothing is due to ${supplier.companyName}`, 'INVALID_STATE');
@@ -99,10 +99,48 @@ export async function paySupplier(supplierId, { branchId, mode, amountPaise, ref
       },
       { session },
     );
-    await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'supplier', recordType: 'Supplier', recordId: supplier._id, meta: { name: supplier.companyName, payment: amountPaise, mode, paymentNo } }, { session });
+    await recordAudit(
+      {
+        action: AUDIT_ACTIONS.UPDATE,
+        module: 'supplier',
+        recordType: 'Supplier',
+        recordId: supplier._id,
+        meta: { name: supplier.companyName, payment: amountPaise, mode, paymentNo },
+        undo: { type: 'supplierPayment.create', branchId: branch._id, recordType: 'SupplierPayment', recordId: doc._id, label: `${paymentNo} — ${supplier.companyName}` },
+      },
+      { session },
+    );
     return { doc, dueAfter: totalDue - amountPaise };
   });
   return { ...serializePayment(payment.doc.toObject(), await nameMaps({ branchIds: [payment.doc.branchId], userIds: [userId] })), duePaiseAfter: payment.dueAfter };
+}
+
+/**
+ * Takes back a payment on a supplier's account (Undo): each bill it reached gets a matching negative line, the old
+ * balance is owed again, its entry is reversed (the money comes back), and the payment stays, marked void.
+ */
+export async function voidSupplierPayment(id, reason) {
+  const { userId } = requireContext();
+  const today = await todayContext();
+  await withTransaction(async (session) => {
+    const p = await SupplierPayment.findOneAndUpdate({ _id: id, status: { $ne: 'void' } }, { $set: { status: 'void', voidedAt: today.now, voidedBy: userId, voidReason: reason } }, { session });
+    if (!p) throw ApiError.conflict('This payment is already void', 'INVALID_STATE');
+    for (const a of p.allocations) {
+      if (!a.purchaseId) {
+        await Supplier.updateOne({ _id: p.supplierId }, { $inc: { openingDuePaidPaise: -a.amountPaise } }, { session });
+        continue;
+      }
+      const bill = await Purchase.findById(a.purchaseId).session(session);
+      const paid = bill?.payments.find((x) => x.paymentNo === p.paymentNo && x.amountPaise > 0);
+      if (!bill || !paid) continue;
+      bill.payments.push({ date: today.businessDate, at: today.now, mode: p.mode, amountPaise: -a.amountPaise, reference: `${p.paymentNo} taken back`, by: userId, paymentNo: p.paymentNo, reversalOf: paid.at });
+      bill.paidPaise -= a.amountPaise;
+      bill.paymentStatus = paymentStatus(bill.paidPaise, bill.totals.totalPaise);
+      await bill.save({ session });
+    }
+    await reverseJournalsFor({ docType: 'supplier_payment', docId: p._id }, { date: today.now, businessDate: today.businessDate, financialYear: today.financialYear, narration: `Payment ${p.paymentNo} taken back` }, { session });
+    await recordAudit({ action: AUDIT_ACTIONS.CANCEL, module: 'supplier', recordType: 'Supplier', recordId: p.supplierId, meta: { name: p.supplier?.name, paymentNo: p.paymentNo, reason } }, { session });
+  });
 }
 
 function serializePayment(p, maps) {
@@ -116,6 +154,8 @@ function serializePayment(p, maps) {
     amountPaise: p.amountPaise,
     reference: p.reference,
     note: p.note,
+    status: p.status ?? 'active',
+    voidReason: p.voidReason ?? null,
     branch: pick(maps.branches, p.branchId) ?? null,
     by: pick(maps.users, p.createdBy) ?? null,
     allocations: p.allocations.map((a) => ({ purchaseId: a.purchaseId, purchaseNo: a.purchaseNo, billNo: a.billNo, amountPaise: a.amountPaise })),

@@ -74,15 +74,40 @@ export function priceLine(item, { ratePerGramPaise, tax }) {
 
 const ROUNDING = { none: 1, nearest_rupee: 100, nearest_ten: 1000 };
 
-export function priceInvoice(lines, { interState, roundOff }) {
+/**
+ * The bill total after rounding. `setting` is the Tax settings' round-off (used for 'auto'); `rule` is this bill's
+ * choice: { mode: auto | nearest | down | up | manual | none, unitPaise, adjustmentPaise }.
+ * Round-off comes after GST: it is not part of the taxable value, and is booked to its own ledger account.
+ */
+export function roundBill(amountPaise, setting, rule = { mode: 'auto' }) {
+  const unit = rule.unitPaise ?? 100;
+  switch (rule.mode) {
+    case 'none':
+      return amountPaise;
+    case 'manual':
+      return amountPaise + (rule.adjustmentPaise ?? 0);
+    case 'nearest':
+      return roundHalfAwayFromZero(amountPaise / unit) * unit;
+    case 'down':
+      return Math.floor(amountPaise / unit) * unit;
+    case 'up':
+      return Math.ceil(amountPaise / unit) * unit;
+    default: {
+      const u = ROUNDING[setting] ?? 1;
+      return roundHalfAwayFromZero(amountPaise / u) * u;
+    }
+  }
+}
+
+export function priceInvoice(lines, { interState, roundOff, rule }) {
   const sum = (key) => lines.reduce((s, l) => s + l[key], 0);
   const subtotalPaise = sum('subtotalPaise');
   const discountPaise = sum('discountPaise');
   const taxablePaise = sum('taxablePaise');
   const gstPaise = sum('gstPaise');
   const beforeRound = taxablePaise + gstPaise;
-  const unit = ROUNDING[roundOff] ?? 1;
-  const grandTotalPaise = roundHalfAwayFromZero(beforeRound / unit) * unit;
+  const chosen = rule ?? { mode: 'auto' };
+  const grandTotalPaise = roundBill(beforeRound, roundOff, chosen);
   const cgstPaise = interState ? 0 : Math.floor(gstPaise / 2);
   return {
     subtotalPaise,
@@ -92,7 +117,12 @@ export function priceInvoice(lines, { interState, roundOff }) {
     sgstPaise: interState ? 0 : gstPaise - cgstPaise,
     igstPaise: interState ? gstPaise : 0,
     gstPaise,
+    beforeRoundPaise: beforeRound,
     roundOffPaise: grandTotalPaise - beforeRound,
+    // What the settings' automatic round-off would have been (a bill rounded lower than this needs discount rights).
+    autoRoundOffPaise: roundBill(beforeRound, roundOff) - beforeRound,
+    // How this bill was rounded, as kept on the invoice.
+    roundOff: chosen.mode === 'manual' ? { mode: 'manual' } : ['nearest', 'down', 'up'].includes(chosen.mode) ? { mode: chosen.mode, unitPaise: chosen.unitPaise ?? 100 } : { mode: chosen.mode === 'none' ? 'none' : 'auto', setting: roundOff ?? 'none' },
     grandTotalPaise,
   };
 }

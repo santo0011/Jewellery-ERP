@@ -6,6 +6,7 @@ import {
   MAKING_CHARGE_TYPES,
   PRINT_DESIGNS,
   PURITIES,
+  DEFAULT_MAX_ROUND_OFF_PAISE,
   ROUND_OFF_MODES,
   WASTAGE_MODES,
 } from '../enums.js';
@@ -58,6 +59,8 @@ export const taxSettingsSchema = z
     hsnBullion: hsn,
     hsnSilverArticles: hsn,
     roundOff: z.enum(Object.values(ROUND_OFF_MODES)),
+    // The most a bill may be rounded by on the billing screen (more is a discount).
+    maxRoundOffPaise: z.number({ error: 'Enter the limit' }).int().min(0, 'Cannot be negative').max(1e7).default(DEFAULT_MAX_ROUND_OFF_PAISE),
   })
   .refine((v) => v.gstEnabled || !v.separateMakingGst, { path: ['separateMakingGst'], message: 'Enable GST first' });
 

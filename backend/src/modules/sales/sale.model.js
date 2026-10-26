@@ -58,6 +58,11 @@ const saleSchema = new mongoose.Schema(
     // Old gold the customer handed over against this bill (OldGold, type exchange): taken off what they paid.
     oldGoldPaise: { type: Number, default: 0 },
     oldGold: { type: Mixed, default: null }, // { id, docNo, lines } snapshot for the invoice
+    // The customer's due from before, added at the counter (chosen): what it was, and what was paid on it then — as
+    // DR receipts against the earlier bills / old due (CustomerReceipt.withSale), listed in `dueReceipts`.
+    previousDuePaise: { type: Number, default: 0 },
+    previousDueCollectedPaise: { type: Number, default: 0 },
+    dueReceipts: { type: [Mixed], default: [] }, // [{ id, receiptNo, mode, amountPaise }]
     // Collected later against this bill's due (Customers → Collect payment).
     duePaidPaise: { type: Number, default: 0 },
     // Items returned with the refund kept on the customer's account: taken off this bill's due.

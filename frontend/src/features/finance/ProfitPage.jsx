@@ -100,7 +100,7 @@ function MonthSwitch({ month, onChange }) {
   );
 }
 
-/** The month at a glance (used on the Dashboard too): sales against expenses each day, and the bottom line. */
+/** The month at a glance: sales against expenses each day, and the bottom line. */
 export function ProfitSnapshot({ data, onOpen }) {
   const totals = data.totals;
   return (

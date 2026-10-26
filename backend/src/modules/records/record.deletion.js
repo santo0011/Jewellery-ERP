@@ -195,6 +195,9 @@ export async function deleteRecord(type, id) {
   if (t.soft) await t.model.updateOne({ _id: doc._id }, { $set: { isDeleted: true, updatedBy: requireContext().userId } });
   else await t.model.deleteOne({ _id: doc._id });
   await t.cleanup?.(doc);
-  await recordAudit({ action: AUDIT_ACTIONS.DELETE, module: t.module, recordType: t.model.modelName, recordId: doc._id, meta: { name: check.name, ...t.meta?.(doc) } });
+  // Undo brings it back: soft-deleted records are only hidden; the rest from this copy (files deleted above stay gone).
+  // A branch is not brought back that way — deleting it also took it out of users' access.
+  const undo = type === 'branch' ? undefined : { type: `${type}.delete`, data: t.soft ? undefined : { snapshot: doc, lostFiles: Boolean(doc.photoFileId || doc.images?.length) }, ...(t.branchScoped && { branchId: doc.branchId }) };
+  await recordAudit({ action: AUDIT_ACTIONS.DELETE, module: t.module, recordType: t.model.modelName, recordId: doc._id, meta: { name: check.name, ...t.meta?.(doc) }, undo });
   return { id: doc._id, name: check.name };
 }

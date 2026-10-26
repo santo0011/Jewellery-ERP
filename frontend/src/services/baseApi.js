@@ -26,7 +26,7 @@ const axiosBaseQuery =
     }
   };
 
-export const TAGS = ['Me', 'Organisation', 'Subscription', 'Branch', 'Role', 'Session', 'User', 'Settings', 'Audit', 'Logo', 'Customer', 'Supplier', 'Category', 'Product', 'Rate', 'Stock', 'Approval', 'Order', 'Sale', 'Employee', 'Attendance', 'Payroll', 'Purchase', 'Item', 'Billing', 'Expense', 'Finance', 'OldGold'];
+export const TAGS = ['Me', 'Organisation', 'Subscription', 'Branch', 'Role', 'Session', 'User', 'Settings', 'Audit', 'Logo', 'Customer', 'Supplier', 'Category', 'Product', 'Rate', 'Stock', 'Approval', 'Order', 'Sale', 'Employee', 'Attendance', 'Payroll', 'Purchase', 'Item', 'Billing', 'Expense', 'Finance', 'OldGold', 'Undo'];
 
 export const baseApi = createApi({
   reducerPath: 'api',

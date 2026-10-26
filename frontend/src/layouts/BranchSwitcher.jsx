@@ -20,7 +20,7 @@ const TILE = {
 const initials = (b) => (b.code || b.name.split(/\s+/).map((w) => w[0]).join('')).slice(0, 2).toUpperCase();
 
 function SectionLabel({ children }) {
-  return <Typography sx={{ px: 1.25, pt: 0.75, pb: 0.5, fontSize: '0.6875rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'text.secondary' }}>{children}</Typography>;
+  return <Typography sx={{ px: 1.25, pt: 0.5, pb: 0.25, fontSize: '0.625rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'text.secondary' }}>{children}</Typography>;
 }
 
 /** One row: icon tile, name and a short line under it, a check on the right when it is the current choice. */
@@ -29,20 +29,20 @@ function Option({ on, onClick, tile, tone, primary, secondary }) {
     <MenuItem
       selected={on}
       onClick={onClick}
-      sx={{ gap: 1.25, px: 1.25, py: 0.875, borderRadius: 1.5, '&.Mui-selected': { bgcolor: 'rgba(var(--brand-rgb), 0.10)' }, '&.Mui-selected:hover': { bgcolor: 'rgba(var(--brand-rgb), 0.14)' } }}
+      sx={{ gap: 1, px: 1, py: 0.625, minHeight: 0, borderRadius: 1.5, '&.Mui-selected': { bgcolor: 'rgba(var(--brand-rgb), 0.10)' }, '&.Mui-selected:hover': { bgcolor: 'rgba(var(--brand-rgb), 0.14)' } }}
     >
-      <Box sx={{ width: 34, height: 34, borderRadius: 1.5, flexShrink: 0, display: 'grid', placeItems: 'center', fontSize: '0.75rem', fontWeight: 800, ...TILE[tone] }}>{tile}</Box>
+      <Box sx={{ width: 28, height: 28, borderRadius: 1.25, flexShrink: 0, display: 'grid', placeItems: 'center', fontSize: '0.6875rem', fontWeight: 800, ...TILE[tone] }}>{tile}</Box>
       <Box sx={{ minWidth: 0, flex: 1 }}>
-        <Typography noWrap sx={{ fontSize: '0.875rem', fontWeight: on ? 700 : 600, lineHeight: 1.3 }}>
+        <Typography noWrap sx={{ fontSize: '0.8125rem', fontWeight: on ? 700 : 600, lineHeight: 1.3 }}>
           {primary}
         </Typography>
         {secondary && (
-          <Typography noWrap sx={{ fontSize: '0.75rem', color: 'text.secondary', lineHeight: 1.3 }}>
+          <Typography noWrap sx={{ fontSize: '0.6875rem', color: 'text.secondary', lineHeight: 1.3 }}>
             {secondary}
           </Typography>
         )}
       </Box>
-      <Box sx={{ width: 20, height: 20, flexShrink: 0, borderRadius: '50%', display: 'grid', placeItems: 'center', ...(on && { bgcolor: 'var(--brand-strong)', color: '#fff' }) }}>{on && <CheckRoundedIcon sx={{ fontSize: 14 }} />}</Box>
+      <Box sx={{ width: 18, height: 18, flexShrink: 0, borderRadius: '50%', display: 'grid', placeItems: 'center', ...(on && { bgcolor: 'var(--brand-strong)', color: '#fff' }) }}>{on && <CheckRoundedIcon sx={{ fontSize: 12 }} />}</Box>
     </MenuItem>
   );
 }
@@ -84,7 +84,7 @@ export default function BranchSwitcher({ branches, allowAll = true }) {
         onClick={(e) => setAnchor(e.currentTarget)}
         startIcon={showingAll ? <HubOutlinedIcon fontSize="small" /> : <AccountTreeOutlinedIcon fontSize="small" />}
         endIcon={<ExpandMoreRoundedIcon />}
-        sx={{ borderColor: 'divider', borderRadius: 999, bgcolor: 'background.paper', px: 1.5, maxWidth: { xs: 150, sm: 240 }, minHeight: 36, fontWeight: 600, '& .MuiButton-startIcon': { color: 'var(--brand-strong)' }, '&:hover': { borderColor: 'rgba(var(--brand-rgb), 0.5)', bgcolor: 'rgba(var(--brand-rgb), 0.05)' } }}
+        sx={{ borderColor: 'divider', borderRadius: 999, bgcolor: 'background.paper', px: 1.5, maxWidth: { xs: 150, sm: 240 }, minHeight: 34, height: 34, fontWeight: 600, '& .MuiButton-startIcon': { color: 'var(--brand-strong)' }, '&:hover': { borderColor: 'rgba(var(--brand-rgb), 0.5)', bgcolor: 'rgba(var(--brand-rgb), 0.05)' } }}
         aria-label={t('Branch filter')}
       >
         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{label}</span>
@@ -95,10 +95,10 @@ export default function BranchSwitcher({ branches, allowAll = true }) {
         onClose={close}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'left' }}
         transformOrigin={{ vertical: 'top', horizontal: 'left' }}
-        slotProps={{ paper: { sx: { mt: 0.75, minWidth: 260, maxWidth: 320, borderRadius: 2.5, border: '1px solid', borderColor: 'divider', boxShadow: '0 12px 32px rgba(23, 23, 23, 0.12)' } }, list: { sx: { p: 0.75 } } }}
+        slotProps={{ paper: { sx: { mt: 0.75, minWidth: 230, maxWidth: 290, borderRadius: 2.5, border: '1px solid', borderColor: 'divider', boxShadow: '0 12px 32px rgba(23, 23, 23, 0.12)' } }, list: { sx: { p: 0.75 } } }}
       >
         <SectionLabel>{t('Show data for')}</SectionLabel>
-        {headOffice && <Option on={isOn(headOffice)} onClick={() => pick(headOffice.id)} tile={<ApartmentRoundedIcon sx={{ fontSize: 18 }} />} tone="gold" primary={headOffice.name} secondary={[t('Head office'), headOffice.code].filter(Boolean).join(' · ')} />}
+        {headOffice && <Option on={isOn(headOffice)} onClick={() => pick(headOffice.id)} tile={<ApartmentRoundedIcon sx={{ fontSize: 16 }} />} tone="gold" primary={headOffice.name} secondary={[t('Head office'), headOffice.code].filter(Boolean).join(' · ')} />}
         {canAll && (
           <Option
             on={showingAll}
@@ -106,7 +106,7 @@ export default function BranchSwitcher({ branches, allowAll = true }) {
               dispatch(allBranchesSelected(headOffice?.id ?? activeId));
               close();
             }}
-            tile={<HubOutlinedIcon sx={{ fontSize: 18 }} />}
+            tile={<HubOutlinedIcon sx={{ fontSize: 16 }} />}
             tone="blue"
             primary={t('All branches')}
             secondary={t('{{count}} branches together', { count: branches.length })}
@@ -114,7 +114,7 @@ export default function BranchSwitcher({ branches, allowAll = true }) {
         )}
         {others.length > 0 && (
           <>
-            <Divider sx={{ my: 0.75 }} />
+            <Divider sx={{ my: 0.5 }} />
             <SectionLabel>{t('Branches')}</SectionLabel>
           </>
         )}

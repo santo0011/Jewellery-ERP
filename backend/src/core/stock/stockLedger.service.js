@@ -21,6 +21,13 @@ const PRODUCT_TRANSITIONS = {
   sale: { from: ['in_stock'], to: 'sold', direction: -1 },
   sale_cancel: { from: ['sold'], to: 'in_stock', direction: 1 },
   sales_return: { from: ['sold'], to: 'in_stock', direction: 1 },
+  // Undo of a bill, opening stock or making: the piece leaves stock and is a draft again (or retired, if it was made by it).
+  purchase_cancel: { from: ['in_stock'], to: 'draft', direction: -1 },
+  opening_cancel: { from: ['in_stock'], to: 'draft', direction: -1 },
+  production_cancel: { from: ['in_stock'], to: 'draft', direction: -1 },
+  adjustment_reverse: { from: ['written_off', 'melted'], to: 'in_stock', direction: 1 }, // a posted adjustment taken back
+  transfer_reopen: { from: ['in_stock'], to: 'in_transit', direction: -1 }, // a receive / reject taken back: on the way again
+  transfer_recall: { from: ['in_transit'], to: 'in_stock', direction: 1 }, // the sending branch takes a transfer back
 };
 
 const productValue = (p) => p.costPricePaise ?? 0;

@@ -52,7 +52,7 @@ async function assertNameFree(name, exceptId) {
 export async function createCategory({ name }) {
   await assertNameFree(name);
   const doc = await ExpenseCategory.create({ name: name.trim(), key: keyOf(name), createdBy: requireContext().userId });
-  await recordAudit({ action: AUDIT_ACTIONS.CREATE, module: 'expense', recordType: 'ExpenseCategory', recordId: doc._id, meta: { name: doc.name } });
+  await recordAudit({ action: AUDIT_ACTIONS.CREATE, module: 'expense', recordType: 'ExpenseCategory', recordId: doc._id, meta: { name: doc.name }, undo: { type: 'expenseCategory.create', branchId: null } });
   return serializeCategory(doc.toObject());
 }
 
@@ -65,7 +65,7 @@ export async function renameCategory(id, { name }) {
   await cat.save();
   // Past expenses keep the name they were entered under only as a snapshot; show the new name on them too.
   await Expense.updateMany({ categoryId: cat._id }, { $set: { categoryName: cat.name } });
-  await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'expense', recordType: 'ExpenseCategory', recordId: cat._id, meta: { name: cat.name }, changes: [{ field: 'name', from, to: cat.name }] });
+  await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'expense', recordType: 'ExpenseCategory', recordId: cat._id, meta: { name: cat.name }, changes: [{ field: 'name', from, to: cat.name }], undo: { type: 'expenseCategory.rename', branchId: null, data: { from, to: cat.name } } });
   return serializeCategory(cat.toObject());
 }
 
@@ -194,7 +194,7 @@ export async function createExpense(input) {
       { session },
     );
     await postExpense(e, today, { session });
-    await recordAudit({ action: AUDIT_ACTIONS.CREATE, module: 'expense', recordType: 'Expense', recordId: e._id, meta: { name: expenseNo, category: cat.name, amountPaise: e.amountPaise } }, { session });
+    await recordAudit({ action: AUDIT_ACTIONS.CREATE, module: 'expense', recordType: 'Expense', recordId: e._id, meta: { name: expenseNo, category: cat.name, amountPaise: e.amountPaise }, undo: { type: 'expense.create', branchId: e.branchId } }, { session });
     return e;
   });
   return getExpense(doc._id);
@@ -214,13 +214,26 @@ export async function updateExpense(id, { reason, ...input }) {
     .map((k) => ({ field: FIELD_LABEL[k], from: e[k] ?? null, to: next[k] ?? null }));
   if (!changes.length) throw ApiError.badRequest('Nothing was changed', [{ path: 'amountPaise', message: 'Change something to save' }], 'NO_CHANGES');
 
+  const formOf = (x) => ({ categoryId: String(x.categoryId), date: x.date, amountPaise: x.amountPaise, mode: x.mode, reference: x.reference ?? null, note: x.note ?? null });
+  const formBefore = formOf(e);
   await withTransaction(async (session) => {
     await unpostExpense(e, today, `Corrected ${e.expenseNo}: ${reason}`, { session });
     e.set({ ...next, updatedBy: userId });
     e.history.push({ action: 'edited', at: today.now, by: userId, reason, changes });
     await e.save({ session });
     await postExpense(e, today, { session });
-    await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'expense', recordType: 'Expense', recordId: e._id, meta: { name: e.expenseNo, reason }, changes: changes.map((c) => ({ field: c.field, from: c.from, to: c.to })) }, { session });
+    await recordAudit(
+      {
+        action: AUDIT_ACTIONS.UPDATE,
+        module: 'expense',
+        recordType: 'Expense',
+        recordId: e._id,
+        meta: { name: e.expenseNo, reason },
+        changes: changes.map((c) => ({ field: c.field, from: c.from, to: c.to })),
+        undo: { type: 'expense.update', branchId: e.branchId, data: { before: formBefore, after: formOf(e) } },
+      },
+      { session },
+    );
   });
   return getExpense(id);
 }

@@ -4,7 +4,8 @@ import { Account } from '../src/core/ledger/account.model.js';
 import { JournalEntry } from '../src/core/ledger/journalEntry.model.js';
 import { api, bearer, registerOrg } from './helpers.js';
 
-const todayIso = () => new Date().toISOString().slice(0, 10);
+// The business date is Indian time (between midnight and 5:30 am IST the UTC date is still yesterday).
+const todayIso = () => new Date(Date.now() + 330 * 60000).toISOString().slice(0, 10);
 const thisMonth = () => todayIso().slice(0, 7);
 const prevMonth = () => {
   const d = new Date();

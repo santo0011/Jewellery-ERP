@@ -28,6 +28,10 @@ const productionSchema = new mongoose.Schema(
     makingMode: { type: String, default: null },
     totalCostPaise: { type: Number, default: 0 },
     note: { type: String, default: null },
+    // cancelled: taken back by Undo — the pieces retired, the metal and its cost back in Raw materials.
+    status: { type: String, enum: ['done', 'cancelled'], default: 'done' },
+    cancelledAt: { type: Date, default: null },
+    cancelReason: { type: String, default: null },
     createdBy: { type: ObjectId, ref: 'User', required: true },
   },
   { timestamps: true },

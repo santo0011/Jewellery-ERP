@@ -39,8 +39,13 @@ export const applyBps = (amount, bps) => roundHalfAwayFromZero((amount * bps) / 
 export const fineWeightMg = (netMg, fineness) => roundHalfAwayFromZero((netMg * fineness) / 1000);
 
 const inrFormatters = new Map();
+/**
+ * Money for display. `decimals: 0` is the short form for whole rupees (₹2,000); an amount with paise still shows
+ * them (₹2,000.50) — never rounded — so a card and a table always show the same figure.
+ */
 export function formatINR(paise, { decimals = 2, symbol = true } = {}) {
   if (paise === null || paise === undefined) return '—';
+  if (decimals === 0 && Math.round(paise) % 100 !== 0) decimals = 2;
   const key = `${decimals}:${symbol}`;
   if (!inrFormatters.has(key)) {
     inrFormatters.set(

@@ -14,6 +14,8 @@ router.use(authenticate);
 router.get('/', authorizeAny(LOOKUP_ACCESS.order), validate({ query: orderListQuerySchema }), controller.list);
 router.post('/', authorize('order.create'), validate({ body: orderSchema }), controller.create);
 router.post('/estimate', authorize('order.create'), validate({ body: orderEstimateSchema }), controller.estimate);
+// What a new order for this customer starts with: advance paid before (adjusted on booking) and dues from before.
+router.get('/customer-balance/:id', authorize('order.create'), validate({ params: idParamsSchema }), controller.customerBalance);
 router.get('/:id', authorizeAny(LOOKUP_ACCESS.order), validate({ params: idParamsSchema }), controller.get);
 router.put('/:id', authorize('order.edit'), validate({ params: idParamsSchema, body: orderUpdateSchema }), controller.update);
 router.post('/:id/images', authorize('order.edit'), validate({ params: idParamsSchema }), singleImageUpload('image', { maxBytes: 5 * 1024 * 1024 }), controller.addImage);

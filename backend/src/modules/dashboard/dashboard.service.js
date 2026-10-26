@@ -39,7 +39,7 @@ const DAILY_UP_TO = 92;
 async function collections({ branchFilter, from, to, sales, timezone }) {
   const [orders, receipts] = await Promise.all([
     Order.find({ ...branchFilter, advances: { $elemMatch: { amountPaise: { $gt: 0 }, at: dayRange(from, to, timezone) } } }).select('advances').lean(),
-    CustomerReceipt.find({ ...branchFilter, businessDate: { ...(from && { $gte: from }), $lte: to } }).select('kind businessDate mode amountPaise').lean(),
+    CustomerReceipt.find({ ...branchFilter, status: { $ne: 'void' }, businessDate: { ...(from && { $gte: from }), $lte: to } }).select('kind businessDate mode amountPaise').lean(),
   ]);
   const rows = [
     ...sales.flatMap((s) => s.payments.filter((p) => p.mode !== 'credit').map((p) => ({ source: 'bills', mode: p.mode, date: s.businessDate, amount: p.amountPaise }))),
@@ -136,7 +136,7 @@ export async function branchDashboard({ branchId, period }) {
     const byMode = new Map(Object.entries(collected.period.byMode));
     const leftOnCredit = sum(sales, (s) => sum(s.payments.filter((p) => p.mode === 'credit'), (p) => p.amountPaise));
     if (leftOnCredit) byMode.set('credit', leftOnCredit);
-    const modeLabel = (m) => (m === 'credit' ? 'On credit (due)' : (PAYMENT_MODES.find((x) => x.value === m)?.label ?? m));
+    const modeLabel = (m) => (m === 'credit' ? 'On credit (due)' : m === 'gold' ? 'Customer gold' : (PAYMENT_MODES.find((x) => x.value === m)?.label ?? m));
 
     const byCustomer = new Map();
     for (const s of sales.filter((x) => x.customer)) {

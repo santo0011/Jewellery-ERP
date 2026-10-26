@@ -14,7 +14,7 @@ export function SubscriptionChip({ status, size = 'small' }) {
   return <Chip size={size} label={label} color={color} sx={{ fontWeight: 700, height: size === 'small' ? 22 : 28 }} />;
 }
 
-const PAY = { paid: [t('Paid'), 'success', 'filled'], created: [t('Pending'), 'warning', 'outlined'], failed: [t('Failed'), 'error', 'outlined'], expired: [t('Expired'), 'default', 'outlined'] };
+const PAY = { paid: [t('Paid'), 'success', 'filled'], created: [t('Pending'), 'warning', 'outlined'], failed: [t('Failed'), 'error', 'outlined'], expired: [t('Expired'), 'default', 'outlined'], reversed: [t('Reversed'), 'default', 'outlined'] };
 export function PaymentStatusChip({ status }) {
   const [label, color, variant] = PAY[status] ?? [status, 'default', 'outlined'];
   return <Chip size="small" label={label} color={color} variant={variant} sx={{ height: 22, fontWeight: 600 }} />;

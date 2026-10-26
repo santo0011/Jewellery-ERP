@@ -1,4 +1,6 @@
 import { ADDRESS_FIELDS, BRANCH_STATUS, SUBSCRIPTION_STATUS } from '@jerp/shared';
+import { branchSchema } from '@jerp/shared/schemas';
+import { editSnapshot } from '../undo/undo.snapshot.js';
 import { copyToOrganisation } from '../organisations/headOfficeAddress.js';
 import { AUDIT_ACTIONS, recordAudit } from '../../core/audit/audit.service.js';
 import { requireContext } from '../../core/context/requestContext.js';
@@ -68,7 +70,7 @@ export async function createBranch(input) {
   const { userId } = requireContext();
   await assertBranchLimit();
   const branch = await Branch.create({ ...input, createdBy: userId, updatedBy: userId });
-  await recordAudit({ action: AUDIT_ACTIONS.CREATE, module: 'branch', recordType: 'Branch', recordId: branch._id, meta: { code: branch.code, name: branch.name } });
+  await recordAudit({ action: AUDIT_ACTIONS.CREATE, module: 'branch', recordType: 'Branch', recordId: branch._id, meta: { code: branch.code, name: branch.name }, undo: { type: 'branch.create', branchId: null } });
   return serializeBranch(branch.toObject());
 }
 
@@ -85,7 +87,7 @@ export async function updateBranch(id, input) {
   await withTransaction(async (session) => {
     if (changes.some((c) => c.field === 'email')) await syncBranchLoginEmail(branch._id, branch.email ?? null, { session });
     await branch.save({ session });
-    await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'branch', recordType: 'Branch', recordId: branch._id, changes }, { session });
+    await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'branch', recordType: 'Branch', recordId: branch._id, meta: { name: branch.name }, changes, undo: { type: 'branch.update', branchId: null, data: editSnapshot(branchSchema, before, branch.toObject()) } }, { session });
     // The head office's address is the organisation's registered address: keep them the same (and in its history).
     if (branch.isHeadOffice && (await copyToOrganisation(branch.organisationId, branch.address, { session, changes }))) {
       const addressChanges = changes.filter((c) => c.field.startsWith('address.'));
@@ -115,7 +117,9 @@ export async function setBranchStatus(id, status) {
     module: 'branch',
     recordType: 'Branch',
     recordId: branch._id,
+    meta: { name: branch.name },
     changes: [{ field: 'status', from, to: status }],
+    undo: { type: 'branch.status', branchId: null, data: { from, to: status } },
   });
   return branch.toObject();
 }

@@ -5,7 +5,7 @@ import { JournalEntry } from '../../core/ledger/journalEntry.model.js';
 import { businessDateFor, todayContext } from '../../utils/businessDate.js';
 import { accessibleBranchFilter, oid, requireBranch } from '../inventory/inventory.helpers.js';
 import { PayrollRun } from '../hr/hr.models.js';
-import { Purchase } from '../purchases/purchase.model.js';
+import { LIVE_BILL, Purchase } from '../purchases/purchase.model.js';
 import { Supplier } from '../suppliers/supplier.model.js';
 import { SupplierPayment } from '../suppliers/supplierPayment.model.js';
 import { openingDueLeft } from '../suppliers/supplierPayment.service.js';
@@ -103,12 +103,12 @@ function totalsOf(days, dates) {
 /** Money paid to suppliers in the period (bill payments and payments on their old balance) — cash, not profit. */
 async function supplierCash(from, to, scope) {
   const [bills, purchases, oldBalance, suppliers] = await Promise.all([
-    Purchase.aggregate([{ $match: { ...scope.docs } }, { $unwind: '$payments' }, { $match: { 'payments.date': { $gte: from, $lte: to } } }, { $group: { _id: null, amount: { $sum: '$payments.amountPaise' } } }]),
-    Purchase.aggregate([{ $match: { ...scope.docs, billDate: { $gte: from, $lte: to } } }, { $group: { _id: null, amount: { $sum: '$totals.totalPaise' }, bills: { $sum: 1 } } }]),
-    SupplierPayment.aggregate([{ $match: { ...scope.docs, date: { $gte: from, $lte: to } } }, { $unwind: '$allocations' }, { $match: { 'allocations.purchaseId': null } }, { $group: { _id: null, amount: { $sum: '$allocations.amountPaise' } } }]),
+    Purchase.aggregate([{ $match: { ...scope.docs, ...LIVE_BILL } }, { $unwind: '$payments' }, { $match: { 'payments.date': { $gte: from, $lte: to } } }, { $group: { _id: null, amount: { $sum: '$payments.amountPaise' } } }]),
+    Purchase.aggregate([{ $match: { ...scope.docs, ...LIVE_BILL, billDate: { $gte: from, $lte: to } } }, { $group: { _id: null, amount: { $sum: '$totals.totalPaise' }, bills: { $sum: 1 } } }]),
+    SupplierPayment.aggregate([{ $match: { ...scope.docs, status: { $ne: 'void' }, date: { $gte: from, $lte: to } } }, { $unwind: '$allocations' }, { $match: { 'allocations.purchaseId': null } }, { $group: { _id: null, amount: { $sum: '$allocations.amountPaise' } } }]),
     Supplier.find({ isDeleted: false }).select('openingBalancePaise openingDuePaidPaise').lean(),
   ]);
-  const [due] = await Purchase.aggregate([{ $match: { ...scope.docs, paymentStatus: { $ne: 'paid' } } }, { $group: { _id: null, amount: { $sum: { $subtract: ['$totals.totalPaise', '$paidPaise'] } } } }]);
+  const [due] = await Purchase.aggregate([{ $match: { ...scope.docs, ...LIVE_BILL, paymentStatus: { $ne: 'paid' } } }, { $group: { _id: null, amount: { $sum: { $subtract: ['$totals.totalPaise', '$paidPaise'] } } } }]);
   return {
     purchasesPaise: purchases[0]?.amount ?? 0,
     purchaseBills: purchases[0]?.bills ?? 0,

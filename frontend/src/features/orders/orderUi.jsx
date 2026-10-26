@@ -16,7 +16,7 @@ export function OrderStatusChip({ status, size = 'small' }) {
 }
 
 // 'gold': the customer's own gold taken for the order, held as part of the advance.
-export const paymentLabel = (mode) => (mode === 'gold' ? t('Customer gold') : (PAYMENT_MODES.find((m) => m.value === mode)?.label ?? mode));
+export const paymentLabel = (mode) => (mode === 'gold' ? t('Customer gold') : mode === 'customer_advance' ? t('Earlier advance') : (PAYMENT_MODES.find((m) => m.value === mode)?.label ?? mode));
 
 export const ADVANCE_MODE_OPTIONS = PAYMENT_MODES.filter((m) => m.value !== 'credit');
 

@@ -144,7 +144,8 @@ export function AreaChart({ data, height = 240, formatValue = (v) => formatINR(v
  * Share of a whole as a ring: the total in the middle (or the hovered part), a labelled legend beside it.
  * rows: [{ key, label, value }] - six slots at most; the rest fold into "Other".
  */
-export function DonutChart({ rows: input, size = 156, thickness = 22, formatValue = (v) => formatINR(v, { decimals: 0 }), formatCenter = compactINR, centerLabel = t('Total'), empty = t('Nothing yet') }) {
+// stacked: the ring above a full-width legend, for narrow panels (amounts are never squeezed).
+export function DonutChart({ rows: input, size = 156, thickness = 22, formatValue = (v) => formatINR(v, { decimals: 0 }), formatCenter = compactINR, centerLabel = t('Total'), empty = t('Nothing yet'), stacked = false }) {
   const [active, setActive] = useState(null);
   const rows = foldRows(input.filter((r) => r.value > 0));
   const total = rows.reduce((s, r) => s + r.value, 0);
@@ -170,7 +171,7 @@ export function DonutChart({ rows: input, size = 156, thickness = 22, formatValu
   const shown = active != null ? rows[active] : null;
 
   return (
-    <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2.5} sx={{ alignItems: 'center' }}>
+    <Stack direction={stacked ? 'column' : { xs: 'column', sm: 'row' }} spacing={stacked ? 2 : 2.5} sx={{ alignItems: 'center', width: '100%' }}>
       <Box sx={{ position: 'relative', width: size, height: size, flexShrink: 0 }} onMouseLeave={() => setActive(null)}>
         <svg width={size} height={size} role="img" aria-label={t('Share of total')}>
           {rows.length === 1 ? (

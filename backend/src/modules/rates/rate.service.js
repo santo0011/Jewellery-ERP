@@ -5,7 +5,7 @@ import { ApiError } from '../../utils/ApiError.js';
 import { dayRange, todayContext } from '../../utils/businessDate.js';
 import { getSettings } from '../settings/settings.service.js';
 import { User } from '../users/user.model.js';
-import { MetalRate } from './rate.model.js';
+import { LIVE_RATE, MetalRate } from './rate.model.js';
 
 const serialize = (r, users) => ({
   id: r._id,
@@ -15,11 +15,13 @@ const serialize = (r, users) => ({
   effectiveAt: r.effectiveAt,
   businessDate: r.businessDate,
   note: r.note,
+  withdrawn: Boolean(r.withdrawnAt),
   createdBy: users?.get(String(r.createdBy)) ?? null,
 });
 
 export async function currentRates() {
   const rows = await MetalRate.aggregate([
+    { $match: LIVE_RATE },
     { $sort: { effectiveAt: -1 } },
     { $group: { _id: { metal: '$metal', purity: '$purity' }, doc: { $first: '$$ROOT' } } },
     { $replaceRoot: { newRoot: '$doc' } },
@@ -30,7 +32,7 @@ export async function currentRates() {
 }
 
 export async function getApplicableRate(metal, purity, at = new Date(), { session } = {}) {
-  return MetalRate.findOne({ metal, purity, effectiveAt: { $lte: at } }).sort({ effectiveAt: -1 }).session(session ?? null).lean();
+  return MetalRate.findOne({ metal, purity, ...LIVE_RATE, effectiveAt: { $lte: at } }).sort({ effectiveAt: -1 }).session(session ?? null).lean();
 }
 
 export async function setRates({ rates, note }) {
@@ -51,14 +53,22 @@ export async function setRates({ rates, note }) {
         action: AUDIT_ACTIONS.CREATE,
         module: 'rate',
         recordType: 'MetalRate',
-        meta: { businessDate: today.businessDate, count: rates.length },
+        meta: { businessDate: today.businessDate, count: rates.length, name: `Metal rates (${rates.length})` },
         changes: rates.map((r) => ({ field: `${r.metal} ${r.purity}`, from: null, to: r.ratePerGramPaise })),
+        undo: { type: 'rate.set', branchId: null, data: { rateIds: created.map((d) => String(d._id)), at: today.now } },
       },
       { session },
     );
     return created;
   });
   return docs.map((d) => serialize(d.toObject()));
+}
+
+/** Takes back a rate update entered by mistake (Undo): its rates are withdrawn (kept in history, never used again). */
+export async function withdrawRates(rateIds, reason) {
+  const { userId } = requireContext();
+  const res = await MetalRate.updateMany({ _id: { $in: rateIds }, ...LIVE_RATE }, { $set: { withdrawnAt: new Date(), withdrawnBy: userId, withdrawReason: reason } });
+  await recordAudit({ action: AUDIT_ACTIONS.CANCEL, module: 'rate', recordType: 'MetalRate', meta: { name: 'Metal rates withdrawn', count: res.modifiedCount, reason } });
 }
 
 export async function rateHistory({ page, limit, metal, purity, from, to }) {

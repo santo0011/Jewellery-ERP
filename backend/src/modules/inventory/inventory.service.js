@@ -12,6 +12,7 @@ import { ApiError } from '../../utils/ApiError.js';
 import { dayRange, todayContext } from '../../utils/businessDate.js';
 import { searchFilter } from '../../utils/pagination.js';
 import { Product } from '../products/product.model.js';
+import { metalShortfall, piecesGone } from '../undo/undo.checks.js';
 import { getSettings } from '../settings/settings.service.js';
 import { accessibleBranchFilter, canSeeCost, nameMaps, oid, pick, requireBranch, viewBranchFor } from './inventory.helpers.js';
 import { StockEntry } from './stockEntry.model.js';
@@ -131,7 +132,7 @@ export async function createOpeningStock({ branchId, productIds, metalLines, not
       },
       { session },
     );
-    await recordAudit({ action: AUDIT_ACTIONS.POST, module: 'inventory', recordType: 'StockEntry', recordId: doc._id, meta: { name: docNo, docNo, type: 'opening', pieces: doc.totals.pieces } }, { session });
+    await recordAudit({ action: AUDIT_ACTIONS.POST, module: 'inventory', recordType: 'StockEntry', recordId: doc._id, meta: { name: docNo, docNo, type: 'opening', pieces: doc.totals.pieces }, undo: { type: 'stock.opening', branchId } }, { session });
     return doc;
   });
   return (await serializeEntries([entry.toObject()]))[0];
@@ -181,10 +182,20 @@ export async function updateOpeningMetal(id, { metalLines, note }) {
     );
 
     const before = doc.totals.grossMg;
+    const linesBefore = doc.metalLines.map((l) => ({ metal: l.metal, purity: l.purity, kind: l.kind, grossWeightMg: l.grossWeightMg, valuePaise: l.valuePaise }));
+    const noteBefore = doc.note ?? null;
     doc.set({ metalLines: lines, totals: totalsFor([], lines), ...(note !== undefined && { note }) });
     await doc.save({ session });
     await recordAudit(
-      { action: AUDIT_ACTIONS.UPDATE, module: 'inventory', recordType: 'StockEntry', recordId: doc._id, meta: { name: doc.docNo, docNo: doc.docNo, type: 'opening' }, changes: [{ field: 'grossMg', from: before, to: doc.totals.grossMg }] },
+      {
+        action: AUDIT_ACTIONS.UPDATE,
+        module: 'inventory',
+        recordType: 'StockEntry',
+        recordId: doc._id,
+        meta: { name: doc.docNo, docNo: doc.docNo, type: 'opening' },
+        changes: [{ field: 'grossMg', from: before, to: doc.totals.grossMg }],
+        undo: { type: 'stock.openingEdit', branchId: doc.branchId, data: { before: linesBefore, note: noteBefore, after: doc.metalLines.map((l) => ({ metal: l.metal, purity: l.purity, kind: l.kind, grossWeightMg: l.grossWeightMg, valuePaise: l.valuePaise })) } },
+      },
       { session },
     );
     return doc;
@@ -219,7 +230,71 @@ async function postAdjustment(entryId, { session }) {
   entry.status = STOCK_DOC_STATUS.POSTED;
   entry.postedAt = today.now;
   await entry.save({ session });
-  await recordAudit({ action: AUDIT_ACTIONS.POST, module: 'inventory', recordType: 'StockEntry', recordId: entry._id, meta: { name: entry.docNo, docNo: entry.docNo, type: 'adjustment' } }, { session });
+  await recordAudit({ action: AUDIT_ACTIONS.POST, module: 'inventory', recordType: 'StockEntry', recordId: entry._id, meta: { name: entry.docNo, docNo: entry.docNo, type: 'adjustment' }, undo: { type: 'stock.adjustment', branchId: entry.branchId } }, { session });
+}
+
+// ---------------------------------------------------------------- taking back (Undo)
+
+const metalOf = (l) => ({ metal: l.metal, purity: l.purity, kind: l.kind, grossWeightMg: l.grossWeightMg, valuePaise: l.valuePaise ?? 0 });
+
+/** Why an opening entry cannot be cancelled now, or null: its pieces and gold must still be here, untouched. */
+export async function openingCancelBlock(e) {
+  if (e.status !== STOCK_DOC_STATUS.POSTED) return `It is ${e.status.replace('_', ' ')}.`;
+  const gone = e.productIds.length ? await piecesGone(e.productIds, e.branchId) : null;
+  if (gone) return gone;
+  return e.metalLines.length ? metalShortfall(e.branchId, e.metalLines) : null;
+}
+
+/** Cancels an opening entry (Undo): its pieces are drafts again, its gold leaves the metal stock, its journal is reversed. */
+export async function cancelOpeningStock(id, reason) {
+  const { userId } = requireContext();
+  const today = await todayContext();
+  const e = await StockEntry.findOne({ _id: id, type: 'opening', ...accessibleBranchFilter() }).lean();
+  if (!e) throw ApiError.notFound('Stock entry');
+  const block = await openingCancelBlock(e);
+  if (block) throw ApiError.conflict(`${e.docNo} cannot be cancelled: ${block}`, 'INVALID_STATE');
+  await withTransaction(async (session) => {
+    const claimed = await StockEntry.findOneAndUpdate({ _id: e._id, status: STOCK_DOC_STATUS.POSTED }, { $set: { status: STOCK_DOC_STATUS.CANCELLED, cancelledAt: today.now, cancelledBy: userId, cancelReason: reason } }, { session });
+    if (!claimed) throw ApiError.conflict('This entry was already cancelled', 'INVALID_STATE');
+    const source = { docType: 'stock_entry', docId: e._id, docNo: e.docNo };
+    if (e.productIds.length) await moveProducts({ type: 'opening_cancel', productIds: e.productIds, branchId: e.branchId, expectedBranchId: e.branchId, source, businessDate: today.businessDate, note: reason }, { session });
+    for (const l of e.metalLines) await moveMetal({ type: 'opening_cancel', branchId: e.branchId, line: { ...metalOf(l), direction: 'out' }, source, businessDate: today.businessDate, note: reason }, { session });
+    await reverseJournalsFor(source, { date: today.now, businessDate: today.businessDate, financialYear: today.financialYear, narration: `Opening stock ${e.docNo} cancelled` }, { session });
+    await recordAudit({ action: AUDIT_ACTIONS.CANCEL, module: 'inventory', recordType: 'StockEntry', recordId: e._id, meta: { name: e.docNo, docNo: e.docNo, type: 'opening', reason } }, { session });
+  });
+}
+
+/** Why a posted adjustment cannot be reversed now, or null: written-off pieces must still be written off, and metal it added still here. */
+export async function adjustmentReverseBlock(e) {
+  if (e.status !== STOCK_DOC_STATUS.POSTED) return `It is ${e.status.replace('_', ' ')}.`;
+  if (e.productIds.length) {
+    const moved = await Product.find({ _id: { $in: e.productIds }, $or: [{ status: { $nin: ['written_off', 'melted'] } }, { branchId: { $ne: e.branchId } }] }).select('sku').lean();
+    if (moved.length) return `${moved.map((p) => p.sku).join(', ')} changed since.`;
+  }
+  const added = e.metalLines.filter((l) => l.direction === 'in');
+  return added.length ? metalShortfall(e.branchId, added) : null;
+}
+
+/** Reverses a posted adjustment (Undo): pieces back in stock, metal lines the other way, its journals reversed. */
+export async function reverseAdjustment(id, reason) {
+  const { userId } = requireContext();
+  const today = await todayContext();
+  const e = await StockEntry.findOne({ _id: id, type: 'adjustment', ...accessibleBranchFilter() }).lean();
+  if (!e) throw ApiError.notFound('Stock entry');
+  const block = await adjustmentReverseBlock(e);
+  if (block) throw ApiError.conflict(`${e.docNo} cannot be reversed: ${block}`, 'INVALID_STATE');
+  await withTransaction(async (session) => {
+    const claimed = await StockEntry.findOneAndUpdate({ _id: e._id, status: STOCK_DOC_STATUS.POSTED }, { $set: { status: STOCK_DOC_STATUS.CANCELLED, cancelledAt: today.now, cancelledBy: userId, cancelReason: reason } }, { session });
+    if (!claimed) throw ApiError.conflict('This adjustment was already reversed', 'INVALID_STATE');
+    const source = { docType: 'stock_entry', docId: e._id, docNo: e.docNo };
+    if (e.productIds.length) await moveProducts({ type: 'adjustment_reverse', productIds: e.productIds, branchId: e.branchId, expectedBranchId: e.branchId, source, businessDate: today.businessDate, note: reason }, { session });
+    for (const l of e.metalLines) {
+      const back = l.direction === 'out' ? 'in' : 'out';
+      await moveMetal({ type: back === 'in' ? 'adjustment_in' : 'adjustment_out', branchId: e.branchId, line: { ...metalOf(l), direction: back }, source, businessDate: today.businessDate, note: `Reversed: ${reason}` }, { session });
+    }
+    await reverseJournalsFor(source, { date: today.now, businessDate: today.businessDate, financialYear: today.financialYear, narration: `Adjustment ${e.docNo} reversed` }, { session });
+    await recordAudit({ action: AUDIT_ACTIONS.CANCEL, module: 'inventory', recordType: 'StockEntry', recordId: e._id, meta: { name: e.docNo, docNo: e.docNo, type: 'adjustment', reason } }, { session });
+  });
 }
 
 registerApprovalHandler('stock_adjustment', {
@@ -228,6 +303,9 @@ registerApprovalHandler('stock_adjustment', {
   approve: (docId, options) => postAdjustment(docId, options),
   reject: async (docId, { session, comment }) => {
     await StockEntry.updateOne({ _id: docId, status: STOCK_DOC_STATUS.PENDING_APPROVAL }, { $set: { status: STOCK_DOC_STATUS.REJECTED, rejectionReason: comment ?? null } }, { session });
+  },
+  reopen: async (docId, { session }) => {
+    await StockEntry.updateOne({ _id: docId, status: STOCK_DOC_STATUS.REJECTED }, { $set: { status: STOCK_DOC_STATUS.PENDING_APPROVAL, rejectionReason: null } }, { session });
   },
 });
 

@@ -98,7 +98,8 @@ function CancelDialog({ order, open, onClose }) {
   // The customer's gold not yet in a piece goes back as gold; only the rest of the advance is refunded in money.
   const goldBack = (order.customerMetalBalance ?? []).filter((r) => r.leftMg > 0);
   const goldBackPaise = goldBack.reduce((n, r) => n + r.leftPaise, 0);
-  const moneyBack = Math.max(0, order.advancePaise - goldBackPaise);
+  // Advance from before goes back to the customer's account, not out of the till.
+  const moneyBack = Math.max(0, order.advancePaise - goldBackPaise - (order.customerAdvanceUsedPaise ?? 0));
 
   const onSubmit = handleSubmit(async (v) => {
     try {
@@ -356,7 +357,7 @@ export default function OrderDetailPage() {
   // Every rupee for this order in one list: advances and refunds, then what was paid on the delivery bill.
   const invoice = order.invoice?.status === 'completed' ? order.invoice : null;
   const payments = [
-    ...order.advances.map((a) => ({ key: a.id, title: a.amountPaise < 0 ? t('Refund') : t('Advance'), mode: a.mode, amountPaise: a.amountPaise, doc: a.receiptNo, at: a.at, by: a.by?.name, reference: a.reference })),
+    ...order.advances.map((a) => ({ key: a.id, title: a.mode === 'customer_advance' ? (a.amountPaise < 0 ? t('Back to customer advance') : t('Earlier advance adjusted')) : a.amountPaise < 0 ? t('Refund') : t('Advance'), mode: a.mode, amountPaise: a.amountPaise, doc: a.receiptNo, at: a.at, by: a.by?.name, reference: a.reference })),
     ...(invoice?.payments ?? []).map((p, n) => ({
       key: `inv${n}`,
       title: p.mode === 'credit' ? t('On credit (due)') : t('Paid at delivery'),
@@ -612,8 +613,17 @@ export default function OrderDetailPage() {
                 ) : (
                   <>
                     <MoneyRow label={t('Estimated total')} value={order.estimatedPaise ? formatINR(order.estimatedPaise) : '—'} />
-                    <MoneyRow label={t('Advance received')} value={formatINR(order.advancePaise)} tone="paid" />
+                    <MoneyRow label={t('Advance received')} value={formatINR(order.advancePaise - (order.customerAdvanceUsedPaise ?? 0))} tone="paid" />
+                    {order.customerAdvanceUsedPaise > 0 && <MoneyRow label={t('Earlier advance adjusted')} value={formatINR(order.customerAdvanceUsedPaise)} tone="paid" />}
                     {open && <MoneyRow label={t('Due at delivery (estimate)')} value={order.estimatedPaise ? formatINR(order.balancePaise) : t('Billed at delivery')} strong tone={order.estimatedPaise && order.balancePaise ? 'due' : undefined} />}
+                    {/* The customer's balance from before is not part of the order: it can be chosen on the delivery bill. */}
+                    {open && (order.previousAdvancePaise > 0 || order.previousDuePaise > 0) && (
+                      <Typography variant="caption" color="textSecondary" sx={{ display: 'block', pt: 0.5 }}>
+                        {order.previousAdvancePaise > 0
+                          ? t('{{name}} has {{amount}} advance from before — it can be adjusted on the delivery bill.', { name: order.customer.name, amount: formatINR(order.previousAdvancePaise) })
+                          : t('{{name}} owes {{amount}} from before — it can be added on the delivery bill.', { name: order.customer.name, amount: formatINR(order.previousDuePaise) })}
+                      </Typography>
+                    )}
                   </>
                 )}
               </Stack>

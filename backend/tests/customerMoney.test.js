@@ -80,16 +80,16 @@ describe('customer money adds up everywhere', () => {
     expect(await everyScreen(ctx, c)).toMatchObject({ collectDialog: 0, customersList: 0, ledger: -5000000, advanceLeft: 5000000 });
 
     // Bill 1: the advance pays ₹50,000, UPI ₹20,000, the rest stays due.
-    const s1 = (await api().post('/api/v1/sales').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: c.id, items: [{ productId: p1.id }], payments: [{ mode: 'upi', amountPaise: 2000000 }] })).body.data;
+    const s1 = (await api().post('/api/v1/sales').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: c.id, useCustomerAdvance: true, items: [{ productId: p1.id }], payments: [{ mode: 'upi', amountPaise: 2000000 }] })).body.data;
     expect(s1).toMatchObject({ customerAdvancePaise: 5000000, paidPaise: 7000000, duePaise: T - 7000000, paymentStatus: 'partly_paid' });
     expect(await everyScreen(ctx, c)).toMatchObject(same(T - 7000000, { advanceLeft: 0, status: 'partly_paid' }));
 
     // Bill 2 (chain + small ring): the advance is used up, so nothing more is taken from it; ₹10,000 + the ring's price left due.
-    const q2 = (await api().post('/api/v1/sales/quote').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: c.id, items: [{ productId: p2.id }, { productId: small.id }] })).body.data;
+    const q2 = (await api().post('/api/v1/sales/quote').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: c.id, useCustomerAdvance: true, items: [{ productId: p2.id }, { productId: small.id }] })).body.data;
     expect(q2.customerAdvancePaise).toBe(0);
     const ringPrice = q2.items[1].breakdown.totalPaise;
     const due2 = ringPrice + 1000000;
-    const s2 = (await api().post('/api/v1/sales').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: c.id, items: [{ productId: p2.id }, { productId: small.id }], payments: [{ mode: 'cash', amountPaise: q2.payablePaise - due2 }] })).body.data;
+    const s2 = (await api().post('/api/v1/sales').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: c.id, useCustomerAdvance: true, items: [{ productId: p2.id }, { productId: small.id }], payments: [{ mode: 'cash', amountPaise: q2.payablePaise - due2 }] })).body.data;
     expect(s2.duePaise).toBe(due2);
     expect(await everyScreen(ctx, c)).toMatchObject(same(T - 7000000 + due2));
 
@@ -162,9 +162,9 @@ describe('customer money adds up everywhere', () => {
     const piece = (await api().post(`/api/v1/orders/${order.id}/items/0/finish`).set(bearer(ctx.t)).send({ grossWeightMg: 10000, huid: 'MNY001', wastage: { mode: 'none', value: 0 }, making: { type: 'per_gram', value: 40000 } })).body.data.items[0]
       .product;
     // Billed without choosing the order: it is linked by itself and its ₹20,000 advance comes off.
-    const q = (await api().post('/api/v1/sales/quote').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: c.id, items: [{ productId: piece.id }] })).body.data;
+    const q = (await api().post('/api/v1/sales/quote').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: c.id, useCustomerAdvance: true, items: [{ productId: piece.id }] })).body.data;
     expect(q.advancePaise).toBe(2000000);
-    const sale = (await api().post('/api/v1/sales').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: c.id, items: [{ productId: piece.id }], payments: [{ mode: 'cash', amountPaise: q.payablePaise - 1500000 }] })).body.data;
+    const sale = (await api().post('/api/v1/sales').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: c.id, useCustomerAdvance: true, items: [{ productId: piece.id }], payments: [{ mode: 'cash', amountPaise: q.payablePaise - 1500000 }] })).body.data;
     expect(sale).toMatchObject({ order: { orderNo: order.orderNo }, advanceAdjustedPaise: 2000000, duePaise: 1500000, paymentStatus: 'partly_paid' });
 
     // Order delivered: its advance no longer shows; ₹15,000 due everywhere.

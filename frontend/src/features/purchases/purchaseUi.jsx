@@ -10,8 +10,9 @@ export const payModeLabel = (v) => PAY_MODES.find((m) => m.value === v)?.label ?
 
 const PAYMENT = { paid: [t('Paid'), 'success'], partly_paid: [t('Partly paid'), 'warning'], due: [t('Due'), 'error'] };
 
-/** Green paid, amber part paid, red nothing paid — the same colours as the customer list. */
-export function PaymentChip({ status }) {
+/** Green paid, amber part paid, red nothing paid — the same colours as the customer list. A cancelled bill owes nothing. */
+export function PaymentChip({ status, cancelled = false }) {
+  if (cancelled) return <Chip size="small" label={t('Cancelled')} variant="outlined" sx={{ height: 22, fontWeight: 600 }} />;
   const [label, color] = PAYMENT[status] ?? [status, 'default'];
   return <Chip size="small" label={label} color={color} sx={{ height: 22, fontWeight: 600 }} />;
 }

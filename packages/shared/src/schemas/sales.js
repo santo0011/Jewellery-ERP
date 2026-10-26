@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { PAYMENT_MODES } from '../enums.js';
+import { BILL_ROUND_OFF, PAYMENT_MODES, ROUND_OFF_UNITS } from '../enums.js';
 import { HUID_REGEX } from '../patterns.js';
 import { listQuerySchema, objectIdSchema, optional, optionalText } from './common.js';
 import { oldGoldLinesSchema } from './oldGold.js';
@@ -12,15 +12,26 @@ const lineSchema = z.object({
   discountPaise: paise('Discount').default(0),
 });
 
+/** How this bill is rounded (see BILL_ROUND_OFF). Left out: the Tax settings' round-off, as before. */
+export const billRoundOffSchema = z.object({
+  mode: z.enum(Object.values(BILL_ROUND_OFF)).default(BILL_ROUND_OFF.AUTO),
+  unitPaise: z.number().int().refine((v) => ROUND_OFF_UNITS.includes(v), 'Round to ₹1, ₹10, ₹50 or ₹100').default(100),
+  // manual: added to the bill (+) or taken off it (−), in paise.
+  adjustmentPaise: z.number({ error: 'Enter the adjustment' }).int().min(-1e8).max(1e8).default(0),
+});
+
 export const quoteSchema = z.object({
   branchId: objectIdSchema,
   customerId: optional(objectIdSchema),
   // Billing a customer order: its advance is deducted from what the customer pays now.
   orderId: optional(objectIdSchema),
-  // A customer's advance from before (minus old due) is used on the bill unless this is false.
-  useCustomerAdvance: z.boolean().default(true),
+  // The customer's balance from before, settled on this bill only when chosen (and confirmed) at the counter:
+  // their advance from before (a minus old due) comes off it; their due from before is added to what is collected.
+  useCustomerAdvance: z.boolean().default(false),
+  addPreviousDue: z.boolean().default(false),
   // Old gold the customer hands over in exchange: its value is taken off what they pay now.
   oldGold: oldGoldLinesSchema.default([]),
+  roundOff: billRoundOffSchema.optional(),
   items: z
     .array(lineSchema)
     .min(1, 'Add at least one item')

@@ -19,7 +19,7 @@ import CustomerPicker from '../../components/CustomerPicker.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
 import { useDebounce } from '../../hooks/useDebounce.js';
 import { usePermission, useSession } from '../../hooks/usePermission.js';
-import { getErrorMessage } from '../../utils/errors.js';
+import { getErrorCode, getErrorMessage } from '../../utils/errors.js';
 import { fonts, tokens } from '../../theme/tokens.js';
 import OldGoldLinesEditor, { oldGoldPayload } from '../oldgold/OldGoldLinesEditor.jsx';
 import FinishItemDialog from '../orders/FinishItemDialog.jsx';
@@ -29,6 +29,8 @@ import { purityLabel } from '../products/productForm.js';
 import { useCurrentRatesQuery } from '../rates/rateApi.js';
 import { billLabels } from './billLabels.js';
 import { useCreateSaleMutation, useLazyLookupProductQuery, useQuoteSaleMutation, useSetProductHuidMutation } from './saleApi.js';
+import PreviousBalance from './PreviousBalance.jsx';
+import RoundOffControl, { AUTO_ROUND_OFF, signedINR } from './RoundOffControl.jsx';
 import KeepOnPhone from '../../components/KeepOnPhone.jsx';
 import { t } from '../../i18n/index.js';
 
@@ -177,14 +179,14 @@ function ItemSearch({ branchId, branchName, exclude, onAdd }) {
   );
 }
 
-function Money({ label, value, strong, negative, light }) {
+function Money({ label, value, strong, negative, plus, light }) {
   return (
     <Stack direction="row" spacing={2} sx={{ justifyContent: 'space-between', alignItems: 'baseline', py: 0.6 }}>
       <Typography sx={{ fontSize: '1rem', fontWeight: strong ? 600 : 500, color: light ? 'rgba(247, 243, 232, 0.75)' : strong ? 'text.primary' : 'text.secondary' }}>
         {label}
       </Typography>
-      <Typography component="span" sx={{ fontSize: '1.0625rem', fontWeight: strong ? 700 : 600, whiteSpace: 'nowrap', color: negative ? (light ? '#9BD3B5' : 'success.main') : light ? '#F7F3E8' : 'text.primary' }}>
-        {negative ? '− ' : ''}
+      <Typography component="span" sx={{ fontSize: '1.0625rem', fontWeight: strong ? 700 : 600, whiteSpace: 'nowrap', color: negative ? (light ? '#9BD3B5' : 'success.main') : plus ? (light ? '#F4A09A' : 'error.main') : light ? '#F7F3E8' : 'text.primary' }}>
+        {negative ? '− ' : plus ? '+ ' : ''}
         {value}
       </Typography>
     </Stack>
@@ -481,13 +483,21 @@ export default function BillingPage() {
   const canTakeOldGold = usePermission('oldgold.create');
   const [oldGoldRows, setOldGoldRows] = useState([]);
   const oldGoldLines = useMemo(() => oldGoldPayload(oldGoldRows), [oldGoldRows]);
+  // How this bill is rounded (Auto: Tax settings). Back to Auto when the bill is emptied.
+  const [roundOff, setRoundOff] = useState(AUTO_ROUND_OFF);
+  useEffect(() => {
+    if (!lines.length) setRoundOff(AUTO_ROUND_OFF);
+  }, [lines.length]);
   const idempotencyKey = useRef(newKey());
+  // The customer's advance / due from before: only on this bill when chosen (and confirmed). A new customer starts fresh.
+  const [balanceChoice, setBalanceChoice] = useState({ advance: false, due: false });
 
   const { data: linkedOrder } = useOrderQuery(orderId, { skip: !orderId });
   useEffect(() => {
     if (linkedOrder && (!customer || customer.id !== linkedOrder.customer.id)) setCustomer(linkedOrder.customer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [linkedOrder]);
+  useEffect(() => setBalanceChoice({ advance: false, due: false }), [customer?.id]);
   const { data: customerOrders } = useOrdersQuery({ page: 1, limit: 10, status: 'open', customerId: customer?.id }, { skip: !customer || !canViewOrders });
 
   const [quoteSale, { data: freshQuote, error: quoteError, isLoading: quoting, reset: resetQuote }] = useQuoteSaleMutation();
@@ -515,8 +525,11 @@ export default function BillingPage() {
       orderId: orderId ?? null,
       items: lines.map((l) => ({ productId: l.product.id, discountPaise: discountPaise(l) })),
       oldGold: oldGoldLines ?? [],
+      useCustomerAdvance: Boolean(customer) && balanceChoice.advance,
+      addPreviousDue: Boolean(customer) && balanceChoice.due,
+      ...(roundOff.mode !== 'auto' && { roundOff }),
     };
-  }, [activeBranchId, customer, orderId, lines, subtotalKey, oldGoldLines]);
+  }, [activeBranchId, customer, orderId, lines, subtotalKey, oldGoldLines, roundOff, balanceChoice]);
   const debounced = useDebounce(request, 300);
   useEffect(() => {
     if (debounced.items.length) quoteSale(debounced);
@@ -524,14 +537,15 @@ export default function BillingPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [debounced]);
 
-  const payable = quote?.payablePaise ?? 0;
+  // This bill, plus the due from before when it was added.
+  const payable = quote?.toCollectPaise ?? quote?.payablePaise ?? 0;
   const paid = payments.reduce((s, p) => s + safePaise(p.amount), 0);
   const remaining = payable - paid;
   // Keep a single payment row in step with the amount due until the cashier splits it.
   useEffect(() => {
-    if (payments.length === 1 && quote) setPayments((rows) => [{ ...rows[0], amount: rupees(quote.payablePaise) }]);
+    if (payments.length === 1 && quote) setPayments((rows) => [{ ...rows[0], amount: rupees(payable) }]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [quote?.payablePaise]);
+  }, [payable]);
 
   const addProduct = (p) => {
     setLines((ls) => (ls.some((l) => l.product.id === p.id) ? ls : [...ls, { product: p, discount: '', discountType: 'percent' }]));
@@ -575,6 +589,7 @@ export default function BillingPage() {
     setPayments([{ mode: 'cash', amount: '', reference: '' }]);
     setNotes('');
     setOldGoldRows([]);
+    setBalanceChoice({ advance: false, due: false });
   };
 
   const pickOrder = (id) => {
@@ -604,7 +619,9 @@ export default function BillingPage() {
   // A customer may pay part now: the rest stays due on their account. A walk-in pays in full.
   if (quote && remaining < 0) problems.push(t('Payment is {{formatINR}} more than the bill — lower the amount.', { formatINR: formatINR(-remaining) }));
   if (quote && remaining > 0 && !customer) problems.push(t('{{remaining}} is unpaid — select the customer to keep it as due (a walk-in pays in full).', { remaining: formatINR(remaining) }));
-  if (compliance?.panMissing) problems.push(customer ? t('Bills above ₹2 lakh need the customer\'s PAN — add PAN to {{name}}.', { name: customer.name }) : t('Bills above ₹2 lakh need a customer with PAN — select the customer.'));
+  // The PAN threshold is the organisation's (Business settings → Jewellery → Compliance).
+  const panAbove = formatINR(compliance?.panRequiredAbovePaise ?? 20000000, { decimals: 0 });
+  if (compliance?.panMissing) problems.push(customer ? t('Bills above {{amount}} need the customer\'s PAN — add PAN to {{name}}.', { amount: panAbove, name: customer.name }) : t('Bills above {{amount}} need a customer with PAN — select the customer.', { amount: panAbove }));
   if (cashOver && compliance.cashLimitAction === 'block') problems.push(t('Cash cannot be more than {{cashLimit}} (Section 269ST) — take the rest by card, UPI or bank (use Split).', { cashLimit: formatINR(compliance.cashLimitPaise, { decimals: 0 }) }));
 
   // A bill cannot be undone casually, so "Generate bill" asks first and only the dialog's button saves it.
@@ -619,6 +636,8 @@ export default function BillingPage() {
       ? t(n === 1 ? '{{n}} item for {{name}}.' : '{{n}} items for {{name}}.', { n, name: customer.name })
       : t(n === 1 ? '{{n}} item (walk-in).' : '{{n}} items (walk-in).', { n }),
     quote?.oldGoldPaise > 0 && t('Old gold taken: {{oldGold}}.', { oldGold: formatINR(quote.oldGoldPaise) }),
+    quote?.customerAdvancePaise > 0 && t('Previous advance adjusted: {{amount}}.', { amount: formatINR(quote.customerAdvancePaise) }),
+    quote?.previousDueAddedPaise > 0 && t('Previous due added: {{amount}}.', { amount: formatINR(quote.previousDueAddedPaise) }),
     t('To collect {{payable}}.', { payable: formatINR(payable) }),
     t('Paid now: {{paidBy}}.', { paidBy: paidBy || t('nothing') }),
     remaining > 0 && t('{{remaining}} stays due.', { remaining: formatINR(remaining) }),
@@ -796,6 +815,17 @@ export default function BillingPage() {
                     ))}
                   </TextField>
                 )}
+                {customer && quote && (
+                  <PreviousBalance
+                    value={balanceChoice}
+                    onChange={setBalanceChoice}
+                    advanceLeft={quote.customerAdvanceLeftPaise ?? 0}
+                    previousDue={quote.previousDuePaise ?? 0}
+                    collectBefore={(quote.payablePaise ?? 0) + (quote.customerAdvancePaise ?? 0)}
+                    name={customer.name}
+                    disabled={quoting}
+                  />
+                )}
               </CardContent>
             </Card>
 
@@ -812,13 +842,19 @@ export default function BillingPage() {
                       <Money light label={billLabels(totals).sgst} value={formatINR(totals.sgstPaise)} />
                     </>
                   ))}
-                {totals?.roundOffPaise ? <Money light label={t('Round off')} value={formatINR(totals.roundOffPaise)} /> : null}
-                {(quote?.advancePaise > 0 || quote?.customerAdvancePaise > 0 || quote?.oldGoldPaise > 0) && (
+                {totals?.roundOffPaise ? (
+                  <>
+                    <Money light label={t('Before round off')} value={formatINR(totals.beforeRoundPaise ?? totals.grandTotalPaise - totals.roundOffPaise)} />
+                    <Money light label={totals.roundOff?.mode === 'manual' ? t('Adjustment') : t('Round off')} value={signedINR(totals.roundOffPaise)} />
+                  </>
+                ) : null}
+                {(totals?.roundOffPaise || quote?.advancePaise > 0 || quote?.customerAdvancePaise > 0 || quote?.oldGoldPaise > 0 || quote?.previousDueAddedPaise > 0) && (
                   <>
                     <Money light label={t('Bill total')} value={formatINR(totals.grandTotalPaise)} strong />
                     {quote.advancePaise > 0 && <Money light label={t('Advance {{orderNo}}', { orderNo: quote.order.orderNo })} value={formatINR(quote.advancePaise)} negative />}
                     {quote.oldGoldPaise > 0 && <Money light label={t('Old gold')} value={formatINR(quote.oldGoldPaise)} negative />}
-                    {quote.customerAdvancePaise > 0 && <Money light label={t('Advance paid earlier')} value={formatINR(quote.customerAdvancePaise)} negative />}
+                    {quote.customerAdvancePaise > 0 && <Money light label={t('Previous advance')} value={formatINR(quote.customerAdvancePaise)} negative />}
+                    {quote.previousDueAddedPaise > 0 && <Money light label={t('Previous due')} value={formatINR(quote.previousDueAddedPaise)} plus />}
                   </>
                 )}
                 <Divider sx={{ my: 1.5, borderColor: 'rgba(var(--brand-rgb), 0.3)' }} />
@@ -829,6 +865,20 @@ export default function BillingPage() {
               </Box>
 
               <CardContent>
+                {/* The final amount typed is what is collected now: advances and old gold off the bill, any previous due on it. */}
+                <RoundOffControl value={roundOff} onChange={setRoundOff} beforePaise={totals?.beforeRoundPaise} offsetPaise={totals ? totals.grandTotalPaise - payable : 0} limitPaise={quote?.roundOffLimitPaise} canLower={canDiscount} disabled={!quote} />
+                {/^ROUND_OFF/.test(getErrorCode(quoteError) ?? '') && (
+                  // The button sits under the message (not beside it), so it never squeezes onto two lines.
+                  <Alert severity="error" sx={{ mt: 1.5, '& .MuiAlert-message': { width: '100%' } }}>
+                    <Typography variant="body2">{getErrorMessage(quoteError)}</Typography>
+                    <Stack direction="row" sx={{ justifyContent: 'flex-end', mt: 1 }}>
+                      <Button size="small" variant="outlined" color="error" startIcon={<RestartAltRoundedIcon />} onClick={() => setRoundOff(AUTO_ROUND_OFF)} sx={{ whiteSpace: 'nowrap', bgcolor: 'background.paper', fontWeight: 600 }}>
+                        {t('Use Auto')}
+                      </Button>
+                    </Stack>
+                  </Alert>
+                )}
+                <Divider sx={{ my: 2 }} />
                 <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 1.25 }}>
                   <Typography variant="overline" color="textSecondary">
                     {t('Payment')}

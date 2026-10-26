@@ -16,7 +16,6 @@ import StatusChip from '../../components/StatusChip.jsx';
 import { usePermission } from '../../hooks/usePermission.js';
 import { useListParams } from '../../hooks/useListParams.js';
 import { formatDateTime } from '../../utils/format.js';
-import { paymentLabel } from '../orders/orderUi.jsx';
 import { useSalesQuery } from './saleApi.js';
 import SummaryCards, { SummaryCard } from '../../components/SummaryCards.jsx';
 import { t } from '../../i18n/index.js';
@@ -93,7 +92,6 @@ export default function InvoicesPage() {
         </Stack>
       ),
     },
-    { key: 'payment', label: t('Paid by'), render: (s) => [...(s.advanceUsed ? [t('Advance')] : []), ...s.paymentModes.map((m) => (m === 'credit' ? t('Due') : paymentLabel(m)))].join(', ') || '—' },
     {
       key: 'total',
       label: t('Total'),

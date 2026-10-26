@@ -1,4 +1,6 @@
 import { hasPermission, OPEN_ORDER_STATUSES, SALE_STATUS } from '@jerp/shared';
+import { customerSchema } from '@jerp/shared/schemas';
+import { editSnapshot } from '../undo/undo.snapshot.js';
 import { withTransaction } from '../../config/db.js';
 import { AUDIT_ACTIONS, recordAudit } from '../../core/audit/audit.service.js';
 import { requireContext } from '../../core/context/requestContext.js';
@@ -13,6 +15,7 @@ import { accessibleBranchFilter } from '../inventory/inventory.helpers.js';
 import { Order } from '../orders/order.model.js';
 import { Sale } from '../sales/sale.model.js';
 import { Customer } from './customer.model.js';
+import { customerAdvanceUsed } from './customerAdvance.js';
 import { advanceReceived, billDue, customerDues, openingDueLeft, recordAdvanceReceipt } from './customerReceipt.service.js';
 
 const TRACKED = [
@@ -90,6 +93,12 @@ async function findCustomer(id) {
   return customer;
 }
 
+/** A customer as the edit form loads it, or null once deleted (for Undo). */
+export async function customerFormValues(id) {
+  const customer = await Customer.findOne({ _id: id, isDeleted: false }).lean();
+  return customer ? serialize(customer) : null;
+}
+
 /**
  * Per customer, from completed bills: unpaid credit (same rule as the customer page) and what was paid at the counter.
  * Empty without sales.view.
@@ -133,14 +142,16 @@ function paymentStatus(duePaise, paidPaise) {
  */
 async function withPurchaseFlag(rows) {
   const ids = rows.map((r) => r.id);
-  const [buyers, used, orders] = await Promise.all([
+  const [buyers, used, reserved, orders] = await Promise.all([
     Sale.distinct('customerId', { customerId: { $in: ids } }),
     Sale.find({ customerId: { $in: ids }, status: SALE_STATUS.COMPLETED, customerAdvancePaise: { $gt: 0 } }).select('customerId customerAdvancePaise').lean(),
+    // Advance paid before that orders took when booked (it now shows in their advance instead).
+    Order.find({ customerId: { $in: ids }, customerAdvanceUsedPaise: { $gt: 0 } }).select('customerId customerAdvanceUsedPaise').lean(),
     Order.find({ customerId: { $in: ids }, status: { $in: OPEN_ORDER_STATUSES }, advancePaise: { $gt: 0 } }).select('customerId advancePaise').lean(),
   ]);
   const bought = new Set(buyers.map(String));
   const sumBy = (list, field) => list.reduce((m, x) => m.set(String(x.customerId), (m.get(String(x.customerId)) ?? 0) + x[field]), new Map());
-  const usedBy = sumBy(used, 'customerAdvancePaise');
+  const usedBy = sumBy([...used.map((s) => ({ customerId: s.customerId, n: s.customerAdvancePaise })), ...reserved.map((o) => ({ customerId: o.customerId, n: o.customerAdvanceUsedPaise }))], 'n');
   const orderBy = sumBy(orders, 'advancePaise');
   return rows.map((r) => {
     const advanceLeftPaise = Math.max(0, -(r.openingBalancePaise ?? 0) - (usedBy.get(String(r.id)) ?? 0));
@@ -186,11 +197,8 @@ async function customerSummary(credit, owing) {
   return { total, newThisMonth: fresh, duePaise: creditPaise + (opening[0]?.total ?? 0), owing: owingCount };
 }
 
-/** How much of the advance paid before (a minus opening balance) bills have already used. */
-async function advanceUsed(customerId) {
-  const used = await Sale.find({ customerId, status: SALE_STATUS.COMPLETED, customerAdvancePaise: { $gt: 0 } }).select('customerAdvancePaise').lean();
-  return used.reduce((n, s) => n + s.customerAdvancePaise, 0);
-}
+/** How much of the advance paid before (a minus opening balance) bills and booked orders have already used. */
+const advanceUsed = (customerId) => customerAdvanceUsed(customerId);
 
 export async function getCustomer(id) {
   const c = (await findCustomer(id)).toObject();
@@ -210,7 +218,7 @@ export async function createCustomer(input) {
     const received = input.advancePayment && advance > 0 ? advance : 0;
     if (received) await recordAdvanceReceipt(doc, input.advancePayment, received, { session });
     await syncOpeningBalance({ partyType: 'customer', partyId: doc._id, code, amountPaise: doc.openingBalancePaise + received }, { session });
-    await recordAudit({ action: AUDIT_ACTIONS.CREATE, module: 'customer', recordType: 'Customer', recordId: doc._id, meta: { name: doc.name, code } }, { session });
+    await recordAudit({ action: AUDIT_ACTIONS.CREATE, module: 'customer', recordType: 'Customer', recordId: doc._id, meta: { name: doc.name, code }, undo: { type: 'customer.create' } }, { session });
     return doc;
   });
   return serialize(customer.toObject());
@@ -230,7 +238,7 @@ export async function updateCustomer(id, input) {
   // an old due — is the same field being edited, so correcting it is not blocked.)
   const advanceBefore = Math.max(0, -(customer.openingBalancePaise ?? 0));
   const advanceAfter = Math.max(0, -(input.openingBalancePaise ?? 0));
-  // Advance already used on bills stays part of the record: it cannot be taken back or turned into an old due.
+  // Advance already used on bills or orders stays part of the record: it cannot be taken back or turned into an old due.
   const used = await advanceUsed(customer._id);
   // Advance paid as money has a receipt and is in cash/bank. Lowering the advance takes off the carried-over part
   // first; going below what was received pays the difference back (a refund out of cash/bank).
@@ -243,8 +251,8 @@ export async function updateCustomer(id, input) {
   }
   const receivedNow = input.advancePayment && advanceAfter > advanceBefore ? advanceAfter - advanceBefore : 0;
   if (used > 0 && advanceAfter < used) {
-    throw new ApiError(422, 'ADVANCE_USED', `${(used / 100).toFixed(2)} of ${customer.name}'s advance is already used on bills, so the advance cannot be less than that.`, [
-      { path: 'openingBalancePaise', message: 'Advance already used on bills' },
+    throw new ApiError(422, 'ADVANCE_USED', `${(used / 100).toFixed(2)} of ${customer.name}'s advance is already used on bills or orders, so the advance cannot be less than that.`, [
+      { path: 'openingBalancePaise', message: 'Advance already used on bills or orders' },
     ]);
   }
   if (advanceAfter > advanceBefore) {
@@ -279,7 +287,7 @@ export async function updateCustomer(id, input) {
       },
       { session },
     );
-    await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'customer', recordType: 'Customer', recordId: customer._id, meta: { name: customer.name }, changes }, { session });
+    await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'customer', recordType: 'Customer', recordId: customer._id, meta: { name: customer.name }, changes, undo: { type: 'customer.update', data: editSnapshot(customerSchema, before, after) } }, { session });
   });
   return after;
 }
@@ -291,7 +299,7 @@ export async function setCustomerStatus(id, status) {
   customer.status = status;
   customer.updatedBy = requireContext().userId;
   await customer.save();
-  await recordAudit({ action: AUDIT_ACTIONS.STATUS_CHANGE, module: 'customer', recordType: 'Customer', recordId: customer._id, meta: { name: customer.name }, changes: [{ field: 'status', from, to: status }] });
+  await recordAudit({ action: AUDIT_ACTIONS.STATUS_CHANGE, module: 'customer', recordType: 'Customer', recordId: customer._id, meta: { name: customer.name }, changes: [{ field: 'status', from, to: status }], undo: { type: 'customer.status', data: { from, to: status } } });
   return serialize(customer.toObject());
 }
 

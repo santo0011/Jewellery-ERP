@@ -86,7 +86,7 @@ export default function AdvancesPage() {
         );
       },
     },
-    { key: 'status', label: t('Status'), render: (a) => <Chip size="small" label={a.status === 'open' ? t('Recovering') : t('Closed')} color={a.status === 'open' ? 'warning' : 'default'} variant="outlined" sx={{ height: 22 }} /> },
+    { key: 'status', label: t('Status'), render: (a) => <Chip size="small" label={a.status === 'open' ? t('Recovering') : a.status === 'cancelled' ? t('Cancelled') : t('Closed')} color={a.status === 'open' ? 'warning' : 'default'} variant="outlined" title={a.cancelReason ?? undefined} sx={{ height: 22 }} /> },
   ];
 
   return (

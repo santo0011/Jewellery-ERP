@@ -111,6 +111,16 @@ export const PRINT_DESIGNS = Object.freeze({
 
 export const ROUND_OFF_MODES = Object.freeze({ NONE: 'none', NEAREST_RUPEE: 'nearest_rupee', NEAREST_TEN: 'nearest_ten' });
 
+/**
+ * How one bill is rounded (on the billing screen). auto: the Tax settings' round-off; nearest / down / up: to a
+ * multiple of `unitPaise`; manual: by an exact +/- adjustment; none: not rounded.
+ */
+export const BILL_ROUND_OFF = Object.freeze({ AUTO: 'auto', NEAREST: 'nearest', DOWN: 'down', UP: 'up', MANUAL: 'manual', NONE: 'none' });
+/** What a bill can be rounded to: ₹1, ₹10, ₹50, ₹100 (in paise). */
+export const ROUND_OFF_UNITS = Object.freeze([100, 1000, 5000, 10000]);
+/** The largest round-off a bill may have unless Tax settings say otherwise: ₹100. More than that is a discount. */
+export const DEFAULT_MAX_ROUND_OFF_PAISE = 10000;
+
 export const WASTAGE_MODES = Object.freeze({ PERCENT: 'percent', WEIGHT: 'weight', NONE: 'none' });
 
 export const MAKING_CHARGE_TYPES = Object.freeze({ PER_GRAM: 'per_gram', PERCENT: 'percent', FIXED: 'fixed' });
@@ -146,6 +156,8 @@ export const AUDIT_ACTION_LABELS = Object.freeze({
   receive: 'Received',
   cancel: 'Cancelled',
   return: 'Returned',
+  undo: 'Undone',
+  undo_dismiss: 'Kept (not undone)',
 });
 
 export const RECORD_STATUS = Object.freeze({ ACTIVE: 'active', INACTIVE: 'inactive' });
@@ -256,9 +268,10 @@ export const ADJUSTMENT_REASONS = Object.freeze([
   { value: 'other', label: 'Other' },
 ]);
 
-export const STOCK_DOC_STATUS = Object.freeze({ PENDING_APPROVAL: 'pending_approval', POSTED: 'posted', REJECTED: 'rejected' });
+// cancelled: taken back by Undo (an opening entry or adjustment reversed, a transfer recalled by the sending branch).
+export const STOCK_DOC_STATUS = Object.freeze({ PENDING_APPROVAL: 'pending_approval', POSTED: 'posted', REJECTED: 'rejected', CANCELLED: 'cancelled' });
 
-export const TRANSFER_STATUS = Object.freeze({ IN_TRANSIT: 'in_transit', RECEIVED: 'received', REJECTED: 'rejected' });
+export const TRANSFER_STATUS = Object.freeze({ IN_TRANSIT: 'in_transit', RECEIVED: 'received', REJECTED: 'rejected', CANCELLED: 'cancelled' });
 
 export const MOVEMENT_TYPE_LABELS = Object.freeze({
   opening: 'Opening stock',
@@ -278,6 +291,14 @@ export const MOVEMENT_TYPE_LABELS = Object.freeze({
   order_metal_return: 'Customer gold returned',
   old_gold: 'Old gold taken in',
   old_gold_cancel: 'Old gold cancelled',
+  // Taken back by Undo: the entry is reversed, the original stays on record.
+  purchase_cancel: 'Purchase cancelled',
+  opening_cancel: 'Opening stock cancelled',
+  production_cancel: 'Making cancelled',
+  production_return: 'Metal back from cancelled making',
+  adjustment_reverse: 'Adjustment reversed',
+  transfer_reopen: 'Back in transit',
+  transfer_recall: 'Transfer recalled',
 });
 
 /**

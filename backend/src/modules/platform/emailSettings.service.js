@@ -40,8 +40,14 @@ export async function saveEmailSettings(input, admin, meta) {
     throw ApiError.badRequest('Enter the SMTP password', [{ path: 'password', message: 'Enter the password for this username' }], 'VALIDATION_ERROR');
   }
   const changed = FIELDS.filter((f) => String(current?.[f] ?? '') !== String(next[f] ?? '')).concat(input.password ? ['password'] : []);
+  const snapshot = (s) => (s ? Object.fromEntries([...FIELDS, 'passwordSealed'].map((f) => [f, s[f] ?? null])) : null);
   const saved = await EmailSettings.findOneAndUpdate({ key: 'smtp' }, { $set: { ...next, updatedByAdminId: admin.adminId } }, { upsert: true, returnDocument: 'after' }).lean();
-  if (changed.length) await recordPlatformAudit({ adminId: admin.adminId, action: 'email_settings_update', changes: { fields: changed, enabled: saved.enabled, host: saved.host } }, meta);
+  if (changed.length) {
+    await recordPlatformAudit(
+      { adminId: admin.adminId, action: 'email_settings_update', changes: { fields: changed, enabled: saved.enabled, host: saved.host }, undo: { type: 'platform.emailSettings', recordType: 'EmailSettings', label: 'Email (SMTP) settings', data: { before: snapshot(current), after: snapshot(saved) } } },
+      meta,
+    );
+  }
   return serialize(saved);
 }
 

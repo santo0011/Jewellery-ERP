@@ -59,8 +59,8 @@ export default function PurchasesPage() {
       label: t('Payment'),
       render: (p) => (
         <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-          <PaymentChip status={p.paymentStatus} />
-          {p.duePaise > 0 && (
+          <PaymentChip status={p.paymentStatus} cancelled={p.status === 'cancelled'} />
+          {p.duePaise > 0 && p.status !== 'cancelled' && (
             <Typography variant="caption" sx={{ color: 'error.main', fontWeight: 600 }}>
               {t('{{due}} due', { due: formatINR(p.duePaise, { decimals: 0 }) })}
             </Typography>

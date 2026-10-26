@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { BRANCH_STATUS, PLAN_LIMITS, SUBSCRIPTION_STATUS, USER_STATUS } from '@jerp/shared';
+import { planSchema } from '@jerp/shared/schemas';
 import { env } from '../../config/env.js';
 import { withTransaction } from '../../config/db.js';
 import { logger } from '../../config/logger.js';
@@ -12,6 +13,7 @@ import { Subscription } from '../organisations/subscription.model.js';
 import { PlatformAdmin } from '../platform/platformAdmin.model.js';
 import { recordPlatformAudit } from '../platform/platformAuth.service.js';
 import { Product } from '../products/product.model.js';
+import { editSnapshot } from '../undo/undo.snapshot.js';
 import { User } from '../users/user.model.js';
 import { Plan, SubscriptionPayment } from './billing.models.js';
 import { cashfreeEnabled, cashfreeMode, createOrder, getOrder, getSuccessfulPayment, latestAttempt, payOrder } from './cashfree.js';
@@ -100,15 +102,24 @@ export async function createPlan(input, admin, meta) {
   if (await Plan.exists({ code })) code = `${code}-${randomBytes(2).toString('hex')}`;
   const plan = await Plan.create({ ...input, code });
   await oneDefault(plan._id, input.isDefault);
-  await recordPlatformAudit({ adminId: admin.adminId, action: 'plan_create', changes: { name: plan.name, pricePaise: plan.pricePaise } }, meta);
+  await recordPlatformAudit({ adminId: admin.adminId, action: 'plan_create', changes: { name: plan.name, pricePaise: plan.pricePaise }, undo: { type: 'platform.planCreate', recordType: 'Plan', recordId: plan._id, label: plan.name } }, meta);
   return serializePlan(plan.toObject());
 }
 
 export async function updatePlan(id, input, admin, meta) {
+  const before = await Plan.findById(id).lean();
   const plan = await Plan.findByIdAndUpdate(id, { $set: input }, { returnDocument: 'after' }).lean();
   if (!plan) throw ApiError.notFound('Plan');
   await oneDefault(plan._id, input.isDefault);
-  await recordPlatformAudit({ adminId: admin.adminId, action: 'plan_update', changes: { name: plan.name, pricePaise: plan.pricePaise, isActive: plan.isActive } }, meta);
+  await recordPlatformAudit(
+    {
+      adminId: admin.adminId,
+      action: 'plan_update',
+      changes: { name: plan.name, pricePaise: plan.pricePaise, isActive: plan.isActive },
+      undo: { type: 'platform.planUpdate', recordType: 'Plan', recordId: plan._id, label: plan.name, data: editSnapshot(planSchema, before, plan) },
+    },
+    meta,
+  );
   return serializePlan(plan);
 }
 
@@ -121,7 +132,7 @@ export async function deletePlan(id, admin, meta) {
   }
   if (plan.isDefault) throw ApiError.conflict(`${plan.name} is the default plan for new organisations. Make another plan the default first.`, 'PLAN_IS_DEFAULT');
   await Plan.deleteOne({ _id: plan._id });
-  await recordPlatformAudit({ adminId: admin.adminId, action: 'plan_delete', changes: { name: plan.name, pricePaise: plan.pricePaise } }, meta);
+  await recordPlatformAudit({ adminId: admin.adminId, action: 'plan_delete', changes: { name: plan.name, pricePaise: plan.pricePaise }, undo: { type: 'platform.planDelete', recordType: 'Plan', recordId: plan._id, label: plan.name, data: { snapshot: plan } } }, meta);
   return { id: plan._id, name: plan.name };
 }
 
@@ -205,6 +216,8 @@ export async function assignPlan(orgId, { planId, mode, days, months, amountPais
   const plan = await findPlan(planId);
   const sub = await subscriptionOf(org._id);
   const now = new Date();
+  // For Undo: the subscription as it was, and the records this activation adds.
+  const subBefore = sub ? JSON.parse(JSON.stringify(sub)) : null;
 
   if (mode === 'trial') {
     const length = days ?? env.TRIAL_DAYS;
@@ -242,7 +255,17 @@ export async function assignPlan(orgId, { planId, mode, days, months, amountPais
     });
     await settle(payment.toObject());
   }
-  await recordPlatformAudit({ adminId: admin.adminId, action: `subscription_${mode}`, organisationId: org._id, changes: { plan: plan.name, days, months, amountPaise, note } }, meta);
+  const [subAfter, added] = await Promise.all([Subscription.findOne({ organisationId: org._id }).setOptions(SKIP).lean(), SubscriptionPayment.find({ organisationId: org._id, createdAt: { $gte: now } }).select('_id').lean()]);
+  await recordPlatformAudit(
+    {
+      adminId: admin.adminId,
+      action: `subscription_${mode}`,
+      organisationId: org._id,
+      changes: { plan: plan.name, days, months, amountPaise, note },
+      undo: { type: 'platform.subscription', recordType: 'Subscription', label: `${org.name} — ${plan.name} (${mode})`, data: { before: subBefore, after: JSON.parse(JSON.stringify(subAfter)), paymentIds: added.map((p) => String(p._id)) } },
+    },
+    meta,
+  );
   return organisationBilling(org._id);
 }
 

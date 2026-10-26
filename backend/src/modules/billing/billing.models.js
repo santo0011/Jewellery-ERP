@@ -36,7 +36,10 @@ const paymentSchema = new mongoose.Schema(
     planName: String,
     months: { type: Number, required: true },
     amountPaise: { type: Number, required: true },
-    status: { type: String, enum: ['created', 'paid', 'failed', 'expired'], default: 'created', index: true },
+    // reversed: an activation taken back by the Super Admin's Undo — kept on record, no longer counted as revenue.
+    status: { type: String, enum: ['created', 'paid', 'failed', 'expired', 'reversed'], default: 'created', index: true },
+    reversedAt: { type: Date, default: null },
+    reverseReason: { type: String, default: null },
     source: { type: String, enum: ['cashfree', 'manual'], required: true },
     // Cashfree
     cfOrderId: { type: String, default: null },

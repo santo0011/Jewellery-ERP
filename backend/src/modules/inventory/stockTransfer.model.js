@@ -24,6 +24,10 @@ const stockTransferSchema = new mongoose.Schema(
     closedBy: { type: ObjectId, ref: 'User', default: null },
     closedAt: { type: Date, default: null },
     rejectionReason: { type: String, default: null },
+    // Taken back by Undo.
+    cancelledAt: { type: Date, default: null },
+    cancelledBy: { type: ObjectId, ref: 'User', default: null },
+    cancelReason: { type: String, default: null },
   },
   { timestamps: true },
 );

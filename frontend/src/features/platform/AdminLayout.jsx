@@ -11,6 +11,7 @@ import LogoutRoundedIcon from '@mui/icons-material/LogoutRounded';
 import MenuRoundedIcon from '@mui/icons-material/MenuRounded';
 import ExpandMoreRoundedIcon from '@mui/icons-material/ExpandMoreRounded';
 import ManageAccountsOutlinedIcon from '@mui/icons-material/ManageAccountsOutlined';
+import UndoRoundedIcon from '@mui/icons-material/UndoRounded';
 import { AppBar, Avatar, Box, ButtonBase, Drawer, IconButton, ListItemIcon, Menu, MenuItem, Toolbar, Typography, useMediaQuery, useScrollTrigger } from '@mui/material';
 import { useEffect, useState } from 'react';
 import { useDispatch } from 'react-redux';
@@ -21,6 +22,7 @@ import { applyDefaultBrand, applyRememberedBrand } from '../../theme/brandMemory
 import Sidebar from '../../layouts/Sidebar.jsx';
 import { usePlatformLogoutMutation, usePlatformMeQuery, useSetPlatformLanguageMutation } from './platformApi.js';
 import { platformSessionEnded } from './platformSlice.js';
+import PlatformUndoButton from './PlatformUndoButton.jsx';
 import { syncAccountLanguage, t } from '../../i18n/index.js';
 
 const SIDEBAR_WIDTH = 260;
@@ -39,7 +41,13 @@ const NAV = [
     ],
   },
   { label: t('Reports'), icon: AnalyticsOutlinedIcon, items: [{ label: t('Reports'), path: '/admin/reports', icon: QueryStatsOutlinedIcon }] },
-  { label: t('Settings'), items: [{ label: t('Email (SMTP)'), path: '/admin/settings/email', icon: AlternateEmailOutlinedIcon }] },
+  {
+    label: t('Settings'),
+    items: [
+      { label: t('Email (SMTP)'), path: '/admin/settings/email', icon: AlternateEmailOutlinedIcon },
+      { label: t('Undo history'), path: '/admin/undo', icon: UndoRoundedIcon },
+    ],
+  },
 ];
 
 const initialsOf = (name = '') =>
@@ -192,6 +200,7 @@ export default function AdminLayout() {
               </IconButton>
             )}
             <Box sx={{ flex: 1, minWidth: 0 }} />
+            <PlatformUndoButton />
             <LanguageSwitcher onSave={saveLanguageToAccount} compact={!desktop} />
             <AdminAccountMenu me={me} onSignOut={() => setConfirmSignOut(true)} />
             <ConfirmDialog

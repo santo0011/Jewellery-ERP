@@ -281,7 +281,7 @@ export default function InvoicePage() {
             )}
             {sale.customerAdvancePaise > 0 && (
               <Typography variant="body2">
-                {t('Advance paid earlier')} <Amount paise={sale.customerAdvancePaise} tone="paid" />
+                {t('Previous advance')} <Amount paise={sale.customerAdvancePaise} tone="paid" />
               </Typography>
             )}
             {sale.oldGoldPaise > 0 && (
@@ -301,6 +301,12 @@ export default function InvoicePage() {
               <Typography key={n} variant="body2">
                 {p.mode === 'credit' ? t('Left due at billing') : paymentLabel(p.mode)} <Amount paise={p.amountPaise} tone={p.mode === 'credit' ? 'due' : 'paid'} />
                 {p.reference ? ` · ${p.reference}` : ''}
+              </Typography>
+            ))}
+            {/* Paid on the due from before with this bill: receipts against the earlier bills. */}
+            {(sale.dueReceipts ?? []).map((r) => (
+              <Typography key={r.receiptNo} variant="body2">
+                {t('Previous due paid ({{receiptNo}})', { receiptNo: r.receiptNo })} · {paymentLabel(r.mode)} <Amount paise={r.amountPaise} tone="paid" />
               </Typography>
             ))}
             {sale.notes && (
@@ -324,7 +330,7 @@ export default function InvoicePage() {
             <Divider sx={{ my: 1, borderColor: '#E6E1D3' }} />
             <Line label={t('Invoice total')} value={formatINR(totals.grandTotalPaise)} strong />
             {sale.advanceAdjustedPaise > 0 && <Line label={t('Order advance')} value={formatINR(sale.advanceAdjustedPaise)} tone="paid" />}
-            {sale.customerAdvancePaise > 0 && <Line label={t('Advance paid earlier')} value={formatINR(sale.customerAdvancePaise)} tone="paid" />}
+            {sale.customerAdvancePaise > 0 && <Line label={t('Previous advance')} value={formatINR(sale.customerAdvancePaise)} tone="paid" />}
             {sale.oldGoldPaise > 0 && <Line label={t('Old gold')} value={formatINR(sale.oldGoldPaise)} tone="paid" />}
             <Line label={sale.advanceAdjustedPaise > 0 || sale.customerAdvancePaise > 0 || sale.oldGoldPaise > 0 ? t('Paid now') : t('Paid')} value={formatINR(paidNow)} tone="paid" strong />
             {collectedLater > 0 && <Line label={t('Collected later')} value={formatINR(collectedLater)} tone="paid" />}
@@ -332,6 +338,15 @@ export default function InvoicePage() {
               <Line label={paidNow > 0 || collectedLater > 0 || sale.advanceAdjustedPaise > 0 || sale.customerAdvancePaise > 0 || sale.oldGoldPaise > 0 ? t('Due (partly paid)') : t('Due')} value={formatINR(duePaise)} tone="due" strong />
             ) : (
               <Line label={t('Due')} value={t('Fully paid')} tone="paid" />
+            )}
+            {/* The due from before, added on this bill: what it was, what was paid on it here, and the total still owed. */}
+            {sale.previousDuePaise > 0 && (
+              <>
+                <Divider sx={{ my: 1, borderColor: '#E6E1D3' }} />
+                <Line label={t('Previous due')} value={`+ ${formatINR(sale.previousDuePaise)}`} tone="due" />
+                {sale.previousDueCollectedPaise > 0 && <Line label={t('Paid on previous due')} value={`− ${formatINR(sale.previousDueCollectedPaise)}`} tone="paid" />}
+                <Line label={t('Total due with previous')} value={formatINR(duePaise + sale.previousDueLeftPaise)} tone={duePaise + sale.previousDueLeftPaise > 0 ? 'due' : 'paid'} strong />
+              </>
             )}
           </Box>
         </Stack>

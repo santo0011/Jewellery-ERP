@@ -1,5 +1,6 @@
 import { logger } from '../../config/logger.js';
 import { getContext } from '../context/requestContext.js';
+import { UndoAction } from '../undo/undoAction.model.js';
 import { AuditLog } from './auditLog.model.js';
 
 export const AUDIT_ACTIONS = Object.freeze({
@@ -22,6 +23,8 @@ export const AUDIT_ACTIONS = Object.freeze({
   RECEIVE: 'receive',
   CANCEL: 'cancel',
   RETURN: 'return',
+  UNDO: 'undo',
+  UNDO_DISMISS: 'undo_dismiss',
 });
 
 export async function recordAudit(entry, { session, actor } = {}) {
@@ -43,5 +46,39 @@ export async function recordAudit(entry, { session, actor } = {}) {
     logger.warn({ entry }, 'Audit entry skipped: no organisation');
     return;
   }
-  await AuditLog.create([doc], { session });
+  const [log] = await AuditLog.create([doc], { session });
+  if (entry.undo && !ctx.undoRun) await registerUndo(entry, log, ctx, session);
+  return log;
+}
+
+/**
+ * Puts an action on its Undo stack, in the same transaction as the action itself. `entry.undo`:
+ * { type, label?, data?, branchId?, recordType?, recordId? } — `type` names the handler that can take it back
+ * (modules/undo/undo.registry.js); recordType/recordId when the action's own record is not the audit entry's
+ * (a receipt recorded on the customer's history, say).
+ * The stack is the record's branch; records shared by the organisation go on the organisation's stack, unless the
+ * person works in particular branches only — then on the branch they were working in.
+ * Actions done by an undo itself (ctx.undoRun) are never put on a stack.
+ */
+async function registerUndo(entry, log, ctx, session) {
+  const { type, label = entry.meta?.name ?? null, data, branchId: own, recordType = entry.recordType ?? null, recordId = entry.recordId ?? null } = entry.undo;
+  const branchId = own !== undefined ? own : ctx.branchAccess?.all ? null : (ctx.branchId ?? null);
+  await UndoAction.create(
+    [
+      {
+        organisationId: log.organisationId,
+        scope: branchId ? 'branch' : 'organisation',
+        branchId,
+        type,
+        module: entry.module,
+        recordType,
+        recordId,
+        label,
+        data,
+        auditLogId: log._id,
+        createdBy: log.userId,
+      },
+    ],
+    { session },
+  );
 }

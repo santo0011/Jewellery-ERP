@@ -19,10 +19,10 @@ const SERIES = [
 ];
 
 /** Legend: swatch, name and the period total for each line (identity is never colour alone). */
-function LineLegend({ totals }) {
+function LineLegend({ totals, series }) {
   return (
     <Stack direction="row" sx={{ gap: { xs: 2, sm: 3 }, flexWrap: 'wrap', mb: 1.5 }}>
-      {SERIES.map((s) => (
+      {series.map((s) => (
         <Stack key={s.key} direction="row" spacing={1} sx={{ alignItems: 'center' }}>
           <Box sx={(theme) => ({ width: 14, height: 3, borderRadius: 2, ...seriesSx(s.slot, 'bgcolor')(theme) })} />
           <Typography variant="body2" color="textSecondary">
@@ -40,19 +40,21 @@ function LineLegend({ totals }) {
 /**
  * Every day of the month: sales and expenses as two lines on one money axis. Days still to come are left empty.
  * Hover (or tap) for the day's figures. days: [{ date, future, salesPaise, expensesPaise }]
+ * salesOnly: just the sales line (the Dashboard).
  */
-export function SalesExpenseChart({ days, height = 260 }) {
+export function SalesExpenseChart({ days, height = 260, salesOnly = false }) {
+  const series = salesOnly ? SERIES.slice(0, 1) : SERIES;
   const [ref, width] = useWidth();
   const [active, setActive] = useState(null);
   const pad = { top: 12, right: 12, bottom: 26, left: 52 };
   const innerW = Math.max(0, width - pad.left - pad.right);
   const innerH = height - pad.top - pad.bottom;
   const shown = days.filter((d) => !d.future);
-  const max = niceMax(Math.max(0, ...shown.flatMap((d) => [d.salesPaise, d.expensesPaise])));
+  const max = niceMax(Math.max(0, ...shown.flatMap((d) => series.map((s) => d[s.key]))));
   const step = days.length > 1 ? innerW / (days.length - 1) : 0;
   const x = (i) => pad.left + i * step;
   const y = (v) => pad.top + innerH - (v / max) * innerH;
-  const empty = shown.every((d) => !d.salesPaise && !d.expensesPaise);
+  const empty = shown.every((d) => series.every((s) => !d[s.key]));
   const ticks = empty ? [0] : [0, max / 2, max];
   const labelEvery = Math.ceil(days.length / Math.max(1, Math.floor(innerW / 56)));
   const path = (key) => shown.map((d, i) => `${i ? 'L' : 'M'}${x(i)},${y(d[key])}`).join(' ');
@@ -67,9 +69,9 @@ export function SalesExpenseChart({ days, height = 260 }) {
 
   return (
     <Box>
-      <LineLegend totals={totals} />
+      <LineLegend totals={totals} series={series} />
       <Box ref={ref} sx={{ position: 'relative', width: '100%' }} onMouseLeave={() => setActive(null)}>
-        <Box component="svg" width={width} height={height} role="img" aria-label={t('Daily sales and expenses')} onMouseMove={onMove} onTouchStart={(e) => onMove(e.touches[0] ? { ...e, clientX: e.touches[0].clientX, currentTarget: e.currentTarget } : e)} sx={{ display: 'block', overflow: 'visible', touchAction: 'pan-y' }}>
+        <Box component="svg" width={width} height={height} role="img" aria-label={salesOnly ? t('Daily sales') : t('Daily sales and expenses')} onMouseMove={onMove} onTouchStart={(e) => onMove(e.touches[0] ? { ...e, clientX: e.touches[0].clientX, currentTarget: e.currentTarget } : e)} sx={{ display: 'block', overflow: 'visible', touchAction: 'pan-y' }}>
           {ticks.map((tick) => (
             <g key={tick}>
               <Box component="line" x1={pad.left} x2={width - pad.right} y1={y(tick)} y2={y(tick)} sx={{ stroke: tick === 0 ? 'var(--mui-palette-text-disabled)' : 'var(--mui-palette-divider)', strokeWidth: 1 }} />
@@ -79,7 +81,7 @@ export function SalesExpenseChart({ days, height = 260 }) {
             </g>
           ))}
           {!empty &&
-            SERIES.map((s) => (
+            series.map((s) => (
               <Box key={s.key} component="path" d={path(s.key)} sx={(theme) => ({ fill: 'none', strokeWidth: 2, strokeLinejoin: 'round', strokeLinecap: 'round', ...seriesSx(s.slot, 'stroke')(theme) })} />
             ))}
           {days.map((d, i) =>
@@ -92,7 +94,7 @@ export function SalesExpenseChart({ days, height = 260 }) {
           {hovered && !empty && (
             <g>
               <Box component="line" x1={x(active)} x2={x(active)} y1={pad.top} y2={pad.top + innerH} sx={{ stroke: 'var(--mui-palette-text-disabled)', strokeWidth: 1, strokeDasharray: '3 3' }} />
-              {SERIES.map((s) => (
+              {series.map((s) => (
                 <Box key={s.key} component="circle" cx={x(active)} cy={y(hovered[s.key])} r={4.5} sx={(theme) => ({ stroke: theme.palette.background.paper, strokeWidth: 2, ...seriesSx(s.slot, 'fill')(theme) })} />
               ))}
             </g>
@@ -100,7 +102,7 @@ export function SalesExpenseChart({ days, height = 260 }) {
         </Box>
         {empty && (
           <Typography variant="body2" color="textSecondary" sx={{ position: 'absolute', inset: 0, display: 'grid', placeItems: 'center', pointerEvents: 'none' }}>
-            {t('No sales or expenses yet this month')}
+            {salesOnly ? t('No sales yet this month') : t('No sales or expenses yet this month')}
           </Typography>
         )}
         {hovered && !empty && (
@@ -108,7 +110,7 @@ export function SalesExpenseChart({ days, height = 260 }) {
             <Typography variant="caption" color="textSecondary">
               {dayLabel(hovered.date)}
             </Typography>
-            {SERIES.map((s) => (
+            {series.map((s) => (
               <Stack key={s.key} direction="row" spacing={1} sx={{ alignItems: 'center', justifyContent: 'space-between' }}>
                 <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center' }}>
                   <Box sx={(theme) => ({ width: 8, height: 8, borderRadius: '50%', ...seriesSx(s.slot, 'bgcolor')(theme) })} />

@@ -38,7 +38,7 @@ export const SYSTEM_ROLE_TEMPLATES = [
       'category.view', 'product.', 'inventory.', 'supplier.view', 'purchase.view', 'purchase.approve',
       'karigar.view', 'karigar.approve', 'employee.', 'attendance.', 'leave.', 'payroll.',
       'expense.view', 'expense.create', 'expense.approve', 'accounts.view', 'accounts.receipt',
-      'report.sales', 'report.inventory', 'report.customer', 'report.finance', 'report.karigar', 'report.export', 'ai.use',
+      'report.sales', 'report.inventory', 'report.customer', 'report.finance', 'report.karigar', 'report.export', 'ai.use', 'undo.',
     ),
   },
   {

@@ -7,6 +7,7 @@ import {
   Alert,
   Box,
   Button,
+  Chip,
   Dialog,
   DialogActions,
   DialogContent,
@@ -146,7 +147,7 @@ export default function RatesPage() {
     { key: 'metal', label: t('Metal'), render: (r) => `${metalName(r.metal)} ${purityLabel(r.metal, r.purity)}` },
     { key: 'rate', label: t('Rate / g'), align: 'right', render: (r) => <Typography variant="body2" sx={{ fontWeight: 600 }}>{formatINR(r.ratePerGramPaise)}</Typography> },
     { key: 'by', label: t('Updated by'), render: (r) => r.createdBy?.name },
-    { key: 'note', label: t('Note'), render: (r) => r.note ?? '—' },
+    { key: 'note', label: t('Note'), render: (r) => (r.withdrawn ? <Chip size="small" variant="outlined" label={t('Withdrawn (undone)')} sx={{ height: 22 }} /> : (r.note ?? '—')) },
   ];
 
   return (

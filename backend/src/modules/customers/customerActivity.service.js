@@ -5,7 +5,8 @@ import { accessibleBranchFilter, nameMaps, pick } from '../inventory/inventory.h
 import { Order } from '../orders/order.model.js';
 import { Product } from '../products/product.model.js';
 import { Sale } from '../sales/sale.model.js';
-import { billBalance, customerAdvanceLeft } from '../sales/sale.service.js';
+import { billBalance } from '../sales/sale.service.js';
+import { CUSTOMER_ADVANCE_MODE, customerAdvanceLeft } from './customerAdvance.js';
 import { CustomerReceipt } from './customerReceipt.model.js';
 import { billDue, openingDueLeft } from './customerReceipt.service.js';
 import { Customer } from './customer.model.js';
@@ -63,7 +64,8 @@ export async function customerActivity(id) {
     ...orders.flatMap((o) =>
       o.advances.map((a) => ({
         at: a.at,
-        kind: a.amountPaise < 0 ? 'refund' : 'advance',
+        // Advance paid before, moved onto the order (or back when it was cancelled): not new money.
+        kind: a.mode === CUSTOMER_ADVANCE_MODE ? 'advance_adjusted' : a.amountPaise < 0 ? 'refund' : 'advance',
         mode: a.mode,
         amountPaise: a.amountPaise,
         docNo: a.receiptNo,
@@ -86,12 +88,14 @@ export async function customerActivity(id) {
     // is part of the minus opening balance, which `paidPaise` already counts — its kind keeps it out of that sum.
     ...receipts.map((r) => ({
       at: r.createdAt,
-      kind: r.kind === 'advance' ? (r.amountPaise < 0 ? 'customer_advance_refund' : 'customer_advance') : 'collection',
+      // A receipt taken back (void) is listed but not counted as paid.
+      kind: r.kind === 'advance' ? (r.amountPaise < 0 ? 'customer_advance_refund' : 'customer_advance') : r.status === 'void' ? 'collection_void' : 'collection',
       mode: r.mode,
       amountPaise: r.amountPaise,
       docNo: r.receiptNo,
       ref: { type: 'receipt', id: r._id, no: r.receiptNo, bills: r.allocations.map((a) => a.invoiceNo ?? 'Old due') },
-      reference: r.reference,
+      // Taken with a new bill (its previous due added at the counter).
+      reference: r.reference ?? (r.withSale ? `With ${r.withSale.invoiceNo}` : null),
     })),
   ].sort((a, b) => new Date(b.at) - new Date(a.at));
 

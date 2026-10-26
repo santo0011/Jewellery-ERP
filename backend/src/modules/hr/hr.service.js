@@ -1,4 +1,5 @@
 import { ATTENDANCE_STATUSES, EMPLOYMENT_STATUS, hasPermission, PAYROLL_STATUS } from '@jerp/shared';
+import { employeeSchema } from '@jerp/shared/schemas';
 import { withTransaction } from '../../config/db.js';
 import { AUDIT_ACTIONS, recordAudit } from '../../core/audit/audit.service.js';
 import { AuditLog } from '../../core/audit/auditLog.model.js';
@@ -13,6 +14,7 @@ import { businessDateFor, financialYearLabel, todayContext } from '../../utils/b
 import { paginate, searchFilter } from '../../utils/pagination.js';
 import { accessibleBranchFilter, nameMaps, oid, pick, requireBranch, viewBranchFor } from '../inventory/inventory.helpers.js';
 import { Attendance, AttendanceCalendar, Employee, PayrollRun, SalaryAdvance } from './hr.models.js';
+import { editSnapshot } from '../undo/undo.snapshot.js';
 
 // ---------------------------------------------------------------- helpers
 
@@ -124,12 +126,17 @@ export async function getAttendanceCalendar({ branchId }) {
 export async function saveAttendanceCalendar({ branchId, weeklyOff, holidays }) {
   const { userId, organisationId } = requireContext();
   await requireBranch(branchId, { active: false });
-  await AttendanceCalendar.updateOne(
-    { organisationId: oid(organisationId), branchId: oid(branchId) },
-    { $set: { weeklyOff: [...new Set(weeklyOff)].sort(), holidays: [...holidays].sort((a, b) => a.date.localeCompare(b.date)), updatedBy: userId } },
-    { upsert: true },
-  );
-  await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'attendance', recordType: 'AttendanceCalendar', recordId: oid(branchId), meta: { name: 'Holidays & weekly off', weeklyOff, holidays: holidays.length } });
+  const was = await AttendanceCalendar.findOne({ branchId: oid(branchId) }).lean();
+  const after = { weeklyOff: [...new Set(weeklyOff)].sort(), holidays: [...holidays].sort((a, b) => a.date.localeCompare(b.date)) };
+  await AttendanceCalendar.updateOne({ organisationId: oid(organisationId), branchId: oid(branchId) }, { $set: { ...after, updatedBy: userId } }, { upsert: true });
+  await recordAudit({
+    action: AUDIT_ACTIONS.UPDATE,
+    module: 'attendance',
+    recordType: 'AttendanceCalendar',
+    recordId: oid(branchId),
+    meta: { name: 'Holidays & weekly off', weeklyOff, holidays: holidays.length },
+    undo: { type: 'attendance.calendar', branchId: oid(branchId), data: { before: was ? { weeklyOff: was.weeklyOff ?? [], holidays: was.holidays ?? [] } : null, after } },
+  });
   return getAttendanceCalendar({ branchId });
 }
 
@@ -276,7 +283,7 @@ export async function createEmployee(input) {
   const emp = await withTransaction(async (session) => {
     const code = await nextCode('employee', 'E', 4, { session });
     const [doc] = await Employee.create([{ ...input, code, history: [{ event: 'joined', date: input.joiningDate, by: userId }], createdBy: userId, updatedBy: userId }], { session });
-    await recordAudit({ action: AUDIT_ACTIONS.CREATE, module: 'employee', recordType: 'Employee', recordId: doc._id, meta: { name: doc.name, code } }, { session });
+    await recordAudit({ action: AUDIT_ACTIONS.CREATE, module: 'employee', recordType: 'Employee', recordId: doc._id, meta: { name: doc.name, code }, undo: { type: 'employee.create', branchId: doc.branchId } }, { session });
     return doc;
   });
   return getEmployee(emp._id);
@@ -297,6 +304,7 @@ export async function updateEmployee(id, input) {
   if (input.mobile !== emp.mobile) await assertMobileFree(input.mobile, emp._id);
   if (input.joiningDate !== emp.joiningDate) assertJoiningDate(emp, input.joiningDate);
   const before = { basicPaise: emp.basicPaise, allowancePaise: emp.allowancePaise, branchId: String(emp.branchId), designation: emp.designation, joiningDate: emp.joiningDate };
+  const formBefore = emp.toObject();
   emp.set({ ...input, bank: { accountName: null, accountNumber: null, ifsc: null, ...input.bank }, updatedBy: userId });
   // Keep the employment history's joining entry in step with a corrected joining date.
   const joined = emp.history?.find((h) => h.event === 'joined');
@@ -305,7 +313,7 @@ export async function updateEmployee(id, input) {
   const changes = Object.entries(before)
     .filter(([k, v]) => String(v) !== String(emp[k]))
     .map(([field, from]) => ({ field, from, to: String(emp[field]) }));
-  await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'employee', recordType: 'Employee', recordId: emp._id, meta: { name: emp.name }, changes });
+  await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'employee', recordType: 'Employee', recordId: emp._id, meta: { name: emp.name }, changes, undo: { type: 'employee.update', branchId: emp.branchId, data: editSnapshot(employeeSchema, formBefore, emp.toObject()) } });
   return getEmployee(id);
 }
 
@@ -350,6 +358,8 @@ export async function setEmployeeStatus(id, { status, exitDate, rejoinDate, note
   if (emp.status === status) return getEmployee(id);
   const today = await todayContext();
   const from = emp.status;
+  // For Undo: the employment record before this change.
+  const was = { status: emp.status, exitDate: emp.exitDate ?? null, history: emp.history?.toObject?.() ?? emp.history ?? [], breaks: emp.breaks?.toObject?.() ?? emp.breaks ?? [] };
   // Employees from before history existed: start their record from what the dates say.
   if (!emp.history?.length) emp.history = employmentHistory(emp);
 
@@ -371,7 +381,15 @@ export async function setEmployeeStatus(id, { status, exitDate, rejoinDate, note
   emp.status = status;
   emp.updatedBy = userId;
   await emp.save();
-  await recordAudit({ action: AUDIT_ACTIONS.STATUS_CHANGE, module: 'employee', recordType: 'Employee', recordId: emp._id, meta: { name: emp.name }, changes: [{ field: 'status', from, to: status }] });
+  await recordAudit({
+    action: AUDIT_ACTIONS.STATUS_CHANGE,
+    module: 'employee',
+    recordType: 'Employee',
+    recordId: emp._id,
+    meta: { name: emp.name },
+    changes: [{ field: 'status', from, to: status }],
+    undo: { type: 'employee.status', branchId: emp.branchId, data: { from, to: status, before: was, historyLength: emp.history.length } },
+  });
   return getEmployee(id);
 }
 
@@ -469,6 +487,7 @@ export async function saveAttendance({ branchId, date, entries }) {
   const ids = entries.map((e) => e.employeeId);
   const valid = await Employee.find({ _id: { $in: ids }, ...onRollsFilter(branchId, date) }).select('_id').lean();
   if (valid.length !== new Set(ids).size) throw ApiError.badRequest('Some employees are not on this branch’s rolls for that date', undefined, 'VALIDATION_ERROR');
+  const was = await marksNow(entries.map((e) => ({ employeeId: e.employeeId, date })));
 
   await Attendance.bulkWrite(
     entries.map((e) => ({
@@ -479,7 +498,14 @@ export async function saveAttendance({ branchId, date, entries }) {
       },
     })),
   );
-  await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'attendance', recordType: 'Attendance', recordId: oid(branchId), meta: { name: `Attendance ${date}`, entries: entries.length } });
+  await recordAudit({
+    action: AUDIT_ACTIONS.UPDATE,
+    module: 'attendance',
+    recordType: 'Attendance',
+    recordId: oid(branchId),
+    meta: { name: `Attendance ${date}`, entries: entries.length },
+    undo: { type: 'attendance.save', branchId: oid(branchId), data: { marks: entries.map((e) => ({ employeeId: e.employeeId, date, before: was.get(`${e.employeeId}|${date}`) ?? null, after: { status: e.status, note: e.note ?? null } })) } },
+  });
   return getAttendanceDay({ branchId, date });
 }
 
@@ -510,7 +536,9 @@ function serializeAdvance(a, maps, todayDate) {
     // Months needed at the set instalment, counting from the first recovery month.
     instalments: Math.ceil(a.amountPaise / a.installmentPaise),
     recoveredPaise: a.recoveredPaise,
-    balancePaise: a.amountPaise - a.recoveredPaise,
+    // A cancelled advance (taken back by Undo) is owed by no one.
+    balancePaise: a.status === 'cancelled' ? 0 : a.amountPaise - a.recoveredPaise,
+    cancelReason: a.cancelReason ?? null,
     mode: a.mode,
     reference: a.reference,
     note: a.note,
@@ -559,7 +587,7 @@ export async function createAdvance({ employeeId, amountPaise, installmentPaise,
       { session },
     );
     await postAdvanceJournal(doc, emp, today, session);
-    await recordAudit({ action: AUDIT_ACTIONS.CREATE, module: 'payroll', recordType: 'SalaryAdvance', recordId: doc._id, meta: { name: advanceNo, employee: emp.name, amountPaise } }, { session });
+    await recordAudit({ action: AUDIT_ACTIONS.CREATE, module: 'payroll', recordType: 'SalaryAdvance', recordId: doc._id, meta: { name: advanceNo, employee: emp.name, amountPaise }, undo: { type: 'advance.create', branchId: emp.branchId } }, { session });
     return doc;
   });
   const maps = await nameMaps({ branchIds: [advance.branchId] });
@@ -613,6 +641,9 @@ export async function updateAdvance(id, { amountPaise, installmentPaise, givenOn
     .map(([field, to]) => ({ field: ADVANCE_FIELDS[field], from: adv[field] ?? null, to }));
   if (!changes.length) throw ApiError.badRequest('Nothing was changed', undefined, 'NO_CHANGES');
   const moneyChanged = ['amountPaise', 'businessDate', 'mode'].some((k) => adv[k] !== next[k]);
+  // For Undo: the form's values before and after.
+  const formOf = (a) => ({ amountPaise: a.amountPaise, installmentPaise: a.installmentPaise, givenOn: a.businessDate, recoverFrom: a.recoverFrom ?? null, mode: a.mode, reference: a.reference ?? null, note: a.note ?? null });
+  const formBefore = formOf(adv);
 
   const emp = await Employee.findById(adv.employeeId).lean();
   const byName = (await nameMaps({ userIds: [userId] })).users.get(String(userId))?.name ?? null;
@@ -628,7 +659,18 @@ export async function updateAdvance(id, { amountPaise, installmentPaise, givenOn
     adv.edits.push({ at: today.now, by: userId, byName, reason, changes });
     await adv.save({ session });
     if (moneyChanged) await postAdvanceJournal(adv, emp, today, session);
-    await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'payroll', recordType: 'SalaryAdvance', recordId: adv._id, meta: { name: adv.advanceNo, employee: emp.name, reason }, changes: changes.map((c) => ({ field: c.field, from: c.from, to: c.to })) }, { session });
+    await recordAudit(
+      {
+        action: AUDIT_ACTIONS.UPDATE,
+        module: 'payroll',
+        recordType: 'SalaryAdvance',
+        recordId: adv._id,
+        meta: { name: adv.advanceNo, employee: emp.name, reason },
+        changes: changes.map((c) => ({ field: c.field, from: c.from, to: c.to })),
+        undo: { type: 'advance.update', branchId: adv.branchId, data: { before: formBefore, after: formOf(adv) } },
+      },
+      { session },
+    );
   });
   const maps = await nameMaps({ branchIds: [adv.branchId] });
   maps.employees = await employeeMap([adv.employeeId]);
@@ -772,7 +814,7 @@ export async function createPayrollRun({ branchId, month }) {
   const run = await withTransaction(async (session) => {
     const runNo = await nextDocumentNo({ prefix: 'PAY', branchCode: branch.code, financialYear: today.financialYear }, { session });
     const [doc] = await PayrollRun.create([{ runNo, branchId: branch._id, month, upTo, lines: employees.map((e) => buildLine(e, month, counts, advances.get(String(e._id)), {}, upTo)), createdBy: userId }], { session });
-    await recordAudit({ action: AUDIT_ACTIONS.CREATE, module: 'payroll', recordType: 'PayrollRun', recordId: doc._id, meta: { name: runNo, month } }, { session });
+    await recordAudit({ action: AUDIT_ACTIONS.CREATE, module: 'payroll', recordType: 'PayrollRun', recordId: doc._id, meta: { name: runNo, month }, undo: { type: 'payroll.create', branchId: branch._id } }, { session });
     return doc;
   });
   return getPayrollRun(run._id);
@@ -817,7 +859,7 @@ export async function deletePayrollRun(id) {
   const run = await findRun(id);
   assertDraft(run);
   await run.deleteOne();
-  await recordAudit({ action: AUDIT_ACTIONS.DELETE, module: 'payroll', recordType: 'PayrollRun', recordId: run._id, meta: { name: run.runNo } });
+  await recordAudit({ action: AUDIT_ACTIONS.DELETE, module: 'payroll', recordType: 'PayrollRun', recordId: run._id, meta: { name: run.runNo }, undo: { type: 'payroll.delete', branchId: run.branchId, data: { snapshot: run.toObject() } } });
 }
 
 /** Books the month's salary: expense against salaries payable, and recovers advances. Attendance for the month locks. */
@@ -870,7 +912,10 @@ export async function finalisePayrollRun(id) {
     run.finalisedBy = userId;
     run.markModified('lines');
     await run.save({ session });
-    await recordAudit({ action: AUDIT_ACTIONS.STATUS_CHANGE, module: 'payroll', recordType: 'PayrollRun', recordId: run._id, meta: { name: run.runNo }, changes: [{ field: 'status', from: 'draft', to: run.status }] }, { session });
+    await recordAudit(
+      { action: AUDIT_ACTIONS.STATUS_CHANGE, module: 'payroll', recordType: 'PayrollRun', recordId: run._id, meta: { name: run.runNo }, changes: [{ field: 'status', from: 'draft', to: run.status }], undo: { type: 'payroll.finalise', branchId: run.branchId } },
+      { session },
+    );
   });
   return getPayrollRun(id);
 }
@@ -886,7 +931,7 @@ export async function payPayrollRun(id, { employeeIds, mode, reference }) {
     const toPay = run.lines.filter((l) => !l.paid?.at && (!wanted || wanted.has(String(l.employeeId))));
     if (!toPay.length) throw ApiError.conflict('Nothing left to pay for the selected employees', 'INVALID_STATE');
     const total = sum(toPay, (l) => l.netPaise);
-    await postJournal(
+    const journal = await postJournal(
       {
         voucherType: 'salary_payment',
         date: today.now,
@@ -905,7 +950,17 @@ export async function payPayrollRun(id, { employeeIds, mode, reference }) {
     if (run.lines.every((l) => l.paid?.at)) run.status = PAYROLL_STATUS.PAID;
     run.markModified('lines');
     await run.save({ session });
-    await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'payroll', recordType: 'PayrollRun', recordId: run._id, meta: { name: run.runNo, paid: toPay.length, amountPaise: total } }, { session });
+    await recordAudit(
+      {
+        action: AUDIT_ACTIONS.UPDATE,
+        module: 'payroll',
+        recordType: 'PayrollRun',
+        recordId: run._id,
+        meta: { name: run.runNo, paid: toPay.length, amountPaise: total },
+        undo: { type: 'payroll.pay', branchId: run.branchId, label: `${run.runNo} — salary paid (${toPay.length})`, data: { journalId: journal?._id ?? null, employeeIds: toPay.map((l) => String(l.employeeId)), at: today.now } },
+      },
+      { session },
+    );
   });
   return getPayrollRun(id);
 }
@@ -983,6 +1038,7 @@ export async function saveAttendanceRegister({ branchId, month, entries }) {
     }
   }
   const org = oid(organisationId);
+  const was = await marksNow(entries.map((e) => ({ employeeId: e.employeeId, date: e.date })));
   await Attendance.bulkWrite(
     entries.map((e) =>
       e.status
@@ -990,6 +1046,151 @@ export async function saveAttendanceRegister({ branchId, month, entries }) {
         : { deleteOne: { filter: { organisationId: org, employeeId: oid(e.employeeId), date: e.date } } },
     ),
   );
-  await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'attendance', recordType: 'Attendance', recordId: oid(branchId), meta: { name: `Attendance register ${month}`, entries: entries.length } });
+  await recordAudit({
+    action: AUDIT_ACTIONS.UPDATE,
+    module: 'attendance',
+    recordType: 'Attendance',
+    recordId: oid(branchId),
+    meta: { name: `Attendance register ${month}`, entries: entries.length },
+    undo: {
+      type: 'attendance.save',
+      branchId: oid(branchId),
+      data: {
+        marks: entries.map((e) => {
+          const before = was.get(`${e.employeeId}|${e.date}`) ?? null;
+          return { employeeId: e.employeeId, date: e.date, before, after: e.status ? { status: e.status, note: before?.note ?? null } : null };
+        }),
+      },
+    },
+  });
   return getAttendanceRegister({ branchId, month });
+}
+
+// ---------------------------------------------------------------- taking back (Undo)
+
+/** Marks as they are now for (employee, date) pairs: Map('employeeId|date' -> { status, note, branchId }). */
+export async function marksNow(pairs) {
+  if (!pairs.length) return new Map();
+  const rows = await Attendance.find({ $or: pairs.map((p) => ({ employeeId: oid(p.employeeId), date: p.date })) }).select('employeeId date status note branchId').lean();
+  return new Map(rows.map((r) => [`${r.employeeId}|${r.date}`, { status: r.status, note: r.note ?? null, branchId: String(r.branchId) }]));
+}
+
+/** Puts attendance marks back as they were: [{ employeeId, date, before: { status, note, branchId } | null }]. */
+export async function restoreAttendance(marks, branchId) {
+  const { userId, organisationId } = requireContext();
+  const org = oid(organisationId);
+  await Attendance.bulkWrite(
+    marks.map((m) => {
+      const filter = { organisationId: org, employeeId: oid(m.employeeId), date: m.date };
+      return m.before
+        ? { updateOne: { filter, update: { $set: { branchId: oid(m.before.branchId ?? branchId), status: m.before.status, note: m.before.note ?? null, markedBy: userId } }, upsert: true } }
+        : { deleteOne: { filter } };
+    }),
+  );
+}
+
+/** A finalised payroll locks its month's attendance. */
+export async function lockedPayroll(branchId, months) {
+  return PayrollRun.findOne({ branchId: oid(branchId), month: { $in: [...new Set(months)] }, status: { $ne: PAYROLL_STATUS.DRAFT } }).select('runNo month').lean();
+}
+
+export async function restoreAttendanceCalendar(branchId, before) {
+  const { userId } = requireContext();
+  if (!before) await AttendanceCalendar.deleteOne({ branchId: oid(branchId) });
+  else await AttendanceCalendar.updateOne({ branchId: oid(branchId) }, { $set: { weeklyOff: before.weeklyOff, holidays: before.holidays, updatedBy: userId } });
+}
+
+/** Why an advance cannot be cancelled now, or null. */
+export async function advanceCancelBlock(adv) {
+  if (adv.status === 'cancelled') return 'It is already cancelled.';
+  if (adv.recoveredPaise > 0 || adv.status !== 'open') return 'Part of it was already deducted from salary.';
+  const draft = await PayrollRun.findOne({ branchId: adv.branchId, status: PAYROLL_STATUS.DRAFT, lines: { $elemMatch: { employeeId: adv.employeeId, advanceDeductionPaise: { $gt: 0 } } } }).select('runNo').lean();
+  return draft ? `Draft payroll ${draft.runNo} is set to deduct it — recalculate or delete that payroll first.` : null;
+}
+
+/** Takes back an advance nothing was deducted from: its accounting entry is reversed; the advance stays, cancelled. */
+export async function cancelAdvance(id, reason) {
+  const { userId } = requireContext();
+  const today = await todayContext();
+  const adv = await SalaryAdvance.findOne({ _id: id, ...accessibleBranchFilter() });
+  if (!adv) throw ApiError.notFound('Advance');
+  const block = await advanceCancelBlock(adv);
+  if (block) throw ApiError.conflict(`Advance ${adv.advanceNo} cannot be cancelled: ${block}`, 'INVALID_STATE');
+  const byName = (await nameMaps({ userIds: [userId] })).users.get(String(userId))?.name ?? null;
+  await withTransaction(async (session) => {
+    await reverseJournalsFor(
+      { docType: 'salary_advance', docId: adv._id },
+      { date: today.now, businessDate: today.businessDate, financialYear: today.financialYear, narration: `Advance ${adv.advanceNo} cancelled` },
+      { session },
+    );
+    adv.status = 'cancelled';
+    adv.cancelReason = reason;
+    adv.edits.push({ at: today.now, by: userId, byName, reason, changes: [{ field: 'Status', from: 'open', to: 'cancelled' }] });
+    await adv.save({ session });
+    await recordAudit({ action: AUDIT_ACTIONS.CANCEL, module: 'payroll', recordType: 'SalaryAdvance', recordId: adv._id, meta: { name: adv.advanceNo, reason } }, { session });
+  });
+}
+
+export { advanceLock };
+
+/** Why a finalised payroll cannot be reopened, or null: salary already paid out must be taken back first. */
+export function reopenBlock(run) {
+  if (run.status === PAYROLL_STATUS.DRAFT) return 'It is a draft already.';
+  const paid = run.lines.filter((l) => l.paid?.at && l.paid.mode);
+  return paid.length ? `Salary was paid to ${paid.length} employee${paid.length > 1 ? 's' : ''} — take those payments back first.` : null;
+}
+
+/**
+ * Reopens a finalised payroll (nothing paid out yet): the salary booking is reversed, advances it deducted are
+ * owed again, and the run is a draft once more (attendance for the month unlocks).
+ */
+export async function reopenPayrollRun(id, reason) {
+  const today = await todayContext();
+  await withTransaction(async (session) => {
+    const run = await findRun(id, session);
+    const block = reopenBlock(run);
+    if (block) throw ApiError.conflict(`${run.runNo} cannot be reopened: ${block}`, 'INVALID_STATE');
+    await reverseJournalsFor(
+      { docType: 'payroll', docId: run._id },
+      { date: today.now, businessDate: today.businessDate, financialYear: today.financialYear, narration: `Payroll ${run.runNo} reopened — salary booking reversed` },
+      { session },
+    );
+    const advances = await SalaryAdvance.find({ 'recoveries.runId': run._id }).session(session);
+    for (const adv of advances) {
+      const taken = sum(adv.recoveries.filter((r) => String(r.runId) === String(run._id)), (r) => r.amountPaise);
+      adv.recoveries = adv.recoveries.filter((r) => String(r.runId) !== String(run._id));
+      adv.recoveredPaise -= taken;
+      if (adv.status === 'closed' && adv.recoveredPaise < adv.amountPaise) adv.status = 'open';
+      await adv.save({ session });
+    }
+    for (const l of run.lines) if (l.paid?.at && !l.paid.mode) l.paid = undefined;
+    run.status = PAYROLL_STATUS.DRAFT;
+    run.finalisedAt = null;
+    run.finalisedBy = null;
+    run.markModified('lines');
+    await run.save({ session });
+    await recordAudit({ action: AUDIT_ACTIONS.STATUS_CHANGE, module: 'payroll', recordType: 'PayrollRun', recordId: run._id, meta: { name: run.runNo, reason }, changes: [{ field: 'status', from: 'finalised', to: 'draft' }] }, { session });
+  });
+}
+
+/** Takes back one salary payment (the employees paid in it): its entry is reversed and they show as unpaid again. */
+export async function unpayPayrollRun(id, { journalId, employeeIds, at }, reason) {
+  const today = await todayContext();
+  await withTransaction(async (session) => {
+    const run = await findRun(id, session);
+    const ids = new Set(employeeIds.map(String));
+    const lines = run.lines.filter((l) => ids.has(String(l.employeeId)));
+    if (lines.some((l) => !l.paid?.at || new Date(l.paid.at).getTime() !== new Date(at).getTime())) throw ApiError.conflict('This payment was already changed.', 'INVALID_STATE');
+    const reversed = await reverseJournalsFor(
+      { docType: 'payroll', docId: run._id },
+      { date: today.now, businessDate: today.businessDate, financialYear: today.financialYear, narration: `Salary payment of ${run.runNo} taken back`, only: { _id: journalId } },
+      { session },
+    );
+    if (!reversed) throw ApiError.conflict('This payment’s accounting entry was already reversed.', 'INVALID_STATE');
+    for (const l of lines) l.paid = undefined;
+    run.status = PAYROLL_STATUS.FINALISED;
+    run.markModified('lines');
+    await run.save({ session });
+    await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'payroll', recordType: 'PayrollRun', recordId: run._id, meta: { name: run.runNo, reason, unpaid: lines.length } }, { session });
+  });
 }

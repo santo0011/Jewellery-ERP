@@ -64,6 +64,7 @@ const InvoicePage = lazyPage(() => import('../features/sales/InvoicePage.jsx'));
 const InvoicesPage = lazyPage(() => import('../features/sales/InvoicesPage.jsx'));
 const OldGoldPage = lazyPage(() => import('../features/oldgold/OldGoldPage.jsx'));
 const EmailSettingsPage = lazyPage(() => import('../features/platform/EmailSettingsPage.jsx'));
+const AdminUndoHistoryPage = lazyPage(() => import('../features/platform/AdminUndoHistoryPage.jsx'));
 const AdminLayout = lazyPage(() => import('../features/platform/AdminLayout.jsx'));
 const AdminOrganisationDetailPage = lazyPage(() => import('../features/platform/AdminOrganisationDetailPage.jsx'));
 const AdminOrganisationsPage = lazyPage(() => import('../features/platform/AdminOrganisationsPage.jsx'));
@@ -122,6 +123,7 @@ export const router = createBrowserRouter([
           { path: 'profile', element: <AdminProfilePage /> },
           { path: 'reports/:key', element: <AdminReportViewPage /> },
           { path: 'settings/email', element: <EmailSettingsPage /> },
+          { path: 'undo', element: <AdminUndoHistoryPage /> },
           { path: '*', element: <NotFound /> },
         ],
       },
@@ -144,7 +146,8 @@ export const router = createBrowserRouter([
           { path: 'settings/roles', element: guard('role.view', <RolesPage />) },
           { path: 'settings/roles/new', element: guard('role.create', <RoleEditorPage />) },
           { path: 'settings/roles/:id', element: guard('role.view', <RoleEditorPage />) },
-          { path: 'settings/audit-log', element: guard('audit.view', <AuditLogPage />) },
+          { path: 'settings/audit-log', element: guard(['audit.view', 'undo.view'], <AuditLogPage />) },
+          { path: 'settings/undo-history', element: <Navigate to="/settings/audit-log?tab=undo" replace /> },
           { path: 'categories', element: <Navigate to="/settings/categories" replace /> },
           { path: 'customers', element: guard('customer.view', <CustomersPage />) },
           { path: 'customers/:id', element: guard('customer.view', <CustomerDetailPage />) },

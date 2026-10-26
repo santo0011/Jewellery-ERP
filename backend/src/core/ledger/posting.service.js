@@ -69,8 +69,9 @@ export async function postJournal({ voucherType, date, businessDate, financialYe
   return entry;
 }
 
-export async function reverseJournalsFor(source, { date, businessDate, financialYear, narration }, { session }) {
-  const entries = await JournalEntry.find({ 'source.docType': source.docType, 'source.docId': source.docId, reversalOf: null, reversedBy: null }).session(session);
+/** Reverses a document's journal entries not reversed yet; `only` narrows them (e.g. { _id } for one payment of many). */
+export async function reverseJournalsFor(source, { date, businessDate, financialYear, narration, only = {} }, { session }) {
+  const entries = await JournalEntry.find({ 'source.docType': source.docType, 'source.docId': source.docId, reversalOf: null, reversedBy: null, ...only }).session(session);
   for (const entry of entries) {
     const seq = await nextSequence(`JV:${financialYear}`, { session });
     const [reversal] = await JournalEntry.create(

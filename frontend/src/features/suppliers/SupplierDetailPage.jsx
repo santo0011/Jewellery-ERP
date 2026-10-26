@@ -162,6 +162,7 @@ function PaymentHistory({ supplierId }) {
                   <Typography variant="body2" sx={{ fontWeight: 600 }}>
                     {formatDate(r.date)} · {payModeLabel(r.mode)}
                     {r.paymentNo ? ` · ${r.paymentNo}` : t(' · paid on bill')}
+                    {r.status === 'void' && <Chip size="small" variant="outlined" label={t('Taken back')} title={r.voidReason ?? undefined} sx={{ ml: 1, height: 20 }} />}
                   </Typography>
                   <Stack direction="row" sx={{ gap: 0.75, flexWrap: 'wrap', mt: 0.5 }}>
                     {r.allocations.map((a, j) => (

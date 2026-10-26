@@ -10,6 +10,7 @@ const DOC_STATUS = {
   received: { label: t('Received'), color: 'success' },
   pending: { label: t('Pending'), color: 'warning' },
   approved: { label: t('Approved'), color: 'success' },
+  cancelled: { label: t('Cancelled'), color: 'default' }, // taken back by Undo
 };
 
 export function DocStatusChip({ status }) {

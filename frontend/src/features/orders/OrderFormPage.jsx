@@ -4,7 +4,10 @@ import AddRoundedIcon from '@mui/icons-material/AddRounded';
 import CalculateOutlinedIcon from '@mui/icons-material/CalculateOutlined';
 import CloseRoundedIcon from '@mui/icons-material/CloseRounded';
 import DeleteOutlineRoundedIcon from '@mui/icons-material/DeleteOutlineRounded';
-import { Alert, Box, Button, Card, CardContent, Chip, Divider, Grid, IconButton, InputAdornment, MenuItem, Stack, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography } from '@mui/material';
+import DiamondOutlinedIcon from '@mui/icons-material/DiamondOutlined';
+import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
+import PersonOutlineRoundedIcon from '@mui/icons-material/PersonOutlineRounded';
+import { Alert, Box, Button, Card, CardContent, Chip, Dialog, DialogActions, DialogContent, DialogTitle, Divider, Grid, IconButton, InputAdornment, MenuItem, Stack, TextField, ToggleButton, ToggleButtonGroup, Tooltip, Typography } from '@mui/material';
 import { decimalToScaledInt, formatINR, METAL_OPTIONS, PURITIES, STONE_TYPES, stoneWeightToMg, toBps, toMg, toPaise } from '@jerp/shared';
 import { useEffect, useMemo, useState } from 'react';
 import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form';
@@ -12,19 +15,19 @@ import toast from 'react-hot-toast';
 import { useSelector } from 'react-redux';
 import { useNavigate, useParams } from 'react-router';
 import { z } from 'zod';
-import { MONEY_TONE } from '../../components/Amount.jsx';
 import CustomerPicker from '../../components/CustomerPicker.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
 import RHFSelect from '../../components/form/RHFSelect.jsx';
 import RHFTextField from '../../components/form/RHFTextField.jsx';
 import { useSession } from '../../hooks/usePermission.js';
-import { tokens } from '../../theme/tokens.js';
+import { fonts, tokens } from '../../theme/tokens.js';
 import { applyServerErrors, getErrorMessage } from '../../utils/errors.js';
+import { formatDate } from '../../utils/format.js';
 import { useCategoriesQuery } from '../categories/categoryApi.js';
 import { useCurrentRatesQuery } from '../rates/rateApi.js';
 import { ErrorState, LoadingState } from '../../components/StateViews.jsx';
-import CustomerGoldEditor, { goldLinesToPayload, goldLinesValue } from './CustomerGoldEditor.jsx';
-import { useAddOrderImageMutation, useCreateOrderMutation, useEstimateOrderMutation, useOrderQuery, useUpdateOrderMutation } from './orderApi.js';
+import CustomerGoldEditor, { emptyGoldLine, goldLinesToPayload, goldLinesValue } from './CustomerGoldEditor.jsx';
+import { useAddOrderImageMutation, useCreateOrderMutation, useEstimateOrderMutation, useOrderCustomerBalanceQuery, useOrderQuery, useUpdateOrderMutation } from './orderApi.js';
 import { ADVANCE_MODE_OPTIONS } from './orderUi.jsx';
 import { t } from '../../i18n/index.js';
 
@@ -247,7 +250,9 @@ function StonesEditor({ control, index }) {
 }
 
 function ItemCard({ index, control, setValue, categories, onRemove, canRemove, estimate }) {
-  const [metal, pricingMode, makingType] = useWatch({ control, name: [`items.${index}.metal`, `items.${index}.pricingMode`, `items.${index}.makingType`] });
+  const [metal, pricingMode, makingType, estimateText, quantity] = useWatch({ control, name: [`items.${index}.metal`, `items.${index}.pricingMode`, `items.${index}.makingType`, `items.${index}.estimate`, `items.${index}.quantity`] });
+  // The item's estimate (each × qty) on its header, once there is one.
+  const itemEstimate = safe(() => paiseOf(estimateText), 0) * (Number(quantity) || 0);
   const purities = PURITIES[metal] ?? [];
   const p = `items.${index}`;
   return (
@@ -258,6 +263,7 @@ function ItemCard({ index, control, setValue, categories, onRemove, canRemove, e
           <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
             {t('Item {{value}}', { value: index + 1 })}
           </Typography>
+          {itemEstimate > 0 && <Chip size="small" label={formatINR(itemEstimate, { decimals: 0 })} sx={{ height: 22, fontWeight: 700, bgcolor: 'rgba(var(--brand-rgb), 0.12)', color: 'var(--brand-strong)' }} />}
         </Stack>
         {canRemove && (
           <Tooltip title={t('Remove item')}>
@@ -430,11 +436,16 @@ export default function OrderFormPage() {
   const [estimateOrder, { isLoading: estimating }] = useEstimateOrderMutation();
   const [addImage] = useAddOrderImageMutation();
   const [estimates, setEstimates] = useState([]);
+  // Items the last Calculate could not price, and why (shown in the summary).
+  const [estimateIssues, setEstimateIssues] = useState([]);
   const [photos, setPhotos] = useState([]);
   const [saving, setSaving] = useState(false);
   // The customer's own gold handed over now (valued at today's rate, counted in the advance).
   const [goldLines, setGoldLines] = useState([]);
   const [goldErrors, setGoldErrors] = useState({});
+  const [showGold, setShowGold] = useState(false);
+  // The checked order waiting for "Book order" to be confirmed.
+  const [pending, setPending] = useState(null);
   const { data: rates } = useCurrentRatesQuery();
 
   const { control, handleSubmit, setError, setValue, getValues, getFieldState, trigger, reset, watch } = useForm({
@@ -474,7 +485,15 @@ export default function OrderFormPage() {
 
   const estimate = items.reduce((s, i) => s + safe(() => paiseOf(i.estimate), 0) * (Number(i.quantity) || 0), 0);
   const goldValue = editing ? 0 : goldLinesValue(goldLines, rates);
-  const advance = editing ? (editOrder?.advancePaise ?? 0) : safe(() => paiseOf(advanceAmount), 0) + goldValue;
+  // Money paid now and the customer's gold, shown apart; both count in the advance.
+  const cashAdvance = editing ? (editOrder?.advancePaise ?? 0) - (editOrder?.customerAdvanceUsedPaise ?? 0) : safe(() => paiseOf(advanceAmount), 0);
+  const advance = cashAdvance + goldValue;
+  // The customer's advance / due from before is only shown here: it is chosen (or not) on the delivery bill.
+  const customer = useWatch({ control, name: 'customer' });
+  const { data: before } = useOrderCustomerBalanceQuery(customer?.id, { skip: editing || !customer?.id, refetchOnMountOrArgChange: true });
+  // Only orders booked when the advance from before was still moved onto the order at booking carry it.
+  const earlierAdvance = editing ? (editOrder?.customerAdvanceUsedPaise ?? 0) : 0;
+  const orderBalance = Math.max(0, estimate - advance - earlierAdvance);
 
   const calculate = async () => {
     // Show what is missing on the form (same messages as booking) before asking for prices.
@@ -498,7 +517,11 @@ export default function OrderFormPage() {
       const res = await estimateOrder({ branchId: v.branchId, items: apiItems }).unwrap();
       setEstimates(res.items);
       res.items.forEach((line, n) => line.estimatedPaise != null && setValue(`items.${n}.estimate`, String(line.estimatedPaise / 100)));
-      toast.success(t('Estimate {{total}} at today\'s rates', { total: formatINR(res.totalPaise, { decimals: 0 }) }));
+      const issues = res.items.flatMap((line, n) => (line.estimatedPaise == null ? [{ item: n + 1, reason: line.reason ?? 'Could not be priced' }] : []));
+      setEstimateIssues(issues);
+      if (!issues.length) toast.success(t('Estimate {{total}} at today\'s rates', { total: formatINR(res.totalPaise, { decimals: 0 }) }));
+      else if (issues.length === res.items.length) toast.error(t('No item could be priced — see why in the summary'));
+      else toast(t('Estimate {{total}} — some items could not be priced (see the summary)', { total: formatINR(res.totalPaise, { decimals: 0 }) }), { icon: '⚠️' });
     } catch (err) {
       toast.error(getErrorMessage(err));
     }
@@ -531,6 +554,12 @@ export default function OrderFormPage() {
     setGoldErrors(gold.errors);
     if (Object.keys(gold.errors).length) return toast.error(t('Check the customer gold'));
     if (gold.payload.length) payload.customerMetal = gold.payload;
+    // Checked: ask before booking (the summary of what is being booked), then book.
+    setPending({ payload, customer: v.customer, expectedDate: v.expectedDate, priority: v.priority, items: v.items });
+  });
+
+  const book = async (payload) => {
+    setPending(null);
     setSaving(true);
     try {
       const order = await createOrder(payload).unwrap();
@@ -555,7 +584,7 @@ export default function OrderFormPage() {
     } finally {
       setSaving(false);
     }
-  });
+  };
 
   if (editing && loadingOrder) return <LoadingState />;
   if (editing && loadError) return <ErrorState error={loadError} onRetry={refetch} />;
@@ -573,150 +602,299 @@ export default function OrderFormPage() {
       <Grid container spacing={3}>
         <Grid size={{ xs: 12, lg: 'grow' }}>
           <Stack spacing={3}>
-            <Card>
-              <CardContent>
-                <Typography variant="h4" sx={{ mb: 2 }}>
-                  {t('Customer & delivery')}
-                </Typography>
-                <Grid container spacing={2}>
-                  <Grid size={12}>
-                    {editing ? (
-                      <TextField label={t('Customer')} value={editOrder ? `${editOrder.customer.name} · ${editOrder.customer.mobile ?? ''}` : ''} disabled helperText={t('The customer and branch of a booked order stay the same')} />
-                    ) : (
-                      <Controller control={control} name="customer" render={({ field, fieldState }) => <CustomerPicker value={field.value} onChange={field.onChange} error={t(fieldState.error?.message)} autoFocus />} />
-                    )}
-                  </Grid>
-                  {session.branches.length > 1 && !editing && (
-                    <Grid size={{ xs: 12, sm: 4 }}>
-                      <RHFSelect control={control} name="branchId" label={t('Branch')} options={session.branches.map((b) => ({ value: b.id, label: b.name }))} />
-                    </Grid>
+            <StepCard step={1} icon={PersonOutlineRoundedIcon} title={t('Customer & delivery')} subtitle={t('Who it is for and when they will collect it.')}>
+              <Grid container spacing={2}>
+                <Grid size={12}>
+                  {editing ? (
+                    <TextField label={t('Customer')} value={editOrder ? `${editOrder.customer.name} · ${editOrder.customer.mobile ?? ''}` : ''} disabled helperText={t('The customer and branch of a booked order stay the same')} />
+                  ) : (
+                    <Controller control={control} name="customer" render={({ field, fieldState }) => <CustomerPicker value={field.value} onChange={field.onChange} error={t(fieldState.error?.message)} autoFocus />} />
                   )}
-                  <Grid size={{ xs: 12, sm: 4 }}>
-                    <RHFTextField control={control} name="expectedDate" label={t('Delivery date')} type="date" slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: today() } }} helperText={t('When the customer will collect')} />
-                  </Grid>
-                  <Grid size={{ xs: 12, sm: 4 }}>
-                    <Controller
-                      control={control}
-                      name="priority"
-                      render={({ field }) => (
-                        <ToggleButtonGroup exclusive fullWidth value={field.value} onChange={(e, v) => v && field.onChange(v)} sx={{ height: 41 }} aria-label={t('Priority')}>
-                          <ToggleButton value="normal">{t('Normal')}</ToggleButton>
-                          <ToggleButton value="urgent" sx={{ '&.Mui-selected': { color: 'error.main', bgcolor: 'rgba(155, 44, 44, 0.08)' } }}>
-                            {t('Urgent')}
-                          </ToggleButton>
-                        </ToggleButtonGroup>
-                      )}
-                    />
-                  </Grid>
+                  {/* What the customer already has with the shop, and what happens to it on this order. */}
+                  {!editing && customer?.id && (before?.advanceLeftPaise > 0 || before?.duePaise > 0) && (
+                    <Stack direction="row" sx={{ mt: 1, gap: 1, flexWrap: 'wrap' }}>
+                      {before.advanceLeftPaise > 0 && <Chip size="small" color="success" variant="outlined" label={t('Advance from before {{amount}} — can be adjusted on the delivery bill', { amount: formatINR(before.advanceLeftPaise) })} />}
+                      {before.duePaise > 0 && <Chip size="small" color="error" variant="outlined" label={t('Due from before {{amount}} — can be added on the delivery bill', { amount: formatINR(before.duePaise) })} />}
+                    </Stack>
+                  )}
                 </Grid>
-              </CardContent>
-            </Card>
+                {session.branches.length > 1 && !editing && (
+                  <Grid size={{ xs: 12, sm: 4 }}>
+                    <RHFSelect control={control} name="branchId" label={t('Branch')} options={session.branches.map((b) => ({ value: b.id, label: b.name }))} />
+                  </Grid>
+                )}
+                <Grid size={{ xs: 12, sm: 4 }}>
+                  <RHFTextField control={control} name="expectedDate" label={t('Delivery date')} type="date" slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: today() } }} helperText={t('When the customer will collect')} />
+                </Grid>
+                <Grid size={{ xs: 12, sm: 4 }}>
+                  <Controller
+                    control={control}
+                    name="priority"
+                    render={({ field }) => (
+                      <ToggleButtonGroup exclusive fullWidth value={field.value} onChange={(e, v) => v && field.onChange(v)} sx={{ height: 41 }} aria-label={t('Priority')}>
+                        <ToggleButton value="normal">{t('Normal')}</ToggleButton>
+                        <ToggleButton value="urgent" sx={{ '&.Mui-selected': { color: 'error.main', bgcolor: 'rgba(155, 44, 44, 0.08)' } }}>
+                          {t('Urgent')}
+                        </ToggleButton>
+                      </ToggleButtonGroup>
+                    )}
+                  />
+                </Grid>
+                <Grid size={12}>
+                  <RHFTextField control={control} name="notes" label={t('Order notes')} placeholder={t('Anything the shop should remember about this order')} multiline minRows={1} />
+                </Grid>
+              </Grid>
+            </StepCard>
 
-            <Card>
-              <CardContent>
-                <Stack direction="row" sx={{ alignItems: 'center', justifyContent: 'space-between', mb: 2 }}>
-                  <Typography variant="h4">{t('Items')}</Typography>
-                  <Button startIcon={<AddRoundedIcon />} onClick={() => append(emptyItem(session.catalog))}>
-                    {t('Add item')}
-                  </Button>
-                </Stack>
-                <Stack spacing={2.5}>
-                  {fields.map((f, index) => (
-                    <ItemCard key={f.id} index={index} control={control} setValue={setValue} categories={categories} estimate={estimates[index]} onRemove={() => remove(index)} canRemove={fields.length > 1} />
-                  ))}
-                </Stack>
-              </CardContent>
-            </Card>
+            <StepCard
+              step={2}
+              icon={DiamondOutlinedIcon}
+              title={t('Items')}
+              subtitle={t('Each piece: what it is, metal, weight, stones and the agreed charges.')}
+              action={
+                <Button variant="outlined" startIcon={<AddRoundedIcon />} onClick={() => append(emptyItem(session.catalog))} sx={{ flexShrink: 0 }}>
+                  {t('Add item')}
+                </Button>
+              }
+            >
+              <Stack spacing={2.5}>
+                {fields.map((f, index) => (
+                  <ItemCard key={f.id} index={index} control={control} setValue={setValue} categories={categories} estimate={estimates[index]} onRemove={() => remove(index)} canRemove={fields.length > 1} />
+                ))}
+              </Stack>
+            </StepCard>
 
             {!editing && (
-            <Card>
-              <CardContent>
-                <Typography variant="h4" sx={{ mb: 0.5 }}>
-                  {t('Design photos')}
-                </Typography>
-                <Typography variant="body2" color="textSecondary" sx={{ mb: 2 }}>
-                  {t('The customer\'s reference design or sketch, for the karigar. Up to 6.')}
-                </Typography>
+              <StepCard step={3} icon={AddPhotoAlternateOutlinedIcon} title={t('Design photos')} subtitle={t('The customer\'s reference design or sketch, for the karigar. Up to 6.')}>
                 <PhotoPicker files={photos} onChange={setPhotos} />
-              </CardContent>
-            </Card>
+              </StepCard>
             )}
           </Stack>
         </Grid>
 
         {/* 20px narrower than its grid share; the left column grows to take the space. */}
         <Grid size={{ xs: 12, lg: 5, xl: 4.5 }} sx={{ width: { lg: SIDE_WIDTH(5), xl: SIDE_WIDTH(4.5) } }}>
-          <Card sx={{ position: { lg: 'sticky' }, top: { lg: 88 } }}>
-            <CardContent>
-              <Typography variant="h4" sx={{ mb: 2 }}>
-                {editing ? t('Notes & estimate') : t('Advance')}
-              </Typography>
-              <Stack spacing={2}>
-                {editing ? (
-                  <Alert severity="info" variant="outlined">
-                    {t('Advance received: {{formatINR}}. Add more with “Add advance” on the order; photos are on the order page too.', { formatINR: formatINR(editOrder?.advancePaise ?? 0) })}
-                  </Alert>
-                ) : (
-                  <>
-                    <RHFTextField control={control} name="advanceAmount" label={t('Advance received (₹)')} placeholder="0" slotProps={{ htmlInput: { inputMode: 'decimal' } }} />
-                    <RHFSelect control={control} name="advanceMode" label={t('Paid by')} options={ADVANCE_MODE_OPTIONS} />
-                    <RHFTextField control={control} name="advanceReference" label={t('Reference')} placeholder={t('UPI / card ref. (optional)')} />
-                    <Box>
+          <Stack spacing={3} sx={{ position: { lg: 'sticky' }, top: { lg: 88 } }}>
+            <StepCard step={editing ? 3 : 4} icon={PaymentsOutlinedIcon} title={t('Advance')} subtitle={editing ? null : t('Money (and gold) the customer pays now.')}>
+              {editing ? (
+                <Alert severity="info" variant="outlined">
+                  {t('Advance received: {{formatINR}}. Add more with “Add advance” on the order; photos are on the order page too.', { formatINR: formatINR(editOrder?.advancePaise ?? 0) })}
+                </Alert>
+              ) : (
+                <Stack spacing={2}>
+                  <Grid container spacing={1.5}>
+                    <Grid size={{ xs: 12, sm: 7 }}>
+                      <RHFTextField control={control} name="advanceAmount" label={t('Advance received (₹)')} placeholder="0" slotProps={{ htmlInput: { inputMode: 'decimal' } }} />
+                    </Grid>
+                    <Grid size={{ xs: 12, sm: 5 }}>
+                      <RHFSelect control={control} name="advanceMode" label={t('Paid by')} options={ADVANCE_MODE_OPTIONS} />
+                    </Grid>
+                  </Grid>
+                  <RHFTextField control={control} name="advanceReference" label={t('Reference')} placeholder={t('UPI / card ref. (optional)')} />
+                  {/* The customer's own gold: tucked away until it is needed. */}
+                  {showGold || goldLines.length ? (
+                    <Box sx={{ p: 1.5, borderRadius: 2, border: 1, borderColor: 'rgba(var(--brand-rgb), 0.3)', bgcolor: 'rgba(var(--brand-rgb), 0.04)' }}>
                       <Typography variant="subtitle2" sx={{ fontWeight: 700 }}>
-                        {t('Customer’s own gold (optional)')}
+                        {t('Customer’s own gold')}
                       </Typography>
                       <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mb: 1 }}>
                         {t('Gold the customer gives for this order. Valued at today’s rate and counted in the advance.')}
                       </Typography>
                       <CustomerGoldEditor lines={goldLines} onChange={setGoldLines} errors={goldErrors} />
                     </Box>
-                  </>
-                )}
-                <RHFTextField control={control} name="notes" label={t('Order notes')} multiline minRows={2} />
-              </Stack>
-              <Divider sx={{ my: 2.5 }} />
-              <Button fullWidth variant="outlined" startIcon={<CalculateOutlinedIcon />} onClick={calculate} loading={estimating} sx={{ mb: 2 }}>
-                {t('Calculate estimate')}
-              </Button>
-              <Stack spacing={1}>
-                <Row label={t('Estimated total')} value={estimate ? formatINR(estimate) : '—'} />
-                <Row label={t('Advance')} value={formatINR(advance)} tone={advance ? 'paid' : undefined} />
-                <Row label={t('Balance due at delivery')} value={estimate ? formatINR(Math.max(0, estimate - advance)) : '—'} strong tone={estimate > advance ? 'due' : undefined} />
-              </Stack>
-              <Typography variant="caption" color="textSecondary" sx={{ display: 'block', mt: 1 }}>
-                {t('Rate-based items are billed at the metal rate on the delivery day; the advance is deducted then.')}
-              </Typography>
-              {items.some((i) => i.pricingMode === 'fixed') && <Chip size="small" label={t('Includes fixed-price items')} sx={{ mt: 1 }} />}
-              {error && !error.data?.error?.details && (
-                <Alert severity="error" sx={{ mt: 2 }}>
-                  {getErrorMessage(error)}
-                </Alert>
+                  ) : (
+                    <Button variant="text" startIcon={<AddRoundedIcon />} onClick={() => {
+                        setShowGold(true);
+                        setGoldLines([emptyGoldLine()]);
+                      }} sx={{ alignSelf: 'flex-start' }}>
+                      {t('Customer is giving gold')}
+                    </Button>
+                  )}
+                </Stack>
               )}
-              <Stack direction="row" spacing={1} sx={{ mt: 2.5 }}>
-                <Button color="secondary" onClick={() => navigate(editing ? `/orders/${editId}` : '/orders')} disabled={isLoading || saving || updating}>
-                  {t('Cancel')}
+            </StepCard>
+
+            <Card sx={{ overflow: 'hidden' }}>
+              <Box sx={{ p: { xs: 2, sm: 2.5 }, background: `${tokens.sidebar.glow}, ${tokens.sidebar.surface}`, color: '#F7F3E8' }}>
+                <Typography variant="overline" sx={{ color: 'rgba(247, 243, 232, 0.6)' }}>
+                  {t('Summary')}
+                </Typography>
+                <SummaryRow label={t('Estimated total')} value={estimate ? formatINR(estimate) : '—'} />
+                <SummaryRow label={t('Advance (money)')} value={cashAdvance ? `− ${formatINR(cashAdvance)}` : formatINR(0)} tone={cashAdvance ? 'paid' : undefined} />
+                {goldValue > 0 && <SummaryRow label={t('Customer’s gold')} value={`− ${formatINR(goldValue)}`} tone="paid" />}
+                {earlierAdvance > 0 && <SummaryRow label={t('Earlier advance adjusted')} value={`− ${formatINR(earlierAdvance)}`} tone="paid" />}
+                {[cashAdvance, goldValue, earlierAdvance].filter((n) => n > 0).length > 1 && <SummaryRow label={t('Total advance')} value={`− ${formatINR(advance + earlierAdvance)}`} tone="paid" strong />}
+                <Divider sx={{ my: 1.5, borderColor: 'rgba(var(--brand-rgb), 0.3)' }} />
+                <Typography variant="overline" sx={{ color: 'rgba(247, 243, 232, 0.6)' }}>
+                  {t('Balance due at delivery')}
+                </Typography>
+                <Typography sx={{ fontFamily: fonts.display, fontSize: { xs: 30, sm: 36 }, fontWeight: 700, lineHeight: 1.1, color: orderBalance > 0 ? '#F4A09A' : '#9BD3B5' }}>{estimate ? formatINR(orderBalance) : '—'}</Typography>
+                <Typography variant="caption" sx={{ display: 'block', mt: 1, color: 'rgba(247, 243, 232, 0.6)' }}>
+                  {t('Rate-based items are billed at the metal rate on the delivery day; the advance is deducted then.')}
+                </Typography>
+                {items.some((i) => i.pricingMode === 'fixed') && <Chip size="small" label={t('Includes fixed-price items')} sx={{ mt: 1, color: '#F7F3E8', borderColor: 'rgba(247, 243, 232, 0.35)' }} variant="outlined" />}
+              </Box>
+              <CardContent>
+                <Button fullWidth variant="outlined" startIcon={<CalculateOutlinedIcon />} onClick={calculate} loading={estimating}>
+                  {t('Calculate estimate')}
                 </Button>
-                <Button type="submit" variant="contained" size="large" loading={isLoading || saving || updating} sx={{ flex: 1 }}>
-                  {editing ? t('Save changes') : t('Book order')}
-                </Button>
-              </Stack>
-            </CardContent>
-          </Card>
+                {estimateIssues.length > 0 && (
+                  <Alert
+                    severity="warning"
+                    variant="outlined"
+                    sx={{ mt: 1.5, '& .MuiAlert-message': { width: '100%' } }}
+                    action={
+                      <IconButton size="small" onClick={() => setEstimateIssues([])} aria-label={t('Close')}>
+                        <CloseRoundedIcon fontSize="small" />
+                      </IconButton>
+                    }
+                  >
+                    <Typography variant="body2" sx={{ fontWeight: 700, mb: 0.5 }}>
+                      {t('Could not estimate')}
+                    </Typography>
+                    <Box component="ul" sx={{ m: 0, pl: 2.25 }}>
+                      {estimateIssues.map((x) => (
+                        <li key={x.item}>
+                          <Typography variant="body2">{t('Item {{item}}: {{reason}}', { item: x.item, reason: t(x.reason) })}</Typography>
+                        </li>
+                      ))}
+                    </Box>
+                    {/* A missing rate is fixed on the Metal rates page (one set for the whole organisation). */}
+                    {estimateIssues.some((x) => / rate entered$/.test(x.reason)) && (
+                      <Button size="small" variant="outlined" color="warning" onClick={() => navigate('/rates')} sx={{ mt: 1, whiteSpace: 'nowrap' }}>
+                        {t('Update rates')}
+                      </Button>
+                    )}
+                  </Alert>
+                )}
+                {error && !error.data?.error?.details && (
+                  <Alert severity="error" sx={{ mt: 2 }}>
+                    {getErrorMessage(error)}
+                  </Alert>
+                )}
+                <Stack direction="row" spacing={1} sx={{ mt: 2 }}>
+                  <Button color="secondary" onClick={() => navigate(editing ? `/orders/${editId}` : '/orders')} disabled={isLoading || saving || updating}>
+                    {t('Cancel')}
+                  </Button>
+                  <Button type="submit" variant="contained" size="large" loading={isLoading || saving || updating} sx={{ flex: 1 }}>
+                    {editing ? t('Save changes') : t('Book order')}
+                  </Button>
+                </Stack>
+              </CardContent>
+            </Card>
+          </Stack>
         </Grid>
       </Grid>
+      <ConfirmBooking pending={pending} estimate={estimate} cashAdvance={cashAdvance} goldValue={goldValue} earlierAdvance={earlierAdvance} advanceMode={ADVANCE_MODE_OPTIONS.find((m) => m.value === pending?.payload.advance?.mode)?.label} photos={photos.length} onConfirm={() => book(pending.payload)} onClose={() => setPending(null)} />
     </Box>
   );
 }
 
-function Row({ label, value, strong, tone }) {
+/** "Book this order?" — what is about to be booked, at a glance, before it is saved. */
+function ConfirmBooking({ pending, estimate, cashAdvance, goldValue, earlierAdvance, advanceMode, photos, onConfirm, onClose }) {
+  if (!pending) return null;
+  const { customer, expectedDate, priority, items } = pending;
+  const balance = Math.max(0, estimate - cashAdvance - goldValue - earlierAdvance);
   return (
-    <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
-      <Typography variant="body2" color={strong ? 'textPrimary' : 'textSecondary'} sx={{ fontWeight: strong ? 600 : 400 }}>
+    <Dialog open onClose={onClose} maxWidth="xs" fullWidth>
+      <DialogTitle sx={{ fontWeight: 700, pb: 1 }}>{t('Book this order?')}</DialogTitle>
+      <DialogContent>
+        <Box sx={{ p: 1.5, mb: 2, borderRadius: 2, bgcolor: 'action.hover' }}>
+          <Typography sx={{ fontWeight: 700 }}>{customer?.name}</Typography>
+          <Typography variant="caption" color="textSecondary">
+            {[customer?.mobile, expectedDate ? t('Delivery {{date}}', { date: formatDate(expectedDate) }) : t('No delivery date'), priority === 'urgent' ? t('Urgent') : null].filter(Boolean).join(' · ')}
+          </Typography>
+        </Box>
+        <Stack spacing={0.5} sx={{ mb: 2 }}>
+          {items.map((i, n) => (
+            <Stack key={n} direction="row" sx={{ justifyContent: 'space-between', gap: 1 }}>
+              <Typography variant="body2" noWrap sx={{ minWidth: 0 }}>
+                {n + 1}. {i.description}
+                {Number(i.quantity) > 1 ? ` × ${i.quantity}` : ''}
+              </Typography>
+              <Typography variant="body2" sx={{ fontWeight: 600, whiteSpace: 'nowrap' }}>
+                {safe(() => paiseOf(i.estimate), 0) ? formatINR(safe(() => paiseOf(i.estimate), 0) * (Number(i.quantity) || 1), { decimals: 0 }) : '—'}
+              </Typography>
+            </Stack>
+          ))}
+          {photos > 0 && (
+            <Typography variant="caption" color="textSecondary">
+              {photos === 1 ? t('{{count}} design photo', { count: photos }) : t('{{count}} design photos', { count: photos })}
+            </Typography>
+          )}
+        </Stack>
+        <Divider sx={{ mb: 1.5 }} />
+        <Stack spacing={0.75}>
+          <ConfirmRow label={t('Estimated total')} value={estimate ? formatINR(estimate) : '—'} />
+          <ConfirmRow label={advanceMode ? t('Advance ({{mode}})', { mode: advanceMode }) : t('Advance (money)')} value={cashAdvance ? `− ${formatINR(cashAdvance)}` : formatINR(0)} tone={cashAdvance ? 'paid' : undefined} />
+          {goldValue > 0 && <ConfirmRow label={t('Customer’s gold')} value={`− ${formatINR(goldValue)}`} tone="paid" />}
+          {earlierAdvance > 0 && <ConfirmRow label={t('Earlier advance adjusted')} value={`− ${formatINR(earlierAdvance)}`} tone="paid" />}
+          <ConfirmRow label={t('Balance due at delivery')} value={estimate ? formatINR(balance) : '—'} strong tone={balance > 0 ? 'due' : 'paid'} />
+        </Stack>
+        {!cashAdvance && !goldValue && !earlierAdvance && (
+          <Alert severity="warning" variant="outlined" sx={{ mt: 2 }}>
+            {t('No advance is being taken for this order.')}
+          </Alert>
+        )}
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2.5 }}>
+        <Button color="secondary" onClick={onClose}>
+          {t('Go back')}
+        </Button>
+        <Button variant="contained" onClick={onConfirm} sx={{ flex: { xs: 1, sm: 'none' } }}>
+          {t('Book order')}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
+function ConfirmRow({ label, value, strong, tone }) {
+  return (
+    <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'baseline', ...(strong && { pt: 0.75, mt: 0.25, borderTop: 1, borderColor: 'divider' }) }}>
+      <Typography variant="body2" color={strong ? 'textPrimary' : 'textSecondary'} sx={{ fontWeight: strong ? 700 : 400 }}>
         {label}
       </Typography>
-      <Typography variant="body2" sx={{ fontWeight: strong ? 700 : 500, color: tone ? MONEY_TONE[tone] : 'text.primary' }}>
+      <Typography variant="body2" sx={{ fontWeight: strong ? 800 : 600, whiteSpace: 'nowrap', color: tone === 'paid' ? 'success.main' : tone === 'due' ? 'error.main' : 'text.primary' }}>
         {value}
       </Typography>
+    </Stack>
+  );
+}
+
+/** One step of the form: its number and icon, a title and a short line on what goes in it. */
+function StepCard({ step, icon: Icon, title, subtitle, action, children }) {
+  return (
+    <Card>
+      <CardContent sx={{ p: { xs: 2, sm: 3 } }}>
+        <Stack direction="row" spacing={1.5} sx={{ alignItems: 'flex-start', justifyContent: 'space-between', mb: 2.5 }}>
+          <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center', minWidth: 0 }}>
+            <Box sx={{ position: 'relative', width: 40, height: 40, flexShrink: 0, borderRadius: 2.5, display: 'grid', placeItems: 'center', bgcolor: 'rgba(var(--brand-rgb), 0.12)', color: 'var(--brand-strong)' }}>
+              <Icon sx={{ fontSize: 20 }} />
+              <Box sx={{ position: 'absolute', top: -6, right: -6, width: 18, height: 18, borderRadius: '50%', display: 'grid', placeItems: 'center', background: tokens.sidebar.goldGradient, color: 'var(--brand-contrast)', fontSize: 10, fontWeight: 800, border: '2px solid', borderColor: 'background.paper' }}>{step}</Box>
+            </Box>
+            <Box sx={{ minWidth: 0 }}>
+              <Typography sx={{ fontWeight: 700, fontSize: '1.0625rem', lineHeight: 1.25 }}>{title}</Typography>
+              {subtitle && (
+                <Typography variant="caption" color="textSecondary" sx={{ display: 'block', lineHeight: 1.4 }}>
+                  {subtitle}
+                </Typography>
+              )}
+            </Box>
+          </Stack>
+          {action}
+        </Stack>
+        {children}
+      </CardContent>
+    </Card>
+  );
+}
+
+function SummaryRow({ label, value, tone, strong }) {
+  return (
+    <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'baseline', py: 0.5, ...(strong && { mt: 0.5, pt: 1, borderTop: '1px dashed rgba(247, 243, 232, 0.2)' }) }}>
+      <Typography sx={{ fontSize: '0.9375rem', fontWeight: strong ? 600 : 400, color: strong ? '#F7F3E8' : 'rgba(247, 243, 232, 0.75)' }}>{label}</Typography>
+      <Typography sx={{ fontSize: '1rem', fontWeight: strong ? 700 : 600, whiteSpace: 'nowrap', color: tone === 'paid' ? '#9BD3B5' : tone === 'due' ? '#F4A09A' : '#F7F3E8' }}>{value}</Typography>
     </Stack>
   );
 }

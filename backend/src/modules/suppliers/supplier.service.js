@@ -1,4 +1,6 @@
 import { hasPermission } from '@jerp/shared';
+import { supplierSchema } from '@jerp/shared/schemas';
+import { editSnapshot } from '../undo/undo.snapshot.js';
 import { withTransaction } from '../../config/db.js';
 import { AUDIT_ACTIONS, recordAudit } from '../../core/audit/audit.service.js';
 import { requireContext } from '../../core/context/requestContext.js';
@@ -10,7 +12,7 @@ import { diffChanges } from '../../utils/diff.js';
 import { paginate, searchFilter } from '../../utils/pagination.js';
 import { Product } from '../products/product.model.js';
 import { todayContext } from '../../utils/businessDate.js';
-import { Purchase, PurchaseOrder } from '../purchases/purchase.model.js';
+import { LIVE_BILL, Purchase, PurchaseOrder } from '../purchases/purchase.model.js';
 import { accessibleBranchFilter } from '../inventory/inventory.helpers.js';
 import { Supplier } from './supplier.model.js';
 import { SupplierPayment } from './supplierPayment.model.js';
@@ -45,6 +47,12 @@ const serialize = (s) => ({
   createdAt: s.createdAt,
   updatedAt: s.updatedAt,
 });
+
+/** A supplier as the edit form loads it, or null once deleted (for Undo). */
+export async function supplierFormValues(id) {
+  const supplier = await Supplier.findOne({ _id: id, isDeleted: false }).lean();
+  return supplier ? serialize(supplier) : null;
+}
 
 async function findSupplier(id) {
   const supplier = await Supplier.findOne({ _id: id, isDeleted: false });
@@ -83,7 +91,7 @@ export async function listSuppliers({ page, limit, q, status, supplies }) {
 async function billDueBySupplier(ids) {
   if (!ids.length) return new Map();
   const rows = await Purchase.aggregate([
-    { $match: { supplierId: { $in: ids }, paymentStatus: { $ne: 'paid' }, ...accessibleBranchFilter() } },
+    { $match: { supplierId: { $in: ids }, paymentStatus: { $ne: 'paid' }, ...LIVE_BILL, ...accessibleBranchFilter() } },
     { $group: { _id: '$supplierId', due: { $sum: { $subtract: ['$totals.totalPaise', '$paidPaise'] } } } },
   ]);
   return new Map(rows.map((r) => [String(r._id), r.due]));
@@ -97,7 +105,7 @@ async function supplierSummary() {
     Supplier.countDocuments({ isDeleted: false, status: 'active' }),
     // Purchase figures: only the branches this user works in.
     Purchase.aggregate([
-      { $match: accessibleBranchFilter() },
+      { $match: { ...accessibleBranchFilter(), ...LIVE_BILL } },
       {
         $group: {
           _id: null,
@@ -134,7 +142,7 @@ export async function getSupplier(id) {
  * Any purchase bill or payment with this supplier, in any branch. After the first one the old balance is part of the
  * books (bills and payments are settled against it), so it can no longer be changed.
  */
-async function hasTransactions(supplierId) {
+export async function hasTransactions(supplierId) {
   const [bill, payment] = await Promise.all([Purchase.exists({ supplierId }), SupplierPayment.exists({ supplierId })]);
   return Boolean(bill || payment);
 }
@@ -143,7 +151,7 @@ async function hasTransactions(supplierId) {
 async function supplierStats(supplier) {
   const [[bills], openOrders] = await Promise.all([
     Purchase.aggregate([
-      { $match: { supplierId: supplier._id, ...accessibleBranchFilter() } },
+      { $match: { supplierId: supplier._id, ...LIVE_BILL, ...accessibleBranchFilter() } },
       {
         $group: {
           _id: null,
@@ -183,7 +191,7 @@ export async function createSupplier(input) {
     const [doc] = await Supplier.create([{ ...input, code, createdBy: userId, updatedBy: userId }], { session });
     await syncOpeningBalance({ partyType: 'supplier', partyId: doc._id, code, amountPaise: doc.openingBalancePaise }, { session });
     await recordAudit(
-      { action: AUDIT_ACTIONS.CREATE, module: 'supplier', recordType: 'Supplier', recordId: doc._id, meta: { name: doc.companyName, code } },
+      { action: AUDIT_ACTIONS.CREATE, module: 'supplier', recordType: 'Supplier', recordId: doc._id, meta: { name: doc.companyName, code }, undo: { type: 'supplier.create' } },
       { session },
     );
     return doc;
@@ -212,7 +220,7 @@ export async function updateSupplier(id, input) {
       { partyType: 'supplier', partyId: supplier._id, code: supplier.code, amountPaise: after.openingBalancePaise, previousPaise: before.openingBalancePaise },
       { session },
     );
-    await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'supplier', recordType: 'Supplier', recordId: supplier._id, meta: { name: supplier.companyName }, changes }, { session });
+    await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'supplier', recordType: 'Supplier', recordId: supplier._id, meta: { name: supplier.companyName }, changes, undo: { type: 'supplier.update', data: editSnapshot(supplierSchema, before, after) } }, { session });
   });
   return after;
 }
@@ -230,6 +238,7 @@ export async function setSupplierStatus(id, status) {
     recordId: supplier._id,
     meta: { name: supplier.companyName },
     changes: [{ field: 'status', from, to: status }],
+    undo: { type: 'supplier.status', data: { from, to: status } },
   });
   return serialize(supplier.toObject());
 }

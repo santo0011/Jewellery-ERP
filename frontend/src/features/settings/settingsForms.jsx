@@ -1,5 +1,5 @@
 import { Box, Checkbox, FormControlLabel, FormHelperText, Grid, InputAdornment, Stack, Typography } from '@mui/material';
-import { fromBps, fromPaise, PURITIES, toBps, toPaise } from '@jerp/shared';
+import { formatINR, fromBps, fromPaise, PURITIES, toBps, toPaise } from '@jerp/shared';
 import { Controller, useWatch } from 'react-hook-form';
 import RHFSelect from '../../components/form/RHFSelect.jsx';
 import RHFSwitch from '../../components/form/RHFSwitch.jsx';
@@ -19,6 +19,18 @@ const strict = (fn) => (v) => {
   if (out === null) throw new RangeError('Required');
   return out;
 };
+
+/** A rupee limit whose help text shows the amount as entered, written out (₹5,00,000), so it is easy to check. */
+function LimitField({ control, name, label, hint, disabled }) {
+  const value = useWatch({ control, name });
+  let paise = null;
+  try {
+    paise = value ? toPaise(value) : null;
+  } catch {
+    paise = null;
+  }
+  return <NumberField control={control} name={name} label={label} prefix="₹" helperText={hint(paise != null ? formatINR(paise, { decimals: 0 }) : '—')} disabled={disabled} />;
+}
 
 function NumberField({ control, name, label, helperText, unit, prefix, disabled, sm = 6 }) {
   return (
@@ -91,8 +103,8 @@ export function TaxSettingsForm({ value, readOnly }) {
       description={t('GST rates and HSN codes used when invoices are calculated.')}
       value={value}
       readOnly={readOnly}
-      toForm={(v) => ({ ...v, jewelleryGstBps: String(fromBps(v.jewelleryGstBps)), makingGstBps: String(fromBps(v.makingGstBps)) })}
-      fromForm={(v) => ({ ...v, jewelleryGstBps: strict(toBps)(v.jewelleryGstBps), makingGstBps: strict(toBps)(v.makingGstBps) })}
+      toForm={(v) => ({ ...v, jewelleryGstBps: String(fromBps(v.jewelleryGstBps)), makingGstBps: String(fromBps(v.makingGstBps)), maxRoundOffPaise: String(fromPaise(v.maxRoundOffPaise ?? 10000)) })}
+      fromForm={(v) => ({ ...v, jewelleryGstBps: strict(toBps)(v.jewelleryGstBps), makingGstBps: strict(toBps)(v.makingGstBps), maxRoundOffPaise: strict(toPaise)(v.maxRoundOffPaise) })}
     >
       {({ control }) => <TaxFields control={control} readOnly={readOnly} />}
     </SettingsSectionForm>
@@ -129,6 +141,7 @@ function TaxFields({ control, readOnly }) {
           disabled={readOnly}
         />
       </Grid>
+      <NumberField control={control} name="maxRoundOffPaise" label={t('Largest round-off on a bill')} prefix="₹" helperText={t('When billing rounds a bill its own way (up, down, by hand). More than this is a discount.')} disabled={readOnly} />
     </Grid>
   );
 }
@@ -220,8 +233,8 @@ export function JewellerySettingsForm({ value, readOnly }) {
               {t('Compliance')}
             </Typography>
           </Grid>
-          <NumberField control={control} name="panRequiredAbovePaise" label={t('PAN required for bills above')} prefix="₹" helperText={t('Income-tax rules require PAN for jewellery purchases above ₹2,00,000')} disabled={readOnly} />
-          <NumberField control={control} name="cashLimitPaise" label={t('Maximum cash per transaction')} prefix="₹" helperText={t('Section 269ST prohibits receiving ₹2,00,000 or more in cash')} disabled={readOnly} />
+          <LimitField control={control} name="panRequiredAbovePaise" label={t('PAN required for bills above')} hint={(amount) => t('Bills above {{amount}} need the customer’s PAN. (Income-tax rules require it above ₹2,00,000.)', { amount })} disabled={readOnly} />
+          <LimitField control={control} name="cashLimitPaise" label={t('Maximum cash per transaction')} hint={(amount) => t('Cash on one bill is limited to {{amount}}. (Section 269ST prohibits ₹2,00,000 or more in cash.)', { amount })} disabled={readOnly} />
           <Grid size={{ xs: 12, sm: 6 }}>
             <RHFSelect
               control={control}

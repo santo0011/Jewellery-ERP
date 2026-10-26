@@ -93,7 +93,9 @@ const salaryAdvanceSchema = new mongoose.Schema(
     businessDate: { type: String, required: true }, // the day the advance was given
     // First salary month (YYYY-MM) it is deducted from; null on older advances = due from any month.
     recoverFrom: { type: String, default: null },
-    status: { type: String, enum: ['open', 'closed'], default: 'open' },
+    // open -> closed once fully deducted; cancelled when taken back before any deduction (Undo).
+    status: { type: String, enum: ['open', 'closed', 'cancelled'], default: 'open' },
+    cancelReason: { type: String, default: null },
     recoveries: { type: [recoverySchema], default: [] },
     // Business day it was entered — it can be edited only on that day.
     recordedOn: { type: String, default: null },

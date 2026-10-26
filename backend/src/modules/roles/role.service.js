@@ -70,7 +70,7 @@ export async function createRole({ name, description, permissions }) {
     createdBy: userId,
     updatedBy: userId,
   });
-  await recordAudit({ action: AUDIT_ACTIONS.CREATE, module: 'role', recordType: 'Role', recordId: role._id, meta: { name, permissions } });
+  await recordAudit({ action: AUDIT_ACTIONS.CREATE, module: 'role', recordType: 'Role', recordId: role._id, meta: { name, permissions }, undo: { type: 'role.create', branchId: null } });
   return serialize(role.toObject());
 }
 
@@ -97,10 +97,11 @@ export async function updateRole(id, { name, description, permissions }) {
   if ((role.description ?? null) !== (description ?? null)) changes.push({ field: 'description', from: role.description, to: description ?? null });
   if (added.length || removed.length) changes.push({ field: 'permissions', from: { removed }, to: { added } });
   if (!changes.length) return getRole(id);
+  const before = { name: role.name, description: role.description ?? null, permissions: [...role.permissions] };
 
   role.set({ name, description: description ?? null, permissions, updatedBy: userId, ...(role.isSystem && { customised: true }) });
   await role.save();
-  await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'role', recordType: 'Role', recordId: role._id, changes });
+  await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'role', recordType: 'Role', recordId: role._id, meta: { name: role.name }, changes, undo: { type: 'role.update', branchId: null, data: { before, after: { name, description: description ?? null, permissions } } } });
   return getRole(id);
 }
 

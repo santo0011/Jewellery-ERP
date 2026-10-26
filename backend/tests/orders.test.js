@@ -208,6 +208,23 @@ describe('customer orders', () => {
     expect((await api().post(`/api/v1/orders/${order.id}/advances`).set(bearer(ctx.t)).send({ mode: 'cash', amountPaise: 100 })).status).toBe(409);
   });
 
+  it('leaves the advance and due from before alone when booking, and shows them for the delivery bill', async () => {
+    const ctx = await setup();
+    const get = (url) => api().get(url).set(bearer(ctx.t));
+    const item = { description: 'Necklace', metal: 'gold', purity: 916, estimatedPaise: 5000000 };
+    // ₹15,000 advance from before; the piece is ₹50,000 and ₹20,000 is paid now → ₹30,000 left on the order.
+    const c = (await api().post('/api/v1/customers').set(bearer(ctx.t)).send({ name: 'Mou Pal', mobile: '9876500077', address: { stateCode: '19' }, openingBalancePaise: -1500000 })).body.data;
+    const order = (await api().post('/api/v1/orders').set(bearer(ctx.t)).send(orderBody(ctx, { customerId: c.id, items: [item] }))).body.data;
+    expect(order).toMatchObject({ advancePaise: 2000000, customerAdvanceUsedPaise: 0, balancePaise: 3000000, previousAdvancePaise: 1500000, previousDuePaise: 0 });
+    expect(order.advances.map((a) => a.mode)).toEqual(['cash']);
+    expect((await get(`/api/v1/orders/customer-balance/${c.id}`)).body.data).toMatchObject({ advanceLeftPaise: 1500000, duePaise: 0 });
+
+    // ₹15,000 due from before: shown, not added.
+    const owes = (await api().post('/api/v1/customers').set(bearer(ctx.t)).send({ name: 'Bina Roy', mobile: '9876500078', address: { stateCode: '19' }, openingBalancePaise: 1500000 })).body.data;
+    const withDue = (await api().post('/api/v1/orders').set(bearer(ctx.t)).send(orderBody(ctx, { customerId: owes.id, items: [item] }))).body.data;
+    expect(withDue).toMatchObject({ advancePaise: 2000000, balancePaise: 3000000, previousDuePaise: 1500000, previousAdvancePaise: 0 });
+  });
+
   it('validates the order and checks permissions', async () => {
     const ctx = await setup();
     const empty = await api().post('/api/v1/orders').set(bearer(ctx.t)).send(orderBody(ctx, { items: [] }));

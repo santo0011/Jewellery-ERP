@@ -26,6 +26,7 @@ import hrRoutes from '../modules/hr/hr.routes.js';
 import reportRoutes from '../modules/reports/report.routes.js';
 import expenseRoutes, { financeRoutes } from '../modules/expenses/expense.routes.js';
 import recordRoutes from '../modules/records/record.routes.js';
+import undoRoutes from '../modules/undo/undo.routes.js';
 import platformRoutes from '../modules/platform/platform.routes.js';
 import { env } from '../config/env.js';
 import { sendOk } from '../utils/response.js';
@@ -65,5 +66,6 @@ router.use('/expenses', expenseRoutes);
 router.use('/finance', financeRoutes);
 router.use('/reports', reportRoutes);
 router.use('/records', recordRoutes); // shared delete check + delete for every deletable record
+router.use('/undo', undoRoutes); // the Undo button and its history (organisation and branch panels)
 
 export default router;

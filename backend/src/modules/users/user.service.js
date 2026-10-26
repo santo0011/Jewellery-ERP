@@ -169,6 +169,7 @@ export async function createUser(input) {
     recordType: 'User',
     recordId: user._id,
     meta: { name: user.name, email: user.email, roles: roles.map((r) => r.name), allBranches: branchAccess.all },
+    undo: { type: 'user.create', branchId: null },
   });
   return getUser(user._id);
 }
@@ -208,10 +209,13 @@ export async function updateUser(id, input) {
   track('branchAccess', { all: Boolean(user.branchAccess?.all), branchIds: (user.branchAccess?.branchIds ?? []).map(String).sort() }, { all: branchAccess.all, branchIds: [...branchAccess.branchIds].sort() });
   track('defaultBranchId', user.defaultBranchId ? String(user.defaultBranchId) : null, input.defaultBranchId ?? null);
   if (!changes.length) return getUser(id);
+  // For Undo: the edit form's values before and after.
+  const formValues = (u) => ({ name: u.name, mobile: u.mobile ?? null, roleIds: u.roleIds.map(String), branchAccess: { all: Boolean(u.branchAccess?.all), branchIds: (u.branchAccess?.branchIds ?? []).map(String) }, defaultBranchId: u.defaultBranchId ? String(u.defaultBranchId) : null });
+  const before = formValues(user);
 
   user.set({ name: input.name, mobile: input.mobile ?? null, roleIds: input.roleIds, branchAccess, defaultBranchId: input.defaultBranchId ?? null });
   await user.save();
-  await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'user', recordType: 'User', recordId: user._id, changes });
+  await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'user', recordType: 'User', recordId: user._id, meta: { name: user.name }, changes, undo: { type: 'user.update', branchId: null, data: { before, after: formValues(user) } } });
   return getUser(id);
 }
 
@@ -228,7 +232,7 @@ export async function setUserStatus(id, status) {
     await User.updateOne({ _id: user._id }, { $set: { status } }, { session });
     if (status === USER_STATUS.DISABLED) await revokeAllSessions(user._id, 'user_disabled', session);
     await recordAudit(
-      { action: AUDIT_ACTIONS.STATUS_CHANGE, module: 'user', recordType: 'User', recordId: user._id, changes: [{ field: 'status', from, to: status }] },
+      { action: AUDIT_ACTIONS.STATUS_CHANGE, module: 'user', recordType: 'User', recordId: user._id, meta: { name: user.name }, changes: [{ field: 'status', from, to: status }], undo: { type: 'user.status', branchId: null, data: { from, to: status } } },
       { session },
     );
   });

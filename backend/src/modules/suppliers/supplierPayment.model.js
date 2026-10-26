@@ -25,6 +25,11 @@ const supplierPaymentSchema = new mongoose.Schema(
     reference: { type: String, default: null },
     note: { type: String, default: null },
     allocations: { type: [allocationSchema], default: [] },
+    // Void (taken back by Undo): every allocation is reversed and the entry reversed; the record stays.
+    status: { type: String, enum: ['active', 'void'], default: 'active' },
+    voidedAt: { type: Date, default: null },
+    voidedBy: { type: ObjectId, ref: 'User', default: null },
+    voidReason: { type: String, default: null },
     createdBy: { type: ObjectId, ref: 'User', required: true },
   },
   { timestamps: true },

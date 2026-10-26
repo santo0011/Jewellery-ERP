@@ -16,7 +16,9 @@ import { ApiError } from '../../utils/ApiError.js';
 import { todayContext } from '../../utils/businessDate.js';
 import { searchFilter } from '../../utils/pagination.js';
 import { Category } from '../categories/category.model.js';
+import { CUSTOMER_ADVANCE_MODE, customerAdvanceLeft } from '../customers/customerAdvance.js';
 import { Customer } from '../customers/customer.model.js';
+import { customerDues } from '../customers/customerReceipt.service.js';
 import { accessibleBranchFilter, canSeeCost, nameMaps, oid, pick, requireBranch, viewBranchFor } from '../inventory/inventory.helpers.js';
 import { Product } from '../products/product.model.js';
 import { insertPieces, preparePieces } from '../products/product.service.js';
@@ -47,6 +49,34 @@ async function postAdvance(order, { receiptNo, mode, amountPaise }, today, sessi
     },
     { session },
   );
+}
+
+/**
+ * Moves advance the customer paid before (held against their account) onto the order, or back (negative amount).
+ * No money changes hands. New orders no longer take it (it is chosen on the delivery bill); orders booked when they
+ * did give it back with this when cancelled. Returns the entry for `advances`.
+ */
+async function moveCustomerAdvance(order, amountPaise, branchCode, today, session) {
+  const { userId } = requireContext();
+  const receiptNo = await nextDocumentNo({ prefix: 'ADJ', branchCode, financialYear: today.financialYear }, { session });
+  const amount = Math.abs(amountPaise);
+  const party = { type: 'customer', id: order.customerId };
+  const back = amountPaise < 0;
+  await postJournal(
+    {
+      voucherType: 'order_advance',
+      date: today.now,
+      businessDate: today.businessDate,
+      financialYear: today.financialYear,
+      narration: back ? `Advance from order ${order.orderNo} back to ${order.customer.name}'s account` : `Earlier advance of ${order.customer.name} adjusted on order ${order.orderNo}`,
+      source: { docType: 'order', docId: order._id, docNo: receiptNo },
+      lines: back
+        ? [{ account: 'customer_advances', debit: amount, branchId: order.branchId, party }, { account: 'sundry_debtors', credit: amount, branchId: order.branchId, party }]
+        : [{ account: 'sundry_debtors', debit: amount, branchId: order.branchId, party }, { account: 'customer_advances', credit: amount, branchId: order.branchId, party }],
+    },
+    { session },
+  );
+  return { receiptNo, mode: CUSTOMER_ADVANCE_MODE, amountPaise, reference: back ? 'Back to customer advance' : 'Earlier advance adjusted', at: today.now, by: userId };
 }
 
 async function receipt(order, branchCode, payment, today, session) {
@@ -172,9 +202,14 @@ export async function addCustomerMetal(id, { lines }) {
   await withTransaction(async (session) => {
     const fresh = await findOrder(id, session);
     assertOpen(fresh);
+    const had = new Set(fresh.customerMetal.map((l) => String(l._id)));
     await receiveCustomerMetal(fresh, branch.code, lines, today, session);
     await fresh.save({ session });
-    await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'order', recordType: 'Order', recordId: fresh._id, meta: { name: fresh.orderNo, customerGold: lines.length } }, { session });
+    const added = fresh.customerMetal.filter((l) => !had.has(String(l._id))).map((l) => String(l._id));
+    await recordAudit(
+      { action: AUDIT_ACTIONS.UPDATE, module: 'order', recordType: 'Order', recordId: fresh._id, meta: { name: fresh.orderNo, customerGold: lines.length }, undo: { type: 'order.customerMetal', branchId: fresh.branchId, label: `${fresh.orderNo} — customer gold`, data: { lineIds: added } } },
+      { session },
+    );
   });
   return getOrder(id);
 }
@@ -196,6 +231,38 @@ export async function removeCustomerMetal(id, lineId) {
     line.returnedAt = today.now;
     await fresh.save({ session });
     await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'order', recordType: 'Order', recordId: fresh._id, meta: { name: fresh.orderNo, customerGoldRemoved: line.receiptNo } }, { session });
+  });
+  return getOrder(id);
+}
+
+/** An order's editable details as the edit form sends them (for Undo). */
+export const orderFormValues = (o) => ({
+  items: o.items.map((i) => {
+    const { _id, productId, ...rest } = i.toObject?.() ?? i; // eslint-disable-line no-unused-vars
+    return JSON.parse(JSON.stringify(rest));
+  }),
+  expectedDate: o.expectedDate ?? null,
+  priority: o.priority ?? 'normal',
+  notes: o.notes ?? null,
+});
+
+/** Gives back one advance receipt taken by mistake (Undo): a refund receipt for the same amount, paid back the same way. */
+export async function refundAdvanceReceipt(id, receiptNo, reason) {
+  const order = await findOrder(id);
+  assertOpen(order);
+  const branch = await requireBranch(order.branchId, { active: false });
+  const today = await todayContext();
+  await withTransaction(async (session) => {
+    const fresh = await findOrder(id, session);
+    assertOpen(fresh);
+    const paid = fresh.advances.find((a) => a.receiptNo === receiptNo && a.amountPaise > 0 && a.mode !== CUSTOMER_ADVANCE_MODE);
+    if (!paid) throw ApiError.notFound('Advance receipt');
+    if (fresh.advances.some((a) => a.reference === `Refund of ${receiptNo}`)) throw ApiError.conflict(`${receiptNo} was already refunded`, 'INVALID_STATE');
+    if (fresh.advancePaise < paid.amountPaise) throw ApiError.conflict('Part of the advance is already used', 'INVALID_STATE');
+    fresh.advances.push(await receipt(fresh, branch.code, { mode: paid.mode, amountPaise: -paid.amountPaise, reference: `Refund of ${receiptNo}` }, today, session));
+    fresh.advancePaise -= paid.amountPaise;
+    await fresh.save({ session });
+    await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'order', recordType: 'Order', recordId: fresh._id, meta: { name: fresh.orderNo, advanceRefunded: receiptNo, reason } }, { session });
   });
   return getOrder(id);
 }
@@ -252,8 +319,12 @@ export async function createOrder({ branchId, customerId, items, expectedDate, p
       doc.advancePaise = advance.amountPaise;
     }
     if (customerMetal.length) await receiveCustomerMetal(doc, branch.code, customerMetal, today, session);
+    // The customer's advance or due from before is not touched here: it is settled on the delivery bill, if chosen.
     if (advance || customerMetal.length) await doc.save({ session });
-    await recordAudit({ action: AUDIT_ACTIONS.CREATE, module: 'order', recordType: 'Order', recordId: doc._id, meta: { name: orderNo, customer: customer.name, advance: doc.advancePaise, customerGold: customerMetal.length } }, { session });
+    await recordAudit(
+      { action: AUDIT_ACTIONS.CREATE, module: 'order', recordType: 'Order', recordId: doc._id, meta: { name: orderNo, customer: customer.name, advance: doc.advancePaise, customerGold: customerMetal.length }, undo: { type: 'order.create', branchId: branch._id } },
+      { session },
+    );
     return doc;
   });
   return getOrder(order._id);
@@ -284,6 +355,7 @@ export async function updateOrder(id, { items, expectedDate, priority, notes }) 
     const fresh = await findOrder(id, session);
     if (!EDITABLE_ORDER_STATUSES.includes(fresh.status)) throw ApiError.conflict(`Order ${fresh.orderNo} changed while editing. Try again.`, 'CONCURRENT_UPDATE');
     const before = { estimatedPaise: fresh.estimatedPaise, items: fresh.items.length, expectedDate: fresh.expectedDate, priority: fresh.priority };
+    const formBefore = orderFormValues(fresh);
     fresh.items = items.map((i, n) => ({ ...i, productId: fresh.items[n]?.productId ?? null }));
     fresh.estimatedPaise = items.reduce((s, i) => s + i.estimatedPaise * i.quantity, 0);
     fresh.expectedDate = expectedDate ?? null;
@@ -292,7 +364,7 @@ export async function updateOrder(id, { items, expectedDate, priority, notes }) 
     await fresh.save({ session });
     const after = { estimatedPaise: fresh.estimatedPaise, items: fresh.items.length, expectedDate: fresh.expectedDate, priority: fresh.priority };
     const changes = Object.keys(after).filter((k) => before[k] !== after[k]).map((field) => ({ field, from: before[field] ?? null, to: after[field] ?? null }));
-    await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'order', recordType: 'Order', recordId: fresh._id, changes, meta: { name: fresh.orderNo } }, { session });
+    await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'order', recordType: 'Order', recordId: fresh._id, changes, meta: { name: fresh.orderNo }, undo: { type: 'order.update', branchId: fresh.branchId, data: { before: formBefore, after: orderFormValues(fresh) } } }, { session });
   });
   return getOrder(id);
 }
@@ -305,10 +377,14 @@ export async function addAdvance(id, payment) {
   await withTransaction(async (session) => {
     const fresh = await findOrder(id, session);
     assertOpen(fresh);
-    fresh.advances.push(await receipt(fresh, branch.code, payment, today, session));
+    const paid = await receipt(fresh, branch.code, payment, today, session);
+    fresh.advances.push(paid);
     fresh.advancePaise += payment.amountPaise;
     await fresh.save({ session });
-    await recordAudit({ action: AUDIT_ACTIONS.UPDATE, module: 'order', recordType: 'Order', recordId: fresh._id, meta: { name: fresh.orderNo, advance: payment.amountPaise } }, { session });
+    await recordAudit(
+      { action: AUDIT_ACTIONS.UPDATE, module: 'order', recordType: 'Order', recordId: fresh._id, meta: { name: fresh.orderNo, advance: payment.amountPaise }, undo: { type: 'order.advance', branchId: fresh.branchId, label: `${fresh.orderNo} — advance ${paid.receiptNo}`, data: { receiptNo: paid.receiptNo, amountPaise: paid.amountPaise } } },
+      { session },
+    );
   });
   return getOrder(id);
 }
@@ -322,7 +398,7 @@ export async function setOrderStatus(id, { status, note }) {
   order.status = status;
   order.timeline.push({ status, at: new Date(), by: userId, note: note ?? null });
   await order.save();
-  await recordAudit({ action: AUDIT_ACTIONS.STATUS_CHANGE, module: 'order', recordType: 'Order', recordId: order._id, meta: { name: order.orderNo }, changes: [{ field: 'status', from, to: status }] });
+  await recordAudit({ action: AUDIT_ACTIONS.STATUS_CHANGE, module: 'order', recordType: 'Order', recordId: order._id, meta: { name: order.orderNo }, changes: [{ field: 'status', from, to: status }], undo: { type: 'order.status', branchId: order.branchId, data: { from, to: status } } });
   return getOrder(id);
 }
 
@@ -332,7 +408,8 @@ export async function cancelOrder(id, { reason, refundMode }) {
   assertOpen(order);
   // The customer's gold not yet in a piece goes back as gold; the rest of the advance is refunded in money.
   const goldBack = customerGoldBalance(order).filter((r) => r.leftMg > 0);
-  if (order.advancePaise - goldBack.reduce((n, r) => n + r.leftPaise, 0) > 0 && !refundMode) {
+  // Advance from before goes back to the customer's account, not out of the till.
+  if (order.advancePaise - goldBack.reduce((n, r) => n + r.leftPaise, 0) - (order.customerAdvanceUsedPaise ?? 0) > 0 && !refundMode) {
     throw ApiError.badRequest('Choose how the advance is refunded', [{ path: 'refundMode', message: 'Select a refund mode' }], 'VALIDATION_ERROR');
   }
   const branch = await requireBranch(order.branchId, { active: false });
@@ -346,6 +423,12 @@ export async function cancelOrder(id, { reason, refundMode }) {
     }
     // Pieces already made for it are the shop's to sell now.
     await Product.updateMany({ orderId: fresh._id }, { $set: { orderId: null } }, { session });
+    const earlier = Math.min(fresh.customerAdvanceUsedPaise ?? 0, Math.max(0, fresh.advancePaise));
+    if (earlier > 0) {
+      fresh.advances.push(await moveCustomerAdvance(fresh, -earlier, branch.code, today, session));
+      fresh.advancePaise -= earlier;
+    }
+    fresh.customerAdvanceUsedPaise = 0;
     if (fresh.advancePaise > 0) {
       fresh.advances.push(await receipt(fresh, branch.code, { mode: refundMode, amountPaise: -fresh.advancePaise, reference: 'Refund on cancellation' }, today, session));
       fresh.advancePaise = 0;
@@ -413,10 +496,22 @@ async function orderSummary(branchId, today) {
   return { open: r?.open ?? 0, ready: r?.ready ?? 0, overdue: r?.overdue ?? 0, advancePaise: r?.advancePaise ?? 0, estimatedPaise: r?.estimatedPaise ?? 0 };
 }
 
+/**
+ * The customer's balance from before, shown on a new order: advance still free and dues on earlier bills. Neither
+ * touches the order; either can be chosen on the delivery bill.
+ */
+export async function customerBalance(customerId) {
+  const { customer, openingDuePaise, bills, totalDuePaise } = await customerDues(customerId);
+  return { advanceLeftPaise: Math.max(0, await customerAdvanceLeft(customer)), duePaise: totalDuePaise, openingDuePaise, dueBills: bills.length };
+}
+
 export async function getOrder(id) {
   const o = (await findOrder(id)).toObject();
   const userIds = [o.createdBy, ...o.advances.map((a) => a.by), ...o.timeline.map((t) => t.by)];
   const sale = o.saleId ? await Sale.findById(o.saleId).select('invoiceNo status createdAt totals payments advanceAdjustedPaise customerAdvancePaise oldGoldPaise duePaidPaise returnCreditPaise').lean() : null;
+  // Open orders: the customer's balance from before, to choose on the delivery bill.
+  const before = OPEN_ORDER_STATUSES.includes(o.status) ? await customerBalance(o.customerId).catch(() => null) : null;
+  const previousDue = before?.duePaise ?? 0;
   const [maps, categories, products] = await Promise.all([
     nameMaps({ branchIds: [o.branchId], userIds }),
     Category.find({ _id: { $in: o.items.map((i) => i.categoryId).filter(Boolean) } }).select('name').lean(),
@@ -464,7 +559,11 @@ export async function getOrder(id) {
     },
     estimatedPaise: o.estimatedPaise,
     advancePaise: o.advancePaise,
+    customerAdvanceUsedPaise: o.customerAdvanceUsedPaise ?? 0,
     balancePaise: Math.max(0, o.estimatedPaise - o.advancePaise),
+    // Open orders: the customer's dues from before (can be added on the delivery bill).
+    previousDuePaise: previousDue,
+    previousAdvancePaise: before?.advanceLeftPaise ?? 0,
     expectedDate: o.expectedDate,
     priority: o.priority ?? 'normal',
     images: (o.images ?? []).map((i) => String(i.fileId)),

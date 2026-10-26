@@ -6,6 +6,7 @@ export const PERMISSION_MODULES = [
   { key: 'role', label: 'Roles', group: 'Administration', actions: { view: 'View', create: 'Create', edit: 'Edit', delete: 'Delete' } },
   { key: 'settings', label: 'Settings', group: 'Administration', actions: { view: 'View', edit: 'Edit' } },
   { key: 'audit', label: 'Audit log', group: 'Administration', actions: { view: 'View' } },
+  { key: 'undo', label: 'Undo', group: 'Administration', actions: { view: 'View undo history', undo: 'Undo actions' } },
   { key: 'subscription', label: 'Subscription', group: 'Administration', actions: { view: 'View', manage: 'Manage' } },
   { key: 'customer', label: 'Customers', group: 'Customers', actions: { view: 'View', create: 'Create', edit: 'Edit', delete: 'Delete', export: 'Export', viewKyc: 'View KYC details' } },
   { key: 'order', label: 'Customer orders', group: 'Customers', actions: { view: 'View', create: 'Create', edit: 'Edit', cancel: 'Cancel', approve: 'Approve', print: 'Print' } },

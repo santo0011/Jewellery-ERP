@@ -310,11 +310,11 @@ describe('paying part of a bill and using a customer advance', () => {
     const total = 8579900;
     const c = await customer(ctx, { openingBalancePaise: -5000000 }); // ₹50,000 paid in advance
 
-    const q1 = (await api().post('/api/v1/sales/quote').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: c.id, items: [{ productId: p1.id }] })).body.data;
+    const q1 = (await api().post('/api/v1/sales/quote').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: c.id, useCustomerAdvance: true, items: [{ productId: p1.id }] })).body.data;
     expect(q1).toMatchObject({ customerAdvancePaise: 5000000, customerAdvanceLeftPaise: 5000000, payablePaise: total - 5000000 });
 
     // Pays ₹20,000 of the rest now: advance 50,000 + 20,000 paid, the remainder due.
-    const s1 = (await api().post('/api/v1/sales').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: c.id, items: [{ productId: p1.id }], payments: [{ mode: 'upi', amountPaise: 2000000 }] })).body.data;
+    const s1 = (await api().post('/api/v1/sales').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: c.id, useCustomerAdvance: true, items: [{ productId: p1.id }], payments: [{ mode: 'upi', amountPaise: 2000000 }] })).body.data;
     expect(s1).toMatchObject({ customerAdvancePaise: 5000000, paidPaise: 7000000, duePaise: total - 7000000, paymentStatus: 'partly_paid' });
     const [entry] = await ledger(ctx, 'sale');
     expect(entry.lines).toEqual(expect.arrayContaining([['sundry_debtors', 5000000, 0], ['bank', 2000000, 0], ['sundry_debtors', total - 7000000, 0]]));
@@ -327,12 +327,12 @@ describe('paying part of a bill and using a customer advance', () => {
 
     // Cancelling the bill gives the advance back.
     await api().post(`/api/v1/sales/${s1.id}/cancel`).set(bearer(ctx.t)).send({ reason: 'Customer changed mind' });
-    const q3 = (await api().post('/api/v1/sales/quote').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: c.id, items: [{ productId: p2.id }] })).body.data;
+    const q3 = (await api().post('/api/v1/sales/quote').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: c.id, useCustomerAdvance: true, items: [{ productId: p2.id }] })).body.data;
     expect(q3.customerAdvancePaise).toBe(5000000);
 
     // An advance bigger than the bill: only the bill's amount is used; the rest waits for the next bill.
     const big = await customer(ctx, { openingBalancePaise: -10000000 });
-    const s2 = (await api().post('/api/v1/sales').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: big.id, items: [{ productId: p2.id }], payments: [] })).body.data;
+    const s2 = (await api().post('/api/v1/sales').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: big.id, useCustomerAdvance: true, items: [{ productId: p2.id }], payments: [] })).body.data;
     expect(s2).toMatchObject({ customerAdvancePaise: total, paidPaise: total, duePaise: 0, paymentStatus: 'paid' });
     const left = (await api().get(`/api/v1/customers/${big.id}/activity`).set(bearer(ctx.t))).body.data;
     expect(left.stats.advanceLeftPaise).toBe(10000000 - total);
@@ -393,8 +393,8 @@ describe('advance while a due is pending', () => {
     const edit = (o) => api().put(`/api/v1/customers/${c.id}`).set(bearer(ctx.t)).send(body(o));
 
     // The bill uses the ₹1,000 advance; ₹20,000 is paid; the rest stays due.
-    const q = (await api().post('/api/v1/sales/quote').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: c.id, items: [{ productId: p.id }] })).body.data;
-    await api().post('/api/v1/sales').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: c.id, items: [{ productId: p.id }], payments: [{ mode: 'cash', amountPaise: 2000000 }] });
+    const q = (await api().post('/api/v1/sales/quote').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: c.id, useCustomerAdvance: true, items: [{ productId: p.id }] })).body.data;
+    await api().post('/api/v1/sales').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: c.id, useCustomerAdvance: true, items: [{ productId: p.id }], payments: [{ mode: 'cash', amountPaise: 2000000 }] });
     const due = q.payablePaise - 2000000;
 
     const bigger = await edit({ openingBalancePaise: -500000 });
@@ -410,5 +410,57 @@ describe('advance while a due is pending', () => {
     expect((await edit({ openingBalancePaise: -500000 })).status).toBe(200);
     // Total ₹5,000 recorded, ₹1,000 used → ₹4,000 available for the next bills.
     expect((await api().get(`/api/v1/customers/${c.id}`).set(bearer(ctx.t))).body.data).toMatchObject({ advanceUsedPaise: 100000, advanceLeftPaise: 400000 });
+  });
+});
+
+describe('balance from before on a bill', () => {
+  it('takes off the advance from before only when chosen', async () => {
+    const ctx = await setup();
+    const p = await stockedProduct(ctx);
+    const total = 8579900;
+    const c = await customer(ctx, { openingBalancePaise: -1500000 }); // ₹15,000 advance from before
+    const quote = (o) => api().post('/api/v1/sales/quote').set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: c.id, items: [{ productId: p.id }], ...o });
+    // Not chosen: shown as available, the bill is untouched.
+    expect((await quote()).body.data).toMatchObject({ customerAdvancePaise: 0, customerAdvanceLeftPaise: 1500000, payablePaise: total });
+    expect((await quote({ useCustomerAdvance: true })).body.data).toMatchObject({ customerAdvancePaise: 1500000, payablePaise: total - 1500000 });
+  });
+
+  it('adds the due from before when chosen: money pays the bill first, the rest goes to the old dues', async () => {
+    const ctx = await setup();
+    const [p1, p2, p3] = [await stockedProduct(ctx), await stockedProduct(ctx), await stockedProduct(ctx)];
+    const total = 8579900;
+    const c = await customer(ctx, { openingBalancePaise: 1500000 }); // ₹15,000 due from before
+    const send = (path, p, o) => api().post(path).set(bearer(ctx.t)).send({ branchId: ctx.ho, customerId: c.id, items: [{ productId: p.id }], ...o });
+    const dues = async () => (await api().get(`/api/v1/customers/${c.id}/dues`).set(bearer(ctx.t))).body.data.totalDuePaise;
+
+    expect((await send('/api/v1/sales/quote', p1)).body.data).toMatchObject({ previousDuePaise: 1500000, previousDueAddedPaise: 0, toCollectPaise: total });
+    expect((await send('/api/v1/sales/quote', p1, { addPreviousDue: true })).body.data).toMatchObject({ previousDueAddedPaise: 1500000, toCollectPaise: total + 1500000 });
+    expect((await send('/api/v1/sales', p1, { addPreviousDue: true, payments: [{ mode: 'cash', amountPaise: total + 1500001 }] })).body.error.code).toBe('PAYMENT_MISMATCH');
+
+    // Pays ₹30,000 less than this bill: ₹30,000 due on it + ₹15,000 from before = ₹45,000 owed.
+    const s1 = (await send('/api/v1/sales', p1, { addPreviousDue: true, payments: [{ mode: 'cash', amountPaise: total - 3000000 }] })).body.data;
+    expect(s1).toMatchObject({ duePaise: 3000000, previousDuePaise: 1500000, previousDueCollectedPaise: 0, previousDueLeftPaise: 1500000, dueReceipts: [] });
+    expect(await dues()).toBe(4500000);
+
+    // Pays this bill and ₹10,000 more: that goes to the dues from before (old due first), as a DR receipt.
+    const s2 = (await send('/api/v1/sales', p2, { addPreviousDue: true, payments: [{ mode: 'upi', amountPaise: total + 1000000 }] })).body.data;
+    expect(s2).toMatchObject({ duePaise: 0, payments: [{ mode: 'upi', amountPaise: total }], previousDuePaise: 4500000, previousDueCollectedPaise: 1000000, previousDueLeftPaise: 3500000 });
+    expect(s2.dueReceipts).toEqual([expect.objectContaining({ mode: 'upi', amountPaise: 1000000, receiptNo: expect.stringMatching(/^DR\//) })]);
+    expect(await dues()).toBe(3500000);
+    const [receipt] = await ledger(ctx, 'customer_receipt');
+    expect(receipt.lines).toEqual([['bank', 1000000, 0], ['sundry_debtors', 0, 1000000]]);
+    const activity = (await api().get(`/api/v1/customers/${c.id}/activity`).set(bearer(ctx.t))).body.data;
+    expect(activity.payments.find((x) => x.kind === 'collection')).toMatchObject({ amountPaise: 1000000, reference: `With ${s2.invoiceNo}`, ref: { bills: ['Old due'] } });
+    expect(activity.stats.duePaise).toBe(3500000);
+    const row = (await api().get('/api/v1/customers').query({ q: c.code }).set(bearer(ctx.t))).body.data[0];
+    expect(row.duePaise).toBe(3500000);
+
+    // Cancelling that bill takes the receipt back: the old due is owed again.
+    expect((await api().post(`/api/v1/sales/${s2.id}/cancel`).set(bearer(ctx.t)).send({ reason: 'Wrong items' })).status).toBe(200);
+    expect(await dues()).toBe(4500000);
+    expect((await api().get(`/api/v1/customers/${c.id}/activity`).set(bearer(ctx.t))).body.data.payments.some((x) => x.kind === 'collection_void')).toBe(true);
+
+    // Not chosen: paying more than the bill is refused as before.
+    expect((await send('/api/v1/sales', p3, { payments: [{ mode: 'cash', amountPaise: total + 100 }] })).body.error.code).toBe('PAYMENT_MISMATCH');
   });
 });

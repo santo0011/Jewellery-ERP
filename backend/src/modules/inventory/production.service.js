@@ -4,7 +4,7 @@ import { withTransaction } from '../../config/db.js';
 import { AUDIT_ACTIONS, recordAudit } from '../../core/audit/audit.service.js';
 import { requireContext } from '../../core/context/requestContext.js';
 import { PAYMENT_ACCOUNT } from '../../core/ledger/paymentAccounts.js';
-import { postJournal } from '../../core/ledger/posting.service.js';
+import { postJournal, reverseJournalsFor } from '../../core/ledger/posting.service.js';
 import { nextDocumentNo } from '../../core/numbering/numbering.service.js';
 import { MetalStock } from '../../core/stock/metalStock.model.js';
 import { moveMetal, moveProducts } from '../../core/stock/stockLedger.service.js';
@@ -13,7 +13,9 @@ import { todayContext } from '../../utils/businessDate.js';
 import { paginate } from '../../utils/pagination.js';
 import { Item } from '../items/item.model.js';
 import { itemsForPieces } from '../items/item.service.js';
+import { Product } from '../products/product.model.js';
 import { insertPieces, preparePieces } from '../products/product.service.js';
+import { piecesGone } from '../undo/undo.checks.js';
 import { accessibleBranchFilter, canSeeCost, nameMaps, oid, pick, requireBranch } from './inventory.helpers.js';
 import { Production } from './production.model.js';
 
@@ -134,10 +136,42 @@ export async function createProduction({ branchId, metalUsed, pieces, makingPais
         { session },
       );
     }
-    await recordAudit({ action: AUDIT_ACTIONS.CREATE, module: 'inventory', recordType: 'Production', recordId: entry._id, meta: { name: productionNo, pieces: created.length, metalValuePaise, makingPaise } }, { session });
+    await recordAudit({ action: AUDIT_ACTIONS.CREATE, module: 'inventory', recordType: 'Production', recordId: entry._id, meta: { name: productionNo, pieces: created.length, metalValuePaise, makingPaise }, undo: { type: 'production.create', branchId: branch._id } }, { session });
     return entry;
   });
   return getProduction(doc._id);
+}
+
+/** Why a making entry cannot be cancelled now, or null: the pieces it made must still be in stock here. */
+export async function productionCancelBlock(d) {
+  if (d.status === 'cancelled') return 'It is already cancelled.';
+  return piecesGone(d.pieces.map((p) => p.productId), d.branchId);
+}
+
+/**
+ * Cancels a making entry (Undo): the pieces it made leave stock and are retired, the metal goes back into Raw
+ * materials at the cost it left with, and a making charge paid is reversed. The entry stays, cancelled.
+ */
+export async function cancelProduction(id, reason) {
+  const { userId } = requireContext();
+  const today = await todayContext();
+  const d = await Production.findOne({ _id: id, ...accessibleBranchFilter() }).lean();
+  if (!d) throw ApiError.notFound('Production');
+  const block = await productionCancelBlock(d);
+  if (block) throw ApiError.conflict(`${d.productionNo} cannot be cancelled: ${block}`, 'INVALID_STATE');
+  await withTransaction(async (session) => {
+    const claimed = await Production.findOneAndUpdate({ _id: d._id, status: { $ne: 'cancelled' } }, { $set: { status: 'cancelled', cancelledAt: today.now, cancelReason: reason } }, { session });
+    if (!claimed) throw ApiError.conflict('This making entry was already cancelled', 'INVALID_STATE');
+    const source = { docType: 'production', docId: d._id, docNo: d.productionNo };
+    const ids = d.pieces.map((p) => p.productId);
+    await moveProducts({ type: 'production_cancel', productIds: ids, branchId: d.branchId, expectedBranchId: d.branchId, source, businessDate: today.businessDate, note: reason }, { session });
+    await Product.updateMany({ _id: { $in: ids } }, { $set: { isDeleted: true, updatedBy: userId } }, { session });
+    for (const l of d.metalUsed) {
+      await moveMetal({ type: 'production_return', branchId: d.branchId, line: { metal: l.metal, purity: l.purity, kind: l.kind, grossWeightMg: l.grossWeightMg, valuePaise: l.valuePaise, direction: 'in' }, source, businessDate: today.businessDate, note: reason }, { session });
+    }
+    await reverseJournalsFor(source, { date: today.now, businessDate: today.businessDate, financialYear: today.financialYear, narration: `Making ${d.productionNo} cancelled` }, { session });
+    await recordAudit({ action: AUDIT_ACTIONS.CANCEL, module: 'inventory', recordType: 'Production', recordId: d._id, meta: { name: d.productionNo, reason } }, { session });
+  });
 }
 
 function serialize(d, maps, cost) {
@@ -150,6 +184,7 @@ function serialize(d, maps, cost) {
     pieces: d.pieces.map((p) => ({ productId: p.productId, sku: p.sku, name: p.name, metal: p.metal, purity: p.purity, grossWeightMg: p.grossWeightMg, ...(cost && { costPaise: p.costPaise }) })),
     ...(cost && { metalValuePaise: d.metalValuePaise, makingPaise: d.makingPaise, totalCostPaise: d.totalCostPaise }),
     makingMode: d.makingMode,
+    status: d.status ?? 'done',
     note: d.note,
     createdBy: pick(maps.users, d.createdBy) ?? null,
     createdAt: d.createdAt,
