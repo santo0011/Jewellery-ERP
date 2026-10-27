@@ -1,7 +1,9 @@
 import ArrowBackRoundedIcon from '@mui/icons-material/ArrowBackRounded';
-import { Box, Breadcrumbs, ButtonBase, Link, Stack, Typography } from '@mui/material';
+import { Box, Breadcrumbs, ButtonBase, Link, Stack, Typography, useMediaQuery } from '@mui/material';
 import { Link as RouterLink, useLocation, useNavigate } from 'react-router';
-import { tokens } from '../theme/tokens.js';
+import { NAV_GROUPS, PROFILE_ITEM } from '../layouts/navConfig.js';
+import { fonts, tokens } from '../theme/tokens.js';
+import PhoneHero from './PhoneHero.jsx';
 import { t } from '../i18n/index.js';
 
 /**
@@ -46,57 +48,114 @@ function BackButton({ to, label }) {
   );
 }
 
-/** `back={{ to, label }}` shows a back button for detail pages (it replaces the breadcrumbs there). */
-export default function PageHeader({ title, subtitle, breadcrumbs, actions, back }) {
+/**
+ * The menu entry of the page at this path and its group (the longest menu path it starts with, so a detail page takes
+ * its list's). Pages outside the menu (the Super Admin panel) have none.
+ */
+function navMatchFor(pathname) {
+  const entries = [...NAV_GROUPS.flatMap((g) => g.items.map((item) => ({ item, group: g.label }))), { item: PROFILE_ITEM, group: null }].filter((m) => m.item.path !== '/');
+  return entries.filter((m) => pathname === m.item.path || pathname.startsWith(`${m.item.path}/`)).sort((a, b) => b.item.path.length - a.item.path.length)[0] ?? null;
+}
+
+// The page's buttons and fields on the dark phone card: light outlines and text so they show up there.
+const ON_DARK = {
+  '& .MuiButton-outlined': { color: '#F7F3E8', borderColor: 'rgba(247, 243, 232, 0.28)', bgcolor: 'rgba(247, 243, 232, 0.04)' },
+  '& .MuiButton-text': { color: 'var(--brand-light)' },
+  '& .MuiButton-containedSecondary': { color: '#F7F3E8', bgcolor: 'rgba(247, 243, 232, 0.12)', boxShadow: 'none' },
+  '& .MuiButton-containedPrimary': { boxShadow: '0 8px 20px -8px rgba(var(--brand-rgb), 0.7)' },
+  '& > .MuiIconButton-root': { color: '#F7F3E8' },
+  '& .MuiOutlinedInput-root': { bgcolor: 'background.paper' },
+  '& .MuiInputLabel-root:not(.Mui-focused)': { color: 'rgba(247, 243, 232, 0.8)' },
+  '& .MuiToggleButton-root:not(.Mui-selected)': { color: 'rgba(247, 243, 232, 0.8)', borderColor: 'rgba(247, 243, 232, 0.2)' },
+};
+const LIGHT_MUTED = 'rgba(247, 243, 232, 0.6)';
+
+/**
+ * `back={{ to, label }}` shows a back button for detail pages (it replaces the breadcrumbs there).
+ * Phones get the header as a dark card (PhoneHero) with the actions inside; `icon`, `avatar` (initials in place of
+ * the icon), `phoneTitle` and `phoneSubtitle` override the menu icon, title and subtitle there.
+ */
+export default function PageHeader({ title, subtitle, breadcrumbs, actions, back, icon, avatar, phoneTitle, phoneSubtitle }) {
+  const phone = useMediaQuery((theme) => theme.breakpoints.down('sm'));
+  const { pathname } = useLocation();
+  const nav = navMatchFor(pathname);
+  if (phone) {
+    return (
+      <>
+        {back && <BackButton to={back.to} label={back.label} />}
+        <PhoneHero compact icon={icon ?? nav?.item.icon ?? null} avatar={avatar} title={phoneTitle ?? title} subtitle={phoneSubtitle ?? subtitle}>
+          {actions && (
+            <Stack
+              direction="row"
+              sx={{
+                flexWrap: 'wrap',
+                gap: 1,
+                '& > .MuiButton-root, & > .MuiStack-root > .MuiButton-root': { flex: '1 1 auto', borderRadius: 999, minHeight: 36, py: 0.5, fontSize: '0.8125rem' },
+                '& > .MuiStack-root': { flexWrap: 'wrap', gap: 1, flex: '1 1 100%', '& > :not(style) ~ :not(style)': { ml: 0 } },
+                ...ON_DARK,
+              }}
+            >
+              {actions}
+            </Stack>
+          )}
+        </PhoneHero>
+      </>
+    );
+  }
+  const EyebrowIcon = icon ?? nav?.item.icon;
   return (
-    // Title and actions share a row when there is room; otherwise the actions wrap below (never squeezing the title).
-    <Stack direction={{ xs: 'column', sm: 'row' }} sx={{ mb: { xs: 2, sm: 3 }, gap: { xs: 1.5, sm: 2 }, flexWrap: { sm: 'wrap' }, justifyContent: 'space-between', alignItems: { xs: 'stretch', sm: 'flex-end' } }}>
-      <Box sx={{ minWidth: 0, flex: { sm: '1 1 300px' } }}>
-        {back ? (
-          <BackButton to={back.to} label={back.label} />
-        ) : (
-          breadcrumbs && (
-            // Phones: the title (and the menu) say where you are; breadcrumbs and the subtitle are left out.
-            <Breadcrumbs sx={{ mb: 0.5, fontSize: '0.75rem', display: { xs: 'none', sm: 'block' } }}>
-              {breadcrumbs.map((b) =>
-                b.to ? (
-                  <Link key={b.label} component={RouterLink} to={b.to} underline="hover" color="textSecondary">
-                    {b.label}
-                  </Link>
-                ) : (
-                  <Typography key={b.label} sx={{ fontSize: 'inherit' }} color="textSecondary">
-                    {b.label}
-                  </Typography>
-                ),
-              )}
-            </Breadcrumbs>
-          )
-        )}
-        <Typography variant="h2" component="h1">
-          {title}
-        </Typography>
-        {subtitle && (
-          <Typography component="div" variant="body2" color="textSecondary" sx={{ mt: 0.5, display: { xs: 'none', sm: 'block' } }}>
-            {subtitle}
-          </Typography>
-        )}
-      </Box>
-      {/* On a phone the actions wrap and share the width, so each is an easy tap. */}
-      {actions && (
-        <Stack
-          direction="row"
-          sx={{
-            flexShrink: 0,
-            flexWrap: 'wrap',
-            gap: 1,
-            justifyContent: { xs: 'stretch', sm: 'flex-end' },
-            '& > .MuiButton-root, & > .MuiStack-root > .MuiButton-root': { flex: { xs: '1 1 auto', sm: '0 0 auto' } },
-            '& > .MuiStack-root': { flexWrap: 'wrap', gap: 1, flex: { xs: '1 1 100%', sm: '0 0 auto' }, '& > :not(style) ~ :not(style)': { ml: 0 } },
-          }}
-        >
-          {actions}
+    <>
+      {back && <BackButton to={back.to} label={back.label} />}
+      {/* The title on the dark, gold-lit band of the side menu; actions on the right (below it when there is no room). */}
+      <Box sx={{ position: 'relative', overflow: 'hidden', borderRadius: 2.5, mb: 2.5, px: 3, py: 2, background: `${tokens.sidebar.glow}, ${tokens.sidebar.surface}`, color: '#F7F3E8', boxShadow: '0 18px 40px -24px rgba(0, 0, 0, 0.55)' }}>
+        <Box aria-hidden sx={{ position: 'absolute', width: 260, height: 260, right: -70, top: -110, borderRadius: '50%', border: '1px solid rgba(var(--brand-rgb), 0.22)' }} />
+        <Box aria-hidden sx={{ position: 'absolute', width: 180, height: 180, right: 40, top: -40, borderRadius: '50%', border: '1px solid rgba(var(--brand-rgb), 0.14)' }} />
+        <Stack direction="row" sx={{ position: 'relative', flexWrap: 'wrap', gap: 2, justifyContent: 'space-between', alignItems: 'center' }}>
+          <Box sx={{ minWidth: 0, flex: '1 1 300px' }}>
+            {/* Top line: the breadcrumbs when the page has them, otherwise the menu section and its icon. */}
+            {!back && breadcrumbs ? (
+              <Breadcrumbs sx={{ fontSize: '0.75rem', color: LIGHT_MUTED, '& .MuiBreadcrumbs-separator': { color: LIGHT_MUTED } }}>
+                {breadcrumbs.map((b) =>
+                  b.to ? (
+                    <Link key={b.label} component={RouterLink} to={b.to} underline="hover" sx={{ color: 'var(--brand-light)', fontWeight: 600 }}>
+                      {b.label}
+                    </Link>
+                  ) : (
+                    <Typography key={b.label} sx={{ fontSize: 'inherit', color: LIGHT_MUTED }}>
+                      {b.label}
+                    </Typography>
+                  ),
+                )}
+              </Breadcrumbs>
+            ) : (
+              (nav?.group || EyebrowIcon) && (
+                <Stack direction="row" spacing={0.75} sx={{ alignItems: 'center', color: 'var(--brand-light)' }}>
+                  {EyebrowIcon && <EyebrowIcon sx={{ fontSize: 15 }} />}
+                  {nav?.group && (
+                    <Typography noWrap sx={{ fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.14em', textTransform: 'uppercase' }}>
+                      {nav.group}
+                    </Typography>
+                  )}
+                </Stack>
+              )
+            )}
+            <Typography component="h1" sx={{ fontFamily: fonts.display, fontSize: { sm: 28, md: 32 }, fontWeight: 600, lineHeight: 1.1, mt: 0.25 }}>
+              {title}
+            </Typography>
+            {subtitle && (
+              // Grey text a page puts in its subtitle takes the banner's light colour; links show in gold.
+              <Typography component="div" variant="body2" sx={{ mt: 0.25, color: LIGHT_MUTED, '& .MuiTypography-root': { color: 'inherit' }, '& a': { color: 'var(--brand-light)' } }}>
+                {subtitle}
+              </Typography>
+            )}
+          </Box>
+          {actions && (
+            <Stack direction="row" sx={{ flexShrink: 0, flexWrap: 'wrap', gap: 1, alignItems: 'center', '& > .MuiStack-root': { flexWrap: 'wrap', gap: 1, '& > :not(style) ~ :not(style)': { ml: 0 } }, ...ON_DARK }}>
+              {actions}
+            </Stack>
+          )}
         </Stack>
-      )}
-    </Stack>
+      </Box>
+    </>
   );
 }

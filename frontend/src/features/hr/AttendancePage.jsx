@@ -103,14 +103,18 @@ function DailyAttendance({ branchId, branchPicker }) {
     }
   };
 
+  const markAllPresent = () => setDraft((d) => Object.fromEntries(Object.entries(d).map(([k, v]) => [k, v ?? 'present'])));
+  // Phones / tablets: the arrows are bordered squares beside the date field.
+  const arrowSx = compact ? { border: 1, borderColor: 'divider', borderRadius: 2, width: 40, height: 40, flexShrink: 0 } : undefined;
+
   return (
     <>
-      {/* Phones: the day picker and the buttons each take a full row, and the date field fills what is left. */}
+      {/* Phones: the day picker takes a full row and the date field fills what is left; Save sits in a bar at the bottom. */}
       <Card sx={{ mb: 2, p: { xs: 1.5, sm: 2 } }}>
         <Stack direction="row" sx={{ alignItems: 'center', flexWrap: 'wrap', gap: 1.5 }}>
           {branchPicker}
-          <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', flexShrink: 0, width: { xs: '100%', sm: 'auto' }, minWidth: 0 }}>
-            <IconButton aria-label={t('Previous day')} onClick={() => setDate(shiftDate(date, -1))}>
+          <Stack direction="row" spacing={compact ? 1 : 0.5} sx={{ alignItems: 'center', flexShrink: 0, width: { xs: '100%', sm: 'auto' }, minWidth: 0 }}>
+            <IconButton aria-label={t('Previous day')} onClick={() => setDate(shiftDate(date, -1))} sx={arrowSx}>
               <ChevronLeftRoundedIcon />
             </IconButton>
             <TextField
@@ -121,7 +125,7 @@ function DailyAttendance({ branchId, branchPicker }) {
               slotProps={{ inputLabel: { shrink: true }, htmlInput: { max: today } }}
               sx={{ width: { xs: 'auto', sm: 190 }, flex: { xs: 1, sm: 'none' }, minWidth: 0 }}
             />
-            <IconButton aria-label={t('Next day')} onClick={() => setDate(shiftDate(date, 1))} disabled={date >= today}>
+            <IconButton aria-label={t('Next day')} onClick={() => setDate(shiftDate(date, 1))} disabled={date >= today} sx={arrowSx}>
               <ChevronRightRoundedIcon />
             </IconButton>
             {date !== today && (
@@ -130,7 +134,7 @@ function DailyAttendance({ branchId, branchPicker }) {
               </Button>
             )}
           </Stack>
-          {editable && (
+          {editable && !compact && (
             <Stack direction="row" spacing={1} sx={{ flexShrink: 0, ml: { xs: 0, sm: 'auto' }, width: { xs: '100%', sm: 'auto' }, '& > *': { flex: { xs: 1, sm: 'none' } }, '& .MuiButton-root': { width: { xs: '100%', sm: 'auto' } } }}>
               {unmarked > 0 && (
                 <Tooltip title={(unmarked > 1 ? t('Mark the {{unmarked}} unmarked employees as present', { unmarked }) : t('Mark the {{unmarked}} unmarked employee as present', { unmarked }))}>
@@ -138,7 +142,7 @@ function DailyAttendance({ branchId, branchPicker }) {
                     variant="outlined"
                     color="secondary"
                     startIcon={<DoneAllRoundedIcon />}
-                    onClick={() => setDraft((d) => Object.fromEntries(Object.entries(d).map(([k, v]) => [k, v ?? 'present'])))}
+                    onClick={markAllPresent}
                     sx={{ whiteSpace: 'nowrap' }}
                   >
                     {t('All present ({{unmarked}})', { unmarked })}
@@ -211,7 +215,8 @@ function DailyAttendance({ branchId, branchPicker }) {
               ))}
             </Box>
           )}
-          <Card>
+          {/* Desktop: one card with a row per person. Phones / tablets: a card per person. */}
+          <Box component={compact ? Stack : Card} spacing={compact ? 1.25 : undefined}>
             {data.employees.map((e, i) => {
               const value = draft[e.id] ?? null;
               const dirty = Boolean(value && value !== e.status);
@@ -223,12 +228,12 @@ function DailyAttendance({ branchId, branchPicker }) {
                 ['holiday', m.holiday],
               ].filter(([, n]) => n);
               return (
-                <Box key={e.id}>
-                  {i > 0 && <Divider />}
+                <Box key={e.id} component={compact ? Card : 'div'}>
+                  {i > 0 && !compact && <Divider />}
                   <Stack
                     direction={{ xs: 'column', md: 'row' }}
                     spacing={1.5}
-                    sx={{ px: { xs: 1.5, sm: 2 }, py: 1.25, alignItems: { md: 'center' }, boxShadow: dirty ? (theme) => `inset 3px 0 0 ${theme.vars.palette.primary.main}` : 'none' }}
+                    sx={{ px: { xs: 1.5, sm: 2 }, py: compact ? 1.5 : 1.25, alignItems: { md: 'center' }, boxShadow: dirty ? (theme) => `inset 3px 0 0 ${theme.vars.palette.primary.main}` : 'none' }}
                   >
                     <Stack direction="row" spacing={1.5} sx={{ flex: 1, minWidth: 0, alignItems: 'center' }}>
                       {e.photoFileId ? (
@@ -243,6 +248,33 @@ function DailyAttendance({ branchId, branchPicker }) {
                           {initials(e.name)}
                         </Avatar>
                       )}
+                      {compact ? (
+                        // Phones / tablets: name over code · designation; this month's tally on its own line.
+                        <Box sx={{ minWidth: 0, flex: 1 }}>
+                          <Stack direction="row" spacing={1} sx={{ alignItems: 'center', minWidth: 0 }}>
+                            <Typography variant="subtitle2" noWrap sx={{ fontSize: '0.9375rem' }}>
+                              {e.name}
+                            </Typography>
+                            {dirty && <Chip label={t('Unsaved')} size="small" color="primary" variant="outlined" sx={{ height: 20, fontSize: 11, flexShrink: 0 }} />}
+                          </Stack>
+                          <Typography variant="caption" color="textSecondary" noWrap component="div">
+                            {e.code} · {e.designation}
+                          </Typography>
+                          <Stack direction="row" spacing={0.5} sx={{ mt: 0.5, flexWrap: 'wrap', rowGap: 0.5 }}>
+                            {monthMarks.length === 0 ? (
+                              <Typography variant="caption" sx={{ color: 'success.main', fontWeight: 600 }} noWrap>
+                                {t('Full month')}
+                              </Typography>
+                            ) : (
+                              monthMarks.map(([st, n]) => (
+                                <Box key={st} component="span" sx={{ px: 0.75, borderRadius: 1, fontSize: 11, fontWeight: 700, lineHeight: '18px', whiteSpace: 'nowrap', ...TONE[st].soft }}>
+                                  {n} {STATUS_SHORT[st]}
+                                </Box>
+                              ))
+                            )}
+                          </Stack>
+                        </Box>
+                      ) : (
                       <Stack direction="row" spacing={1} sx={{ minWidth: 0, alignItems: 'center', flexWrap: 'wrap', rowGap: 0.25 }}>
                         <Typography variant="subtitle2" noWrap>
                           {e.name}
@@ -265,6 +297,7 @@ function DailyAttendance({ branchId, branchPicker }) {
                         )}
                         {dirty && <Chip label={t('Unsaved')} size="small" color="primary" variant="outlined" sx={{ height: 20, fontSize: 11 }} />}
                       </Stack>
+                      )}
                     </Stack>
                     {/* Phones / tablets: the five buttons share the full width — bigger targets, with a short word under each. */}
                     <Box
@@ -283,7 +316,7 @@ function DailyAttendance({ branchId, branchPicker }) {
                             disabled={!editable}
                             onClick={() => setDraft((d) => ({ ...d, [e.id]: s.value }))}
                             sx={{
-                              ...(compact ? { flexDirection: 'column', gap: 0.25, py: 0.4, borderRadius: 2, fontSize: 10.5 } : { gap: 0.5, pl: 0.5, pr: 1, height: 28, borderRadius: 999, fontSize: 12 }),
+                              ...(compact ? { flexDirection: 'column', gap: 0.4, py: 0.75, minHeight: 52, borderRadius: 2, fontSize: 11 } :{ gap: 0.5, pl: 0.5, pr: 1, height: 28, borderRadius: 999, fontSize: 12 }),
                               fontWeight: 600,
                               border: 1,
                               transition: 'all 120ms',
@@ -292,7 +325,7 @@ function DailyAttendance({ branchId, branchPicker }) {
                               '&.Mui-disabled': { opacity: on ? 1 : 0.55 },
                             }}
                           >
-                            <StatusBadge status={s.value} size={compact ? 20 : 18} filled={!on} inverse={on} />
+                            <StatusBadge status={s.value} size={compact ? 22 : 18} filled={!on} inverse={on} />
                             {compact ? <Box component="span" sx={{ lineHeight: 1.1, whiteSpace: 'nowrap' }}>{SHORT_LABEL[s.value]}</Box> : s.value === 'holiday' ? t('Holiday') : s.label}
                           </ButtonBase>
                         );
@@ -302,11 +335,31 @@ function DailyAttendance({ branchId, branchPicker }) {
                 </Box>
               );
             })}
-            <Divider />
-            <Typography variant="caption" color="textSecondary" sx={{ display: 'block', px: 2, py: 1.25 }}>
+            {!compact && <Divider />}
+            <Typography variant="caption" color="textSecondary" sx={{ display: 'block', px: compact ? 0.5 : 2, py: 1.25 }}>
               {data.dayOff ? t('Grey avatar = not marked (on holiday today).') : t('Grey avatar = not marked yet (counts as present).')} {t('Set weekly off and holidays in the Holidays & week off tab.')}
             </Typography>
-          </Card>
+          </Box>
+
+          {/* Phones / tablets: All present and Save stay in reach in a bar above the bottom navigation. */}
+          {compact && editable && (
+            <Box sx={{ position: 'sticky', bottom: 'calc(84px + env(safe-area-inset-bottom))', zIndex: 2, mt: 1 }}>
+              <Stack
+                direction="row"
+                spacing={1}
+                sx={{ p: 1, borderRadius: 3, border: 1, borderColor: 'divider', bgcolor: 'background.paper', boxShadow: '0 10px 30px -8px rgba(23, 23, 23, 0.3)', '& .MuiButton-root': { flex: 1, minHeight: 44, whiteSpace: 'nowrap' } }}
+              >
+                {unmarked > 0 && (
+                  <Button variant="outlined" color="secondary" startIcon={<DoneAllRoundedIcon />} onClick={markAllPresent}>
+                    {t('All present ({{unmarked}})', { unmarked })}
+                  </Button>
+                )}
+                <Button variant="contained" onClick={onSave} disabled={!changed.length || saveState.isLoading}>
+                  {changed.length ? t('Save ({{count}})', { count: changed.length }) : t('Saved')}
+                </Button>
+              </Stack>
+            </Box>
+          )}
         </Box>
       )}
     </>

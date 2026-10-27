@@ -39,6 +39,7 @@ export default function OrdersPage() {
   const deleteStatus = useDeleteStatus('order', data?.items);
   const counts = data?.meta?.counts ?? {};
   const multiBranch = session.branches.length > 1;
+  const tabs = TABS.map((tab) => ({ value: tab.value, label: tab.label, short: tab.short, count: tab.count(counts) }));
 
   const columns = [
     {
@@ -130,11 +131,13 @@ export default function OrdersPage() {
     },
   ];
 
+  const summary = data?.meta?.summary;
   return (
     <>
       <PageHeader
         title={t('Orders')}
         subtitle={t('Custom orders and bookings: what the customer wants, the advance paid, and when it is due.')}
+        phoneSubtitle={summary ? t('{{open}} open · {{ready}} ready to deliver', { open: summary.open, ready: summary.ready }) : t('Custom orders and bookings')}
         actions={
           canCreate && (
             <Button variant="contained" startIcon={<AddRoundedIcon />} onClick={() => navigate('/orders/new')}>
@@ -151,7 +154,7 @@ export default function OrdersPage() {
           <SummaryCard icon={SavingsOutlinedIcon} label={t('Advance held')} value={formatINR(data.meta.summary.advancePaise, { decimals: 0 })} caption={t('Taken on open orders')} tone="blue" />
         </SummaryCards>
       )}
-      <ViewTabs value={list.filters.status} onChange={(v) => list.setFilter('status', v)} items={TABS.map((tab) => ({ value: tab.value, label: tab.label, short: tab.short, count: tab.count(counts) }))} />
+      <ViewTabs value={list.filters.status} onChange={(v) => list.setFilter('status', v)} items={tabs} />
       <DataTable
         columns={columns}
         rows={data?.items}

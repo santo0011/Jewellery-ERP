@@ -1,13 +1,13 @@
 import AccountBalanceWalletOutlinedIcon from '@mui/icons-material/AccountBalanceWalletOutlined';
 import ChevronLeftRoundedIcon from '@mui/icons-material/ChevronLeftRounded';
 import ChevronRightRoundedIcon from '@mui/icons-material/ChevronRightRounded';
-import Inventory2OutlinedIcon from '@mui/icons-material/Inventory2Outlined';
 import PaymentsOutlinedIcon from '@mui/icons-material/PaymentsOutlined';
 import ReceiptLongOutlinedIcon from '@mui/icons-material/ReceiptLongOutlined';
 import TrendingUpRoundedIcon from '@mui/icons-material/TrendingUpRounded';
 import { Box, Button, Card, CardContent, Divider, Grid, IconButton, MenuItem, Stack, TextField, Typography } from '@mui/material';
 import { formatINR } from '@jerp/shared';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useSelector } from 'react-redux';
 import { useNavigate } from 'react-router';
 import PageHeader from '../../components/PageHeader.jsx';
 import { ErrorState, LoadingState } from '../../components/StateViews.jsx';
@@ -141,9 +141,16 @@ export default function ProfitPage() {
   const { data: session } = useSession();
   const canSeeExpenses = usePermission('expense.view');
   const [month, setMonth] = useState(thisMonth());
-  const [branchId, setBranchId] = useState('');
-  const { data, isLoading, isFetching, error, refetch } = useFinanceSummaryQuery({ month, ...(branchId && { branchId }) });
+  // Starts on the branch picked in the top bar (all branches when that is "All"), and follows it when it changes.
+  const activeBranchId = useSelector((s) => s.auth.activeBranchId);
+  const branchView = useSelector((s) => s.auth.branchView);
+  const workingBranch = branchView === 'all' ? '' : (activeBranchId ?? '');
+  const [branchId, setBranchId] = useState(workingBranch);
+  useEffect(() => setBranchId(workingBranch), [workingBranch]);
   const branches = session?.branches ?? [];
+  // A branch this user cannot see (e.g. a stale saved one) falls back to all branches.
+  const shownBranch = branches.some((b) => b.id === branchId) ? branchId : '';
+  const { data, isLoading, isFetching, error, refetch } = useFinanceSummaryQuery({ month, ...(shownBranch && { branchId: shownBranch }) });
 
   const totals = data?.totals;
   const p = data?.previous;
@@ -157,7 +164,7 @@ export default function ProfitPage() {
         actions={
           <Stack direction="row" sx={{ gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
             {branches.length > 1 && (
-              <TextField select size="small" value={branchId} onChange={(e) => setBranchId(e.target.value)} sx={{ minWidth: 160 }} slotProps={{ select: { displayEmpty: true } }}>
+              <TextField select size="small" value={shownBranch}onChange={(e) => setBranchId(e.target.value)} sx={{ minWidth: 160 }} slotProps={{ select: { displayEmpty: true } }}>
                 <MenuItem value="">{t('All branches')}</MenuItem>
                 {branches.map((b) => (
                   <MenuItem key={b.id} value={b.id}>
@@ -179,7 +186,6 @@ export default function ProfitPage() {
         <Box sx={{ opacity: isFetching ? 0.6 : 1, transition: 'opacity 150ms' }}>
           <SummaryCards>
             <SummaryCard icon={ReceiptLongOutlinedIcon} label={t('Total sales')} value={inr(totals.salesPaise)} caption={change(totals.salesPaise, p.salesPaise) ?? t('Before GST, less returns')} tone="blue" />
-            <SummaryCard icon={Inventory2OutlinedIcon} label={t('Cost of goods')} value={inr(totals.cogsPaise)} caption={t('What the pieces sold cost')} tone="grey" />
             <SummaryCard icon={TrendingUpRoundedIcon} label={t('Gross profit')} value={signed(totals.grossProfitPaise)} caption={t('{{pct}}% margin', { pct: pct(totals.grossProfitPaise, totals.salesPaise) })} tone="gold" />
             <SummaryCard icon={PaymentsOutlinedIcon} label={t('Expenses')} value={inr(totals.expensesPaise)} caption={change(totals.expensesPaise, p.expensesPaise, { cost: true }) ?? t('Shop expenses + salary')} tone="amber" />
             <SummaryCard

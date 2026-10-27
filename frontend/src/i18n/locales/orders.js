@@ -135,6 +135,8 @@ export default {
   "Paid / Due": ["পরিশোধিত / বকেয়া", "भुगतान / बकाया"],
   "of {{estimated}}": ["{{estimated}}-এর মধ্যে", "{{estimated}} में से"],
   "View order": ["অর্ডার দেখুন", "ऑर्डर देखें"],
+  "{{open}} open · {{ready}} ready to deliver": ["{{open}}টি চালু · {{ready}}টি ডেলিভারির জন্য তৈরি", "{{open}} चालू · {{ready}} डिलीवरी के लिए तैयार"],
+  "Custom orders and bookings": ["কাস্টম অর্ডার ও বুকিং", "कस्टम ऑर्डर और बुकिंग"],
   "Custom orders and bookings: what the customer wants, the advance paid, and when it is due.": ["কাস্টম অর্ডার ও বুকিং: গ্রাহক কী চান, দেওয়া অগ্রিম, আর কবে দিতে হবে।", "कस्टम ऑर्डर और बुकिंग: ग्राहक क्या चाहते हैं, दिया गया अग्रिम, और कब देना है।"],
   "Worth about {{estimated}}": ["মূল্য প্রায় {{estimated}}", "क़ीमत लगभग {{estimated}}"],
   "Being made or waiting": ["তৈরি হচ্ছে বা অপেক্ষায়", "बन रहा है या प्रतीक्षा में"],

@@ -316,6 +316,10 @@ export default function CustomerDetailPage() {
     <>
       <PageHeader
         back={{ to: '/customers', label: t('Customers') }}
+        // Phones: initials in the gold circle, the name, and code · mobile (Inactive added when so).
+        avatar={initials(c.name)}
+        phoneTitle={c.name}
+        phoneSubtitle={`${c.code} · ${c.mobile}${c.status === 'inactive' ? ` · ${t('Inactive')}` : ''}`}
         title={
           <Stack direction="row" spacing={2} sx={{ alignItems: 'center' }} component="span">
             <Box component="span" sx={{ width: 52, height: 52, borderRadius: '50%', flexShrink: 0, display: 'grid', placeItems: 'center', background: tokens.sidebar.goldGradient, color: 'var(--brand-contrast)', fontFamily: fonts.display, fontSize: 22, fontWeight: 700, boxShadow: '0 6px 18px rgba(var(--brand-rgb), 0.35)' }}>

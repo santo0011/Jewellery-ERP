@@ -27,7 +27,7 @@ const PURITY_CHOICES = METAL_OPTIONS.flatMap((m) =>
 
 export const emptyOldGoldRow = () => ({ key: newKey(), description: '', choice: 'gold:916', gross: '', less: '', rate: '', deduction: '', rateTouched: false });
 
-/** A row as the API wants it, with its preview value; `error` says what is missing. */
+/** A row as the API wants it, with its preview value; `errors` says what is wrong in each field, `error` the first. */
 export function readOldGoldRow(row) {
   const { metal, purity } = PURITY_CHOICES.find((c) => c.value === row.choice) ?? {};
   const line = {
@@ -39,13 +39,14 @@ export function readOldGoldRow(row) {
     ratePerGramPaise: safe(toPaise, row.rate),
     deductionBps: safe(toBps, row.deduction),
   };
-  let error = null;
-  if (line.description.length < 2) error = t('Describe the piece');
-  else if (!(line.grossWeightMg > 0)) error = t('Enter the weight');
-  else if (!(line.lessWeightMg >= 0) || line.lessWeightMg >= line.grossWeightMg) error = t('Less weight must be below the weight');
-  else if (!(line.ratePerGramPaise > 0)) error = t('Enter the rate');
-  else if (!(line.deductionBps >= 0) || line.deductionBps > 5000) error = t('Deduction can be 0–50%');
-  return { line, error, value: error ? null : valueOldGold(line) };
+  const errors = {};
+  if (line.description.length < 2) errors.description = t('Describe the piece');
+  if (!(line.grossWeightMg > 0)) errors.gross = t('Enter the weight');
+  else if (!(line.lessWeightMg >= 0) || line.lessWeightMg >= line.grossWeightMg) errors.less = t('Less weight must be below the weight');
+  if (!(line.ratePerGramPaise > 0)) errors.rate = t('Enter the rate');
+  if (!(line.deductionBps >= 0) || line.deductionBps > 5000) errors.deduction = t('Deduction can be 0–50%');
+  const error = Object.values(errors)[0] ?? null;
+  return { line, errors, error, value: error ? null : valueOldGold(line) };
 }
 
 /** Rows ready to send, or null while any row is incomplete. Empty rows are ignored. */
@@ -70,12 +71,14 @@ export default function OldGoldLinesEditor({ rows, onChange, dense = false }) {
   return (
     <Stack spacing={1.5}>
       {rows.map((row, n) => {
-        const { error, value } = readOldGoldRow(row);
+        const { errors, error, value } = readOldGoldRow(row);
         const started = row.description || row.gross || row.rate;
+        // Once a piece is started, each field with a problem is outlined red with its own message.
+        const fieldError = (name) => (started && errors[name] ? { error: true, helperText: errors[name] } : {});
         return (
           <Box key={row.key} sx={{ p: dense ? 1.5 : 2, borderRadius: 2, border: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
             <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25} sx={{ alignItems: { sm: 'flex-start' } }}>
-              <TextField size="small" label={t('Piece {{value}}', { value: n + 1 })} placeholder={t('e.g. Old bangle')} value={row.description} onChange={(e) => update(row.key, { description: e.target.value })} sx={{ flex: 1 }} slotProps={{ htmlInput: { maxLength: 80 } }} />
+              <TextField size="small" label={t('Piece {{value}}', { value: n + 1 })} placeholder={t('e.g. Old bangle')} value={row.description} onChange={(e) => update(row.key, { description: e.target.value })} {...fieldError('description')} sx={{ flex: 1 }} slotProps={{ htmlInput: { maxLength: 80 } }} />
               <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start' }}>
                 <TextField
                   select
@@ -99,20 +102,22 @@ export default function OldGoldLinesEditor({ rows, onChange, dense = false }) {
               </Stack>
             </Stack>
             <Box sx={{ mt: 1.25, display: 'grid', gap: 1.25, gridTemplateColumns: { xs: '1fr 1fr', sm: 'repeat(4, 1fr)' } }}>
-              <TextField size="small" label={t('Weight')} value={row.gross} onChange={(e) => update(row.key, { gross: numeric(e.target.value) })} slotProps={{ input: { endAdornment: <InputAdornment position="end">{t('g')}</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }} />
-              <TextField size="small" label={t('Less (stones)')} value={row.less} onChange={(e) => update(row.key, { less: numeric(e.target.value) })} slotProps={{ input: { endAdornment: <InputAdornment position="end">{t('g')}</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }} />
+              <TextField size="small" label={t('Weight')} value={row.gross} onChange={(e) => update(row.key, { gross: numeric(e.target.value) })} {...fieldError('gross')} slotProps={{ input: { endAdornment: <InputAdornment position="end">{t('g')}</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }} />
+              <TextField size="small" label={t('Less (stones)')} value={row.less} onChange={(e) => update(row.key, { less: numeric(e.target.value) })} {...fieldError('less')} slotProps={{ input: { endAdornment: <InputAdornment position="end">{t('g')}</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }} />
               <TextField
                 size="small"
                 label={t('Rate')}
                 value={row.rate}
                 onChange={(e) => update(row.key, { rate: numeric(e.target.value), rateTouched: true })}
+                {...fieldError('rate')}
                 slotProps={{ input: { startAdornment: <InputAdornment position="start">₹</InputAdornment>, endAdornment: <InputAdornment position="end">{t('/g')}</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }}
               />
-              <TextField size="small" label={t('Deduction')} value={row.deduction} onChange={(e) => update(row.key, { deduction: numeric(e.target.value) })} slotProps={{ input: { endAdornment: <InputAdornment position="end">%</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }} />
+              <TextField size="small" label={t('Deduction')} value={row.deduction} onChange={(e) => update(row.key, { deduction: numeric(e.target.value) })} {...fieldError('deduction')} slotProps={{ input: { endAdornment: <InputAdornment position="end">%</InputAdornment> }, htmlInput: { inputMode: 'decimal' } }} />
             </Box>
             <Stack direction="row" sx={{ mt: 1, justifyContent: 'space-between', alignItems: 'baseline', flexWrap: 'wrap', gap: 1 }}>
-              <Typography variant="caption" color={started && error ? 'warning.main' : 'textSecondary'}>
-                {started && error ? error : value ? (value.deductionPaise ? t('Net {{netWeight}} · fine {{fineWeight}} · less {{deduction}}', { netWeight: formatWeight(value.netWeightMg), fineWeight: formatWeight(value.fineWeightMg), deduction: formatINR(value.deductionPaise, { decimals: 0 }) }) : t('Net {{netWeight}} · fine {{fineWeight}}', { netWeight: formatWeight(value.netWeightMg), fineWeight: formatWeight(value.fineWeightMg) })) : t('Rate starts at today’s selling rate; change it to what you offer.')}
+              {/* Problems show on their fields; this line shows the result (or the hint before anything is typed). */}
+              <Typography variant="caption" color={started && error ? 'error.main' : 'textSecondary'}>
+                {started && error ? t('Fix the fields marked in red') : value ? (value.deductionPaise ? t('Net {{netWeight}} · fine {{fineWeight}} · less {{deduction}}', { netWeight: formatWeight(value.netWeightMg), fineWeight: formatWeight(value.fineWeightMg), deduction: formatINR(value.deductionPaise, { decimals: 0 }) }) : t('Net {{netWeight}} · fine {{fineWeight}}', { netWeight: formatWeight(value.netWeightMg), fineWeight: formatWeight(value.fineWeightMg) })) : t('Rate starts at today’s selling rate; change it to what you offer.')}
               </Typography>
               <Typography variant="body2" sx={{ fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
                 {value ? formatINR(value.valuePaise) : '—'}

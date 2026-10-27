@@ -303,4 +303,5 @@ export default {
   "Best day": ["সেরা দিন", "सबसे अच्छा दिन"],
   "Every day of {{monthName}}": ["{{monthName}}-এর প্রতিদিন", "{{monthName}} का हर दिन"],
   "No sales yet this month": ["এই মাসে এখনও কোনো বিক্রি নেই", "इस महीने अभी कोई बिक्री नहीं"],
+  "Fix the fields marked in red": ["লাল চিহ্নিত ঘরগুলো ঠিক করুন", "लाल निशान वाले खाने ठीक करें"],
 };

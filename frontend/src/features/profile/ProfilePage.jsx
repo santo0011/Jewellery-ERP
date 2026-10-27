@@ -27,7 +27,6 @@ import { z } from 'zod';
 import ConfirmDialog from '../../components/ConfirmDialog.jsx';
 import PasswordField from '../../components/form/PasswordField.jsx';
 import RHFTextField from '../../components/form/RHFTextField.jsx';
-import PageHeader from '../../components/PageHeader.jsx';
 import SummaryCards, { SummaryCard } from '../../components/SummaryCards.jsx';
 import { ErrorState, LoadingState } from '../../components/StateViews.jsx';
 import { useTabParam } from '../../hooks/useListParams.js';
@@ -541,7 +540,7 @@ export default function ProfilePage() {
 
   return (
     <>
-      <PageHeader title={t('Profile & security')} subtitle={t('Manage your personal details, password and signed-in devices.')} />
+      {/* No page title card: the profile's own dark card (name, role, sign out) heads the page. */}
       <Stack spacing={{ xs: 2, sm: 3 }}>
         <ProfileHero session={session} />
         {session.user.mustChangePassword && <Alert severity="warning">{t('Your administrator has asked you to change your password. Please set a new one below.')}</Alert>}

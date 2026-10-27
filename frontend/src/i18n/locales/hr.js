@@ -350,6 +350,8 @@ export default {
   "Everyone has been paid.": ["সবাইকে দেওয়া হয়েছে।", "सबको भुगतान हो गया है।"],
   "No one has been paid yet.": ["এখনও কাউকে দেওয়া হয়নি।", "अभी किसी को भुगतान नहीं हुआ।"],
   "Search name or code": ["নাম বা কোড দিয়ে খুঁজুন", "नाम या कोड से खोजें"],
+  "No one matches “{{search}}”": ["“{{search}}” নামে কাউকে পাওয়া যায়নি", "“{{search}}” से कोई मेल नहीं खाता"],
+  "Try another name or code.": ["অন্য নাম বা কোড দিয়ে খুঁজুন।", "कोई दूसरा नाम या कोड आज़माएँ।"],
   "All · {{count}}": ["সব · {{count}}", "सभी · {{count}}"],
   "Unpaid · {{unpaidCount}}": ["অপরিশোধিত · {{unpaidCount}}", "बाकी · {{unpaidCount}}"],
   "Paid · {{value}}": ["দেওয়া হয়েছে · {{value}}", "भुगतान हुआ · {{value}}"],

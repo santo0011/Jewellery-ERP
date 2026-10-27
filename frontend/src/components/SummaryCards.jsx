@@ -53,7 +53,8 @@ export function SummaryCard({ icon: Icon, label, value, caption, tone = 'gold', 
       </Typography>
 
       {(caption || onClick) && (
-        <Box sx={{ position: 'relative', display: hideCaptionOnPhone && !onClick ? { xs: 'none', sm: 'flex' } : 'flex', alignItems: 'flex-start', gap: 0.75, mt: 'auto', pt: 0.5 }}>
+        // Phones drop this line on every card, tappable or not (the arrow only shows on hover), so a row's cards match.
+        <Box sx={{ position: 'relative', display: hideCaptionOnPhone ? { xs: 'none', sm: 'flex' } : 'flex', alignItems: 'flex-start', gap: 0.75, mt: 'auto', pt: 0.5 }}>
           {caption ? (
             <>
               <Box sx={{ width: 6, height: 6, borderRadius: '50%', flexShrink: 0, mt: { xs: '0.4em', sm: '0.45em' }, bgcolor: t.fg, opacity: 0.8 }} />

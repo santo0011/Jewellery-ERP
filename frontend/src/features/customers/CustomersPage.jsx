@@ -45,12 +45,13 @@ function BalanceLine({ paise, tone, label, hint }) {
   return (
     <Box sx={{ textAlign: { md: 'right' } }}>
       <Amount paise={paise} tone={tone} decimals={0} sx={{ fontWeight: 800, fontSize: '0.9375rem' }} />
-      <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', justifyContent: { md: 'flex-end' }, mt: 0.25 }}>
-        <Box component="span" sx={{ px: 0.75, py: 0.125, borderRadius: 1, fontSize: '0.625rem', fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: MONEY_TONE[tone], bgcolor: tone === 'due' ? 'rgba(155, 44, 44, 0.08)' : 'rgba(46, 107, 79, 0.10)' }}>
+      {/* The label never breaks; on a narrow card the hint wraps under it instead. */}
+      <Stack direction="row" sx={{ alignItems: 'center', justifyContent: { md: 'flex-end' }, flexWrap: 'wrap', columnGap: 0.5, rowGap: 0.25, mt: 0.25 }}>
+        <Box component="span" sx={{ flexShrink: 0, whiteSpace: 'nowrap', px: 0.75, py: 0.125, borderRadius: 1, fontSize: '0.625rem', fontWeight: 800, letterSpacing: '0.06em', textTransform: 'uppercase', color: MONEY_TONE[tone], bgcolor: tone === 'due' ? 'rgba(155, 44, 44, 0.08)' : 'rgba(46, 107, 79, 0.10)' }}>
           {label}
         </Box>
         {hint && (
-          <Typography component="span" sx={{ fontSize: '0.6875rem', color: 'text.secondary', whiteSpace: 'nowrap' }}>
+          <Typography component="span" sx={{ fontSize: '0.6875rem', color: 'text.secondary', overflowWrap: 'normal' }}>
             {hint}
           </Typography>
         )}
@@ -134,7 +135,7 @@ export default function CustomersPage() {
             <Typography variant="subtitle2" sx={{ fontWeight: 700, lineHeight: 1.3 }}>
               {c.name}
             </Typography>
-            <Typography variant="body2" color="textSecondary" sx={{ fontSize: '0.75rem' }}>
+            <Typography variant="body2" color="textSecondary" noWrap sx={{ fontSize: '0.75rem' }}>
               {c.code} · {c.mobile}
             </Typography>
           </Box>

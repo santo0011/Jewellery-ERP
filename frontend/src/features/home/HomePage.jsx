@@ -50,8 +50,8 @@ export default function HomePage() {
 
   return (
     <>
-      {/* The greeting on the dark, gold-lit band of the side menu, with the counter's everyday jobs. */}
-      <Box sx={{ position: "relative", overflow: "hidden", borderRadius: 4, mb: { xs: 2, sm: 2.5 }, px: { xs: 2, sm: 3 }, py: { xs: 2.25, sm: 3 }, background: `${tokens.sidebar.glow}, ${tokens.sidebar.surface}`, color: "#F7F3E8", boxShadow: "0 18px 40px -24px rgba(0, 0, 0, 0.55)" }}>
+      {/* The greeting on the dark, gold-lit band of the side menu, with the counter's everyday jobs. Not on phones. */}
+      <Box sx={{ display: { xs: "none", sm: "block" }, position: "relative", overflow: "hidden",borderRadius: 2.5, mb: { xs: 2, sm: 2.5 }, px: { xs: 2, sm: 3 }, py: { xs: 2.25, sm: 3 }, background: `${tokens.sidebar.glow}, ${tokens.sidebar.surface}`, color: "#F7F3E8", boxShadow: "0 18px 40px -24px rgba(0, 0, 0, 0.55)" }}>
         {/* Two faint gold rings, for depth. */}
         <Box aria-hidden sx={{ position: "absolute", width: 260, height: 260, right: -70, top: -110, borderRadius: "50%", border: "1px solid rgba(var(--brand-rgb), 0.22)" }} />
         <Box aria-hidden sx={{ position: "absolute", width: 180, height: 180, right: 40, top: -40, borderRadius: "50%", border: "1px solid rgba(var(--brand-rgb), 0.14)" }} />
@@ -108,7 +108,8 @@ export default function HomePage() {
         </Alert>
       )}
 
-      {showDashboard && <BranchDashboard branchId={activeBranchId ?? branches[0]?.id} />}
+      {/* On phones the dashboard's own header carries the greeting. */}
+      {showDashboard && <BranchDashboard branchId={activeBranchId ?? branches[0]?.id} greeting={`${hello}, ${user.name.split(" ")[0]}`} />}
     </>
   );
 }

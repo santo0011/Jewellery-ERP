@@ -17,6 +17,7 @@ import SummaryCards, { SummaryCard } from '../../components/SummaryCards.jsx';
 import { ErrorState, LoadingState } from '../../components/StateViews.jsx';
 import { usePermission } from '../../hooks/usePermission.js';
 import { getLocale, t, tValue } from '../../i18n/index.js';
+import PhoneHero from '../../components/PhoneHero.jsx';
 import { fonts } from '../../theme/tokens.js';
 import { formatDate } from '../../utils/format.js';
 import { useFinanceSummaryQuery } from '../finance/financeApi.js';
@@ -62,7 +63,7 @@ const timeOf = (at) => new Date(at).toLocaleTimeString(getLocale(), { hour: 'num
 const dayOf = (at) => new Date(at).toLocaleDateString(getLocale(), { day: 'numeric', month: 'short' });
 
 /** The branch at a glance: the period's figures, sales trend and mix, best sellers, stock, orders and latest bills. */
-export default function BranchDashboard({ branchId }) {
+export default function BranchDashboard({ branchId, greeting }) {
   const canSeeMonth = usePermission('report.finance');
   const [period, setPeriod] = useState('today');
   const { data, isLoading, isFetching, error, refetch } = useBranchDashboardQuery({ branchId, period }, { skip: !branchId });
@@ -76,7 +77,10 @@ export default function BranchDashboard({ branchId }) {
 
   return (
     <Box sx={{ opacity: isFetching ? 0.6 : 1, transition: 'opacity 150ms' }}>
-      {/* Which branch and dates, and the period. */}
+      {phone ? (
+        <PhoneHeader data={data} period={period} onPeriod={setPeriod} greeting={greeting} />
+      ) : (
+      /* Which branch and dates, and the period. */
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1.25} sx={{ mb: { xs: 1.75, sm: 2.25 }, alignItems: { sm: 'center' }, justifyContent: 'space-between' }}>
         <Stack direction="row" spacing={1.25} sx={{ alignItems: 'center', minWidth: 0 }}>
           <Box sx={(theme) => ({ width: 36, height: 36, flexShrink: 0, borderRadius: '50%', display: 'grid', placeItems: 'center', ...goldBg(theme), color: 'var(--brand-contrast)' })}>
@@ -96,6 +100,7 @@ export default function BranchDashboard({ branchId }) {
         </Stack>
         <PeriodSwitch value={period} options={PERIODS} onChange={setPeriod} short={phone} />
       </Stack>
+      )}
 
       {sales && (
         <SummaryCards>
@@ -180,6 +185,29 @@ export default function BranchDashboard({ branchId }) {
   );
 }
 
+/**
+ * Phones: a small dark card in place of the greeting banner — the greeting, branch and dates, and the period.
+ */
+function PhoneHeader({ data, period, onPeriod, greeting }) {
+  return (
+    <PhoneHero
+      icon={PlaceOutlinedIcon}
+      title={greeting ?? data.branch.name}
+      subtitle={
+        <>
+          <Box component="span" sx={{ color: 'var(--brand-light)', fontWeight: 700 }}>
+            {data.branch.name}
+          </Box>
+          {' · '}
+          {data.range.from === data.range.to ? formatDate(data.range.from) : `${formatDate(data.range.from)} – ${formatDate(data.range.to)}`}
+        </>
+      }
+    >
+      <PeriodSwitch value={period} options={PERIODS} onChange={onPeriod} short onDark />
+    </PhoneHero>
+  );
+}
+
 /** Money received by mode, as a ring; what was left on credit is owed, not received, so it sits apart below. */
 function PaymentMix({ rows }) {
   const received = rows.filter((r) => r.key !== 'credit').map((r) => ({ ...r, label: t(r.label) }));
@@ -218,11 +246,12 @@ function MonthSales({ branchId }) {
           <SalesExpenseChart days={data.days} height={210} salesOnly />
         </Grid>
         <Grid size={{ xs: 12, md: 3 }}>
-          <Stack direction={{ xs: 'row', md: 'column' }} spacing={1.25}>
+          {/* Phones: the three figures share one row (two above, the best day under them on very narrow screens). */}
+          <Box sx={{ display: 'grid', gridTemplateColumns: { xs: 'repeat(auto-fit, minmax(130px, 1fr))', md: '1fr' }, gap: 1.25 }}>
             <StatTile label={t('Sales')} value={inr(total)} />
             <StatTile label={t('Daily average')} value={inr(soFar.length ? Math.round(total / soFar.length) : 0)} />
             <StatTile label={best ? t('Best day ({{day}})', { day: Number(best.date.slice(8)) }) : t('Best day')} value={inr(best?.salesPaise ?? 0)} tone="success.main" />
-          </Stack>
+          </Box>
         </Grid>
       </Grid>
     </Panel>

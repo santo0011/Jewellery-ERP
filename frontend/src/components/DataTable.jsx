@@ -27,6 +27,8 @@ const cellValue = (column, row) => (column.render ? column.render(row) : (row[co
 function MobileList({ columns, rows, getRowId }) {
   const [primary, ...rest] = columns.filter((c) => !c.desktopOnly && c.key !== 'actions');
   const actions = columns.find((c) => c.key === 'actions');
+  // More than two buttons (wider than actionsWidth(2)) would squeeze the title, so they get their own row at the bottom.
+  const actionsBelow = Boolean(actions) && (actions.width ?? 0) > 96;
   return (
     // Phones: one card per row; tablets: two side by side.
     <Box sx={{ p: 1, display: 'grid', gap: 1, gridTemplateColumns: { xs: '1fr', sm: 'repeat(2, minmax(0, 1fr))' } }}>
@@ -34,7 +36,7 @@ function MobileList({ columns, rows, getRowId }) {
         <Box key={getRowId(row)} sx={{ px: 1.75, py: 1.5, borderRadius: 2.5, border: 1, borderColor: 'divider', bgcolor: 'background.paper', boxShadow: '0 1px 2px rgba(23, 23, 23, 0.04)' }}>
           <Stack direction="row" spacing={1} sx={{ alignItems: 'flex-start', justifyContent: 'space-between' }}>
             <Box sx={{ minWidth: 0, flex: 1, fontWeight: 600, overflowWrap: 'anywhere' }}>{cellValue(primary, row)}</Box>
-            {actions && <Box sx={{ flexShrink: 0, mr: -0.75, mt: -0.5 }}>{actions.render(row)}</Box>}
+            {actions && !actionsBelow && <Box sx={{ flexShrink: 0, mr: -0.75, mt: -0.5 }}>{actions.render(row)}</Box>}
           </Stack>
           {rest.length > 0 && (
             <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', columnGap: 1.5, rowGap: 1.25, mt: 1.25, pt: 1.25, borderTop: 1, borderColor: 'divider', borderTopStyle: 'dashed' }}>
@@ -48,6 +50,7 @@ function MobileList({ columns, rows, getRowId }) {
               ))}
             </Box>
           )}
+          {actionsBelow && <Box sx={{ display: 'flex', justifyContent: 'flex-end', mt: 1, mr: -0.75, mb: -0.5, pt: 0.5, borderTop: 1, borderColor: 'divider', borderTopStyle: 'dashed' }}>{actions.render(row)}</Box>}
         </Box>
       ))}
     </Box>

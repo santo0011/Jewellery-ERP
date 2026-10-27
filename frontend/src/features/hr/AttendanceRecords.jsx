@@ -9,6 +9,7 @@ import { Alert, Box, Card, IconButton, Link, Stack, Table, TableBody, TableCell,
 import { ATTENDANCE_STATUSES } from '@jerp/shared';
 import { useMemo, useState } from 'react';
 import { Link as RouterLink } from 'react-router';
+import SearchField from '../../components/SearchField.jsx';
 import SummaryCards, { SummaryCard } from '../../components/SummaryCards.jsx';
 import { EmptyState, ErrorState, LoadingState } from '../../components/StateViews.jsx';
 import { useAttendanceRegisterQuery } from './hrApi.js';
@@ -38,7 +39,8 @@ export default function AttendanceRecords({ branchId, branchPicker }) {
   const [month, setMonth] = useState(thisMonth());
   const { data, isLoading, isFetching, error, refetch } = useAttendanceRegisterQuery({ branchId, month }, { skip: !branchId });
 
-  const rows = useMemo(() => {
+  const [q, setQ] = useState('');
+  const allRows = useMemo(() => {
     if (!data) return [];
     return data.employees.map((e) => {
       const c = { absent: 0, half_day: 0, paid_leave: 0, holiday: 0, present: 0 };
@@ -57,6 +59,9 @@ export default function AttendanceRecords({ branchId, branchPicker }) {
       return { ...e, cells, c, paid: e.eligibleDays - c.absent - c.half_day * 0.5 };
     });
   }, [data, month]);
+  // Search narrows the cards and both tables to the matching staff.
+  const needle = q.trim().toLowerCase();
+  const rows = needle ? allRows.filter((e) => `${e.name} ${e.code} ${e.designation ?? ''}`.toLowerCase().includes(needle)) : allRows;
 
   const totals = rows.reduce((acc, r) => ({ absent: acc.absent + r.c.absent, half: acc.half + r.c.half_day, leave: acc.leave + r.c.paid_leave }), { absent: 0, half: 0, leave: 0 });
   const days = data ? Array.from({ length: data.days }, (_, i) => i + 1) : [];
@@ -77,6 +82,9 @@ export default function AttendanceRecords({ branchId, branchPicker }) {
               <ChevronRightRoundedIcon />
             </IconButton>
           </Stack>
+          <Box sx={{ width: { xs: '100%', sm: 'auto' }, flex: { sm: '1 1 220px' }, maxWidth: { sm: 320 } }}>
+            <SearchField value={q} onChange={setQ} placeholder={t('Search name or code')} maxWidth="100%" />
+          </Box>
           {holidays.length > 0 && (
             <Typography variant="body2" color="textSecondary" sx={{ ml: { sm: 'auto' }, width: { xs: '100%', sm: 'auto' } }}>
               {t('Holidays: {{holidays}}', { holidays: holidays.map(([d, n]) => `${Number(d.slice(8))} ${n}`).join(' · ') })}
@@ -95,9 +103,13 @@ export default function AttendanceRecords({ branchId, branchPicker }) {
         <LoadingState />
       ) : error ? (
         <ErrorState error={error} onRetry={refetch} />
-      ) : !rows.length ? (
+      ) : !allRows.length ? (
         <Card>
           <EmptyState title={t('No employees in {{monthLabel}}', { monthLabel: monthLabel(month) })} description={t('Only staff on this branch’s rolls during the month appear here.')} />
+        </Card>
+      ) : !rows.length ? (
+        <Card>
+          <EmptyState title={t('No one matches “{{search}}”', { search: q.trim() })} description={t('Try another name or code.')} />
         </Card>
       ) : (
         <Box sx={{ opacity: isFetching ? 0.6 : 1, transition: 'opacity 120ms' }}>

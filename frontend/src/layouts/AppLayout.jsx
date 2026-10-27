@@ -116,7 +116,7 @@ function MobileBottomNav({ onMore }) {
 export default function AppLayout() {
   const desktop = useMediaQuery((theme) => theme.breakpoints.up('md'));
   const phone = useMediaQuery((theme) => theme.breakpoints.down('sm'));
-  // Once the page scrolls, the top bar lifts off it with a soft shadow.
+  // The top bar always has a soft shadow; it deepens once the page scrolls.
   const scrolled = useScrollTrigger({ disableHysteresis: true, threshold: 4 });
   const [mobileOpen, setMobileOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(readCollapsed);
@@ -192,17 +192,17 @@ export default function AppLayout() {
           elevation={0}
           sx={{
             pt: 'env(safe-area-inset-top)',
-            // Frosted glass everywhere, a gold hairline underneath, and a soft shadow once the page scrolls.
+            // Frosted glass everywhere, a gold hairline underneath, and a soft shadow (deeper once the page scrolls).
             bgcolor: 'rgba(255, 253, 248, 0.82)',
             backdropFilter: 'saturate(180%) blur(16px)',
             WebkitBackdropFilter: 'saturate(180%) blur(16px)',
-            boxShadow: scrolled ? '0 8px 24px -14px rgba(23, 23, 23, 0.35)' : 'none',
+            boxShadow: scrolled ? '0 10px 28px -12px rgba(23, 23, 23, 0.38)' : '0 4px 16px -8px rgba(23, 23, 23, 0.18)',
             transition: 'box-shadow 200ms ease',
             '&::after': { content: '""', position: 'absolute', left: 0, right: 0, bottom: 0, height: '1px', background: 'linear-gradient(90deg, rgba(var(--brand-rgb), 0) 0%, rgba(var(--brand-rgb), 0.45) 30%, rgba(var(--brand-rgb), 0.45) 70%, rgba(var(--brand-rgb), 0) 100%)' },
             '.dark &': { bgcolor: 'rgba(28, 27, 24, 0.82)' },
           }}
         >
-          <Toolbar sx={{ gap: { xs: 1, sm: 1.5 }, minHeight: { xs: 60, md: 72 }, px: { xs: 1.25, sm: 2, md: 3 } }}>
+          <Toolbar sx={{ gap: { xs: 1, sm: 1.5 }, minHeight: { xs: 68, md: 72 }, px: { xs: 1.25, sm: 2, md: 3 } }}>
             {!desktop && (
               <IconButton onClick={() => setMobileOpen(true)} aria-label={t('Open navigation')} sx={{ ml: -0.25, width: 40, height: 40, borderRadius: 2.5, border: 1, borderColor: 'divider', bgcolor: 'background.paper' }}>
                 <MenuRoundedIcon sx={{ fontSize: 21 }} />
