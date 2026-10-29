@@ -86,7 +86,8 @@ function Line({ label, value, minus, total, tone, hint }) {
 /** Previous / next month around the month's name; no going past this month. */
 function MonthSwitch({ month, onChange }) {
   return (
-    <Stack direction="row" sx={{ alignItems: 'center', border: 1, borderColor: 'divider', borderRadius: 2, bgcolor: 'background.paper', flexShrink: 0 }}>
+    // Its own text colour: it sits on the page header's dark band, whose light text would vanish on this white box.
+    <Stack direction="row" sx={{ alignItems: 'center', border: 1, borderColor: 'divider', borderRadius: 2, bgcolor: 'background.paper', color: 'text.primary', flexShrink: 0 }}>
       <IconButton size="small" aria-label={t('Previous month')} onClick={() => onChange(shiftMonth(month, -1))}>
         <ChevronLeftRoundedIcon />
       </IconButton>
